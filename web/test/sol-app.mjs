@@ -130,7 +130,7 @@ const hashes = [1, 2, 3].map((i) => sha(solOf(gid, i).solSeed));
     assert.equal("disabled" in button(hero, "Swap").attrs, false, "Swap is on");
     t.ui.tab = "overview";
     button(hero, "Swap").on.click();
-    assert.equal(t.ui.tab, "swap", "Swap opens the swap demo page");
+    assert.equal(t.ui.tab, "swap", "Swap opens the swap page");
     t.ui.tab = "overview";
     const zec = asset(tree, "zec");
     const balance = one(zec, (n) => n.className === "asset-balance-block");

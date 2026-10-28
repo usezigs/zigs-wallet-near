@@ -1,13 +1,14 @@
-// Presentation and local demo interactions only. No signing or payment APIs are imported.
+// Live NEAR Intents quotes and local demo interactions. No signing or payment APIs are imported.
 import { el } from './app-dom.js';
 import { icon } from './app-icons.js';
+import { NearIntentsSwapProvider } from './near-intents-swap-provider.js';
 import { createPostQuantumSwapPreview } from './app-postquantum-swap-preview.js';
-import { MockSwapProvider, SWAP_DEMO_ASSETS, SWAP_DEMO_STEPS, SwapPreviewModel,
-  swapDecimal, swapDemoAsset, swapInputError } from './swap-preview-model.js';
+import { SWAP_ASSETS, SWAP_DEMO_STEPS, SWAP_SLIPPAGES, SwapPreviewModel, swapAsset, swapDecimal,
+  swapInputError, swapRate, swapTime, swapUsd } from './swap-preview-model.js';
 
-export const DEMO_TAG = 'Demo · no funds';
+export const LIVE_TAG = 'Live quotes · no funds move';
 const previewTag = () => el('span', { class: 'swap-preview-tag' },
-  el('span', { 'aria-hidden': 'true' }, '◌'), DEMO_TAG);
+  el('span', { 'aria-hidden': 'true' }, '◌'), LIVE_TAG);
 const token = (asset) => el('img', { class: 'swap-token ' + asset.tone,
   src: asset.icon, alt: '', width: 32, height: 32, 'aria-hidden': 'true' });
 const text = (cls, value, tag = 'p') => el(tag, { class: cls }, value);
@@ -15,51 +16,68 @@ const button = (label, cls, onclick, attrs = {}) => el('button', {
   type: 'button', class: cls, onclick, ...attrs,
 }, label);
 const detail = (name, value) => el('div', { class: 'swap-detail-row' }, el('dt', {}, name), el('dd', {}, value));
-export const ZEC_PRIVACY = 'NEAR Intents 1Click handles ZEC only at transparent addresses, so a '
-  + 'swap with ZEC would leave the shielded pool. Transparent Zcash transfers can reveal '
-  + 'information.';
-const privacy = (zec) => zec
-  ? ZEC_PRIVACY
-  : 'Network visibility varies by route. Input, output and intermediate transfers may be publicly visible.';
+const chevron = () => el('span', { class: 'swap-chevron', 'aria-hidden': 'true' }, icon('chevronDown'));
+export const ZEC_PRIVACY = 'A swap from ZEC leaves the shielded pool, because NEAR Intents takes '
+  + 'ZEC only at a transparent deposit address, which is public. A swap to ZEC can pay a shielded '
+  + 'address.';
+export const QUOTE_PRIVACY = 'Zigs sends the pair, the amount and the slippage to NEAR Intents '
+  + 'through the Zigs server, with sample addresses and no address of yours. NEAR Intents sees '
+  + 'the Zigs server, not your IP address.';
+export const NO_RUN = 'Zigs cannot run this swap: NEAR Intents runs on mainnet only, and this '
+  + 'wallet is on testnet.';
+const privacy = (zec) => (zec ? ZEC_PRIVACY
+  : 'Network visibility varies by route. Input, output and intermediate transfers may be '
+    + 'publicly visible.') + ' ' + QUOTE_PRIVACY;
+const ASKING = 'Asking NEAR Intents for a quote…';
+const STATUS = { QUOTING: ASKING, INPUT_VALID: ASKING };
+const statusText = (s) => (s.quote ? 'Live NEAR Intents quote, mainnet price'
+  : STATUS[s.phase] ?? 'Choose a pair and enter an amount to get a live quote.');
+const money = (q, name, usd) => detail(name + ' (NEAR Intents estimate)', swapUsd(q?.[usd]));
+// The rows of a quote: the same in the page, the details dialog and the review.
+const quoteRows = (q, from, to) => [
+  detail('Rate', q ? '1 ' + from.symbol + ' ≈ ' + swapRate(q, from, to) + ' ' + to.symbol : '—'),
+  detail('Minimum received', q ? swapDecimal(q.minAmountOut, to) + ' ' + to.symbol : '—'),
+  money(q, 'Value you pay', 'amountInUsd'), money(q, 'Value you receive', 'amountOutUsd'),
+  detail('Estimated time', swapTime(q?.timeEstimate))];
 
-/** The optional provider argument is used only by the isolated development harness. */
-export function createSwapPreview(context = {}, provider = new MockSwapProvider()) {
+/** The provider and clock arguments are for the isolated development harness and the tests. */
+export function createSwapPreview(context = {}, provider = new NearIntentsSwapProvider(), clock) {
   let source = context, modal = null, observer = null, trigger = null;
   let pickerSide = null, searchText = '', rotation = 0;
-  const model = new SwapPreviewModel(provider, update);
+  const model = new SwapPreviewModel(provider, update, clock);
   const root = el('div', { class: 'page swap-page', id: 'panel-swap',
     'data-key': 'panel-swap', tabindex: '-1' });
   const pay = el('input', { id: 'swap-amount', class: 'swap-amount', type: 'text',
     inputmode: 'decimal', autocomplete: 'off', spellcheck: 'false', placeholder: '0.00',
     'aria-label': 'Amount you pay', 'aria-describedby': 'swap-amount-help swap-error',
-    oninput: (ev) => { void model.update({ amount: ev.target.value }); } });
+    oninput: (ev) => { model.type(ev.target.value); } });
   const receive = el('input', { class: 'swap-amount swap-output', readonly: true,
-    'aria-label': 'Illustrative amount you receive', value: '—', tabindex: '0' });
+    'aria-label': 'Amount you receive', value: '—', tabindex: '0' });
   const fromButton = button('', 'swap-asset-button', (ev) => openPicker('from', ev.currentTarget),
     { 'aria-label': 'Choose asset to pay', 'aria-haspopup': 'dialog', 'data-key': 'swap-from' });
   const toButton = button('', 'swap-asset-button', (ev) => openPicker('to', ev.currentTarget),
     { 'aria-label': 'Choose asset to receive', 'aria-haspopup': 'dialog', 'data-key': 'swap-to' });
   const fromNetwork = text('swap-network', ''), toNetwork = text('swap-network', '');
   const error = text('swap-error', ''); error.id = 'swap-error'; error.setAttribute('role', 'status');
-  const quoteStatus = text('swap-quote-status', 'Select a pair and enter an amount to see a demo quote.');
-  quoteStatus.setAttribute('role', 'status');
+  const quoteLine = text('swap-quote-status', statusText({}));
+  quoteLine.setAttribute('role', 'status');
   const quoteDetails = el('dl', { class: 'swap-quote-details' });
   const reverse = button(icon('swap'), 'swap-reverse', () => {
     rotation += 180; reverse.style.setProperty('--swap-rotation', rotation + 'deg');
     void model.reverse();
   }, { 'aria-label': 'Reverse swap direction', 'data-key': 'swap-reverse' });
-  const review = button(['Review demo swap', el('span', { 'aria-hidden': 'true' }, icon('external'))],
+  const review = button(['Review quote', el('span', { 'aria-hidden': 'true' }, icon('external'))],
     'swap-primary', (ev) => {
       if (!model.review()) return;
-      openModal('Review demo swap', ev.currentTarget); drawReview();
+      openModal('Review quote', ev.currentTarget); drawReview();
     }, { disabled: true, 'data-key': 'swap-review', 'aria-haspopup': 'dialog' });
   const routeFrom = el('div', { class: 'swap-route-end' });
   const routeTo = el('div', { class: 'swap-route-end' });
   const privacyText = text('', '');
-  const destination = el('select', { id: 'swap-destination', 'aria-label': 'Preview destination',
+  const destination = el('select', { id: 'swap-destination', 'aria-label': 'Example destination (demo)',
     onchange: (ev) => { void model.update({ destination: ev.target.value }); } },
-  el('option', { value: 'example' }, 'Example destination · preview only'),
-  el('option', { value: '' }, 'Choose a preview destination'));
+  el('option', { value: 'example' }, 'Example destination · demo only'),
+  el('option', { value: '' }, 'Choose a destination'));
   const settings = el('details', { class: 'swap-settings' });
   const settingValue = el('span', {}, '0.5%');
   const presets = [50, 100, 200].map((bps) => button(bps / 100 + '%', 'swap-preset', () => {
@@ -67,7 +85,7 @@ export function createSwapPreview(context = {}, provider = new MockSwapProvider(
   }, { 'aria-pressed': bps === 50 ? 'true' : 'false' }));
   settings.append(el('summary', {}, icon('settings'), 'Slippage', settingValue),
     el('div', { class: 'swap-settings-panel' }, text('', 'Maximum slippage', 'strong'),
-      text('swap-caption', 'Demo setting'), el('div', { class: 'swap-presets' }, presets)));
+      text('swap-caption', 'Sent with the quote request'), el('div', { class: 'swap-presets' }, presets)));
   const sourceLine = text('swap-source-context', '');
   const networkLine = text('', '');
   const quantumFlow = createPostQuantumSwapPreview(() => {
@@ -81,12 +99,13 @@ export function createSwapPreview(context = {}, provider = new MockSwapProvider(
     }, { 'aria-label': 'Continue to post-quantum swap demo' });
   let activeTab = 'private';
   const modes = [
-    { id: 'private', label: 'Swap demo', status: 'Demo' },
-    { id: 'quantum', label: 'Post-quantum swap demo', status: 'Demo' },
+    { id: 'private', label: 'Swap', status: 'Live quotes', provider: 'Quotes: NEAR Intents (mainnet)' },
+    { id: 'quantum', label: 'Post-quantum swap demo', status: 'Demo',
+      provider: 'Planned provider: NEAR Intents' },
   ];
   const modeTabs = modes.map((mode) => button([
     el('span', { class: 'swap-tab-label' }, mode.label),
-    el('span', { class: 'swap-tab-provider' }, 'Planned provider: NEAR Intents'),
+    el('span', { class: 'swap-tab-provider' }, mode.provider),
     el('span', { class: 'swap-tab-status', id: 'swap-tab-' + mode.id + '-status' }, mode.status),
   ], 'swap-mode-tab', () => selectTab(mode.id), {
     role: 'tab', id: 'swap-tab-' + mode.id, 'aria-controls': 'swap-panel-' + mode.id,
@@ -103,9 +122,9 @@ export function createSwapPreview(context = {}, provider = new MockSwapProvider(
   root.append(el('header', { class: 'swap-heading' },
     el('div', { class: 'swap-topline' }, text('swap-eyebrow', 'EXCHANGE'), previewTag()),
     el('h1', {}, 'Swap assets', el('span', { 'aria-hidden': 'true' }, '.')),
-    text('swap-subtitle', 'A demo of swapping across networks. No funds move and no real quote is '
-      + 'requested.')),
-  el('div', { class: 'swap-mode-tabs', role: 'tablist', 'aria-label': 'Swap demos' }, modeTabs),
+    text('swap-subtitle', 'Live prices from NEAR Intents on mainnet. This app runs on Zcash testnet '
+      + 'and Solana Devnet, so it cannot run a swap. No funds move.')),
+  el('div', { class: 'swap-mode-tabs', role: 'tablist', 'aria-label': 'Swap pages' }, modeTabs),
   el('div', { class: 'swap-panel', id: 'swap-panel-private', role: 'tabpanel',
     'aria-labelledby': 'swap-tab-private', tabindex: '0' },
   el('div', { class: 'swap-grid' },
@@ -115,32 +134,32 @@ export function createSwapPreview(context = {}, provider = new MockSwapProvider(
         el('div', { class: 'swap-amount-row' }, pay, fromButton),
         el('div', { class: 'swap-network-row' }, fromNetwork,
           button('Max', 'swap-max', null, { disabled: true, 'aria-describedby': 'swap-amount-help' })),
-        el('p', { class: 'swap-caption', id: 'swap-amount-help' }, 'Demo: no wallet balance is used')),
+        el('p', { class: 'swap-caption', id: 'swap-amount-help' }, 'No wallet balance is used')),
       el('div', { class: 'swap-switch-row' }, reverse),
       el('div', { class: 'swap-pane swap-receive' },
         el('div', { class: 'swap-pane-label' }, el('span', {}, 'You receive'),
-          text('swap-caption', 'Illustrative estimate', 'span')),
+          text('swap-caption', 'Estimate', 'span')),
         el('div', { class: 'swap-amount-row' }, receive, toButton), toNetwork),
-      el('div', { class: 'swap-quote' }, quoteStatus, quoteDetails), error,
+      el('div', { class: 'swap-quote' }, quoteLine, quoteDetails), error,
       el('div', { class: 'swap-composer-footer' }, review,
-        text('swap-caption swap-footer-note', 'Demo: no funds move and no real quote is requested.'))),
+        text('swap-caption swap-footer-note', 'No funds move. This page asks for quotes only.'))),
     el('aside', { class: 'swap-support', 'aria-label': 'Swap route and details' },
       el('section', { class: 'swap-detail-card' },
         el('div', { class: 'swap-detail-heading' }, el('h2', {},
           button(['Swap details', el('span', { 'aria-hidden': 'true' }, icon('external'))], 'swap-details-open',
             (ev) => { openModal('Swap details', ev.currentTarget); drawDetails(); },
             { 'aria-haspopup': 'dialog', 'data-key': 'swap-details' })), settings),
-        text('swap-caption', 'Conceptual route'),
+        text('swap-caption', 'Route'),
         el('div', { class: 'swap-route' }, routeFrom,
           el('span', { class: 'swap-route-link', 'aria-hidden': 'true' }, icon('forward')), routeTo),
         el('div', { class: 'swap-provider' }, el('span', { class: 'swap-provider-mark', 'aria-hidden': 'true' }, 'N'),
-          el('div', {}, text('', 'NEAR Intents', 'strong'), text('swap-caption', 'Planned provider · no live route'))),
-        el('div', { class: 'swap-destination' }, el('label', { for: 'swap-destination' }, 'Receive to'), destination),
+          el('div', {}, text('', 'NEAR Intents', 'strong'), text('swap-caption', 'Live quotes · mainnet only'))),
+        el('div', { class: 'swap-destination' }, el('label', { for: 'swap-destination' }, 'Receive to · Demo'), destination),
         button(['Execution & network context', icon('external')], 'swap-disclosure',
           (ev) => { openModal('Swap details', ev.currentTarget); drawDetails(); }, { 'aria-haspopup': 'dialog' })),
       el('section', { class: 'swap-privacy', 'aria-label': 'Route privacy' },
         icon('security'), el('div', {}, text('', 'Know the privacy boundary', 'h2'), privacyText)),
-      text('swap-caption swap-support-note', 'Example assets and rates only. No swap route is available in this version.')))),
+      text('swap-caption swap-support-note', NO_RUN)))),
   el('section', { class: 'swap-panel swap-quantum-panel', id: 'swap-panel-quantum', role: 'tabpanel',
     'aria-labelledby': 'swap-tab-quantum', tabindex: '0', hidden: true },
     el('div', { class: 'swap-quantum-intro' },
@@ -162,7 +181,7 @@ export function createSwapPreview(context = {}, provider = new MockSwapProvider(
     el('div', { class: 'swap-quantum-boundary' },
       text('', 'What this would protect', 'strong'),
       text('', 'The full swap is not quantum-secure. Provider and public-chain visibility remain. '
-        + 'NEAR Intents 1Click handles ZEC only at transparent addresses.')),
+        + ZEC_PRIVACY)),
     quantumFlow.element));
   update();
 
@@ -187,42 +206,53 @@ export function createSwapPreview(context = {}, provider = new MockSwapProvider(
   }
 
   function update() {
-    const s = model.value, from = swapDemoAsset(s.from), to = swapDemoAsset(s.to);
+    const s = model.value, from = swapAsset(s.from), to = swapAsset(s.to);
     root.dataset.swapPhase = s.phase;
-    fromButton.replaceChildren(token(from), el('span', {}, from.symbol), el('span', { class: 'swap-chevron', 'aria-hidden': 'true' }, icon('chevronDown')));
-    toButton.replaceChildren(token(to), el('span', {}, to.symbol), el('span', { class: 'swap-chevron', 'aria-hidden': 'true' }, icon('chevronDown')));
-    fromNetwork.textContent = from.network + ' · preview'; toNetwork.textContent = to.network + ' · preview';
-    routeFrom.replaceChildren(token(from), text('swap-caption', 'FROM', 'span'), text('', from.network, 'strong'), text('swap-caption', from.symbol));
-    routeTo.replaceChildren(token(to), text('swap-caption', 'TO', 'span'), text('', to.network, 'strong'), text('swap-caption', to.symbol));
+    drawPair(from, to);
     if (pay.value !== s.amount) pay.value = s.amount;
     pay.setAttribute('aria-invalid', String(!!s.error));
-    receive.value = s.quote ? swapDecimal(s.quote.outputAtomic, to) : '—';
-    receive.setAttribute('aria-label', 'Illustrative amount you receive: ' + receive.value + ' ' + to.symbol);
+    receive.value = s.quote ? swapDecimal(s.quote.amountOut, to) : '—';
+    receive.setAttribute('aria-label', 'Amount you receive: ' + receive.value + ' ' + to.symbol);
     error.textContent = s.error;
     error.hidden = !s.error;
-    const ready = !!s.quote && ['MOCK_QUOTE_READY', 'REVIEW_CANCELLED'].includes(s.phase);
+    const ready = !!s.quote && ['QUOTE_READY', 'REVIEW_CANCELLED'].includes(s.phase);
     if (s.phase === 'REVIEW_CANCELLED') model.resume();
     review.disabled = !ready;
-    quoteStatus.textContent = s.quote ? 'Demo quote, not a real price' : s.phase === 'MOCK_QUOTING'
-      ? 'Calculating demo quote…' : 'Select a pair and enter an amount to see a demo quote.';
-    const rate = (from.basis / to.basis).toLocaleString('en-US', { maximumFractionDigits: 8 });
-    quoteDetails.replaceChildren(
-      detail('Illustrative rate', s.quote ? '1 ' + from.symbol + ' ≈ ' + rate + ' ' + to.symbol : '—'),
-      detail('Minimum received', s.quote ? swapDecimal(s.quote.minimumOutputAtomic, to) + ' ' + to.symbol : '—'),
-      detail('Network & provider fees', 'Calculated with a live quote'));
+    quoteLine.textContent = statusText(s);
+    quoteDetails.replaceChildren(...quoteRows(s.quote, from, to));
     settingValue.textContent = s.slippageBps / 100 + '%';
-    presets.forEach((b, i) => b.setAttribute('aria-pressed', String([50, 100, 200][i] === s.slippageBps)));
+    presets.forEach((b, i) => b.setAttribute('aria-pressed', String(SWAP_SLIPPAGES[i] === s.slippageBps)));
     privacyText.textContent = privacy(from.symbol === 'ZEC' || to.symbol === 'ZEC');
+    drawContext();
+    drawRetry(s);
+    syncModal(s);
+  }
+  function drawPair(from, to) {
+    fromButton.replaceChildren(token(from), el('span', {}, from.symbol), chevron());
+    toButton.replaceChildren(token(to), el('span', {}, to.symbol), chevron());
+    fromNetwork.textContent = from.network + ' · mainnet'; toNetwork.textContent = to.network + ' · mainnet';
+    routeFrom.replaceChildren(token(from), text('swap-caption', 'FROM', 'span'), text('', from.network, 'strong'), text('swap-caption', from.symbol));
+    routeTo.replaceChildren(token(to), text('swap-caption', 'TO', 'span'), text('', to.network, 'strong'), text('swap-caption', to.symbol));
+  }
+  function drawContext() {
     sourceLine.textContent = 'Source wallet: ' + (source.name || 'no wallet selected') + '. '
       + (source.threshold || 'Approval requirements will be shown with a selected wallet.');
     networkLine.textContent = (source.networks || 'Zcash Testnet · Solana Devnet')
-      + '. Live execution requires separate network-compatibility approval; there is no mainnet fallback.';
+      + '. NEAR Intents runs on mainnet only, so Zigs cannot run a swap here. There is no mainnet '
+      + 'fallback.';
+  }
+  function drawRetry(s) {
     root.querySelectorAll('.swap-retry').forEach((n) => n.remove());
-    if (s.error && s.amount && !swapInputError(s, provider.fixture)
-      && ['MOCK_QUOTE_ERROR', 'MOCK_QUOTE_STALE'].includes(s.phase))
-      error.append(' ', button('Retry preview', 'swap-retry', () => { void model.update(); }));
-    if (modal && !pickerSide && modal.dataset.swapDetails !== 'true'
-      && !['REVIEW_OPEN', 'DEMO_PROGRESS', 'DEMO_COMPLETE', 'REVIEW_CANCELLED'].includes(s.phase)) closeModal(false);
+    const retry = s.error && s.amount && !swapInputError(s, provider.fixture)
+      && ['QUOTE_ERROR', 'QUOTE_STALE'].includes(s.phase);
+    if (retry) error.append(' ', button('Refresh quote', 'swap-retry', () => { void model.update(); }));
+  }
+  // A dialog of the review or the simulation goes when the quote goes.
+  function syncModal(s) {
+    const keeps = ['REVIEW_OPEN', 'DEMO_PROGRESS', 'DEMO_COMPLETE', 'REVIEW_CANCELLED'];
+    if (modal && !pickerSide && modal.dataset.swapDetails !== 'true' && !keeps.includes(s.phase)) {
+      closeModal(false);
+    }
     if (modal && ['DEMO_PROGRESS', 'DEMO_COMPLETE'].includes(s.phase)) drawProgress();
   }
 
@@ -255,7 +285,7 @@ export function createSwapPreview(context = {}, provider = new MockSwapProvider(
     } });
     modal.append(el('div', { class: 'swap-modal-heading' },
       el('div', {}, previewTag(), el('h2', { id: 'swap-modal-title', tabindex: '-1' }, title)),
-      button(icon('close'), 'swap-close', () => closeModal(), { 'aria-label': 'Close preview dialog' })),
+      button(icon('close'), 'swap-close', () => closeModal(), { 'aria-label': 'Close dialog' })),
     el('div', { class: 'swap-modal-content' }));
     document.body.append(modal); modal.showModal();
     modal.querySelector('h2').focus();
@@ -266,87 +296,84 @@ export function createSwapPreview(context = {}, provider = new MockSwapProvider(
     openModal(side === 'from' ? 'Choose asset to pay' : 'Choose asset to receive', opener);
     pickerSide = side; searchText = '';
     const search = el('input', { class: 'swap-search', type: 'search', placeholder: 'Search asset or network',
-      'aria-label': 'Search illustrative assets', oninput: (ev) => { searchText = ev.target.value; drawAssets(); } });
+      'aria-label': 'Search assets', oninput: (ev) => { searchText = ev.target.value; drawAssets(); } });
     modal.querySelector('.swap-modal-content').append(search,
       el('div', { class: 'swap-asset-list' }),
-      text('swap-caption', 'Illustrative assets only. Live support will be checked against provider and wallet capabilities.'));
+      text('swap-caption', 'Only ZEC, SOL and USDC are available for quotes.'));
     drawAssets(); search.focus();
   }
   function drawAssets() {
-    const matches = SWAP_DEMO_ASSETS.filter((a) => (a.symbol + ' ' + a.name + ' ' + a.network).toLowerCase().includes(searchText.trim().toLowerCase()));
+    const matches = SWAP_ASSETS.filter((a) => (a.symbol + ' ' + a.name + ' ' + a.network).toLowerCase().includes(searchText.trim().toLowerCase()));
     modal.querySelector('.swap-asset-list').replaceChildren(...(matches.length ? matches.map((a) => button([
-      token(a), el('span', {}, text('', a.symbol + ' · ' + a.network, 'strong'), text('swap-caption', a.name + ' · illustrative', 'span')),
+      token(a), el('span', {}, text('', a.symbol + ' · ' + a.network, 'strong'), text('swap-caption', a.name, 'span')),
       el('span', { class: 'swap-choice-mark', 'aria-hidden': 'true' }, a.id === model.value[pickerSide] ? '✓' : '↗'),
     ], 'swap-asset-choice', () => {
       const side = pickerSide; closeModal(false); void model.update({ [side]: a.id });
-    }, { 'aria-label': a.symbol + ' on ' + a.network + ', illustrative' }))
-      : [text('swap-picker-empty', 'No example assets match your search.') ]));
+    }, { 'aria-label': a.symbol + ' on ' + a.network }))
+      : [text('swap-picker-empty', 'No assets match your search.')]));
   }
   function reviewRows() {
-    const s = model.value, from = swapDemoAsset(s.from), to = swapDemoAsset(s.to);
+    const s = model.value, q = s.quote, from = swapAsset(s.from), to = swapAsset(s.to);
     return el('dl', { class: 'swap-review-details' },
       detail('You pay', s.amount + ' ' + from.symbol + ' · ' + from.network),
-      detail('Estimated receive', swapDecimal(s.quote.outputAtomic, to) + ' ' + to.symbol + ' · ' + to.network),
-      detail('Minimum received', swapDecimal(s.quote.minimumOutputAtomic, to) + ' ' + to.symbol),
-      detail('Maximum slippage', s.slippageBps / 100 + '% · simulated'),
-      detail('Recipient', 'Example destination — preview only'),
-      detail('Refund destination', 'Example refund — preview only'),
+      detail('Estimated receive', swapDecimal(q.amountOut, to) + ' ' + to.symbol + ' · ' + to.network),
+      ...quoteRows(q, from, to),
+      detail('Maximum slippage', s.slippageBps / 100 + '%'),
+      detail('Quote', 'Live NEAR Intents quote, mainnet price' + (q.quotedAt
+        ? ' · ' + q.quotedAt.slice(11, 19) + ' UTC' : '')),
+      detail('Recipient', 'Example destination · Demo'),
+      detail('Refund destination', 'Example refund · Demo'),
       detail('Source wallet', source.name || 'No wallet selected'),
       detail('Approval requirement', source.threshold || 'Shown after wallet selection'),
-      detail('Network & provider fees', 'Calculated with a live quote'),
-      detail('Price impact & timing', 'Not supplied by this illustrative quote'),
-      detail('Quote basis', 'Illustrative · no reservation or expiry'),
-      detail('Route', from.network + ' → NEAR Intents (planned) → ' + to.network));
+      detail('Route', from.network + ' → NEAR Intents → ' + to.network));
   }
   function drawDetails() {
     modal.dataset.swapDetails = 'true';
-    const s = model.value, from = swapDemoAsset(s.from), to = swapDemoAsset(s.to);
+    const s = model.value, from = swapAsset(s.from), to = swapAsset(s.to);
     const select = destination.cloneNode(true);
     select.id = 'swap-modal-destination'; select.value = s.destination;
     select.addEventListener('change', (ev) => {
       const value = ev.target.value; closeModal(false); void model.update({ destination: value });
     });
     modal.querySelector('.swap-modal-content').replaceChildren(
-      text('swap-caption', 'Demo route · no real quote'),
-      text('swap-details-route', from.network + ' → NEAR Intents (planned) → ' + to.network),
+      text('swap-caption', 'Live quote · mainnet price'),
+      text('swap-details-route', from.network + ' → NEAR Intents → ' + to.network),
       quoteDetails.cloneNode(true),
-      el('div', { class: 'swap-destination' }, el('label', { for: select.id }, 'Receive to'), select),
+      el('div', { class: 'swap-destination' }, el('label', { for: select.id }, 'Receive to · Demo'), select),
       text('swap-caption', sourceLine.textContent),
       el('div', { class: 'swap-review-warning' }, text('', 'Privacy & network context', 'strong'),
         text('', privacy(from.symbol === 'ZEC' || to.symbol === 'ZEC')), text('', networkLine.textContent),
-        text('', 'The external provider would coordinate delivery through a trusted swapping agent. Wallet approval protection does not extend to the whole route.')),
-      text('swap-caption', 'Only ZEC, SOL and USDC are shown. Example rates and assets do not guarantee live support.'),
-      button('Back to preview', 'swap-secondary', () => closeModal()));
+        text('', 'A swap through NEAR Intents would run through an external provider and a trusted swapping agent. Wallet approval protection would not extend to the whole route.')),
+      text('swap-caption', 'Only ZEC, SOL and USDC are shown.'),
+      button('Back to swap', 'swap-secondary', () => closeModal()));
   }
   function drawReview() {
-    const to = swapDemoAsset(model.value.to);
+    const s = model.value, from = swapAsset(s.from), to = swapAsset(s.to);
     modal.querySelector('.swap-modal-content').replaceChildren(
-      el('div', { class: 'swap-review-amount' }, text('swap-caption', 'Illustrative receive amount'),
-        text('', swapDecimal(model.value.quote.outputAtomic, to), 'strong'), text('swap-caption', to.symbol + ' · ' + to.network)),
+      el('div', { class: 'swap-review-amount' }, text('swap-caption', 'Estimated receive amount'),
+        text('', swapDecimal(s.quote.amountOut, to), 'strong'), text('swap-caption', to.symbol + ' · ' + to.network)),
       reviewRows(),
       el('div', { class: 'swap-review-warning' }, text('', 'Review the route boundary', 'strong'),
-        text('', privacy(swapDemoAsset(model.value.from).symbol === 'ZEC' || to.symbol === 'ZEC')),
-        text('', (source.networks || 'Zcash Testnet · Solana Devnet')
-          + ' execution is not integrated. No destination or refund address has been validated.')),
-      text('swap-simulation-note', 'Demo: no funds move, nothing is signed and no real quote is used.'),
+        text('', privacy(from.symbol === 'ZEC' || to.symbol === 'ZEC')), text('', NO_RUN)),
+      text('swap-simulation-note', 'Demo: the steps below are simulated. No funds move and nothing is signed.'),
       button(['Simulate swap flow', el('span', { 'aria-hidden': 'true' }, icon('forward'))], 'swap-primary', () => {
         modal.querySelector('h2').textContent = 'Swap flow simulation'; model.simulate();
         modal.querySelector('h2').focus();
-      }), button('Back to preview', 'swap-secondary', () => closeModal()));
+      }), button('Back to swap', 'swap-secondary', () => closeModal()));
   }
   function drawProgress() {
     const s = model.value, done = s.phase === 'DEMO_COMPLETE';
     modal.querySelector('.swap-modal-content').replaceChildren(
-      text('swap-simulation-note', 'Demo only · no funds, no signing, no real quote'),
+      text('swap-simulation-note', 'Demo only · simulated steps. No funds move and nothing is signed.'),
       el('ol', { class: 'swap-progress-list' }, SWAP_DEMO_STEPS.map((step, i) => el('li', {
         class: i < s.step ? 'is-demonstrated' : i === s.step ? 'is-current' : '',
         'aria-current': i === s.step ? 'step' : null,
       }, el('span', { class: 'swap-step-number', 'aria-hidden': 'true' }, i < s.step ? '✓' : i + 1),
       el('div', {}, text('', step, 'strong'), text('swap-caption', i < s.step ? 'Demonstrated · no real event'
-        : i === s.step ? 'Next simulated step' : 'Illustrative step'))))),
-      el('p', { class: 'swap-demo-result', role: 'status' }, done ? 'Demo complete. No funds moved and no real quote was used.'
+        : i === s.step ? 'Next simulated step' : 'Later simulated step'))))),
+      el('p', { class: 'swap-demo-result', role: 'status' }, done ? 'Demo complete. The steps were simulated. No funds moved.'
         : 'Advance each example step yourself. Nothing is broadcast or signed.'),
-      button(done ? 'Back to preview' : 'Next demo step →', 'swap-primary', () => {
+      button(done ? 'Back to swap' : 'Next demo step →', 'swap-primary', () => {
         if (done) { closeModal(false); void model.update(); return; }
         model.advance(); modal.querySelector('.swap-primary').focus({ preventScroll: true });
       }));

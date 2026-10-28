@@ -1,8 +1,8 @@
 // Local product mock only. Never imports a live provider, signing, keys or persistence.
 import { el } from './app-dom.js';
 import { icon } from './app-icons.js';
-import { MockSwapProvider, SWAP_DEMO_ASSETS, SwapPreviewModel,
-  swapDecimal, swapDemoAsset } from './swap-preview-model.js';
+import { MockSwapProvider, SWAP_ASSETS, SwapPreviewModel, swapAsset, swapDecimal,
+  swapRate } from './swap-preview-model.js';
 
 const text = (cls, value, tag = 'p') => el(tag, { class: cls }, value);
 const button = (label, cls, onclick, attrs = {}) => el('button', {
@@ -31,9 +31,9 @@ export function createPostQuantumSwapPreview(onExit) {
     oninput: () => { void model.update({ amount: amount.value }); } });
   const destinationAsset = el('select', { id: 'pq-receive-asset', 'aria-label': 'Demo receive asset',
     onchange: () => { void model.update({ to: destinationAsset.value }); } },
-  ...[SWAP_DEMO_ASSETS[2], SWAP_DEMO_ASSETS[1]].map(a => el('option', { value: a.id }, a.symbol + ' · ' + a.network)));
+  ...[SWAP_ASSETS[2], SWAP_ASSETS[1]].map(a => el('option', { value: a.id }, a.symbol + ' · ' + a.network)));
   const next = button(['Review demo swap', el('span', { 'aria-hidden': 'true' }, icon('forward'))], 'swap-primary', () => {
-    if (!model.value.quote || model.value.phase !== 'MOCK_QUOTE_READY') return;
+    if (!model.value.quote || model.value.phase !== 'QUOTE_READY') return;
     reviewed = Object.freeze({ amount: model.value.amount, to: model.value.to, quote: model.value.quote });
     show('review');
   }, { disabled: true });
@@ -41,7 +41,7 @@ export function createPostQuantumSwapPreview(onExit) {
     el('div', { class: 'swap-pane' },
       el('label', { class: 'pq-label', for: 'pq-amount' }, 'You pay · Zcash'),
       el('div', { class: 'swap-amount-row' }, amount,
-        el('span', { class: 'pq-asset' }, token(SWAP_DEMO_ASSETS[0]), 'ZEC'))),
+        el('span', { class: 'pq-asset' }, token(SWAP_ASSETS[0]), 'ZEC'))),
     el('div', { class: 'pq-route-arrow', 'aria-hidden': 'true' }, '↓'),
     el('div', { class: 'swap-pane swap-receive' },
       el('label', { class: 'pq-label', for: 'pq-receive-asset' }, 'Illustrative receive · Solana'),
@@ -71,24 +71,24 @@ export function createPostQuantumSwapPreview(onExit) {
   }
   function start() {
     run++; stage = 'configure'; reviewed = null; approvals = 0; progress = 0; outcome = null;
-    root.hidden = false; amount.value = '1'; destinationAsset.value = SWAP_DEMO_ASSETS[2].id;
+    root.hidden = false; amount.value = '1'; destinationAsset.value = SWAP_ASSETS[2].id;
     show('configure');
-    void model.update({ from: SWAP_DEMO_ASSETS[0].id, to: destinationAsset.value,
+    void model.update({ from: SWAP_ASSETS[0].id, to: destinationAsset.value,
       amount: amount.value, destination: 'example', slippageBps: 50 });
   }
   function updateQuote() {
-    const s = model.value, to = swapDemoAsset(s.to);
-    receive.textContent = s.quote ? swapDecimal(s.quote.outputAtomic, to) : '—';
+    const s = model.value, to = swapAsset(s.to);
+    receive.textContent = s.quote ? swapDecimal(s.quote.amountOut, to) : '—';
     receive.setAttribute('aria-label', 'Illustrative receive amount: ' + receive.textContent + ' ' + to.symbol);
     error.textContent = s.error; error.hidden = !s.error;
     amount.setAttribute('aria-invalid', String(!!s.error));
-    next.disabled = !s.quote || s.phase !== 'MOCK_QUOTE_READY';
+    next.disabled = !s.quote || s.phase !== 'QUOTE_READY';
     quoteDetails.replaceChildren(
-      detail('Illustrative minimum', s.quote ? swapDecimal(s.quote.minimumOutputAtomic, to) + ' ' + to.symbol : '—'));
+      detail('Illustrative minimum', s.quote ? swapDecimal(s.quote.minAmountOut, to) + ' ' + to.symbol : '—'));
     if (stage === 'configure') drawRecap();
   }
   function drawRecap() {
-    const to = swapDemoAsset(reviewed?.to || model.value.to);
+    const to = swapAsset(reviewed?.to || model.value.to);
     recap.replaceChildren(
       el('div', { class: 'pq-recap-preview' },
         el('div', { class: 'pq-key-card' }, icon('security'),
@@ -108,7 +108,7 @@ export function createPostQuantumSwapPreview(onExit) {
   }
   function openDetails(opener) {
     closeDetails(); detailsOpener = opener;
-    const s = reviewed || model.value, to = swapDemoAsset(s.to);
+    const s = reviewed || model.value, to = swapAsset(s.to);
     detailsDialog = el('dialog', { class: 'swap-modal pq-details-dialog', 'aria-labelledby': 'pq-details-title' },
       el('div', { class: 'swap-modal-heading' },
         el('h2', { id: 'pq-details-title', tabindex: '-1' }, 'Swap details & privacy'),
@@ -117,14 +117,14 @@ export function createPostQuantumSwapPreview(onExit) {
       el('dl', { class: 'swap-review-details' },
         detail('Example wallet', '2 of 3 device approvals'),
         detail('Route', 'ZEC → ' + to.symbol + ' on Solana'),
-        detail('Illustrative rate', '1 ZEC ≈ ' + (80 / to.basis) + ' ' + to.symbol),
-        detail('Illustrative minimum', s.quote ? swapDecimal(s.quote.minimumOutputAtomic, to) + ' ' + to.symbol : 'Unavailable'),
+        detail('Illustrative rate', s.quote ? '1 ZEC ≈ ' + swapRate(s.quote, SWAP_ASSETS[0], to) + ' ' + to.symbol : 'Unavailable'),
+        detail('Illustrative minimum', s.quote ? swapDecimal(s.quote.minAmountOut, to) + ' ' + to.symbol : 'Unavailable'),
         detail('Fees', 'Unquoted; not deducted in demo'),
         detail('Receive to', 'Example wallet · no real address'),
         detail('Refund to', 'Transparent Zcash address · example'),
         detail('Example reference', reference())),
       el('div', { class: 'pq-boundary' }, text('', 'Privacy boundary', 'strong'),
-        text('', 'A live swap would reserve its own refund viewing key before quoting, keeping your usual address out of those swap parameters. NEAR Intents 1Click handles ZEC only at transparent addresses, so a live swap with ZEC would leave the shielded pool. Provider and public-chain visibility still apply. The full swap is not quantum-secure.')),
+        text('', 'A live swap would reserve its own refund viewing key before quoting, keeping your usual address out of those swap parameters. A live swap from ZEC would leave the shielded pool, because NEAR Intents takes ZEC only at a transparent deposit address, which is public. A swap to ZEC can pay a shielded address. Provider and public-chain visibility still apply. The full swap is not quantum-secure.')),
       text('swap-caption', 'No keys, addresses, transactions or recovery records are created. Live recovery must rediscover receipts and refunds after device loss; this demo does not verify it.'),
       button('Back to swap', 'swap-primary', closeDetails));
     detailsDialog.addEventListener('cancel', ev => { ev.preventDefault(); ev.stopPropagation(); closeDetails(); });
@@ -167,17 +167,17 @@ export function createPostQuantumSwapPreview(onExit) {
     focusTitle();
   }
   function summary() {
-    const to = swapDemoAsset(reviewed.to), q = reviewed.quote;
+    const to = swapAsset(reviewed.to), q = reviewed.quote;
     return el('div', { class: 'pq-swap-summary' },
-      el('div', {}, token(SWAP_DEMO_ASSETS[0]), text('swap-caption', 'PAY'), text('', reviewed.amount + ' ZEC', 'strong')),
+      el('div', {}, token(SWAP_ASSETS[0]), text('swap-caption', 'PAY'), text('', reviewed.amount + ' ZEC', 'strong')),
       el('span', { 'aria-hidden': 'true' }, icon('forward')),
-      el('div', {}, token(to), text('swap-caption', 'EXAMPLE RECEIVE'), text('', swapDecimal(q.outputAtomic, to) + ' ' + to.symbol, 'strong')));
+      el('div', {}, token(to), text('swap-caption', 'EXAMPLE RECEIVE'), text('', swapDecimal(q.amountOut, to) + ' ' + to.symbol, 'strong')));
   }
   function expire() { approvals = 0; progress = 0; reviewed = null; show('expired'); }
   function drawReview() {
-    const to = swapDemoAsset(reviewed.to);
+    const to = swapAsset(reviewed.to);
     content.append(summary(), el('dl', { class: 'swap-review-details' },
-      detail('Example minimum', swapDecimal(reviewed.quote.minimumOutputAtomic, to) + ' ' + to.symbol),
+      detail('Example minimum', swapDecimal(reviewed.quote.minAmountOut, to) + ' ' + to.symbol),
       detail('Slippage', '0.5% · illustrative'),
       detail('Receive to', 'Example wallet'),
       detail('Refund to', 'Transparent · example'),
@@ -221,11 +221,11 @@ export function createPostQuantumSwapPreview(onExit) {
     }));
   }
   function drawResult() {
-    const refund = outcome === 'refund', to = swapDemoAsset(reviewed.to);
+    const refund = outcome === 'refund', to = swapAsset(reviewed.to);
     content.append(el('div', { class: 'pq-result', role: 'status' },
       icon(refund ? 'swap' : 'security'),
       text('swap-caption', refund ? 'EXAMPLE REFUND' : 'EXAMPLE DELIVERY'),
-      text('', refund ? 'Refund to Zcash' : swapDecimal(reviewed.quote.outputAtomic, to) + ' ' + to.symbol, 'h3'),
+      text('', refund ? 'Refund to Zcash' : swapDecimal(reviewed.quote.amountOut, to) + ' ' + to.symbol, 'h3'),
       text('pq-body', refund
         ? 'Demo result. No funds moved and no real quote was used.'
         : 'Demo result. No funds moved and no real quote was used. Unquoted fees excluded.')),

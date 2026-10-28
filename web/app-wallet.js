@@ -276,7 +276,7 @@ function balanceOverview(valuation = null) {
     state.g.network === "testnet" ? el("p", { class: "portfolio-network-note" }, "Test funds have no cash value.") : null)),
     el("div", { class: "overview-actions" }, assetActionPicker("send"), assetActionPicker("receive"),
       el("button", { class: "btn", type: "button", "data-key": "overview-swap",
-        title: "Open the Swap demo", onclick: () => { ui.tab = "swap"; render(); } },
+        title: "Open Swap", onclick: () => { ui.tab = "swap"; render(); } },
       icon("swap"), "Swap")));
 }
 

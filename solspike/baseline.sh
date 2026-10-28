@@ -88,7 +88,7 @@ TESTS=(messaging-presentation messaging-cost-review messaging-account-view premi
   chat signed app
   requests account personal payees
   vault util qr shim shim-status
-  lwd zns
+  lwd zns near-quote
   sol-config sol-docs sol-ceremony sol-app sol-wasm sol-sessions sol-limits sol-pay sol-pay-exec
   sol-pay-seats sol-pay-lease sol-pay-look sol-pay-end sol-transfer
   unified-setup help

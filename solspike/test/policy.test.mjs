@@ -56,11 +56,13 @@ class Rewriter {
 
 /** The default export of cf/src/index.js, with the Cloudflare imports replaced by stubs. */
 function loadWorker() {
-  // A vm script has no import: the gate module (cf/src/gate.js) goes in as text.
-  const gate = readFileSync(join(ROOT, "cf/src/gate.js"), "utf8").replace(/^export /gm, "");
+  // A vm script has no import: the gate and near modules (cf/src) go in as text.
+  const text = (name) => readFileSync(join(ROOT, "cf/src", name), "utf8");
+  const [gate, near] = ["gate.js", "near.js"].map((n) => text(n).replace(/^export /gm, ""));
   const code = readFileSync(join(ROOT, "cf/src/index.js"), "utf8")
     .replace('import { DurableObject } from "cloudflare:workers";', "class DurableObject {}")
     .replace('import { gate, withCookie } from "./gate.js";', gate)
+    .replace('import { nearQuote } from "./near.js";', near)
     .replace("export default {", "globalThis.worker = {")
     .replace("export class Store", "class Store");
   const context = {

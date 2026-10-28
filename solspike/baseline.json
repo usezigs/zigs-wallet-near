@@ -1,5 +1,5 @@
 {
-  "baseCommit": "fd272f5174f0c75c14b55aa11c2cb4addba174c5",
+  "baseCommit": "51ef508969d7e36a31c1f8e1d28591b3d8bbceb0",
   "node": "v26.12.1",
   "tests": {
     "web/test/messaging-presentation.mjs": {
@@ -84,6 +84,9 @@
       "exit": 0
     },
     "web/test/zns.mjs": {
+      "exit": 0
+    },
+    "web/test/near-quote.mjs": {
       "exit": 0
     },
     "web/test/sol-config.mjs": {

@@ -195,7 +195,8 @@ function sideTree() {
     const note = findNode(sideTree(), (n) => n.attrs?.["data-key"] === "release-note");
     assert.equal(note, null, "the side list omits the recurring release warning");
     const swap = findNode(sideTree(), (n) => n.attrs?.["data-key"] === "tab-swap");
-    assert.equal(swap && textOf(swap), "Swap, Demo", "the Swap item of the side list says Demo");
+    assert.equal(swap && textOf(swap), "Swap, Live quotes",
+      "the Swap item of the side list says Live quotes");
     for (const origin of ["https://wallet.example:8792/", "http://localhost:8794/",
       "http://localhost:8795/", "https://localhost/", "not a URL"]) {
       location.href = origin;

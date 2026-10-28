@@ -6,12 +6,14 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-// A data: URL module resolves no relative import, so the gate module gets its file URL.
+// A data: URL module resolves no relative import, so the gate and near modules get file URLs.
 const GATE = new URL("../../cf/src/gate.js", import.meta.url).href;
+const NEAR = new URL("../../cf/src/near.js", import.meta.url).href;
 const source = readFileSync(new URL("../../cf/src/index.js", import.meta.url), "utf8").replace(
   'import { DurableObject } from "cloudflare:workers";',
   "const DurableObject = class { constructor(ctx, env) { this.ctx = ctx; this.env = env; } };",
-).replace('from "./gate.js";', `from "${GATE}";`);
+).replace('from "./gate.js";', `from "${GATE}";`)
+  .replace('from "./near.js";', `from "${NEAR}";`);
 assert.ok(!source.includes("cloudflare:workers"), "the Cloudflare import is stubbed");
 const { default: worker, Store } = await import(
   `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`

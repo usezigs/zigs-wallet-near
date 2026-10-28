@@ -22,9 +22,11 @@
   // src/index.js).
   // Light-wallet relay calls (/lwd) per network and minute, the same way. A first sync of a
   // month of blocks peaks at 68 calls a minute (TICKETS.md PRIV-8).
+  // Dry swap quotes (/near/quote) per network and minute, the same way.
   "ratelimits": [
     { "name": "WS_PER_IP", "namespace_id": "1003", "simple": { "limit": 60, "period": 60 } },
-    { "name": "LWD_PER_IP", "namespace_id": "1005", "simple": { "limit": 600, "period": 60 } }
+    { "name": "LWD_PER_IP", "namespace_id": "1005", "simple": { "limit": 600, "period": 60 } },
+    { "name": "NEAR_PER_IP", "namespace_id": "1007", "simple": { "limit": 60, "period": 60 } }
   ],
   "durable_objects": {
     "bindings": [{ "name": "STORE", "class_name": "Store" }]
@@ -42,7 +44,8 @@
       "routes": [{ "pattern": "staging.zigs.app", "custom_domain": true }],
       "ratelimits": [
         { "name": "WS_PER_IP", "namespace_id": "1004", "simple": { "limit": 60, "period": 60 } },
-        { "name": "LWD_PER_IP", "namespace_id": "1006", "simple": { "limit": 600, "period": 60 } }
+        { "name": "LWD_PER_IP", "namespace_id": "1006", "simple": { "limit": 600, "period": 60 } },
+        { "name": "NEAR_PER_IP", "namespace_id": "1008", "simple": { "limit": 60, "period": 60 } }
       ],
       "durable_objects": {
         "bindings": [{ "name": "STORE", "class_name": "Store" }]

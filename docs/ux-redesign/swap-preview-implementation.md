@@ -1,5 +1,10 @@
 # Swap preview implementation
 
+> Update of 28 October 2026: the first page of Swap now shows live NEAR Intents quotes (dry quotes
+> of mainnet prices through `/near/quote`). Zigs still cannot run a swap, and no funds move. The
+> second page stays a labelled demo. The text below describes the first, all-demo version. See
+> [PRIVACY.md](../../PRIVACY.md#swap-quotes-near-intents).
+
 Implemented on `codex/swap-page`, based on `codex/ux-ui-final` at `27a81b1`.
 Inputs: **ZIGS_SWAP_NEAR_INTENTS_PRD.md**, version 1.0 (23 October 2026), and
 **ZIGS_SWAP_INTERACTIVE_MOCK.html**. The accidentally supplied Approvals brief was excluded.

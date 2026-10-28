@@ -364,7 +364,7 @@ synced to the mainnet tip in the web app and on the iPhone.
 | [`wasm/src/ffi.rs`](wasm/src/ffi.rs) | C interface for the iPhone and Mac apps |
 | [`web/index.html`](web/index.html), [`web/app.css`](web/app.css), [`web/app.js`](web/app.js), `web/app-*.js` | The web app: page, styles, and the script: `web/app.js` lists the 9 pure modules and the 25 page modules and starts the page (no inline script or style; see [The page modules](#the-page-modules)) |
 | [`web/shim.js`](web/shim.js), [`web/qr.js`](web/qr.js), [`web/payees.js`](web/payees.js), [`web/requests.js`](web/requests.js), [`web/personal.js`](web/personal.js), [`web/vault.js`](web/vault.js), [`web/chat.js`](web/chat.js), [`web/signed.js`](web/signed.js), [`web/zns.js`](web/zns.js) | Store client, QR encoder, payment list parser with the memo rules and the recipient check, payment request cards and Send form rows, the rules of the personal account (contacts, fee, states of a message, backup), passkey lock, message helpers, the rules for signed writes, and the ZNS name lookup with the check of an approver (no third-party code) |
-| [`cf/src/index.js`](cf/src/index.js) | Group server: Cloudflare Worker with one Durable Object per wallet, limits against abuse. It also serves `/sol` and `/sol/config.json` for the Solana beta, relays `/lwd` to our testnet light-wallet node, and serves `/zns`, a copy of the testnet ZNS name registry |
+| [`cf/src/index.js`](cf/src/index.js) | Group server: Cloudflare Worker with one Durable Object per wallet, limits against abuse. It also serves `/sol` and `/sol/config.json` for the Solana beta, relays `/lwd` to our testnet light-wallet node, serves `/zns`, a copy of the testnet ZNS name registry, and answers `/near/quote` (`cf/src/near.js`) with a dry NEAR Intents quote of ZEC, SOL or USDC (the Swap page; no funds move; [how](PRIVACY.md#swap-quotes-near-intents)) |
 | [`web/sol/`](web/sol) | Solana beta in the page: ceremony, signing sessions, backup, the Worker that talks to Helius, the Solana wasm, and the vendored Zolana SDK bundle (third-party code, hash pinned in `SHA256SUMS`) |
 | [`infra/lwd/`](infra/lwd) | Our testnet light-wallet node: Zakura, lightwalletd and Envoy with a keyed tunnel listener and a tailnet listener, and the Cloudflare tunnel |
 | [`wasm-sol/`](wasm-sol) | Solana engine in Rust: message checker, FROST-Ed25519 ceremony and signing, key roles. It has its own lockfile and builds to `web/sol/wasm/` |
@@ -761,6 +761,11 @@ folder path.
   `web/zns.js`: the names that the Send form accepts (no t-address or TEX form), a lookup, an
   unknown name, a registry too far behind the tip of the wallet, a name that moved, and the
   refusal of an approving device whose copy gives another address.
+- `node web/test/near-quote.mjs`: the `/near/quote` route with a stub for `fetch`: the method rule,
+  the 512-byte body limit, the allowlist of the three assets, the dry request that the Worker
+  builds (fixed sample addresses, no header of the user, redirect not followed), the check of the
+  answer, the seven fields of the answer, the three errors (too low, no route, unavailable), the
+  limit for each network (429 before the call), and the password gate.
 - `node web/test/mainnet-off.mjs`: mainnet is off for this release. The network picker of a new
   wallet and of the personal account shows Testnet only and no tick, a chat reads testnet
   requests only, the page texts name Zcash testnet and Solana Devnet, and the testnet faucet is

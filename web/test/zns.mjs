@@ -7,12 +7,14 @@ import { ZNS_KEY, ZNS_MAX_LAG, ZNS_RECENT_BLOCKS, createRegistry, movedNote, nam
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 const workerSource = read("../../cf/src/index.js");
-// A data: URL module resolves no relative import, so the gate module gets its file URL.
+// A data: URL module resolves no relative import, so the gate and near modules get file URLs.
 const GATE = new URL("../../cf/src/gate.js", import.meta.url).href;
+const NEAR = new URL("../../cf/src/near.js", import.meta.url).href;
 let copies = 0; // a copy of the Worker has its own snapshot: the comment makes a new data: URL
 const loadWorker = async () => {
   const code = workerSource.replace('import { DurableObject } from "cloudflare:workers";',
-    "const DurableObject = class {};").replace('from "./gate.js";', `from "${GATE}";`) +
+    "const DurableObject = class {};").replace('from "./gate.js";', `from "${GATE}";`)
+    .replace('from "./near.js";', `from "${NEAR}";`) +
     `\n// copy ${copies++}`;
   return (await import("data:text/javascript," + encodeURIComponent(code))).default;
 };

@@ -33,6 +33,10 @@ is a bug: please report it.
   device, in a copy of the whole name registry that the app Worker downloads. No
   server learns which name you pay. The registry itself is public: anyone can see which address a
   name gives. Read [ZNS names](#zns-names-testnet).
+- The Swap page shows live prices from NEAR Intents on mainnet (dry quotes, web app only). Zigs
+  cannot run a swap: no funds move. The app Worker asks for each quote. It sends the pair, the
+  amount and the slippage, with sample addresses and no address of yours. NEAR Intents sees the
+  Worker and not your IP address. Read [Swap quotes](#swap-quotes-near-intents).
 
 ## On chain
 
@@ -140,8 +144,8 @@ This links a wallet id to a transaction id, but not to its amount or recipient.
 - **Mainnet** wallets use ChainSafe's public light-wallet server, so the two servers have
   different operators.
 - **Testnet** wallets use the Zigs light-wallet server first, with ChainSafe as the backup. The
-  page calls the Zigs server through the app Worker (`/lwd`, behind the password gate), and its
-  public side answers the Worker only. So our node sees each request from the Worker, not from your
+  page calls the Zigs server through the app Worker (`/lwd`), and its public side answers the
+  Worker only. So our node sees each request from the Worker, not from your
   device, and it does not see your IP address. The Worker sees your IP address and the requests,
   as it does for the page and the group server. It keeps no log and sends no header of yours to the
   node. Envoy also removes the visitor headers of Cloudflare before lightwalletd. Cloudflare sees
@@ -151,7 +155,8 @@ This links a wallet id to a transaction id, but not to its amount or recipient.
   Cloudflare location), which uses the IP address in memory only. A first sync runs at about 70 to
   90 calls a minute on a fast computer (measured), and an open wallet then makes about 3 a minute.
   So the limit slows a stranger who uses our node through `/lwd`, but it does not stop one: a
-  stranger can sync a wallet under it. Until launch, the password gate is what keeps strangers out.
+  stranger can sync a wallet under it. Since 27 October 2026 app.zigs.app asks no password, so
+  this limit is the only guard against a stranger there. Staging keeps its password.
   The ChainSafe backup still sees your IP address. A page over the limit also turns to ChainSafe,
   which then sees your IP address and, with memos on, which transactions you read. The iPhone and
   Mac apps still call `lwd.zigs.app` directly, which refuses them, so they use ChainSafe for testnet
@@ -248,6 +253,47 @@ What the app trusts, and what it checks:
 - Mainnet wallets do not look up names.
 - zcashnames.co is another registry, with names that look the same. The app reads only the ZNS
   registry of zcashnames.com.
+
+## Swap quotes (NEAR Intents)
+
+**Status:** live quotes only. The Swap page of the web app shows prices from NEAR Intents (the
+1Click API). Zigs cannot run a swap, because NEAR Intents runs on mainnet only and the web app
+runs on Zcash testnet and Solana Devnet. No funds move, no API key is used, and no deposit
+address is made.
+
+How a quote works:
+
+- The page posts the pair (ZEC, SOL or USDC on Solana), the amount and the slippage to
+  `/near/quote` of the app Worker. The page never calls NEAR Intents itself.
+- The Worker builds a dry quote request (`"dry": true`) for NEAR Intents. A dry quote makes no
+  deposit address and no state. The request holds two fixed sample addresses: a public Zcash test
+  vector and a public Solana program id. They are not addresses of yours.
+- The Worker sends a content type and an accept header only. It sends no cookie, no IP address and
+  no user agent of yours. It checks the answer, keeps seven fields, and answers with
+  `Cache-Control: no-store`. It stores nothing and writes no log.
+- The Worker limits `/near/quote` to 60 calls a minute for each IPv4 address or IPv6 /64
+  (`NEAR_PER_IP`, counted per Cloudflare location). It uses the IP address in memory only.
+
+| Party | What it learns |
+|---|---|
+| NEAR Intents (`1click.chaindefuser.com`) | The pair, the amount, the slippage and the time of each quote, and the sample addresses. It sees the Worker, not your IP address. It cannot link a quote to a wallet or to you |
+| App Worker | Your IP address, and the pair, the amount and the slippage of each quote. It keeps no log |
+| Cloudflare | Connection data, as for every request to the app |
+| Group server, light-wallet server | Nothing |
+| Chain observers | Nothing: no transaction exists |
+
+What stays visible:
+
+- The page asks for a quote when you stop typing, and again when you change the pair or the
+  slippage. So the Worker and NEAR Intents see each amount that you pause on.
+- A quote older than 60 seconds is cleared on the page. The page asks for a new quote only after
+  an action of yours: when you type, change the pair or the slippage, press **Refresh quote**, or
+  leave the simulation with **Back to swap**.
+- A real swap from ZEC would leave the shielded pool. NEAR Intents takes ZEC only at a transparent
+  deposit address, which is public. A swap to ZEC can pay a shielded address. The page says this
+  next to the quote.
+- NEAR Intents is a third party with its own terms. The prices are mainnet prices, and they can
+  change within seconds.
 
 ## Solana beta (Helius Devnet)
 

@@ -2,6 +2,7 @@
 // pushes every change of that group to its connected members over a WebSocket.
 import { DurableObject } from "cloudflare:workers";
 import { gate, withCookie } from "./gate.js";
+import { nearQuote } from "./near.js";
 
 const GROUP_ID = /^[0-9a-f]{20}$/;
 // The light-wallet servers in NETWORKS (web/app-chain.js) that the page calls itself. The page may
@@ -139,8 +140,8 @@ function ipv6Groups(ip) {
   return fits && !groups.some(Number.isNaN) ? groups : null;
 }
 
-// The key of a client for the limits per network (WS_PER_IP, LWD_PER_IP and the sockets and
-// writes of a Store): an IPv4 address, or the /64 of an IPv6 address, because a client usually
+// The key of a client for the limits per network (WS_PER_IP, LWD_PER_IP, NEAR_PER_IP and the
+// sockets and writes of a Store): an IPv4 address, or the /64 of an IPv6 address, because a client usually
 // holds a whole /64. An IPv4-mapped IPv6 address is its IPv4 address. Without the header (local
 // dev) the key is "local", and an address that does not parse is its own key.
 // ponytail: an ISP that gives a customer a /56 or a /48 still gives it many counters.
@@ -456,6 +457,9 @@ async function route(req, env, ctx) {
   if (url.pathname === "/ws") return groupSocket(req, env, url);
   if (url.pathname.startsWith("/lwd/")) return lwd(req, env, url);
   if (url.pathname === "/zns") return zns(req, ctx);
+  if (url.pathname === "/near/quote") {
+    return nearQuote(req, env, { key: clientKey(req), readBody: smallBody });
+  }
   if (url.pathname === "/" || url.pathname === "/index.html") {
     const page = await env.ASSETS.fetch(new URL("/index.html", url));
     const res = new HTMLRewriter()

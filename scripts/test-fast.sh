@@ -17,7 +17,7 @@ FAST="optional-passkey demo-check chain-fallback chat backup-check graph persona
   messaging-presentation messaging-cost-review messaging-account-view premium-motion homepage-motion
   outcome-seal passkey-setup wallet-description guided-setup
   recipients swap-preview
-  payees vault lwd zns
+  payees vault lwd zns near-quote
   requests shim shim-status
   signed util account qr
   sol-docs sol-transfer sol-wasm mainnet-off
