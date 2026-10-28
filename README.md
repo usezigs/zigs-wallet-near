@@ -138,7 +138,7 @@ To see device changes, open **Devices**, then **Change devices**. To see the pri
 |---|---|
 | **Privacy** | On chain, the transaction shape matches the standard wallet library: same builder, padding, standard fee and anchor depth. A group payment expires after one day instead of 40 blocks, because its approvals take hours, so the expiry marks it, and so does a priority fee ([comparison](PRIVACY.md#on-chain)). The server stores only encrypted values, padded so that even their length hides amounts. On the device, key shares can be locked with a passkey ([how](PRIVACY.md#lock-with-a-passkey-or-face-id)). Key share backups are encrypted with a passphrase (Argon2id and XChaCha20-Poly1305) ([how](PRIVACY.md#key-share-backups)). The page can connect only to its own host (the group server and the testnet light-wallet relay) and two ChainSafe light-wallet servers (Content-Security-Policy). For testnet wallets, the Solana Worker of the page also connects to the Helius Devnet host ([how](PRIVACY.md#solana-beta-helius-devnet)). With local proving on, it also fetches the proving keys from one CloudFront folder (`d3gbdb0egjwcw9.cloudfront.net/proving-keys/3a1c88f90f609eb1/`, `SOL_KEYS` in `cf/src/index.js`). It is prepared for Tor Browser, but not yet tested end to end ([how](PRIVACY.md#use-zigs-over-tor)). The Zigs server code keeps no logs; its host, Cloudflare, can see connection data. Every remaining leak is listed in [PRIVACY.md](PRIVACY.md). |
 | **Usefulness** | Designed for team treasuries, DAOs and families. Usable today in the web app, on Zcash testnet and Solana Devnet: invite links and QR codes; batch payments for payroll and grants (up to 20 recipients, one approval round, pasted from a spreadsheet); device changes; encrypted key share backups. |
-| **Execution** | The live app works end to end. The testnet and Devnet transactions that the apps made, a payment to a ZNS name among them, are [listed below](#proof-on-testnet-and-devnet). The engine has 127 tests, and a command-line suite runs adversarial cases. |
+| **Execution** | The live app works end to end. The testnet and Devnet transactions that the apps made, a payment to a ZNS name among them, are [listed below](#proof-on-testnet-and-devnet). The engine has 128 tests, and a command-line suite runs adversarial cases. |
 | **Originality** | An end-user app for re-randomized FROST: no command line, no trusted dealer, and no server that can read the wallet. Each device decodes the PCZT and checks every output before it approves, and binds its approval to the transaction's sighash. Device changes and batch payments are included. The iPhone and Mac code in `ios/` is not part of this release. Built during the Zecathon window: the first commit is from October 15, 2026. |
 
 ## Architecture
@@ -553,7 +553,7 @@ folder path.
   clock (`web/test/page.mjs`) that leaves out a stall such as a sleep of the computer, so a
   lifetime that the page measures with `Date.now()` cannot run out in the middle of a test. Timers
   still count a stall.
-- `cargo test --release` in `wasm/` (127 tests, and 1 ignored test for ZEC-1):
+- `cargo test --release` in `wasm/` (128 tests, and 1 ignored test for ZEC-1):
   - Signing: full 2-of-3 flows for Ironwood (paying 4 recipients in one transaction) and Orchard.
   - Expiry and fees: a group payment expires after one day of blocks (75 or 25 seconds each), at
     most up to the next upgrade. The approver refuses an expired payment and one that stays valid
@@ -574,7 +574,9 @@ folder path.
   - Padded sealing: old values, wrong keys and moved values. The saved sync state. The native
     wallet interface.
   - The version 2 and 3 key ceremony: hashes against their written formulas, known answers, the
-    safety number and the wallet check.
+    safety number and the wallet check. The ZIP 2005 keys match the 8 shared `use_qsk` vectors
+    of frost-tools PR 610, which Zkool and frost-zec also match
+    (`wasm/test-vectors/zip2005_use_qsk.json`).
   - The backup file: round trip, wrong passphrase, each changed header field and a known answer
     made outside the crate. Limits, passphrase rules and a later file version.
   - The signed text of a document: key order and spacing do not matter, a known answer holds, and

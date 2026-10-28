@@ -614,6 +614,41 @@ mod tests {
         assert!(fvk_v2(ak, [1u8; 32]).unwrap_err().contains("even y"));
     }
 
+    // The shared ZIP 2005 use_qsk vectors (not official ZIP vectors), which Zkool and frost-zec
+    // also match. The values come unchanged from ZcashFoundation/frost-tools PR 610 (head
+    // 038204d4, Apache-2.0); only the description of the file is new.
+    #[test]
+    fn shared_zip2005_vectors_match() {
+        let file = v(include_str!("../test-vectors/zip2005_use_qsk.json"));
+        assert_eq!(file["qk_context"], QK_CONTEXT);
+        let vectors = file["vectors"].as_array().unwrap();
+        assert_eq!(vectors.len(), 8);
+        for (i, want) in vectors.iter().enumerate() {
+            let field = |name: &str| want[name].as_str().unwrap();
+            let (sk, ak) = (hex_of::<32>(field("sk")), hex_of::<32>(field("ak")));
+            let (nk, qsk) = (h_nk(&sk).unwrap(), h_qsk(&sk));
+            let qk = h_qk(&qsk);
+            let fvk = fvk_v2(ak, sk).unwrap();
+            let address = fvk.address_at(0u32, orchard::keys::Scope::External);
+            let doc = wallet_doc(&fvk, Network::TestNetwork).unwrap();
+            let got = [
+                ("nk", hex::encode(nk)),
+                ("qsk", hex::encode(qsk)),
+                ("qk", hex::encode(qk)),
+                ("rivk_ext", hex::encode(h_rivk_ext(&qk, &ak, &nk))),
+                ("fvk", hex::encode(fvk.to_bytes())),
+                (
+                    "default_address_raw",
+                    hex::encode(address.to_raw_address_bytes()),
+                ),
+                ("ufvk_testnet", doc["ufvk"].as_str().unwrap().to_string()),
+            ];
+            for (name, value) in got {
+                assert_eq!(value, field(name), "vector {i}: {name}");
+            }
+        }
+    }
+
     #[test]
     fn create_v2_publishes_no_secret_and_verify_v2_compares_everything() {
         let pkp = group_package();
