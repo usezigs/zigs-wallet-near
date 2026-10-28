@@ -124,7 +124,7 @@ export function createPostQuantumSwapPreview(onExit) {
         detail('Refund to', 'Transparent Zcash address · example'),
         detail('Example reference', reference())),
       el('div', { class: 'pq-boundary' }, text('', 'Privacy boundary', 'strong'),
-        text('', 'A live swap would reserve its own refund viewing key before quoting, keeping your usual address out of those swap parameters. A live swap from ZEC would leave the shielded pool, because NEAR Intents takes ZEC only at a transparent deposit address, which is public. A swap to ZEC can pay a shielded address. Provider and public-chain visibility still apply. The full swap is not quantum-secure.')),
+        text('', 'A live swap would reserve its own refund viewing key before quoting, keeping your usual address out of those swap parameters. A live swap from ZEC would leave the shielded pool, because NEAR Intents takes ZEC only at a transparent deposit address, which is public. NEAR Intents accepts a shielded address as the recipient of a swap to ZEC, but no real swap has tested this. Provider and public-chain visibility still apply. The full swap is not quantum-secure.')),
       text('swap-caption', 'No keys, addresses, transactions or recovery records are created. Live recovery must rediscover receipts and refunds after device loss; this demo does not verify it.'),
       button('Back to swap', 'swap-primary', closeDetails));
     detailsDialog.addEventListener('cancel', ev => { ev.preventDefault(); ev.stopPropagation(); closeDetails(); });

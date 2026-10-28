@@ -524,8 +524,8 @@ try {
     'the second tab is a demo with a planned provider');
   assert.deepEqual(walk(root, (n) => /privacy options/i.test(n.attrs['aria-label'] ?? '')), [],
     'the swap tabs are not named as privacy options');
-  assert.match(ZEC_PRIVACY, /leaves the shielded pool, because NEAR Intents takes ZEC only at a transparent deposit address, which is public\. A swap to ZEC can pay a shielded address\./,
-    'the ZEC line names the transparent deposit address');
+  assert.match(ZEC_PRIVACY, /leaves the shielded pool, because NEAR Intents takes ZEC only at a transparent deposit address, which is public\. NEAR Intents accepts a shielded address as the recipient of a swap to ZEC, but no real swap has tested this\.$/,
+    'the ZEC line names the transparent deposit address and calls the shielded payout untested');
   assert.doesNotMatch(ZEC_PRIVACY + QUOTE_PRIVACY, /1Click|only at transparent addresses/);
   assert.ok(view().includes(ZEC_PRIVACY), 'a swap with ZEC shows the deposit address limit');
   assert.match(QUOTE_PRIVACY, /^Zigs sends the pair, the amount and the slippage to NEAR Intents through the Zigs server, with sample addresses and no address of yours\. NEAR Intents sees the Zigs server, not your IP address\.$/,
@@ -634,6 +634,8 @@ try {
   const pqDetails = walk(body, (n) => n.tag === 'dialog').at(-1);
   assert.match(text(pqDetails), /A live swap from ZEC would leave the shielded pool, because NEAR Intents takes ZEC only at a transparent deposit address, which is public\./,
     'the post-quantum details name the deposit address limit');
+  assert.match(text(pqDetails), /NEAR Intents accepts a shielded address as the recipient of a swap to ZEC, but no real swap has tested this\./,
+    'the post-quantum details call the shielded payout untested');
   const quantum = text(root.querySelector('#swap-panel-quantum'));
   assert.match(quantum, /leaves the shielded pool, because NEAR Intents takes ZEC only at a transparent deposit address/,
     'the post-quantum page names the deposit address limit');

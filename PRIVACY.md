@@ -291,8 +291,8 @@ What stays visible:
   an action of yours: when you type, change the pair or the slippage, press **Refresh quote**, or
   leave the simulation with **Back to swap**.
 - A real swap from ZEC would leave the shielded pool. NEAR Intents takes ZEC only at a transparent
-  deposit address, which is public. A swap to ZEC can pay a shielded address. The page says this
-  next to the quote.
+  deposit address, which is public. NEAR Intents accepts a shielded address as the recipient of a
+  swap to ZEC, but no real swap has tested this. The page says this next to the quote.
 - The basis of the shielded claim: a live dry quote accepted an Orchard-only unified address as
   recipient, and the Zodl wallet pays swaps to shielded addresses. A dry quote only checks the
   address, so no payout was made. The chain-support page of NEAR Intents still lists Zcash as

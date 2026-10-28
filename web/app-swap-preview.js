@@ -18,8 +18,8 @@ const button = (label, cls, onclick, attrs = {}) => el('button', {
 const detail = (name, value) => el('div', { class: 'swap-detail-row' }, el('dt', {}, name), el('dd', {}, value));
 const chevron = () => el('span', { class: 'swap-chevron', 'aria-hidden': 'true' }, icon('chevronDown'));
 export const ZEC_PRIVACY = 'A swap from ZEC leaves the shielded pool, because NEAR Intents takes '
-  + 'ZEC only at a transparent deposit address, which is public. A swap to ZEC can pay a shielded '
-  + 'address.';
+  + 'ZEC only at a transparent deposit address, which is public. NEAR Intents accepts a shielded '
+  + 'address as the recipient of a swap to ZEC, but no real swap has tested this.';
 export const QUOTE_PRIVACY = 'Zigs sends the pair, the amount and the slippage to NEAR Intents '
   + 'through the Zigs server, with sample addresses and no address of yours. NEAR Intents sees '
   + 'the Zigs server, not your IP address.';
