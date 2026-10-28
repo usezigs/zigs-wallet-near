@@ -58,8 +58,13 @@ assert.equal(model.value.phase, 'QUOTE_READY');
 await model.update({ to: sol.id }); assert.equal(model.value.quote, null);
 assert.match(model.value.error, /different/);
 await model.update({ to: zec.id, amount: '0' }); assert.match(model.value.error, /greater than zero/);
-await model.update({ amount: '2', destination: '' }); assert.match(model.value.error, /destination/);
-await model.update({ destination: 'example' }); model.stale();
+await model.update({ amount: '2' });
+model.chooseDestination('');
+assert.deepEqual([model.value.phase, model.value.error], ['QUOTE_READY', ''],
+  'a destination asks for no new quote');
+assert.equal(model.review(), true, 'no destination does not block a quote or its review');
+assert.equal(model.review(), false, 'an open review does not open again');
+model.cancelReview(); model.resume(); model.chooseDestination('example'); model.stale();
 assert.equal(model.value.phase, 'QUOTE_STALE'); assert.equal(model.review(), false);
 for (const [fixture, expected] of [[{ fail: true }, /unavailable/], [{ unsupported: true }, /no route/],
   [{ balanceAtomic: '1' }, /Insufficient fixture balance/], [{ staleBalance: true }, /out of date/]]) {
@@ -141,6 +146,11 @@ const livePro = (extra = {}) => ({ async supportedAssets() { return SWAP_ASSETS;
   await typed.update({ amount: '1', to: usdcSol.id });
   assert.equal(asked.length, 2);
   assert.equal(asked[1].destinationAssetId, usdcSol.id);
+  // The destination is a demo field: it changes no price, so it keeps the quote and asks nothing.
+  typed.chooseDestination('');
+  assert.deepEqual([asked.length, typed.value.phase, typed.value.destination],
+    [2, 'QUOTE_READY', ''], 'a destination asks for no new quote');
+  assert.equal(typed.review(), true);
   // A request that was open when a key came cannot show its answer.
   const slow = [];
   const raced = new SwapPreviewModel({ previewQuote: () => new Promise((r) => slow.push(r)) },
@@ -296,6 +306,11 @@ class FakeNode extends globalThis.Node {
   focus() {}
   contains(n) { return n === this || walk(this, (k) => k === n).length > 0; }
   getBoundingClientRect() { return { left: 0, right: 10, top: 0, bottom: 10 }; }
+  cloneNode() {
+    const copy = new FakeNode(this.tag);
+    return Object.assign(copy, { attrs: { ...this.attrs }, className: this.className,
+      id: this.id, value: this.value, kids: [...this.kids] });
+  }
   get lastChild() { return this.kids.at(-1); }
   get children() { return this.kids; }
   get textContent() { return text(this); }
@@ -516,7 +531,10 @@ try {
   assert.match(QUOTE_PRIVACY, /^Zigs sends the pair, the amount and the slippage to NEAR Intents through the Zigs server, with sample addresses and no address of yours\. NEAR Intents sees the Zigs server, not your IP address\.$/,
     'the quote line names the pair, the sample addresses and the server');
   assert.ok(view().includes(QUOTE_PRIVACY), 'the page says what the quote request sends');
+  assert.equal(NO_RUN, 'Zigs cannot run this swap: NEAR Intents runs on mainnet only, and this '
+    + 'wallet is on testnet.', 'the words of the no-run message');
   assert.ok(view().includes(NO_RUN), 'the page says that Zigs cannot run the swap');
+  assert.ok(view().includes('Receive to · Demo'), 'the destination is labelled Demo');
   assert.match(view(), /Choose a pair and enter an amount to get a live quote\./);
   // A key press asks nothing at once; the quote comes after the wait.
   const pay = root.querySelector('#swap-amount');
@@ -533,6 +551,10 @@ try {
     assert.match(view(), row, 'the quote shows ' + row);
   }
   assert.equal(root.querySelector('.swap-output').value, '12.562715651');
+  const where = root.querySelector('#swap-destination');
+  fire(where, 'change', { target: { value: '' } });
+  assert.equal(asked.length, 1, 'a destination asks for no new quote');
+  assert.equal(root.querySelector('.swap-primary').disabled, false, 'and it keeps the quote');
   press(root, 'Review quote');
   const modal = walk(body, (n) => n.tag === 'dialog').at(-1);
   assert.ok(text(modal).includes(LIVE_TAG), 'the review dialog carries the live tag');
@@ -542,6 +564,7 @@ try {
   assert.match(text(modal), /Quote.*mainnet price · 16:56:50 UTC/);
   assert.match(text(modal), /Recipient.*Demo.*Refund destination.*Demo/,
     'the example addresses stay labelled Demo');
+  assert.match(text(modal), /RecipientNone chosen · Demo/, 'the review follows the destination');
   assert.match(text(modal), /Demo: the steps below are simulated\. No funds move and nothing is signed\./);
   press(modal, 'Simulate swap flow');
   for (let i = 0; i < 5; i++) press(modal, 'Next demo step');
@@ -558,12 +581,44 @@ try {
   await settle();
   assert.equal(asked.length, before + 1, 'Refresh quote asks again');
   assert.match(view(), /Live NEAR Intents quote/);
+  // The details dialog follows the quote: the new rows show, and the rows go with an old quote.
+  let release;
+  pro.previewQuote = () => new Promise((resolve) => { release = () => resolve(live); });
+  fire(pay, 'input', { target: { value: '2' } });
+  await clock.tick(400);
+  press(root, 'Swap details');
+  const early = walk(body, (n) => n.tag === 'dialog').at(-1);
+  assert.match(text(early), /Asking NEAR Intents for a quote….*Rate—/,
+    'the details wait for the quote');
+  release(); await settle();
+  assert.match(text(early),
+    /Live NEAR Intents quote, mainnet price.*Rate1 ZEC ≈ 12\.562715651 SOL/,
+    'the details show the quote when it arrives');
+  fire(early.querySelector('#swap-modal-destination'), 'change', { target: { value: 'example' } });
+  assert.equal(early.open, true, 'a destination keeps the details open');
+  await clock.tick(60_000);
+  assert.match(text(early), /Rate—.*Minimum received—/, 'the details clear with the quote');
+  assert.doesNotMatch(text(early), /12\.562715651/, 'no old rate in the details');
+  press(early, 'Back to swap');
   // An error of the provider shows with the same button.
   pro.previewQuote = async () => { throw new NearQuoteError('too-low', '132000'); };
   fire(pay, 'input', { target: { value: '0.00001' } });
   await clock.tick(400);
   assert.match(view(), /NEAR Intents needs at least 0\.00132 ZEC for this route\./);
   assert.ok(named(root, 'Refresh quote'), 'an error offers Refresh quote');
+  assert.doesNotMatch(view(), /Choose a pair and enter an amount/,
+    'no idle prompt beside an error');
+  // A page with the demo provider (the development harness) never calls a quote a price.
+  const demoClock = fakeClock();
+  const demoRoot = createSwapPreview(context, new MockSwapProvider(), demoClock).element;
+  fire(demoRoot.querySelector('#swap-amount'), 'input', { target: { value: '1' } });
+  await demoClock.tick(400);
+  assert.match(text(demoRoot), /Demo quote, not a price/, 'a demo quote says Demo');
+  assert.doesNotMatch(text(demoRoot), /mainnet price/);
+  press(demoRoot, 'Review quote');
+  assert.match(text(walk(body, (n) => n.tag === 'dialog').at(-1)), /QuoteDemo quote, not a price/,
+    'the review of a demo quote says Demo');
+  press(walk(body, (n) => n.tag === 'dialog').at(-1), 'Back to swap');
   const flow = root.querySelector('.pq-flow');
   press(root, 'Continue');
   assert.match(text(flow), /DEMO · NO FUNDS MOVE/, 'the post-quantum flow is labelled as a demo');

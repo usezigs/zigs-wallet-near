@@ -55,7 +55,7 @@ const reviewButton = () => page.getByRole('button', { name: 'Preview swap', exac
 async function quote() {
   await amount().fill('1.25');
   await page.waitForFunction(() => document.querySelector('#panel-swap').dataset.swapPhase ===
-    'MOCK_QUOTE_READY');
+    'QUOTE_READY');
 }
 async function closeDialog() { await page.keyboard.press('Escape'); check(await page.locator(
   'dialog').count() === 0, 'Escape closes native dialog'); }
@@ -145,7 +145,7 @@ async function invalidationAndKeyboard() {
   await capture('invalid-1440');
   await quote(); await page.evaluate(() => window.swapFixture.model.stale());
   check(await reviewButton().isDisabled(), 'Stale quote cannot open review');
-  await page.getByRole('button', { name: 'Retry preview', exact: true }).click();
+  await page.getByRole('button', { name: 'Refresh quote', exact: true }).click();
   check(await reviewButton().isEnabled(), 'Cleared preview can be refreshed');
   await reviewButton().click();
   await page.getByRole('button', { name: 'Simulate swap flow', exact: false }).click();
@@ -169,7 +169,7 @@ async function fixtureStates() {
   }
   await open('error'); await amount().fill('1.25');
   await page.evaluate(() => { window.swapFixture.model.provider.fixture.fail = false; });
-  await page.getByRole('button', { name: 'Retry preview', exact: true }).click();
+  await page.getByRole('button', { name: 'Refresh quote', exact: true }).click();
   check(await reviewButton().isEnabled(), 'Provider error can be retried');
   await open(); await quote();
   await page.evaluate(() => document.documentElement.dataset.theme = 'light');

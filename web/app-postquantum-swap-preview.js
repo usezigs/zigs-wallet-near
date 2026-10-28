@@ -74,7 +74,7 @@ export function createPostQuantumSwapPreview(onExit) {
     root.hidden = false; amount.value = '1'; destinationAsset.value = SWAP_ASSETS[2].id;
     show('configure');
     void model.update({ from: SWAP_ASSETS[0].id, to: destinationAsset.value,
-      amount: amount.value, destination: 'example', slippageBps: 50 });
+      amount: amount.value, slippageBps: 50 });
   }
   function updateQuote() {
     const s = model.value, to = swapAsset(s.to);

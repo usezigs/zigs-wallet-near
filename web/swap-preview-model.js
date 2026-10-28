@@ -66,8 +66,7 @@ export function swapInputError(s, fixture) {
   if (!from || !to) return 'Choose an asset on each side.';
   if (s.from === s.to) return 'Choose different assets or networks.';
   if (!s.amount) return '';
-  return amountError(s.amount, from) || fixtureBalanceError(s.amount, from, fixture)
-    || (!s.destination ? 'Choose a destination.' : '');
+  return amountError(s.amount, from) || fixtureBalanceError(s.amount, from, fixture);
 }
 function amountError(text, from) {
   const amount = swapAtomic(text, from);
@@ -131,7 +130,7 @@ export class SwapPreviewModel {
   }
   emit() { this.changed(this.value); }
   applyInput(patch = {}) {
-    for (const key of ['from', 'to', 'amount', 'slippageBps', 'destination'])
+    for (const key of ['from', 'to', 'amount', 'slippageBps'])
       if (Object.hasOwn(patch, key)) this.value[key] = patch[key];
     const s = this.value;
     s.quote = null; s.step = 0; s.error = swapInputError(s, this.provider.fixture);
@@ -190,6 +189,8 @@ export class SwapPreviewModel {
     if (revision === this.revision && !demo) this.stale(OLD_QUOTE);
   }
   reverse() { return this.update({ from: this.value.to, to: this.value.from }); }
+  // The destination is a demo field. It cannot change a price, so it keeps the quote.
+  chooseDestination(destination) { this.value.destination = destination; this.emit(); }
   stale(message = CLEARED_QUOTE) {
     this.drop();
     Object.assign(this.value, { quote: null, phase: 'QUOTE_STALE', error: message });

@@ -141,9 +141,9 @@ function ipv6Groups(ip) {
 }
 
 // The key of a client for the limits per network (WS_PER_IP, LWD_PER_IP, NEAR_PER_IP and the
-// sockets and writes of a Store): an IPv4 address, or the /64 of an IPv6 address, because a client usually
-// holds a whole /64. An IPv4-mapped IPv6 address is its IPv4 address. Without the header (local
-// dev) the key is "local", and an address that does not parse is its own key.
+// sockets and writes of a Store): an IPv4 address, or the /64 of an IPv6 address, because a
+// client usually holds a whole /64. An IPv4-mapped IPv6 address is its IPv4 address. Without the
+// header (local dev) the key is "local", and an address that does not parse is its own key.
 // ponytail: an ISP that gives a customer a /56 or a /48 still gives it many counters.
 function clientKey(req) {
   const ip = (req.headers.get("CF-Connecting-IP") || "").trim();

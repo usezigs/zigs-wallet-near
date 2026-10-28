@@ -331,6 +331,10 @@ const noStore = (res, label) => {
     ["503", refuse(503, { message: "x" }), 502, DOWN],
     ["a redirect", redirect, 502, DOWN],
     ["a 304", () => new Response(null, { status: 304 }), 502, DOWN],
+    ["a 202 with a sound body", (sent) => {
+      const ok = good(sent);
+      return new Response(ok.body, { status: 202, headers: ok.headers });
+    }, 502, DOWN],
     ["a network failure", () => { throw new TypeError("fetch failed"); }, 502, DOWN],
   ];
   for (const [what, make, status, body] of cases) {
@@ -351,7 +355,7 @@ const noStore = (res, label) => {
   reply = good;
   taken();
   step("too low gives 400 with the minimum; other 4xx give 400 no-route; 401, 403, 408, 429, " +
-    "5xx, a redirect, a timeout and a failure give 502");
+    "5xx, a redirect, a 202, a timeout and a failure give 502");
 }
 
 // ── The limit per network: 429 over it, the key of the client, none without the binding ──

@@ -30,8 +30,14 @@ const privacy = (zec) => (zec ? ZEC_PRIVACY
     + 'publicly visible.') + ' ' + QUOTE_PRIVACY;
 const ASKING = 'Asking NEAR Intents for a quote…';
 const STATUS = { QUOTING: ASKING, INPUT_VALID: ASKING };
-const statusText = (s) => (s.quote ? 'Live NEAR Intents quote, mainnet price'
-  : STATUS[s.phase] ?? 'Choose a pair and enter an amount to get a live quote.');
+const IDLE = 'Choose a pair and enter an amount to get a live quote.';
+const LIVE_QUOTE = 'Live NEAR Intents quote, mainnet price';
+// A quote of the demo provider (the development harness) is no price of the market.
+const quoteLabel = (q) => (q.source === 'demo' ? 'Demo quote, not a price' : LIVE_QUOTE);
+function statusText(s) {
+  if (s.quote) return quoteLabel(s.quote);
+  return s.error && s.amount ? '' : STATUS[s.phase] ?? IDLE;
+}
 const money = (q, name, usd) => detail(name + ' (NEAR Intents estimate)', swapUsd(q?.[usd]));
 // The rows of a quote: the same in the page, the details dialog and the review.
 const quoteRows = (q, from, to) => [
@@ -39,10 +45,14 @@ const quoteRows = (q, from, to) => [
   detail('Minimum received', q ? swapDecimal(q.minAmountOut, to) + ' ' + to.symbol : '—'),
   money(q, 'Value you pay', 'amountInUsd'), money(q, 'Value you receive', 'amountOutUsd'),
   detail('Estimated time', swapTime(q?.timeEstimate))];
+// The quote block of the details dialog. update() draws it again, so it never shows an old quote.
+const quoteBlock = (s) => [text('swap-caption', statusText(s)),
+  el('dl', { class: 'swap-quote-details' },
+    quoteRows(s.quote, swapAsset(s.from), swapAsset(s.to)))];
 
 /** The provider and clock arguments are for the isolated development harness and the tests. */
 export function createSwapPreview(context = {}, provider = new NearIntentsSwapProvider(), clock) {
-  let source = context, modal = null, observer = null, trigger = null;
+  let source = context, modal = null, observer = null, trigger = null, detailBlock = null;
   let pickerSide = null, searchText = '', rotation = 0;
   const model = new SwapPreviewModel(provider, update, clock);
   const root = el('div', { class: 'page swap-page', id: 'panel-swap',
@@ -75,7 +85,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   const routeTo = el('div', { class: 'swap-route-end' });
   const privacyText = text('', '');
   const destination = el('select', { id: 'swap-destination', 'aria-label': 'Example destination (demo)',
-    onchange: (ev) => { void model.update({ destination: ev.target.value }); } },
+    onchange: (ev) => { model.chooseDestination(ev.target.value); } },
   el('option', { value: 'example' }, 'Example destination · demo only'),
   el('option', { value: '' }, 'Choose a destination'));
   const settings = el('details', { class: 'swap-settings' });
@@ -211,6 +221,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     drawPair(from, to);
     if (pay.value !== s.amount) pay.value = s.amount;
     pay.setAttribute('aria-invalid', String(!!s.error));
+    destination.value = s.destination;
     receive.value = s.quote ? swapDecimal(s.quote.amountOut, to) : '—';
     receive.setAttribute('aria-label', 'Amount you receive: ' + receive.value + ' ' + to.symbol);
     error.textContent = s.error;
@@ -220,6 +231,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     review.disabled = !ready;
     quoteLine.textContent = statusText(s);
     quoteDetails.replaceChildren(...quoteRows(s.quote, from, to));
+    detailBlock?.replaceChildren(...quoteBlock(s));
     settingValue.textContent = s.slippageBps / 100 + '%';
     presets.forEach((b, i) => b.setAttribute('aria-pressed', String(SWAP_SLIPPAGES[i] === s.slippageBps)));
     privacyText.textContent = privacy(from.symbol === 'ZEC' || to.symbol === 'ZEC');
@@ -258,7 +270,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
 
   function closeModal(cancel = true) {
     observer?.disconnect(); observer = null;
-    const old = modal; modal = null; pickerSide = null;
+    const old = modal; modal = null; pickerSide = null; detailBlock = null;
     old?.close(); old?.remove();
     if (cancel) { model.cancelReview(); model.resume(); model.exitSimulation(); }
     if (trigger?.isConnected) trigger.focus({ preventScroll: true });
@@ -319,9 +331,9 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
       detail('Estimated receive', swapDecimal(q.amountOut, to) + ' ' + to.symbol + ' · ' + to.network),
       ...quoteRows(q, from, to),
       detail('Maximum slippage', s.slippageBps / 100 + '%'),
-      detail('Quote', 'Live NEAR Intents quote, mainnet price' + (q.quotedAt
-        ? ' · ' + q.quotedAt.slice(11, 19) + ' UTC' : '')),
-      detail('Recipient', 'Example destination · Demo'),
+      detail('Quote', quoteLabel(q)
+        + (q.quotedAt ? ' · ' + q.quotedAt.slice(11, 19) + ' UTC' : '')),
+      detail('Recipient', (s.destination ? 'Example destination' : 'None chosen') + ' · Demo'),
       detail('Refund destination', 'Example refund · Demo'),
       detail('Source wallet', source.name || 'No wallet selected'),
       detail('Approval requirement', source.threshold || 'Shown after wallet selection'),
@@ -332,13 +344,11 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     const s = model.value, from = swapAsset(s.from), to = swapAsset(s.to);
     const select = destination.cloneNode(true);
     select.id = 'swap-modal-destination'; select.value = s.destination;
-    select.addEventListener('change', (ev) => {
-      const value = ev.target.value; closeModal(false); void model.update({ destination: value });
-    });
+    select.addEventListener('change', (ev) => { model.chooseDestination(ev.target.value); });
+    detailBlock = el('div', {}, quoteBlock(s));
     modal.querySelector('.swap-modal-content').replaceChildren(
-      text('swap-caption', 'Live quote · mainnet price'),
       text('swap-details-route', from.network + ' → NEAR Intents → ' + to.network),
-      quoteDetails.cloneNode(true),
+      detailBlock,
       el('div', { class: 'swap-destination' }, el('label', { for: select.id }, 'Receive to · Demo'), select),
       text('swap-caption', sourceLine.textContent),
       el('div', { class: 'swap-review-warning' }, text('', 'Privacy & network context', 'strong'),

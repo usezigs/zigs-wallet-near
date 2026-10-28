@@ -134,7 +134,7 @@ async function pressReview() {
     "keyboard focus retains a visible outline during the press");
   await action.evaluate((node) => node.blur()); await page.keyboard.up("Space");
   await choose("swap");
-  const disabled = page.getByRole("button", { name: "Review demo swap", exact: true });
+  const disabled = page.getByRole("button", { name: "Review quote", exact: true });
   const idle = await disabled.locator(".icon-detail").evaluate((node) =>
     getComputedStyle(node).translate);
   await disabled.hover({ force: true }); await page.waitForTimeout(350);

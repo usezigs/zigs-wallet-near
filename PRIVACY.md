@@ -90,7 +90,7 @@ What the server can still see:
 | Which IP addresses connect to which wallet | Each wallet has its own connection | Use Tor Browser, or a VPN, to hide your IP address |
 | Number of signers and payments | Count of documents | None |
 | When each device saves or checks a backup file, and whether it did | In a version 3 wallet each device publishes the document `setupstatus/<i>`: the safety number and four yes-or-no fields (`zecSaved`, `solSaved`, `zecChecked`, `solChecked`). The server sees its path, field names, padded size and the time of each write. A holder of the invite link can read it and can replace it, which can hide the backup progress of that device in the setup display, because devices ignore a document without a valid signature. | None. The document holds no file, key or hash. |
-| Anyone who knows a wallet id, without its secret, can connect with it. Then that client gets the documents that the server stores for that wallet: each sealed document with its path, field names and padded size, then each new write as it happens. It can also write or replace documents of that wallet. It does not get the IP addresses or the connections of others | The server does not ask for the wallet secret. It checks the form of the id and its limits on connections and writes, behind the password gate of the preview. Then it sends the stored documents and each later write to that connection, and takes its writes (`groupSocket` and `Store` in `cf/src/index.js`). A wallet id is in the old wallet of a move, and the address bar and the browser history hold the id of an open wallet (`#<id>`). A direct chat is a store of the same kind, and its id (`#c.<id>`) is in the address bar too | The values stay sealed under the wallet secret, which the server never receives. So such a client cannot read them or seal new ones, but it can write back an old value that it saw. The timing, the counts and the availability stay exposed: a replaced document stops the wallet (a denial of service) |
+| Anyone who knows a wallet id, without its secret, can connect with it. Then that client gets the documents that the server stores for that wallet: each sealed document with its path, field names and padded size, then each new write as it happens. It can also write or replace documents of that wallet. It does not get the IP addresses or the connections of others | The server does not ask for the wallet secret. It checks the form of the id and its limits on connections and writes. Staging has a password gate, and app.zigs.app has none. Then it sends the stored documents and each later write to that connection, and takes its writes (`groupSocket` and `Store` in `cf/src/index.js`). A wallet id is in the old wallet of a move, and the address bar and the browser history hold the id of an open wallet (`#<id>`). A direct chat is a store of the same kind, and its id (`#c.<id>`) is in the address bar too | The values stay sealed under the wallet secret, which the server never receives. So such a client cannot read them or seal new ones, but it can write back an old value that it saw. The timing, the counts and the availability stay exposed: a replaced document stops the wallet (a denial of service) |
 | The id of each wallet's message room, when each message is sent, how many messages, their padded sizes, and which IP addresses connect to the room | A room is one more namespace with its own connection, and each message is one document | Use Tor Browser, or a VPN, to hide your IP address. Message text, thread and sender stay sealed. |
 | The id of each direct chat, its two member ids, when each message is sent, how many messages, their padded sizes, and which IP addresses connect to the chat | A chat is a namespace like a room. The server learns that two member ids talk to each other. | Use Tor Browser, or a VPN, to hide your IP address. Names, message text and signing keys stay sealed. The chat lives in the browser and is not in key share backups. |
 | Nothing more for a payment request | A request is the text of a message, so it is sealed like any message. The page reads it on the device and contacts no server for it. | None needed |
@@ -106,8 +106,9 @@ addresses, because one IPv6 user usually holds a whole /64. So users who share a
 a /64 (one home, one office, one VPN exit) also share a counter, and one of them can use up the
 limit of the others.
 Cloudflare, as the host, can see connection metadata.
-The password gate sets one first-party session cookie, `zigs_session`, for 7 days. It holds no
-personal data: only an expiry and a signature from a key of the preview password.
+On staging, the password gate sets one first-party session cookie, `zigs_session`, for 7 days. It
+holds no personal data: only an expiry and a signature from a key of the preview password.
+app.zigs.app has no password gate and sets no `zigs_session` cookie.
 
 ## Light-wallet server (lightwalletd)
 
@@ -207,8 +208,8 @@ How the app reads the registry:
   resolver reads, but it does not prove the records. The Worker leaves out a name with a record
   that fails its checks, and a name that comes with two addresses, so that name gives "not
   found". It serves a copy that is at most 60 seconds old.
-- The page downloads that copy, behind the same password as every other request, and finds the
-  name on the device. It never asks a server about one name.
+- The page downloads that copy (on staging, behind the same password as every other request)
+  and finds the name on the device. It never asks a server about one name.
 
 | Party | What it learns |
 |---|---|
@@ -292,6 +293,11 @@ What stays visible:
 - A real swap from ZEC would leave the shielded pool. NEAR Intents takes ZEC only at a transparent
   deposit address, which is public. A swap to ZEC can pay a shielded address. The page says this
   next to the quote.
+- The basis of the shielded claim: a live dry quote accepted an Orchard-only unified address as
+  recipient, and the Zodl wallet pays swaps to shielded addresses. A dry quote only checks the
+  address, so no payout was made. The chain-support page of NEAR Intents still lists Zcash as
+  "Partially supported - Transparent addresses only". Treat the shielded claim as unproven until
+  a real swap pays to such an address.
 - NEAR Intents is a third party with its own terms. The prices are mainnet prices, and they can
   change within seconds.
 
@@ -303,9 +309,9 @@ as it is above. A mainnet wallet never loads the Solana code and never connects 
 
 The Solana code runs in a Worker of its own, `/sol/worker.js`. Only that script carries a policy
 that names the Helius Devnet host. The policy of the page does not name it. The Helius URL holds an
-API key. The server gives it to the page at `/sol/config.json`, behind the same password as every
-other request. So every user of the page can read it. Allowed Domains at Helius limits its use by
-other sites, but it does not protect the key.
+API key. The server gives it to the page at `/sol/config.json` (on staging, behind the same
+password as every other request). So every user of the page can read it. Allowed Domains at
+Helius limits its use by other sites, but it does not protect the key.
 
 Each seat has a **fee address**: an Ed25519 key that the device derives from the Solana key share of
 that seat. It pays the fees and the rents of the proposals that the seat makes, and the fee of each
@@ -469,7 +475,7 @@ What makes this safe to rely on:
 - The page sends a Content-Security-Policy header. The browser lets it connect only to the group
   server and the light-wallet servers in `NETWORKS` (our testnet server through `/lwd` of its own
   host, and two ChainSafe servers), and to nothing else. The name registry also comes from its
-  own host, through `/zns`. The Solana Worker
+  own host, through `/zns`, and the Swap quotes come through `/near/quote`. The Solana Worker
   (`/sol/worker.js`, testnet wallets only) has a policy of its own, which also names the Helius
   Devnet host and the one folder of proving keys of the local prover. The policy of the page
   names neither.
@@ -482,7 +488,8 @@ What makes this safe to rely on:
 
 Not tested yet: a full session in Tor Browser. Also not tested: whether the light-wallet servers
 accept connections from every Tor exit. Also not tested: whether many Tor users on one exit reach
-the rate limits of the group server and of `/lwd`, which count each IPv4 address or IPv6 /64.
+the rate limits of the group server, of `/lwd` and of `/near/quote` (`NEAR_PER_IP`, 60 calls a
+minute), which count each IPv4 address or IPv6 /64.
 
 ## Your device
 
