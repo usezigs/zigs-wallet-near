@@ -393,10 +393,14 @@ sequenceDiagram
 
 - The engine decodes the PCZT itself.
   - It ties every output that carries value to a recipient.
-  - It reads the memo of every output from the transaction, with the wallet's outgoing viewing
-    keys. It reports `memo_status` (`empty`, `text`, `not_text` or `unknown`) and the text.
-  - It never takes the memo from the proposer's fields. `unknown` means that the engine could
-    not read it.
+  - It opens every output that carries value, the change included, with the wallet's outgoing
+    viewing keys. It refuses the transaction when one does not open. The note commitment binds
+    the recipient and the value, but not the ciphertexts. A changed ciphertext or `epk` can hide
+    the note from its recipient, and then its value is lost (zkSecurity, Audit of Zcash:
+    Orchard, 2026). `sign_commit`, `sign_package` and `sign_share` run the same check.
+  - It reads the memo of every output from the transaction, with the same keys. It reports
+    `memo_status` (`empty`, `text` or `not_text`) and the text. It never takes the memo from the
+    proposer's fields.
   - It computes the change and the fee.
   - It refuses a transaction with a transparent or Sapling part, and one that never expires
     (expiry height 0). So the value that leaves the shielded pools is the fee.
@@ -404,7 +408,7 @@ sequenceDiagram
     fee and the expiry height. The app shows a higher fee as a priority fee.
 - The app compares the decoded outputs with the proposed list: the same addresses, amounts and
   memos, nothing missing and nothing extra. A proposal without a memo matches only an empty memo.
-  Any difference disables Approve, also when only the memo differs or the engine cannot read it.
+  Any difference disables Approve, also when only the memo differs.
   The payment panel shows each memo, and the memo of the transaction when it differs. The web,
   iPhone and Mac apps apply these rules. The compared text is the raw memo. The panel shows
   control characters and bidirectional marks as U+FFFD. `ios/check-backup.sh` checks that the
@@ -414,6 +418,7 @@ sequenceDiagram
   in the new wallet checked.
 
 A proposer cannot hide a different recipient, amount or extra output behind the text they typed.
+A proposer also cannot make an output, the change included, that its recipient cannot find.
 
 ### 7.3 Approve
 

@@ -7,7 +7,7 @@
 //! proving, transaction extraction, and the X25519 + ChaCha20-Poly1305 box
 //! that protects DKG round-2 messages in transit.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use base64::{
     engine::general_purpose::{STANDARD as B64, URL_SAFE_NO_PAD as B64URL},
@@ -406,10 +406,12 @@ fn txid_of(p: &Pczt) -> R<String> {
 struct Custom(#[allow(dead_code)] String);
 
 /// What participant-side verification finds: the pending spends, a human-readable list of what
-/// the transaction does, its sighash and version, and its fee next to the ZIP 317 fee.
+/// the transaction does, the memo of each output, its sighash and version, and its fee next to
+/// the ZIP 317 fee.
 struct Inspected {
     pending: Vec<PendingSpend>,
     lines: Vec<Value>,
+    memos: HashMap<(String, usize), memo::MemoView>,
     sighash: [u8; 32],
     version: TxVersion,
     fee: u64,
@@ -441,11 +443,13 @@ fn inspect_inner(p: &Pczt, fvk: &FullViewingKey) -> R<Inspected> {
     let ext = fvk.address_at(0u32, Scope::External);
     let mut pending = vec![];
     let mut lines = vec![];
+    let mut outputs = vec![];
     // Value that leaves the shielded pools, and the number of actions that the fee pays for.
     let (mut outflow, mut actions) = (0i128, 0usize);
     for &pool in pools {
         let mut found = vec![];
         let mut ls = vec![];
+        let mut outs = vec![];
         let check = |b: &orchard::pczt::Bundle| -> Result<(), OrchardError<Custom>> {
             for (i, a) in b.actions().iter().enumerate() {
                 a.verify_cv_net()?;
@@ -485,6 +489,7 @@ fn inspect_inner(p: &Pczt, fvk: &FullViewingKey) -> R<Inspected> {
                 };
                 if v != Some(0) {
                     ls.push(json!({"kind": "output", "action": i, "pool": format!("{pool:?}"), "value": v, "who": who}));
+                    outs.push((format!("{pool:?}"), i, who));
                 }
             }
             Ok(())
@@ -497,8 +502,18 @@ fn inspect_inner(p: &Pczt, fvk: &FullViewingKey) -> R<Inspected> {
         .map_err(|x| err!("transaction verification failed ({pool:?}): {x:?}"))?;
         pending.extend(found);
         lines.extend(ls);
+        outputs.extend(outs);
     }
     ensure(!pending.is_empty(), "this transaction spends nothing from this wallet")?;
+    // The note commitment binds the recipient and the value, but not the ciphertexts. An output
+    // that the outgoing viewing keys cannot open may be one that its recipient never finds.
+    let memos = memo::recover(p, fvk)?;
+    let unread = outputs.iter().find(|(pool, i, _)| !memos.contains_key(&(pool.clone(), *i)));
+    if let Some((pool, i, who)) = unread {
+        return Err(err!(
+            "the output to {who} ({pool} action {i}) does not open with the outgoing viewing keys \
+             of this wallet, so its recipient may never find the funds"));
+    }
     // With no part in another pool, the value that leaves the shielded pools is the fee. It is
     // at least the ZIP 317 fee and at most the priority fee.
     let standard_fee = chain::zip317_fee(actions, 0);
@@ -507,7 +522,7 @@ fn inspect_inner(p: &Pczt, fvk: &FullViewingKey) -> R<Inspected> {
     let fee = fee.ok_or_else(|| err!(
         "the transaction pays a fee of {outflow} zat, but the network fee for {actions} actions \
          is {standard_fee} zat, and Zigs pays at most {most} zat"))?;
-    Ok(Inspected { pending, lines, sighash: h, version, fee, standard_fee })
+    Ok(Inspected { pending, lines, memos, sighash: h, version, fee, standard_fee })
 }
 
 /// What the transaction does, decoded from the PCZT itself. Each `output` line also carries
@@ -518,7 +533,7 @@ fn inspect_inner(p: &Pczt, fvk: &FullViewingKey) -> R<Inspected> {
 pub fn inspect(pczt: &str, fvk: &str) -> R<String> {
     let (p, fvk) = (pczt_from_b64(pczt)?, parse_fvk(fvk)?);
     let mut ins = inspect_inner(&p, &fvk)?;
-    memo::annotate(&mut ins.lines, &memo::recover(&p, &fvk)?);
+    memo::annotate(&mut ins.lines, &ins.memos);
     Ok(json!({
         "sighash": hex::encode(ins.sighash),
         "tx_version": format!("{:?}", ins.version),
@@ -1420,34 +1435,67 @@ mod tests {
         assert_eq!(unreadable, 1, "exactly one action holds the note of the payee");
     }
 
-    /// An output whose ciphertext was changed shows `unknown`, never an empty or other memo, and
-    /// the other outputs keep theirs.
-    #[test]
-    fn inspect_never_reports_a_memo_that_it_cannot_read() {
-        let fvk = hex::encode(FullViewingKey::from(&random_sk()).to_bytes());
-        let tx = v(&tx_demo_create(&fvk, 100_000, 1_000_000, "ironwood").unwrap());
-        let raw = B64.decode(tx["pczt"].as_str().unwrap()).unwrap();
-        let base = output_lines(&v(&inspect(&B64.encode(&raw), &fvk).unwrap()));
-        assert_eq!(base.len(), 5);
-        let effects = Pczt::parse(&raw).unwrap().into_effects().unwrap();
-        for (j, a) in effects.ironwood_bundle().unwrap().actions().iter().enumerate() {
-            let note = a.encrypted_note();
-            for field in [&note.out_ciphertext[..], &note.enc_ciphertext.0[..]] {
-                let at = raw.windows(field.len()).position(|w| w == field);
-                let at = at.expect("ciphertext in the PCZT");
-                let mut bad = raw.clone();
-                bad[at + 10] ^= 1;
-                let lines = output_lines(&v(&inspect(&B64.encode(&bad), &fvk).unwrap()));
-                for (line, was) in lines.iter().zip(&base) {
-                    if line["action"] == j {
-                        assert_eq!(line["memo_status"], "unknown");
-                        assert!(line.get("memo").is_none());
-                    } else {
-                        assert_eq!(line, was);
-                    }
+    /// Changes each Ironwood action of `raw` in 7 ways: another action's `epk` (a valid point),
+    /// and one flipped byte at 3 places of each ciphertext. A change in an output that carries
+    /// value must make `inspect` and `sign_commit` refuse; a change in a padding output must
+    /// change nothing. Returns both counts.
+    fn change_ciphertexts(raw: &[u8], fvk: &str) -> (usize, usize) {
+        let base = output_lines(&v(&inspect(&B64.encode(raw), fvk).unwrap()));
+        let effects = Pczt::parse(raw).unwrap().into_effects().unwrap();
+        let actions = effects.ironwood_bundle().unwrap().actions();
+        let at = |f: &[u8]| raw.windows(f.len()).position(|w| w == f).expect("in the PCZT");
+        let (mut refused, mut accepted) = (0, 0);
+        for (j, a) in actions.iter().enumerate() {
+            let line = base.iter().find(|l| l["action"] == j);
+            let n = a.encrypted_note();
+            let mut bads = vec![];
+            let mut bad = raw.to_vec();
+            let other = &actions[(j + 1) % actions.len()].encrypted_note().epk_bytes;
+            bad[at(&n.epk_bytes)..][..32].copy_from_slice(other);
+            bads.push(bad);
+            for field in [&n.out_ciphertext[..], &n.enc_ciphertext.0[..]] {
+                // In `enc_ciphertext`: the part that a compact block holds, the memo, the tag.
+                for k in [10, field.len() / 2, field.len() - 1] {
+                    let mut bad = raw.to_vec();
+                    bad[at(field) + k] ^= 1;
+                    bads.push(bad);
                 }
             }
+            for bad in bads.iter().map(|b| B64.encode(b)) {
+                let Some(line) = line else {
+                    assert_eq!(output_lines(&v(&inspect(&bad, fvk).unwrap())), base);
+                    accepted += 1;
+                    continue;
+                };
+                let why = inspect(&bad, fvk).unwrap_err();
+                let who = line["who"].as_str().unwrap();
+                assert!(why.contains(&format!("output to {who} (Ironwood action {j})")), "{why}");
+                // `sign_commit` refuses before it reads the key package.
+                assert_eq!(sign_commit(&bad, fvk, "{}", None).unwrap_err(), why);
+                refused += 1;
+            }
         }
+        (refused, accepted)
+    }
+
+    /// The recipient of an output that the wallet's outgoing viewing keys cannot open might never
+    /// find the note, so its value would be lost. This holds for the change too.
+    #[test]
+    fn inspect_refuses_an_output_that_it_cannot_open() {
+        let fvk = FullViewingKey::from(&random_sk());
+        let key = hex::encode(fvk.to_bytes());
+        // Four payees with memos, and the change.
+        let tx = v(&tx_demo_create(&key, 100_000, 1_000_000, "ironwood").unwrap());
+        let raw = B64.decode(tx["pczt"].as_str().unwrap()).unwrap();
+        assert_eq!(change_ciphertexts(&raw, &key), (5 * 7, 0));
+        // One payee, the change, and one padding output.
+        let (spends, anchor) = incoming_notes(&fvk, &[40_000, 50_000, 60_000], true).unwrap();
+        let payee = FullViewingKey::from(&random_sk()).address_at(0u32, Scope::External);
+        let outs = (&[(payee, 100_000, MemoBytes::empty())][..], 150_000 - 100_000 - 15_000);
+        let terms = group_terms(1);
+        let pczt = build_ironwood_pczt(regtest(true), &terms, &fvk, (spends, anchor), outs);
+        let raw = B64.decode(pczt_to_b64(pczt.unwrap()).unwrap()).unwrap();
+        assert_eq!(change_ciphertexts(&raw, &key), (2 * 7, 7));
     }
 
     /// Full 2-of-3 flow: DKG, wallet, then a payment that is inspected, signed, aggregated and
