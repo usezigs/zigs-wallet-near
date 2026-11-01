@@ -340,6 +340,7 @@ with 2-of-2 wallets, two 2-of-3 wallets and a single-key personal account:
 | [`646e6edd…819e`](https://testnet.zecblock.com/tx/646e6edd0bc003b796f54f2fec4f748a5b65a15290d30d31eb73b4fe79d8819e) | 4,498,648 | **On-chain message:** a personal account sends a 3-part message (3 zero-value outputs with memos), and the recipient's account joins it under the right contact |
 | [`5f47158c…0969`](https://testnet.zecblock.com/tx/5f47158cad0a3c5946757ba9abad8f7208f6eb38eb76cb9b4be2f6cd8cbc0969) | 4,518,023 | **Pay to a ZNS name:** a 2-of-2 payment to `craftsoldier.zec`, typed as a name in the Send form. Each approving page looked the name up again |
 | [`485d71bc…b14e`](https://testnet.zecblock.com/tx/485d71bcb0fbd2e9546fe7217b424f7f67c3505f2177f5018b067572e20ab14e) | 4,539,698 | **Demo video:** a 2-of-3 wallet pays 0.01 TAZ to a second wallet. Devices 2 and 1 approve (three browser windows on one computer), and the second wallet shows the payment |
+| [`9ea97537…a7fe`](https://testnet.zecblock.com/tx/9ea97537d2998e75f58c2b4e47b04f95f907669f7aab48e303ae735ea7c0a7fe) | 4,568,480 | **Change check:** `live/zec-pay.mjs` pays 0.001 TAZ from the 2-of-2 test wallet with the engine that refuses an output it cannot open. Both seats signed, and the wallet found its change |
 
 On Solana Devnet, through the Zigs approvals program:
 

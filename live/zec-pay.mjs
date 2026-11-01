@@ -347,11 +347,19 @@ async function press(page, text, ms = 20_000) {
 
 const hasForm = (page) => run(page, () => !!document.querySelector('[id^="s-to-"]'));
 
-const sessionId = (page) =>
+// Send opens a list of assets, and its ZEC choice opens the form. The choice is off while Send
+// is held, for example during a sync.
+const chooseZec = (page) =>
   run(page, () => {
-    const row = document.querySelector('[data-key^="pay-"][aria-current="true"]');
-    return row ? row.dataset.key.slice("pay-".length) : null;
+    const choice = document.querySelector('[aria-describedby="choose-send-zec"]');
+    if (!choice || choice.disabled) return false;
+    choice.closest("details").open = true;
+    choice.click();
+    return true;
   });
+
+// The proposal opens its payment, and the page keeps the id of the open payment in its state.
+const sessionId = (page) => run(page, async () => (await import("/app-state.js")).state.sid);
 
 const shownFee = (page) =>
   run(page, () => {
@@ -369,16 +377,23 @@ const explorerTxid = (page) =>
     return link ? (/[0-9a-f]{64}/.exec(link.href)?.[0] ?? null) : null;
   });
 
-const openRequest = (page, id) =>
+// The row of payment `id` in the Activity section, which lists every payment of the wallet.
+// "click" opens the payment; "text" reads the row with its chip.
+const onRow = (page, id, action) =>
   run(
     page,
-    (sid) => {
-      const row = document.querySelector(`[data-key="pay-approve-${sid}"]`);
+    (sid, act) => {
+      const tab = document.getElementById("tab-activity");
+      if (tab && tab.getAttribute("aria-current") !== "page") tab.click();
+      const row = document.querySelector(`[data-key="pay-${sid}"]`);
+      if (act === "text") return row?.textContent ?? "";
       if (row) row.click();
       return !!row;
     },
     id,
+    action,
   );
+const openRequest = (page, id) => onRow(page, id, "click");
 
 // The drawer of the open payment closes; the page shows the wallet (M5: signing goes on).
 const closeDrawer = (page) =>
@@ -395,22 +410,12 @@ const approvedNow = (page) =>
   });
 
 // The text of the activity row of payment `id`, with its chip.
-const rowText = (page, id) =>
-  run(page, (sid) => document.querySelector(`[data-key="pay-${sid}"]`)?.textContent ?? "", id);
-const openRow = (page, id) =>
-  run(
-    page,
-    (sid) => {
-      const row = document.querySelector(`[data-key="pay-${sid}"]`);
-      if (row) row.click();
-      return !!row;
-    },
-    id,
-  );
+const rowText = (page, id) => onRow(page, id, "text");
+const openRow = (page, id) => onRow(page, id, "click");
 
 /** Fills the Send form and proposes. Returns the chain height read just before the click. */
 async function propose(page, address) {
-  await press(page, "Send", SEND_MS);
+  await until(page, "the ZEC choice of Send", () => chooseZec(page), SEND_MS);
   await until(page, "the Send form", () => hasForm(page), 20_000);
   await setInput(page, '[id^="s-to-"]', address);
   await setInput(page, '[id^="s-amt-"]', "0.001");
@@ -418,7 +423,7 @@ async function propose(page, address) {
   const tipBefore = await tipNow();
   // The form builds the transaction for a review first; the review proposes it.
   await press(page, "Review payment");
-  await press(page, "Propose payment", SEND_MS);
+  await press(page, "Request approvals", SEND_MS);
   return tipBefore;
 }
 
