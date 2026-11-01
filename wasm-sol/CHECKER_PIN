@@ -301,13 +301,13 @@ rules are byte for byte the files above. A pool wallet stays on Devnet.
   or `Pins::decode`), wasm.rs (the entries `sol_wallet_label`, `sol_wallet_program_label`,
   `plain_rule_list`, `plain_reads`, `plain_compile_message`, `plain_check_message`,
   `sol_plain_digest`, `sol_plain_fee_sign`, `sol_plain_sign_share`) and lib.rs (the modules).
-- tests: plain.rs, plain_rules.rs, plain_sign.rs, plain_wallet.rs and support/plain.rs (new), 88
+- tests: plain.rs, plain_rules.rs, plain_sign.rs, plain_wallet.rs and support/plain.rs (new), 89
   tests; every plain rule has a named test (`python3 -I tools/rule_tests.py`). vectors/plain (new)
   holds 21 smoke vectors from `cargo run --release --example plain_vectors`; tools/smoke.cjs
   replays them in the wasm build. The mutation cases of tools/mutate_sol.py for the plain rules
   are step P2 and are not written. A one-time spot check broke 29 lines of the plain code, one at
   a time, and the plain tests killed each of them; it is not kept.
-- The wasm of this build: SHA-256 7067eafd76d69ee664718c49726c3e0ad3ac420d6604ad4e197d00821d527874,
+- The wasm of this build: SHA-256 89281921b1470006c5df63f5377e06441f4b300d3f93b097439a66ba98eb3c73,
   1,141,916 bytes raw, 419,802 gzip. The hash in the section "The wasm of wasm-sol" above is of
   the build before the plain wallet.
 - Measured on the public RPC on 1 November 2026, read only (`simulateTransaction`, `sigVerify`
@@ -318,9 +318,8 @@ rules are byte for byte the files above. A pool wallet stays on Devnet.
   S3 on Devnet (no holder found), and the nonce advance of S2, S3 and S5 (no nonce account).
 - QA fix of P1 (1 November 2026): a token account address that holds lamports costs 3,081 more
   to create (16,599 against 13,518 for the least dust, 650,240; read-only mainnet simulation), so
-  S3 and S4 add `CU_PREFUNDED` and S1, S2 and S5 keep their bytes. The wasm of this build replaces
-  the hash of P1 above: SHA-256 89281921b1470006c5df63f5377e06441f4b300d3f93b097439a66ba98eb3c73,
-  1,141,916 bytes raw. One test added in tests/plain.rs.
+  S3 and S4 add `CU_PREFUNDED` and S1, S2 and S5 keep their bytes. The wasm hash above is of
+  this build. One test added in tests/plain.rs.
 
 Check: python3 -I tools/pin_check.py (the manifest below against the tree).
 
