@@ -10,7 +10,8 @@ use p3_check::plain::{Cluster, PlainIntent};
 use p3_check::plain_check::PlainSigner;
 use p3_check::plain_display::{base58, decimal};
 use p3_check::plain_template::{
-    compile, CU_BUMP_TRY, CU_CREATE_IDEMPOTENT, CU_MARGIN, CU_SYSTEM, CU_TRANSFER_CHECKED,
+    compile, Compiled, CU_BUMP_TRY, CU_CREATE_IDEMPOTENT, CU_MARGIN, CU_PREFUNDED, CU_SYSTEM,
+    CU_TRANSFER_CHECKED,
 };
 use p3_check::rule::PlainRule;
 use p3_check::template::{Data, LOADED_MAX};
@@ -576,6 +577,7 @@ fn a_recipient_token_account_with_3_failed_bump_tries_gets_the_exact_compute_uni
         let case = Case::devnet(send_token(to, UNITS));
         let want = CU_SYSTEM
             + CU_CREATE_IDEMPOTENT
+            + CU_PREFUNDED
             + CU_BUMP_TRY * u32::from(tries)
             + CU_TRANSFER_CHECKED
             + CU_MARGIN;
@@ -603,9 +605,35 @@ fn the_group_token_account_of_enable_gets_its_own_failed_tries_in_the_compute_un
     let tries = 255 - u32::from(source.bump);
     assert_eq!(
         compiled.units,
-        CU_CREATE_IDEMPOTENT + CU_BUMP_TRY * tries + CU_MARGIN,
+        CU_CREATE_IDEMPOTENT + CU_PREFUNDED + CU_BUMP_TRY * tries + CU_MARGIN,
         "{tries} failed tries"
     );
+}
+
+/// The cost of `CreateIdempotent` on a token account address that holds lamports, with no failed
+/// bump try: 16,599 (read-only mainnet simulation, 1 November 2026, 650,240 lamports in the
+/// address). Each failed try adds 1,500. The numbers are literals, so a change of the constants
+/// of the compiler cannot move this test with it.
+const PREFUNDED_CREATE: u32 = 16_599;
+const PREFUNDED_TRY: u32 = 1_500;
+
+fn cap(compiled: &Compiled) -> u32 {
+    compiled.message.config.compute_units.unwrap()
+}
+
+#[test]
+fn the_cap_of_s3_and_s4_covers_a_token_account_address_that_holds_lamports() {
+    for tries in [0u8, 3] {
+        let need = PREFUNDED_CREATE + PREFUNDED_TRY * u32::from(tries);
+        let wallet = recipient_with_tries(tries);
+        let s3 = Case::devnet(send_token(wallet, UNITS)).compiled();
+        assert_eq!(255 - s3.addr.dest.unwrap().bump, tries);
+        let s4 = Case::with_keys(Cluster::Devnet, enable_token(), wallet, PAYER).compiled();
+        assert_eq!(255 - s4.addr.source.unwrap().bump, tries);
+        let (s3_create, s4_create) = (cap(&s3) - CU_SYSTEM - CU_TRANSFER_CHECKED, cap(&s4));
+        assert!(s3_create >= need, "S3 {tries} tries: {s3_create} < {need}");
+        assert!(s4_create >= need, "S4 {tries} tries: {s4_create} < {need}");
+    }
 }
 
 #[test]

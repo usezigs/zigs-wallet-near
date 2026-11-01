@@ -11,8 +11,9 @@
 //! - S4 enable a token: one `CreateIdempotent` for the group wallet. One signature.
 //! - S5 cancel: `AdvanceNonceAccount` alone.
 //!
-//! The payer is the fee key of the proposing seat. Only `encode` and `message_bytes` know the
-//! message format (v1 now), so a switch to legacy messages changes those two.
+//! The payer is the fee key of the proposing seat. `encode` and `message_bytes` write the message
+//! format (v1 now). `parse` and `header_rules` in `plain_check.rs` read it, so a switch to legacy
+//! messages changes those four.
 //!
 //! ponytail: no priority fee in P1 (the mask has no fee bits). The upgrade path is the fee bits
 //! of `template_config` with a pinned cap, as the pool template has.
@@ -30,15 +31,19 @@ use crate::template::{
 use crate::v1::{self, Message};
 
 /// Compute units. The source is `simulateTransaction` with `sigVerify` false on the public mainnet
-/// RPC (solana-core 4.3.2, 1 November 2026) of the messages of this compiler. One System
+/// RPC (solana-core 4.3.2, 1 November 2026, read only) of the messages of this compiler. One System
 /// instruction costs 150. A `CreateIdempotent` that creates the account costs 13,518 with no failed
 /// bump try, and 1,500 more for each failed try of the address that the program derives (15,018
 /// with one, 18,018 with three). `TransferChecked` costs 105, so the pair costs 13,623, 15,123 and
-/// 18,123.
+/// 18,123. If the address holds lamports, the program transfers, allocates and assigns: 16,599
+/// with no failed try and 21,099 with three, for the least dust (650,240 lamports). Dust of
+/// 1,488,440 or more skips the transfer and costs 1,335 more than an empty address.
 pub const CU_SYSTEM: u32 = 150;
 pub const CU_CREATE_IDEMPOTENT: u32 = 13_518;
 pub const CU_TRANSFER_CHECKED: u32 = 105;
 pub const CU_BUMP_TRY: u32 = 1_500;
+/// The extra cost of `CreateIdempotent` at an address that holds the least dust.
+pub const CU_PREFUNDED: u32 = 3_081;
 /// The margin on the sum: about 15 percent of the cost of a token send. A change of the Token or
 /// ATA program must stay under it. With no priority fee the limit costs nothing.
 pub const CU_MARGIN: u32 = 2_000;
@@ -229,9 +234,10 @@ fn transfer_checked(
     ix(TOKEN_PROGRAM, list, data)
 }
 
-/// The compute units of a `CreateIdempotent` at `ata`: the program derives the address again.
+/// The compute units of a `CreateIdempotent` at `ata`: the program derives the address again, and
+/// the address can hold lamports already, which the page cannot know when it compiles.
 fn create_units(ata: &Ata) -> u32 {
-    CU_CREATE_IDEMPOTENT + CU_BUMP_TRY * ata.failed_tries()
+    CU_CREATE_IDEMPOTENT + CU_PREFUNDED + CU_BUMP_TRY * ata.failed_tries()
 }
 
 type Parts = (Vec<ExpectedIx>, u32);

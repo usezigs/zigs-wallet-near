@@ -316,6 +316,11 @@ rules are byte for byte the files above. A pool wallet stays on Devnet.
   300 for S1, 150 for the transfer, 13,518 for the creation of a token account plus 1,500 for each
   failed bump try (S4 on both clusters), and 13,623 for it with `TransferChecked`. Not measured:
   S3 on Devnet (no holder found), and the nonce advance of S2, S3 and S5 (no nonce account).
+- QA fix of P1 (1 November 2026): a token account address that holds lamports costs 3,081 more
+  to create (16,599 against 13,518 for the least dust, 650,240; read-only mainnet simulation), so
+  S3 and S4 add `CU_PREFUNDED` and S1, S2 and S5 keep their bytes. The wasm of this build replaces
+  the hash of P1 above: SHA-256 89281921b1470006c5df63f5377e06441f4b300d3f93b097439a66ba98eb3c73,
+  1,141,916 bytes raw. One test added in tests/plain.rs.
 
 Check: python3 -I tools/pin_check.py (the manifest below against the tree).
 
@@ -344,7 +349,7 @@ a71a896274e606d3a4e3e801191b4b65461bfd5cb548343f093a250c4d45bb01  src/pay.rs  ne
 e1793250acee93cbe2f804c24ef249d43de1fdb1c0ecaa5b3c711e40ce38e4b8  src/plain_display.rs  new
 65827437e68a53121afc846d45c52ada089c33d2c59ec7b4a8395e9c6009b90a  src/plain_rules.rs  new
 18f0cc899de0db62465d79af7578f65d7d62eb8106cdffcd63858a36afe52de2  src/plain_sign.rs  new
-a8f0bf27c9f21f72c8e3c6514c9da99f19a044a70727b66c69e8e9d793e262d8  src/plain_template.rs  new
+20f68a005a195b300124f42a6647b0febd440b2a79126226f9accf85f1cbd3b0  src/plain_template.rs  new
 df46e9e90b740789623db0bed212c78a8d87fbf608a04be84cab433327fbb738  src/plan.rs  modified
 befdc6018a5ad022638cfa66e3a1b140582f3c57b1b65e91e43599d50181167a  src/program.rs  new
 a44ea553e8f9d4b4cbac46b67a267c8f529de2ce84a34ce96f0f281d6eee156a  src/roles.rs  new
@@ -380,7 +385,7 @@ cfc68ad047d9dff9f4cb368c901238019de4d6284cbd23853b5224f97a2bf3ca  tests/frost_dk
 d3b6abc6195a5cae856db2fb7543964dcd8c5222221d5a839a6a2e81d6e4f14d  tests/pay_vectors.rs  new
 60c36d7f131b8ec07d9d2256241873f31488cfee379f48b1f926e21b41c2b81d  tests/payment.rs  new
 95290d8683b751fb47f647d29eb2486fcd3dad545aa35a368d1a5fb0733151b1  tests/pin_bytes.rs  verbatim
-b8d84f642e38e6d980b347c49e97de67b3fa9698e8c5ae535dcb3b096349c5e7  tests/plain.rs  new
+d2c12f98ab733023eab486670d076c8124bfac1390bf35da5227921219c61038  tests/plain.rs  new
 cd6fcc69bbf63c6cced315785d7ae05411837626acc9f5565b199a8c8c0876bb  tests/plain_rules.rs  new
 0433a7d0d65c588b77ca9a01dbbdc442ecfb053dce00f34f0210c5e531545145  tests/plain_sign.rs  new
 9661dfb8f60c38a439c8b67dfd524b65aa2eef57a21dcdc14f8928da5c5297f6  tests/plain_wallet.rs  new
@@ -429,12 +434,12 @@ b0cf24f660a412aee9ccde247b95c2ba61ef492be0ba106eac53b9c71a8d5ce8  vectors/plain/
 e96da5311b1974d7503d76c01bf05bffb56507ecad5a26a16269e544c9cd04a3  vectors/plain/devnet-s3-send-usdc.answer  new
 0d5a084cb99bb8de6880370f5bb96b265a8252335309064dec05f34ec966176a  vectors/plain/devnet-s3-send-usdc.chain  new
 81c8c16ff5dc3221166a19a1c0a1c8a98b132b3215794226fabb4e93e3f9565a  vectors/plain/devnet-s3-send-usdc.intent  new
-c1fc4e5650f699e911d6ff4588846270f0eaf57b63d23c971df6ab759df69f3b  vectors/plain/devnet-s3-send-usdc.msg  new
+b54aee40d9cd6958cbdfaab1fe5b9dbdf734ec99307bb19495e52e10646f48de  vectors/plain/devnet-s3-send-usdc.msg  new
 b0cf24f660a412aee9ccde247b95c2ba61ef492be0ba106eac53b9c71a8d5ce8  vectors/plain/devnet-s3-send-usdc.pins  new
 b6128836721a7a332fd17392d89564915a63b804d3c1fd9e8aeb6cfcdfaf7b6e  vectors/plain/devnet-s4-enable-usdc.answer  new
 9b93898cfe6600fd5fabb64d442d92148f3835765e3d0d9a52d3151e4909a176  vectors/plain/devnet-s4-enable-usdc.chain  new
 7c63d31c0c91eef7515a8c4338d1e220c901cfd896c839bd7dd0944efafe735b  vectors/plain/devnet-s4-enable-usdc.intent  new
-a1c3aba1097853f7fb12ce10eb5d7175ba3b24c9240ba60ed129aa73817d003d  vectors/plain/devnet-s4-enable-usdc.msg  new
+da8da58e79050da57c8fb0be73bf8133ef606c6a703884a64255ed9db1403a34  vectors/plain/devnet-s4-enable-usdc.msg  new
 b0cf24f660a412aee9ccde247b95c2ba61ef492be0ba106eac53b9c71a8d5ce8  vectors/plain/devnet-s4-enable-usdc.pins  new
 f61621caa922fe130124d41900a4ba79cbb84e6b2ef460ee76e5ec9b3108d42b  vectors/plain/devnet-s5-cancel.answer  new
 233141981603082f2433b5be1e3c4a9020bfd863bc600c5d7d740bebcf03ec3e  vectors/plain/devnet-s5-cancel.chain  new
@@ -454,12 +459,12 @@ f048ed34e504e0be3da71901adf56fd52f03863ab39d9a1f8ae1cf7e51949e1e  vectors/plain/
 75e0bb4a9396acfbc19073d2503efbb4204909397ac98606b847333c83265d25  vectors/plain/mainnet-frozen-source.answer  new
 46fc95facb4897a9bfbcfe4f5449e48641f43f1cd8fd7da373648f6a2ffe659b  vectors/plain/mainnet-frozen-source.chain  new
 81c8c16ff5dc3221166a19a1c0a1c8a98b132b3215794226fabb4e93e3f9565a  vectors/plain/mainnet-frozen-source.intent  new
-8e28174d9dafcfc0e44956f641f0a461bd4be54434b290d0c6a733be36d19180  vectors/plain/mainnet-frozen-source.msg  new
+fb1d182520fdc0e281c4b01ed1624bf29be8f869a342bc4da09c996199ae39a3  vectors/plain/mainnet-frozen-source.msg  new
 f048ed34e504e0be3da71901adf56fd52f03863ab39d9a1f8ae1cf7e51949e1e  vectors/plain/mainnet-frozen-source.pins  new
 f6c146434cd1f9d6410a5628adf45e8e89942bff8719de75ee8d49d6c52a9d43  vectors/plain/mainnet-mint-recipient.answer  new
 3188c087c792d04beaa8f83afb10e3f97472d4648e39d862a30a895ca01dce1f  vectors/plain/mainnet-mint-recipient.chain  new
 8e9988e81f365c87a8e266dc76ccf484d7e1f399610252e8a2cf3134a024acb7  vectors/plain/mainnet-mint-recipient.intent  new
-e47cadcc5d4de262e5e5ae68b261692fe12c738269d89ede9b70f931129d1a0c  vectors/plain/mainnet-mint-recipient.msg  new
+1de3b271b702c5d83961a7cac15ff559c677a3834d7e86d7f64df0bdfbf3b9a7  vectors/plain/mainnet-mint-recipient.msg  new
 f048ed34e504e0be3da71901adf56fd52f03863ab39d9a1f8ae1cf7e51949e1e  vectors/plain/mainnet-mint-recipient.pins  new
 3bbc09b052ec4227812a8befe521437d7d57ae037692b6d9d82e867368e70bf7  vectors/plain/mainnet-missing-read.answer  new
 71846a1c13dbbb2d659b699b09fe4ddfc24e76aa9427b2334b871829cd56e2e4  vectors/plain/mainnet-missing-read.chain  new
@@ -474,7 +479,7 @@ f048ed34e504e0be3da71901adf56fd52f03863ab39d9a1f8ae1cf7e51949e1e  vectors/plain/
 38ec01e50be18e2d45ff19a374508d4224215ea7fd5a31913d15810280412a7f  vectors/plain/mainnet-pda-recipient.answer  new
 5d6e8bda6c95bb61bece941b32451296bc7141d59beda19c3fe2cd9f9fd00950  vectors/plain/mainnet-pda-recipient.chain  new
 43cbde02cf1a4a6523e83790ff82e1e2dca6f651f0b893020228890be968152b  vectors/plain/mainnet-pda-recipient.intent  new
-1e75ef5f10cd76552816744d11b46321e9b588cc6c7321d04bf244cfada331f6  vectors/plain/mainnet-pda-recipient.msg  new
+dc562b5a57f9c6c3e42ae0ed9d936ea50a0ba2d719af10131537c094279d1dda  vectors/plain/mainnet-pda-recipient.msg  new
 f048ed34e504e0be3da71901adf56fd52f03863ab39d9a1f8ae1cf7e51949e1e  vectors/plain/mainnet-pda-recipient.pins  new
 b3be86613f16717f8800e4eeb6a98ae27ba0cb295293d36c9ac3854a9c9bd234  vectors/plain/mainnet-recipient-owner.answer  new
 b8a11ed92d9c84902aa691e6a4f8fe037a8ec353fc86522e1b6b2d358d7c78de  vectors/plain/mainnet-recipient-owner.chain  new
@@ -494,12 +499,12 @@ f048ed34e504e0be3da71901adf56fd52f03863ab39d9a1f8ae1cf7e51949e1e  vectors/plain/
 78a2337d5335bf608fbfd3b20b880409c1d3e861d22bf0afd14e8940e5104280  vectors/plain/mainnet-s3-send-usdc.answer  new
 750705d12efdf2f9dd8170763d01ea2674cd4635aea2c18f4b4c85015089f8bd  vectors/plain/mainnet-s3-send-usdc.chain  new
 81c8c16ff5dc3221166a19a1c0a1c8a98b132b3215794226fabb4e93e3f9565a  vectors/plain/mainnet-s3-send-usdc.intent  new
-8e28174d9dafcfc0e44956f641f0a461bd4be54434b290d0c6a733be36d19180  vectors/plain/mainnet-s3-send-usdc.msg  new
+fb1d182520fdc0e281c4b01ed1624bf29be8f869a342bc4da09c996199ae39a3  vectors/plain/mainnet-s3-send-usdc.msg  new
 f048ed34e504e0be3da71901adf56fd52f03863ab39d9a1f8ae1cf7e51949e1e  vectors/plain/mainnet-s3-send-usdc.pins  new
 d888a34ea725cf4e70bdc2eeb67794a2508e6ddc5ea5e3ed7c683a3fee1d3503  vectors/plain/mainnet-s4-enable-usdc.answer  new
 35218a965647b14609e91b0727f0fe4e6f1d86b279e2013d9d224c5965d4a7d7  vectors/plain/mainnet-s4-enable-usdc.chain  new
 7c63d31c0c91eef7515a8c4338d1e220c901cfd896c839bd7dd0944efafe735b  vectors/plain/mainnet-s4-enable-usdc.intent  new
-55fb7238081de8d66ec42d28a52a8e8158a0fa8c5b38ecb436461c7e20f6e8d8  vectors/plain/mainnet-s4-enable-usdc.msg  new
+39ff583a590edd40ba9891cff072a9de364882e1367f1539e2b44d4a9b79b7d8  vectors/plain/mainnet-s4-enable-usdc.msg  new
 f048ed34e504e0be3da71901adf56fd52f03863ab39d9a1f8ae1cf7e51949e1e  vectors/plain/mainnet-s4-enable-usdc.pins  new
 809d0ffe1ceb0419231c94b285a3776ba99d1691958d497254b69ccf656a64f6  vectors/plain/mainnet-s5-cancel.answer  new
 31607bcabbbbf1b4059dc5dc31ab1487f392afd280bb33e72e55ecfe831f9ba1  vectors/plain/mainnet-s5-cancel.chain  new
