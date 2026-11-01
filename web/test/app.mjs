@@ -2800,7 +2800,7 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
       assert.ok(named(drawerHead(landedA), "span", "Testnet"),
         "the drawer head names the network");
       assert.match(blockStep(landedA), new RegExp("The expiry height is public too\\. Zigs sets "
-        + "it up to one day after the proposal, and a standard wallet sets it 40 blocks ahead\\. "
+        + "it up to one day after the proposal, and a standard wallet sets it about 50 minutes ahead\\. "
         + "So the expiry height can show that Zigs made this payment\\. Few wallets pay a "
         + "priority fee, so a priority fee can mark a payment too\\."));
       const sendStepOf = (ss) => all(t.sessionLayer(ss), (x) => /^step /.test(x.className ?? "")

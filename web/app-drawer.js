@@ -711,11 +711,11 @@ function chainSees() {
   sees.append(el("p", { class: "small faint" }, EXPIRY_PUBLIC));
   return sees;
 }
-// The expiry window of the engine (wasm/src/expiry.rs) against the 40 blocks of the standard
+// The expiry window of the engine (wasm/src/expiry.rs) against the 50 minutes of the standard
 // wallet library (PRIVACY.md, On chain).
 const EXPIRY_PUBLIC = "The expiry height is public too. Zigs sets it up to one day after the "
-  + "proposal, and a standard wallet sets it 40 blocks ahead. So the expiry height can show that "
-  + "Zigs made this payment. Few wallets pay a priority fee, so a priority fee can mark a payment "
-  + "too.";
+  + "proposal, and a standard wallet sets it about 50 minutes ahead. So the expiry height can "
+  + "show that Zigs made this payment. Few wallets pay a priority fee, so a priority fee can mark "
+  + "a payment too.";
 // Before the send, so that a device sees it before it approves.
 const ON_CHAIN_PUBLIC = "On chain, the number of actions and the fee are public. " + EXPIRY_PUBLIC;

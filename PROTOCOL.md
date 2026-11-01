@@ -2,7 +2,7 @@
 
 Zigs is a shared wallet for shielded Zcash. Any *t* of its *n* signers approve each payment, and
 the chain sees one shielded transaction with the shape of a payment from a standard wallet, except
-for its one-day expiry (where a standard wallet sets 40 blocks) and an optional priority fee, which
+for its one-day expiry (where a standard wallet sets about 50 minutes) and an optional priority fee, which
 can mark it as a Zigs payment (PRIVACY.md, On chain). Zigs uses re-randomized FROST threshold
 signatures ([ZIP 312](https://zips.z.cash/zip-0312)) on the Ironwood shielded pool (NU7, v6
 transactions).
@@ -18,7 +18,7 @@ app also has a Solana beta for testnet wallets (section 16).
 | **Signer device** | Runs the web, iPhone or Mac app around the engine | Its key share, the wallet secret, the viewing key, nonces, payment history |
 | **Group server** | A Cloudflare Worker with one Durable Object (SQLite) per wallet. Relays and stores sealed documents over a WebSocket. | Only ciphertext, plus wallet ids, document paths, timing and IP addresses |
 | **Light-wallet server** | lightwalletd over grpc-web. Serves compact blocks and full transactions, and accepts finished transactions. The public side of the Zigs testnet server answers the app Worker only (section 10.1). | Your IP address (on testnet, our server sees the app Worker), the blocks you download and the transactions you fetch |
-| **Zcash network** | NU7, Ironwood shielded pool | One shielded transaction per payment, with the shape of a shielded payment from a standard wallet, except for its one-day expiry (section 7.1; a standard wallet sets 40 blocks) and an optional priority fee, which can mark it as a Zigs payment |
+| **Zcash network** | NU7, Ironwood shielded pool | One shielded transaction per payment, with the shape of a shielded payment from a standard wallet, except for its one-day expiry (section 7.1; a standard wallet sets about 50 minutes) and an optional priority fee, which can mark it as a Zigs payment |
 
 ```mermaid
 flowchart LR
@@ -432,8 +432,9 @@ A proposer also cannot make an output, the change included, that its recipient c
 
 - The web app reads the chain height from its light-wallet server at that moment and gives it
   to the engine. The engine refuses an expired payment: one that a node refuses at the next
-  block, because it expires within 3 blocks. It also refuses a payment that stays valid more
-  than 48 hours from now (the window and one day for a proposer whose view of the chain
+  block, because it expires within 3 blocks. It refuses a payment whose consensus branch is not
+  the one of the next block (a payment made before a network upgrade, approved after it). It also
+  refuses a payment that stays valid more than 48 hours from now (the window and one day for a proposer whose view of the chain
   differs). The iPhone and Mac apps give no chain height yet, so they skip this check
   (TICKETS.md, ZEC-8).
 - In the web app, a payment that expired before its signing package shows "Propose again". It
@@ -965,8 +966,8 @@ received payments yet. The engine has the calls for them.
     also has `fee`, `standard_fee` (ZIP 317), `expiry_height` and `txid` (ZIP 244, the id that
     the transaction gets on chain).
   - `signCommit(pczt, fvk, keyPackage, tip)`: `tip` is the chain height that the device just
-    read. The engine refuses an expired payment (section 7.3). The native `signCommit` takes no
-    tip yet (ZEC-8).
+    read. The engine refuses an expired payment and one of another consensus branch than the
+    next block (section 7.3). The native `signCommit` takes no tip yet (ZEC-8).
   - `expiryState(network, expiry, tip)` (web only): `{"expired", "blocks_left",
     "seconds_left"}`.
   - `ChainWallet.sessionState(pczt, signed, approved)` and `walletSessionState(key, pczt,
@@ -1199,7 +1200,9 @@ never touches it.
   - `joinMessage(memos)`: `memos` is a JSON list of texts. The result is `{"text": <text or
     null>}`.
   - `ChainWallet.createMessage(to, text)`: it is asynchronous like `createSpend`. The result is
-    `{"pczt", "pool": "ironwood", "fee", "parts", "note_value", "change"}`. It has no `amount`.
+    `{"pczt", "pool": "ironwood", "fee", "parts", "note_value", "change", "expiry_height"}`. It has
+    no `amount`. `expiry_height` is the expiry that the builder set: 40 blocks after the target
+    block, and 120 blocks from NU7 (ZIP 218).
   - `accountSign(pczt, seed, network)`: the result is `{"signed_pczt"}`. `finalize` then proves
     and extracts, as for a wallet.
 - **Parts.** `splitMessage` follows these rules, in this order:

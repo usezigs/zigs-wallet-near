@@ -8,7 +8,7 @@ is a bug: please report it.
 
 - On chain, a Zigs payment has the shape of a payment from the standard Zcash wallet library: the
   same builder, padding, fee rule and anchor. Its expiry differs: up to one day after the
-  proposal, where the library sets 40 blocks. So the expiry can mark a Zigs payment, and so can a
+  proposal, where the library sets about 50 minutes. So the expiry can mark a Zigs payment, and so can a
   priority fee when the proposer chooses one ([On chain](#on-chain)). The signature does not show
   that a group signed, who the signers are, or which of them approved.
 - The group server relays and stores encrypted data. It cannot read wallet names, signer names,
@@ -51,7 +51,7 @@ property:
 | Property | Zigs | Standard wallet library |
 |---|---|---|
 | Transaction builder | `zcash_primitives` `Builder` | Same builder |
-| Expiry | One day after the target height (3,456 blocks at 25 seconds, 1,152 at 75 seconds), at most up to the next network upgrade | Target height + 40 (`DEFAULT_TX_EXPIRY_DELTA`) |
+| Expiry | One day after the target height (3,456 blocks at 25 seconds, 1,152 at 75 seconds), at most up to the next network upgrade | Target height + 40, or + 120 from NU7: about 50 minutes (`default_tx_expiry_delta`) |
 | Action padding | `BundlePadding::DEFAULT` | Same default |
 | Fee | ZIP 317 standard rule, or 10 times it when the proposer chooses a priority fee | ZIP 317 standard rule |
 | Anchor | Target height − 3 (3 confirmations) | Same (`ConfirmationsPolicy` trusted = 3) |
@@ -64,7 +64,7 @@ The code is `build_ironwood_pczt` and `spend_pczt` in `wasm/src`.
 
 The long expiry marks a Zigs payment on chain. The expiry height is public, so an observer who
 compares it with the height of the block that holds the payment sees a window of about a day,
-where other wallets leave 40 blocks. A group needs hours for its approvals, and the signatures
+where other wallets leave about 50 minutes. A group needs hours for its approvals, and the signatures
 cover the expiry, so the window cannot be shorter. A priority fee is public too, and few wallets
 pay one. Messages of the personal account keep the expiry and the fee of the standard library.
 

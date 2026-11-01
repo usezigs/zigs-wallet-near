@@ -136,7 +136,7 @@ To see device changes, open **Devices**, then **Change devices**. To see the pri
 
 | Criterion | Evidence |
 |---|---|
-| **Privacy** | On chain, the transaction shape matches the standard wallet library: same builder, padding, standard fee and anchor depth. A group payment expires after one day instead of 40 blocks, because its approvals take hours, so the expiry marks it, and so does a priority fee ([comparison](PRIVACY.md#on-chain)). The server stores only encrypted values, padded so that even their length hides amounts. On the device, key shares can be locked with a passkey ([how](PRIVACY.md#lock-with-a-passkey-or-face-id)). Key share backups are encrypted with a passphrase (Argon2id and XChaCha20-Poly1305) ([how](PRIVACY.md#key-share-backups)). The page can connect only to its own host (the group server and the testnet light-wallet relay) and two ChainSafe light-wallet servers (Content-Security-Policy). For testnet wallets, the Solana Worker of the page also connects to the Helius Devnet host ([how](PRIVACY.md#solana-beta-helius-devnet)). With local proving on, it also fetches the proving keys from one CloudFront folder (`d3gbdb0egjwcw9.cloudfront.net/proving-keys/3a1c88f90f609eb1/`, `SOL_KEYS` in `cf/src/index.js`). It is prepared for Tor Browser, but not yet tested end to end ([how](PRIVACY.md#use-zigs-over-tor)). The Zigs server code keeps no logs; its host, Cloudflare, can see connection data. Every remaining leak is listed in [PRIVACY.md](PRIVACY.md). |
+| **Privacy** | On chain, the transaction shape matches the standard wallet library: same builder, padding, standard fee and anchor depth. A group payment expires after one day instead of about 50 minutes, because its approvals take hours, so the expiry marks it, and so does a priority fee ([comparison](PRIVACY.md#on-chain)). The server stores only encrypted values, padded so that even their length hides amounts. On the device, key shares can be locked with a passkey ([how](PRIVACY.md#lock-with-a-passkey-or-face-id)). Key share backups are encrypted with a passphrase (Argon2id and XChaCha20-Poly1305) ([how](PRIVACY.md#key-share-backups)). The page can connect only to its own host (the group server and the testnet light-wallet relay) and two ChainSafe light-wallet servers (Content-Security-Policy). For testnet wallets, the Solana Worker of the page also connects to the Helius Devnet host ([how](PRIVACY.md#solana-beta-helius-devnet)). With local proving on, it also fetches the proving keys from one CloudFront folder (`d3gbdb0egjwcw9.cloudfront.net/proving-keys/3a1c88f90f609eb1/`, `SOL_KEYS` in `cf/src/index.js`). It is prepared for Tor Browser, but not yet tested end to end ([how](PRIVACY.md#use-zigs-over-tor)). The Zigs server code keeps no logs; its host, Cloudflare, can see connection data. Every remaining leak is listed in [PRIVACY.md](PRIVACY.md). |
 | **Usefulness** | Designed for team treasuries, DAOs and families. Usable today in the web app, on Zcash testnet and Solana Devnet: invite links and QR codes; batch payments for payroll and grants (up to 8 recipients, one approval round, pasted from a spreadsheet); device changes; encrypted key share backups. |
 | **Execution** | The live app works end to end. The testnet and Devnet transactions that the apps made, a payment to a ZNS name among them, are [listed below](#proof-on-testnet-and-devnet). The engine has 131 tests, and a command-line suite runs adversarial cases. |
 | **Originality** | An end-user app for re-randomized FROST: no command line, no trusted dealer, and no server that can read the wallet. Each device decodes the PCZT and checks every output before it approves, and binds its approval to the transaction's sighash. Device changes and batch payments are included. The iPhone and Mac code in `ios/` is not part of this release. Built during the Zecathon window: the first commit is from October 15, 2026. |
@@ -171,7 +171,7 @@ flowchart LR
 | Signer device | Its own key share, the wallet secret, the viewing key, all payments |
 | Group server | Wallet ids, document names, timing, IP addresses. Never keys, amounts, addresses or names |
 | Light-wallet server | IP address and the blocks requested, as for any light wallet. On testnet, the app Worker relays the requests, so our node sees the Worker and not the device. Where memo reading is on, it also sees which full transactions a device fetches to read memos. Never a key |
-| Zcash network | A shielded transaction with the shape of a shielded payment from a standard wallet, except for its one-day expiry (a standard wallet sets 40 blocks) and an optional priority fee, which can mark it as a Zigs payment |
+| Zcash network | A shielded transaction with the shape of a shielded payment from a standard wallet, except for its one-day expiry (a standard wallet sets about 50 minutes) and an optional priority fee, which can mark it as a Zigs payment |
 | Helius (Solana beta, testnet wallets only) | IP address, the app origin, the owner key, and for each spend the amounts, recipients and the nullifier secret that its prover needs. Never a key share |
 | ZNS resolver (testnet names) | That the app Worker downloads the whole name registry. Never which name a person pays, never a key |
 
@@ -297,7 +297,7 @@ The full threat model is in [PRIVACY.md](PRIVACY.md). In short:
 
 | Party | Sees | Does not see |
 |---|---|---|
-| Chain observers | A shielded Ironwood transaction with the shape of a payment from a standard wallet. Its one-day expiry (a standard wallet sets 40 blocks) and an optional priority fee can mark it as a Zigs payment | The signers, amounts and addresses. The signature does not show that a group signed it |
+| Chain observers | A shielded Ironwood transaction with the shape of a payment from a standard wallet. Its one-day expiry (a standard wallet sets about 50 minutes) and an optional priority fee can mark it as a Zigs payment | The signers, amounts and addresses. The signature does not show that a group signed it |
 | Group server | Wallet ids, document paths and field names, timing, which IP addresses connect to which wallet | Wallet and signer names, addresses, viewing key, amounts or their length, recipients, transactions, signing data |
 | Light-wallet server | Your IP address (on testnet, our server sees the app Worker), the wallet's birthday height, the blocks you download, the transactions you send, the full transactions you fetch to read memos (only where memo reading is on) | Which notes are yours while you download blocks (the memo fetches are the exception), any key |
 | Helius (Solana beta, testnet wallets only) | Your IP address, the app origin, the owner key of the wallet, and the witness of each spend: owners, assets, amounts and the nullifier secret. With local proving on (a group setting), no witness: the devices of the group make the proofs. The sender and the recipient of a transfer are public on chain | Any key share, the Ed25519 seed, the viewing key. It cannot sign |
@@ -555,11 +555,14 @@ folder path.
   clock (`web/test/page.mjs`) that leaves out a stall such as a sleep of the computer, so a
   lifetime that the page measures with `Date.now()` cannot run out in the middle of a test. Timers
   still count a stall.
-- `cargo test --release` in `wasm/` (131 tests, and 1 ignored test for ZEC-1):
+- `cargo test --release` in `wasm/` (136 tests, and 1 ignored test that prints the vectors below):
   - Signing: full 2-of-3 flows for Ironwood (paying 4 recipients in one transaction) and Orchard.
+    The sighash and the id of 4 saved payments (`wasm/src/testdata/sighash-vectors.json`) stay the
+    same when the Zcash crates change.
   - Expiry and fees: a group payment expires after one day of blocks (75 or 25 seconds each), at
-    most up to the next upgrade. The approver refuses an expired payment and one that stays valid
-    much longer. A fee from the ZIP 317 fee to 10 times it passes, and a transparent or Sapling
+    most up to the next upgrade, also on mainnet at block 3,543,405 (NU7). The approver refuses an
+    expired payment, one made for another network upgrade than the next block, and one that stays
+    valid much longer. A fee from the ZIP 317 fee to 10 times it passes, and a transparent or Sapling
     output inside that range is refused. The id that `inspect` gives is the id of the final
     transaction.
   - Session state: "done" and "expired" need the sighash that the device approved, and
@@ -812,11 +815,12 @@ folder path.
 - **Randomizer source.** Signing uses the `alpha` that the transaction builder puts in the PCZT, as
   the Zcash Foundation's `zcash-sign` does. Check the final ZIP 312 text before production use.
 - **No key refresh.** Signer changes use a new wallet. Each wallet has one address.
-- **Pre-release crates.** The engine uses the NU7 pre-release crate line: `zcash_protocol`
-  0.11.0-pre.0, `zcash_primitives` 0.31.0-pre.1, `pczt` 0.10.0-pre.1, `zcash_keys` 0.17.0-pre.1,
-  `orchard` 0.16.0, `zcash_client_backend` 0.25.0-pre.1, `zip321` 0.10.0-pre.1, and `reddsa` at git
-  rev `ed49e9c` for FROST. Mainnet follows the NU6.3 rules, which already use v6 transactions and
-  Ironwood.
+- **Crate pins.** The engine uses the final NU7 releases of the Zcash crates: `zcash_protocol`
+  0.11.0, `zcash_primitives` 0.31.0, `pczt` 0.10.0, `zcash_keys` 0.17.0, `orchard` 0.16.0,
+  `zcash_client_backend` 0.25.0 and `zip321` 0.10.0, and `reddsa` at git rev `ed49e9c` for FROST.
+  Mainnet follows the NU6.3 rules until block 3,543,405 (about 6 November 2026) and the NU7 rules
+  from it; both use v6 transactions and Ironwood. The iPhone and Mac library needs a new build
+  with `ios/build-core.sh` for these crates.
 - **One mainnet server.** Mainnet wallets depend on ChainSafe's public light-wallet server.
 - **ZNS names trust the registry.** A name gives the address that the ZNS Mint wrote, and one
   registrar runs it. The app checks the key that the resolver states, not each record on chain,
