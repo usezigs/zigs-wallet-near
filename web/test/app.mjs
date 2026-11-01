@@ -4639,7 +4639,7 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
         t.ui.priority = true;
         for (const [notes, spendable, maxSendZat, expected] of [[1, 200000, 190000, 100000],
           [2, 300000, 290000, 200000]]) {
-          withFunds({ notes, spendable, max_send: maxSendZat });
+          withFunds({ notes, spendable, max_send: maxSendZat, max_fee: 10000 });
           form = rowsOf([OTHER, ""]);
           maxOf(form).on.click();
           assert.deepEqual(await submit(form), [[{ to: OTHER, amount: expected }]],
