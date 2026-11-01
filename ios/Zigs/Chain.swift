@@ -22,6 +22,10 @@ struct ZcashNetwork: Sendable {
         explorer: "https://zecblock.com/tx/", prefix: "u1", cap: 50_000_000, faucet: nil)
 
     static func of(_ id: String?) -> ZcashNetwork { id == "mainnet" ? .mainnet : .testnet }
+
+    /// The native app reads a mainnet wallet but does not create, join, restore, approve for or send
+    /// from one yet.
+    static let nativeLater = "The native app supports mainnet later. Use the web app for mainnet wallets."
 }
 
 func capText(_ zat: Int) -> String { "\(Double(zat) / 1e8) ZEC" }

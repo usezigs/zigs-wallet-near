@@ -76,7 +76,7 @@ struct NativeCaptureScene: View {
             NativeCreationProgress(step: step, titles: titles)
             InstrumentHeading(title: titles[step], detail: "Each signer keeps a separate share.")
             NativeCreationStepContent(step: step, from: nil, nickname: .constant("Test signer"), walletName: .constant("Studio treasury"),
-                n: .constant(3), t: .constant(2), mainnet: .constant(false), understood: .constant(false))
+                n: .constant(3), t: .constant(2))
         case "review":
             let ss = Session(id: "synthetic-review", doc: ["status": "collecting", "amount": 12345678,
                 "payees": [["to": "utest1syntheticdestination", "amount": 12345678]], "createdAt": 1792742400000])

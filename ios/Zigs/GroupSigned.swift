@@ -80,10 +80,11 @@ extension GroupModel {
         return localSeats.filter { !canWriteAs($0, in: gid) }
     }
 
-    /// May this device change the open wallet? Always before version 3. After, it needs a seat
-    /// that can sign: the proof, the sent mark and the signed PCZT are signed parts.
+    /// May this device change the open wallet? Never for a mainnet wallet: the native app reads it
+    /// only. Always before version 3. After, it needs a seat that can sign: the proof, the sent
+    /// mark and the signed PCZT are signed parts.
     var canAct: Bool {
-        guard let gid else { return false }
+        guard let gid, !state.isMainnet else { return false }
         return !signedMode(gid) || writer(in: gid) != nil
     }
 

@@ -88,6 +88,7 @@ struct GroupState {
     var net: ZcashNetwork { .of(g?.str("network")) }
     /// The network name that the wallet document must carry. A group that names none is testnet.
     var netName: String { g?.str("network") == "mainnet" ? "mainnet" : "testnet" }
+    var isMainnet: Bool { netName == "mainnet" }
     /// 1 when the group document has no version, 2 for the ZIP 2005 ceremony, 3 for that ceremony
     /// with signed writes, 0 for a version this app does not know.
     var version: Int { Self.version(of: g) }
@@ -598,6 +599,7 @@ final class GroupModel {
 
     /// Why Send is unavailable, or nil when it is available.
     var sendBlocker: String? {
+        if state.isMainnet { return ZcashNetwork.nativeLater }
         if localSeats.isEmpty { return "You hold no seat in this wallet." }
         if !myVerified { return "Your seat is still checking the wallet address." }
         guard let b = balanceNow() else { return "Wait for the first sync to finish." }
@@ -1381,6 +1383,7 @@ final class GroupModel {
     func takeSeat(_ i: Int, version: Int? = nil) {
         guard let gid else { return }
         once("seat:\(i)") {
+            guard !self.state.isMainnet else { throw ZigsError(ZcashNetwork.nativeLater) }
             let version = version ?? self.state.version
             guard version != 0 else { throw ZigsError("This version of Zigs cannot set up this wallet.") }
             let path = "groups/\(gid)/seats/\(i)"
@@ -1414,6 +1417,7 @@ final class GroupModel {
     /// Creates a wallet and takes seat 1. With `from`, the new wallet replaces `from`: the old wallet
     /// gets only the new id, never its key, so signers left out cannot read the new wallet.
     func createGroup(name: String, n: Int, t: Int, from: String? = nil, network: String = "testnet") async throws {
+        guard network != "mainnet" else { throw ZigsError(ZcashNetwork.nativeLater) }
         let (id, b64) = try Chat.newRoom()
         vault.putKey(id, b64)
         store.join(id)
@@ -1430,6 +1434,7 @@ final class GroupModel {
     /// Proposes a payment to one or more recipients, in one transaction. `payees` and `note` are
     /// the proposer's words, which approvers check against the transaction itself.
     func propose(payees: [(to: String, amount: Int)], note: String?, move: String? = nil) async throws {
+        guard !state.isMainnet else { throw ZigsError(ZcashNetwork.nativeLater) }
         guard let gid, let chain, chain.balance != nil else { throw ZigsError("The wallet has not finished its first sync.") }
         if signedMode(gid) && writer(in: gid) == nil { throw ZigsError(Signed.noSeatKey) }
         let list: [Doc] = payees.map { ["to": $0.to, "amount": $0.amount] }
@@ -1496,6 +1501,7 @@ final class GroupModel {
     func approve(_ ss: Session, _ i: Int) {
         guard let gid, let fvk = state.wallet?.str("orchard_fvk") else { return }
         once("approve:\(ss.id):\(i)") {
+            guard !self.state.isMainnet else { throw ZigsError(ZcashNetwork.nativeLater) }
             let s = self.vault.sec(gid, i)
             guard !has(ss.doc["error"]) else { throw ZigsError("This payment was cancelled or failed, so it was not approved.") }
             guard has(self.state.verify["\(i)"]?["ok"]) else {

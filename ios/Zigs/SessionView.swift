@@ -411,8 +411,10 @@ struct NextAction: View {
     @State private var confirmCancel = false
 
     var body: some View {
-        // A cancelled or failed payment takes no more steps.
-        if !has(ss.doc["error"]) { actions }
+        // A cancelled or failed payment takes no more steps. A mainnet wallet takes none here.
+        if model.state.isMainnet {
+            Text(ZcashNetwork.nativeLater).font(.nativeSubheadline).foregroundStyle(Color.bad)
+        } else if !has(ss.doc["error"]) { actions }
     }
 
     @ViewBuilder private var actions: some View {

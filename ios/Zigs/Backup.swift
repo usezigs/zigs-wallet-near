@@ -211,6 +211,8 @@ struct BackupData {
     let name: String
     /// The key pairs of the file. They wait for the seat's published keys (see KeyPairs).
     let keys: Doc
+    /// The network that the wallet of the file names, if the file holds the wallet.
+    let network: String?
 
     /// A whole number that is not a JSON boolean.
     static func integer(_ v: Any?) -> Int? {
@@ -304,6 +306,7 @@ struct BackupData {
         self.keyPackage = keyPackage
         self.name = Self.walletName(b)
         self.keys = secret.filter { BackupText.keyFields.contains($0.key) }
+        self.network = b.doc("wallet")?.str("network")
     }
 
     /// The part of the seat secret that a restore takes from the file now: the allowed fields
@@ -507,6 +510,8 @@ extension GroupModel {
     /// restore takes only the allowed fields, and never brings back nonces. The seat counts as
     /// backed up only for a sealed file, and only when the backup fits the wallet.
     private func restore(_ b: BackupData, encrypted: Bool) throws {
+        let network = groups.first { $0.id == b.group }?.network ?? b.network
+        guard network != "mainnet" else { throw ZigsError(ZcashNetwork.nativeLater) }
         try checkRestore(b)
         let before = vault.secrets["\(b.group):\(b.seat)"]
         let addedKey = b.key != nil && vault.keys[b.group] == nil

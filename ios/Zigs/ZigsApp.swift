@@ -374,8 +374,6 @@ struct CreateSheet: View {
     @State private var n = 3
     @State private var t = 2
     @State private var working = false
-    @State private var mainnet = false
-    @State private var understood = false
 
     @State private var step = 0
     private let stepTitles = ["Name your wallet", "Choose shared control", "Choose the network", "Review your wallet"]
@@ -390,7 +388,7 @@ struct CreateSheet: View {
                         ? "A private shared wallet. Each signer keeps a separate key share."
                         : "Create a replacement wallet, then approve the move from your old wallet.")
                     NativeCreationStepContent(step: step, from: from, nickname: $model.name,
-                        walletName: $walletName, n: $n, t: $t, mainnet: $mainnet, understood: $understood)
+                        walletName: $walletName, n: $n, t: $t)
                     if step == 0 {
                         #if os(iOS)
                         Card {
@@ -419,7 +417,7 @@ struct CreateSheet: View {
                         Button("Continue") { step += 1 }.primaryButton()
                     } else {
                         Button(working ? "Creating…" : (from == nil ? "Create wallet" : "Create new wallet")) { create() }
-                            .primaryButton().disabled(working || (from == nil && mainnet && !understood))
+                            .primaryButton().disabled(working)
                     }
                 }.padding(16).modifier(GlassChrome())
             }
@@ -435,7 +433,7 @@ struct CreateSheet: View {
         Task {
             do {
                 // A replacement wallet stays on its predecessor's network: funds cannot move between networks.
-                let network = from?.g?.str("network") ?? (mainnet ? "mainnet" : "testnet")
+                let network = from?.g?.str("network") ?? "testnet"
                 try await model.createGroup(name: name.isEmpty ? (from?.name ?? "Treasury") : name, n: n, t: t,
                                             from: from == nil ? nil : model.gid, network: network)
                 dismiss()
