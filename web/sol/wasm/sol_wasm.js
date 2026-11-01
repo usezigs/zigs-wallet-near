@@ -130,6 +130,124 @@ export function compile_message(proposal, pins, transact) {
 }
 
 /**
+ * Checks a message with every rule of the plain wallet. The answer starts with `accepted`,
+ * `refused` or `error`. `accepted` lists the lines of the approval screen: the intent, the
+ * cluster, the full base58 recipient, the amount with its decimals, the base units, the symbol,
+ * the pinned mint, the fee, the rent that the payer funds, the payer and the group key.
+ * `refused` lists every violated rule as `id<TAB>detail`. `error` gives the reason that an input
+ * did not parse or a read is missing.
+ * @param {Uint8Array} message
+ * @param {Uint8Array} intent
+ * @param {Uint8Array} pins
+ * @param {Uint8Array} chain
+ * @returns {string}
+ */
+export function plain_check_message(message, intent, pins, chain) {
+    let deferred5_0;
+    let deferred5_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(message, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passArray8ToWasm0(intent, wasm.__wbindgen_export2);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passArray8ToWasm0(pins, wasm.__wbindgen_export2);
+        const len2 = WASM_VECTOR_LEN;
+        const ptr3 = passArray8ToWasm0(chain, wasm.__wbindgen_export2);
+        const len3 = WASM_VECTOR_LEN;
+        wasm.plain_check_message(retptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        deferred5_0 = r0;
+        deferred5_1 = r1;
+        return getStringFromWasm0(r0, r1);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export3(deferred5_0, deferred5_1, 1);
+    }
+}
+
+/**
+ * The message bytes of a plain proposal, compiled from the template. A refusal to compile (a
+ * pool wallet, a payer that is the group key, a token that is not pinned) is an error.
+ * @param {Uint8Array} intent
+ * @param {Uint8Array} pins
+ * @returns {Uint8Array}
+ */
+export function plain_compile_message(intent, pins) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(intent, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passArray8ToWasm0(pins, wasm.__wbindgen_export2);
+        const len1 = WASM_VECTOR_LEN;
+        wasm.plain_compile_message(retptr, ptr0, len0, ptr1, len1);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+        if (r3) {
+            throw takeObject(r2);
+        }
+        var v3 = getArrayU8FromWasm0(r0, r1).slice();
+        wasm.__wbindgen_export3(r0, r1 * 1, 1);
+        return v3;
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * The accounts that the page must read for a proposal, derived here and never taken from the
+ * proposal: one `role<TAB>hex<TAB>base58` line for each. The answer starts with `error<TAB>` if
+ * the inputs do not parse.
+ * @param {Uint8Array} intent
+ * @param {Uint8Array} pins
+ * @returns {string}
+ */
+export function plain_reads(intent, pins) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(intent, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passArray8ToWasm0(pins, wasm.__wbindgen_export2);
+        const len1 = WASM_VECTOR_LEN;
+        wasm.plain_reads(retptr, ptr0, len0, ptr1, len1);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        deferred3_0 = r0;
+        deferred3_1 = r1;
+        return getStringFromWasm0(r0, r1);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export3(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
+ * Every plain rule as `id<TAB>statement`, one per line.
+ * @returns {string}
+ */
+export function plain_rule_list() {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        wasm.plain_rule_list(retptr);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        deferred1_0 = r0;
+        deferred1_1 = r1;
+        return getStringFromWasm0(r0, r1);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export3(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
  * Every rule as `id<TAB>statement`, one per line.
  * @returns {string}
  */
@@ -674,6 +792,134 @@ export function sol_pda_roles(sol_seed, group_key) {
 }
 
 /**
+ * The digest (hex) of the exact message bytes of a plain wallet, which includes the label of its
+ * cluster and mode. The page stores the nonces of a seat under it (`sol_nonces`).
+ * @param {Uint8Array} pins
+ * @param {Uint8Array} message
+ * @returns {string}
+ */
+export function sol_plain_digest(pins, message) {
+    let deferred4_0;
+    let deferred4_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(pins, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passArray8ToWasm0(message, wasm.__wbindgen_export2);
+        const len1 = WASM_VECTOR_LEN;
+        wasm.sol_plain_digest(retptr, ptr0, len0, ptr1, len1);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+        var ptr3 = r0;
+        var len3 = r1;
+        if (r3) {
+            ptr3 = 0; len3 = 0;
+            throw takeObject(r2);
+        }
+        deferred4_0 = ptr3;
+        deferred4_1 = len3;
+        return getStringFromWasm0(ptr3, len3);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export3(deferred4_0, deferred4_1, 1);
+    }
+}
+
+/**
+ * The signature (hex) of the fee key for the payer part of a plain message. It runs
+ * `plain_check_message` on the exact bytes first and throws the refusal. `round` is
+ * `{"secret"}`.
+ * @param {Uint8Array} message
+ * @param {Uint8Array} intent
+ * @param {Uint8Array} pins
+ * @param {Uint8Array} chain
+ * @param {string} round
+ * @returns {string}
+ */
+export function sol_plain_fee_sign(message, intent, pins, chain, round) {
+    let deferred7_0;
+    let deferred7_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(message, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passArray8ToWasm0(intent, wasm.__wbindgen_export2);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passArray8ToWasm0(pins, wasm.__wbindgen_export2);
+        const len2 = WASM_VECTOR_LEN;
+        const ptr3 = passArray8ToWasm0(chain, wasm.__wbindgen_export2);
+        const len3 = WASM_VECTOR_LEN;
+        const ptr4 = passStringToWasm0(round, wasm.__wbindgen_export2, wasm.__wbindgen_export4);
+        const len4 = WASM_VECTOR_LEN;
+        wasm.sol_plain_fee_sign(retptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+        var ptr6 = r0;
+        var len6 = r1;
+        if (r3) {
+            ptr6 = 0; len6 = 0;
+            throw takeObject(r2);
+        }
+        deferred7_0 = ptr6;
+        deferred7_1 = len6;
+        return getStringFromWasm0(ptr6, len6);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export3(deferred7_0, deferred7_1, 1);
+    }
+}
+
+/**
+ * The share of a seat for a plain message. It runs the plain checker for the group key first and
+ * throws the refusal. `round` is `{"now", "cluster", "keyPackage", "nonces", "commitments"}`,
+ * where `cluster` is the wallet label and the nonces are those of `sol_plain_digest`.
+ * @param {Uint8Array} message
+ * @param {Uint8Array} intent
+ * @param {Uint8Array} pins
+ * @param {Uint8Array} chain
+ * @param {string} round
+ * @returns {string}
+ */
+export function sol_plain_sign_share(message, intent, pins, chain, round) {
+    let deferred7_0;
+    let deferred7_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(message, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passArray8ToWasm0(intent, wasm.__wbindgen_export2);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passArray8ToWasm0(pins, wasm.__wbindgen_export2);
+        const len2 = WASM_VECTOR_LEN;
+        const ptr3 = passArray8ToWasm0(chain, wasm.__wbindgen_export2);
+        const len3 = WASM_VECTOR_LEN;
+        const ptr4 = passStringToWasm0(round, wasm.__wbindgen_export2, wasm.__wbindgen_export4);
+        const len4 = WASM_VECTOR_LEN;
+        wasm.sol_plain_sign_share(retptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+        var ptr6 = r0;
+        var len6 = r1;
+        if (r3) {
+            ptr6 = 0; len6 = 0;
+            throw takeObject(r2);
+        }
+        deferred7_0 = ptr6;
+        deferred7_1 = len6;
+        return getStringFromWasm0(ptr6, len6);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export3(deferred7_0, deferred7_1, 1);
+    }
+}
+
+/**
  * The version label of the program ids: what a `soldone` document must carry.
  * @returns {string}
  */
@@ -784,6 +1030,78 @@ export function sol_sign_share(message, intent, pins, snapshot, round) {
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
         wasm.__wbindgen_export3(deferred7_0, deferred7_1, 1);
+    }
+}
+
+/**
+ * The label of a wallet (`devnet` or `mainnet`, `plain` or `pool`), which the ceremony hashes and
+ * the signing round carries. A pool wallet exists on Devnet only.
+ * @param {string} cluster
+ * @param {string} mode
+ * @returns {string}
+ */
+export function sol_wallet_label(cluster, mode) {
+    let deferred4_0;
+    let deferred4_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passStringToWasm0(cluster, wasm.__wbindgen_export2, wasm.__wbindgen_export4);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(mode, wasm.__wbindgen_export2, wasm.__wbindgen_export4);
+        const len1 = WASM_VECTOR_LEN;
+        wasm.sol_wallet_label(retptr, ptr0, len0, ptr1, len1);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+        var ptr3 = r0;
+        var len3 = r1;
+        if (r3) {
+            ptr3 = 0; len3 = 0;
+            throw takeObject(r2);
+        }
+        deferred4_0 = ptr3;
+        deferred4_1 = len3;
+        return getStringFromWasm0(ptr3, len3);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export3(deferred4_0, deferred4_1, 1);
+    }
+}
+
+/**
+ * The version label of the program ids of a wallet: one for each cluster and mode. A `soldone`
+ * document carries it, and a seat whose label differs ends.
+ * @param {string} cluster
+ * @param {string} mode
+ * @returns {string}
+ */
+export function sol_wallet_program_label(cluster, mode) {
+    let deferred4_0;
+    let deferred4_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passStringToWasm0(cluster, wasm.__wbindgen_export2, wasm.__wbindgen_export4);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(mode, wasm.__wbindgen_export2, wasm.__wbindgen_export4);
+        const len1 = WASM_VECTOR_LEN;
+        wasm.sol_wallet_program_label(retptr, ptr0, len0, ptr1, len1);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+        var ptr3 = r0;
+        var len3 = r1;
+        if (r3) {
+            ptr3 = 0; len3 = 0;
+            throw takeObject(r2);
+        }
+        deferred4_0 = ptr3;
+        deferred4_1 = len3;
+        return getStringFromWasm0(ptr3, len3);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export3(deferred4_0, deferred4_1, 1);
     }
 }
 function __wbg_get_imports() {

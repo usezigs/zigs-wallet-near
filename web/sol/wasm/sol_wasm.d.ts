@@ -46,6 +46,34 @@ export function check_payment(proposal: Uint8Array, pins: Uint8Array, snapshot: 
 export function compile_message(proposal: Uint8Array, pins: Uint8Array, transact: Uint8Array): Uint8Array;
 
 /**
+ * Checks a message with every rule of the plain wallet. The answer starts with `accepted`,
+ * `refused` or `error`. `accepted` lists the lines of the approval screen: the intent, the
+ * cluster, the full base58 recipient, the amount with its decimals, the base units, the symbol,
+ * the pinned mint, the fee, the rent that the payer funds, the payer and the group key.
+ * `refused` lists every violated rule as `id<TAB>detail`. `error` gives the reason that an input
+ * did not parse or a read is missing.
+ */
+export function plain_check_message(message: Uint8Array, intent: Uint8Array, pins: Uint8Array, chain: Uint8Array): string;
+
+/**
+ * The message bytes of a plain proposal, compiled from the template. A refusal to compile (a
+ * pool wallet, a payer that is the group key, a token that is not pinned) is an error.
+ */
+export function plain_compile_message(intent: Uint8Array, pins: Uint8Array): Uint8Array;
+
+/**
+ * The accounts that the page must read for a proposal, derived here and never taken from the
+ * proposal: one `role<TAB>hex<TAB>base58` line for each. The answer starts with `error<TAB>` if
+ * the inputs do not parse.
+ */
+export function plain_reads(intent: Uint8Array, pins: Uint8Array): string;
+
+/**
+ * Every plain rule as `id<TAB>statement`, one per line.
+ */
+export function plain_rule_list(): string;
+
+/**
  * Every rule as `id<TAB>statement`, one per line.
  */
 export function rule_list(): string;
@@ -134,6 +162,26 @@ export function sol_nonces(key_package: string, digest: string): string;
 export function sol_pda_roles(sol_seed: string, group_key: string): string;
 
 /**
+ * The digest (hex) of the exact message bytes of a plain wallet, which includes the label of its
+ * cluster and mode. The page stores the nonces of a seat under it (`sol_nonces`).
+ */
+export function sol_plain_digest(pins: Uint8Array, message: Uint8Array): string;
+
+/**
+ * The signature (hex) of the fee key for the payer part of a plain message. It runs
+ * `plain_check_message` on the exact bytes first and throws the refusal. `round` is
+ * `{"secret"}`.
+ */
+export function sol_plain_fee_sign(message: Uint8Array, intent: Uint8Array, pins: Uint8Array, chain: Uint8Array, round: string): string;
+
+/**
+ * The share of a seat for a plain message. It runs the plain checker for the group key first and
+ * throws the refusal. `round` is `{"now", "cluster", "keyPackage", "nonces", "commitments"}`,
+ * where `cluster` is the wallet label and the nonces are those of `sol_plain_digest`.
+ */
+export function sol_plain_sign_share(message: Uint8Array, intent: Uint8Array, pins: Uint8Array, chain: Uint8Array, round: string): string;
+
+/**
  * The version label of the program ids: what a `soldone` document must carry.
  */
 export function sol_program_label(): string;
@@ -155,6 +203,18 @@ export function sol_share_fits(key_package: string): boolean;
  */
 export function sol_sign_share(message: Uint8Array, intent: Uint8Array, pins: Uint8Array, snapshot: Uint8Array, round: string): string;
 
+/**
+ * The label of a wallet (`devnet` or `mainnet`, `plain` or `pool`), which the ceremony hashes and
+ * the signing round carries. A pool wallet exists on Devnet only.
+ */
+export function sol_wallet_label(cluster: string, mode: string): string;
+
+/**
+ * The version label of the program ids of a wallet: one for each cluster and mode. A `soldone`
+ * document carries it, and a seat whose label differs ends.
+ */
+export function sol_wallet_program_label(cluster: string, mode: string): string;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
@@ -162,6 +222,10 @@ export interface InitOutput {
     readonly check_message: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: bigint) => void;
     readonly check_payment: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: bigint) => void;
     readonly compile_message: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
+    readonly plain_check_message: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
+    readonly plain_compile_message: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly plain_reads: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly plain_rule_list: (a: number) => void;
     readonly rule_list: (a: number) => void;
     readonly sol_aggregate: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
     readonly sol_approval_digest: (a: number, b: number, c: number, d: number, e: number) => void;
@@ -177,10 +241,15 @@ export interface InitOutput {
     readonly sol_fee_verify: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
     readonly sol_nonces: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly sol_pda_roles: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly sol_plain_digest: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly sol_plain_fee_sign: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => void;
+    readonly sol_plain_sign_share: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => void;
     readonly sol_program_label: (a: number) => void;
     readonly sol_roles: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly sol_share_fits: (a: number, b: number) => number;
     readonly sol_sign_share: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => void;
+    readonly sol_wallet_label: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly sol_wallet_program_label: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly __wbindgen_export: (a: number) => void;
     readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
     readonly __wbindgen_export2: (a: number, b: number) => number;

@@ -5,7 +5,9 @@ signed). The fee payer change (below, 16 October 2026) edits src/check.rs, templ
 rule.rs, spend.rs, intent.rs and pins.rs, and the program design (below, 16 October 2026) edits
 check.rs, template.rs, rules_ix.rs, rule.rs, intent.rs, pins.rs, plan.rs and approve.rs, and the
 version 5 client (below, 17 October 2026) edits template.rs again and the comments of consts.rs: the
-verdict no longer covers those ten files as they are now. A P3 verifier signed the checker tree and
+verdict no longer covers those ten files as they are now. The plain wallet (below, 1 November 2026)
+adds seven files to src and edits seven others, and no verifier signed them. A P3 verifier signed
+the checker tree and
 its copy in this crate: p3delta-verdict.json (verdict "pass-with-gaps"), the delta verifier of the
 P3 fix round. What it signed: the verified-tree manifest
 14b1ba4190989259e7d5ca49ba5250c7e10b6c9878c51892afda76ea61aaa5cc, the pinned-tree manifest
@@ -278,6 +280,42 @@ signs one more message alone. Program version 5 is not changed.
   35 tries with a funded address. No vector or message held the old values. `Approve` has no
   message and shares the limits.
 
+After the signature (not signed): the plain Solana wallet, step P1 (1 November 2026). The group key
+is an ordinary System account, SOL sits on it and USDC in its associated token account, and the
+wallet has no privacy. No verifier signed any file named here, and the pool path is not changed:
+check.rs, template.rs, rules_ix.rs, beta.rs, pins.rs, intent.rs, approve.rs, pda.rs and their
+rules are byte for byte the files above. A pool wallet stays on Devnet.
+- New in src: plain.rs (the wallet with its cluster and mode, the 66-byte pins, the intents with
+  the tags 13 to 17, which `Intent::decode` still refuses), plain_template.rs (the compiler of the
+  shapes S1 to S5; the only code that knows the message format), plain_chain.rs (the accounts
+  that the page read, and the parse of the nonce and token accounts), plain_rules.rs (recipient,
+  amount, chain and rent-state rules), plain_check.rs (the checker: the compiled message must
+  equal the proposed one), plain_display.rs (the approval screen, base58) and plain_sign.rs (the
+  digest and the group share).
+- Edited in src, all marked `modified` or `new` before: consts.rs (the programs, sysvars, genesis
+  of mainnet, the mint tables, rent and fee pins at the end of the file), rule.rs (`PlainRule`
+  and `PLAIN_INFO`, a second table of 26 rules after the pool table, so `rule_list` keeps its 101
+  rules; new `Group` variants), frost.rs (`check_label`: the ceremony takes the labels `devnet`,
+  `devnet-plain` and `mainnet-plain`; `check_cluster` and the pool signing paths are unchanged),
+  sign.rs (`Round` is visible in the crate), fee.rs (`sign_plain`, which does not call `approved`
+  or `Pins::decode`), wasm.rs (the entries `sol_wallet_label`, `sol_wallet_program_label`,
+  `plain_rule_list`, `plain_reads`, `plain_compile_message`, `plain_check_message`,
+  `sol_plain_digest`, `sol_plain_fee_sign`, `sol_plain_sign_share`) and lib.rs (the modules).
+- tests: plain.rs, plain_rules.rs, plain_sign.rs, plain_wallet.rs and support/plain.rs (new), 87
+  tests; every plain rule has a named test (`python3 -I tools/rule_tests.py`). vectors/plain (new)
+  holds 21 smoke vectors from `cargo run --release --example plain_vectors`; tools/smoke.cjs
+  replays them in the wasm build. The mutation cases of tools/mutate_sol.py for the plain rules
+  are step P2 and are not written.
+- The wasm of this build: SHA-256 9a0ea1cc804bb2f842f6d386d753474ad2db79fe80e7e77a93194e57e24e0a45,
+  1,141,748 bytes raw, 419,691 gzip. The hash in the section "The wasm of wasm-sol" above is of
+  the build before the plain wallet.
+- Measured on the public RPC on 1 November 2026, read only (`simulateTransaction`, `sigVerify`
+  false, nothing sent): the messages S1 and S4 run on mainnet and on Devnet, S2 and S3 without
+  the nonce advance run on mainnet, and S2 without it runs on Devnet. The compute units are
+  300 for S1, 150 for the transfer, 13,518 for the creation of a token account plus 1,500 for each
+  failed bump try (S4 on both clusters), and 13,623 for it with `TransferChecked`. Not measured:
+  S3 on Devnet (no holder found), and the nonce advance of S2, S3 and S5 (no nonce account).
+
 Check: python3 -I tools/pin_check.py (the manifest below against the tree).
 
 files:
@@ -289,33 +327,40 @@ bce3e196c3a4064026d8b57f8fe3ebcca600ac9de008df44e7b61cc8c6b1bb46  src/address.rs
 0c2c8885a396432c3d84c077cfea3f4f364c57dc6af0e26d169d3b2fc8e34684  src/bytes.rs  verbatim
 34713776c2e344e7319a8b9b55ff17684ac383c055c07d6133fd95878985f2c7  src/check.rs  modified
 ca3b51e9ea30baeb0b082ca9cb19fe248bc86880d60ae90a3ee3e5a7dcb6b371  src/codec.rs  new
-b4847bc1ce9c8027efddf4bde31aed08445193b610fd5927c73776902a179284  src/consts.rs  modified
-7a08e707a51b6264f62db1bb802e718ffea87886aad961e641f784e80f2e4321  src/fee.rs  new
+bdbfe3ae5bdad890afc680f27403561322958348f73a9f11214a72aa1f93a585  src/consts.rs  modified
+18dc3dc03e8a7ee30bf3d595b9adb209e73a4087408767b1af6e480085b7ad2d  src/fee.rs  new
 7580593e6b6b3b9e7deff6ea3ef327abda12ba3d7f369abaf041a01461c9bf28  src/fixed.rs  verbatim
-4e23c21ba7958d4915aa41b691c3d4b24615026f07c793a63ebeda3fd8916c7a  src/frost.rs  new
+4789a6ea37c9c768a20c4956969bf44577b7123fe891e2cf56e0a5b0eefa4bbd  src/frost.rs  new
 e69e4ccacb28931921f072919a6ecf9ff3fe6784e3b129a45ff94fa0ccc17d4c  src/hashes.rs  verbatim
 613570475a3d4ec0402a0914063e8df83ddc1df5e78774e2774937fef131dac5  src/intent.rs  modified
-4ee766f3816d4af38f22fd2377a305515af6df48f01e64af2b8713a575dec1f5  src/lib.rs  modified
+19601bcc5d79601c8c4fe4156cb91c5543f01e17f296a7206a7d3c396e7f8f1d  src/lib.rs  modified
 a71a896274e606d3a4e3e801191b4b65461bfd5cb548343f093a250c4d45bb01  src/pay.rs  new
 4f344e745afed204088395c0101761a0332688de88ab6e57dec9e85de34907a1  src/pda.rs  verbatim
 89ca7f01b3b694c1c4e9c656d779a8eb88039aa2ceb8d4e9321f3d1e86d0cb94  src/pins.rs  modified
+0cb81a1c0a2f68ed0941e510ff39397d2fe2a15ba60e6c38e0b628a8317bf9ae  src/plain.rs  new
+3bffeb0e2461e372d0efdaf063ebf7a12972c6ab1a4f3f48a9dd64c8723e78e6  src/plain_chain.rs  new
+4868e070fa8f3dc07ba87f32cd1dd13ae8927427d16d9b169461afc6b83b467b  src/plain_check.rs  new
+e1793250acee93cbe2f804c24ef249d43de1fdb1c0ecaa5b3c711e40ce38e4b8  src/plain_display.rs  new
+65827437e68a53121afc846d45c52ada089c33d2c59ec7b4a8395e9c6009b90a  src/plain_rules.rs  new
+18f0cc899de0db62465d79af7578f65d7d62eb8106cdffcd63858a36afe52de2  src/plain_sign.rs  new
+a8f0bf27c9f21f72c8e3c6514c9da99f19a044a70727b66c69e8e9d793e262d8  src/plain_template.rs  new
 df46e9e90b740789623db0bed212c78a8d87fbf608a04be84cab433327fbb738  src/plan.rs  modified
 befdc6018a5ad022638cfa66e3a1b140582f3c57b1b65e91e43599d50181167a  src/program.rs  new
 a44ea553e8f9d4b4cbac46b67a267c8f529de2ce84a34ce96f0f281d6eee156a  src/roles.rs  new
-1fc00e0f2b85ba285be1e23b231eb455bcff02e80054f8a18e1f2395a94b0a6d  src/rule.rs  modified
+c025754099abc93944faf00254e6bddccb6f5d6a20718f60e819ffcf5e4e83ba  src/rule.rs  modified
 c8c4a33103f0c0e811e5d98e43acc3f0f28316d0976beb65788b47fd3f6d5c1c  src/rules_ct.rs  verbatim
 6036f8b35f36c72463456c0f946b1dc569fa2cb99fa2794f0a6443941761323e  src/rules_ix.rs  modified
 3e6b8cd5a979ea45ec96d4bc42eef02677418b7a0f9d4d7f2aada02c7fcaa625  src/rules_legs.rs  verbatim
 a88175ff29fcbbe4075bf2707c0a825d6026da9e7ae93fa390f7bedda6cc76f4  src/rules_out.rs  verbatim
 423e3c005c541c66efd63c27fbba844819e2ade4071d9fb9e9ffd9a50a3c94d6  src/rules_tx.rs  verbatim
-1f12c8381a04511ffa789646c93e29776f19d5bee234457f7ae6f3cee86ae6f3  src/sign.rs  new
+075e1bf150f6be6707caa6b3254d6397bc40e75c5dc465d45518cc33a451460c  src/sign.rs  new
 fb32fff67235197779cc2b25cc5fe351d57fdb6140d976546b96ddc4484e28d3  src/snapshot.rs  verbatim
 1dd8eb3bea1120da40326466ec83e58fc6f49b40548a553bbcc50bc715131ab8  src/spend.rs  modified
 5e71f75897abf5c307c15d427bb7b0b3379dd7adf1665f19543044bc46c24274  src/template.rs  modified
 3d7e69437af85c56d9bcf80172af2c7c866140ceb6e3f889d8cbc11dde9cdf05  src/transact.rs  verbatim
 c9d4c2718f755ac5ebeb8a705e036b3ab9183cb7ef95fe1f14da5ffa931c1c9f  src/v1.rs  verbatim
 ddda30596120fcb6731fa8515b0a06c55e2df70070a9082ed64749b022ddb374  src/viewing.rs  verbatim
-3e5ba42c088185ad990a955b0be41c31d005bbe69bce829c58fe16b924044eb0  src/wasm.rs  modified
+687eaf58614e23487b2e90376b51cd53a462ccfb4ed1bb68e2911d967835dca6  src/wasm.rs  modified
 ab14b07d8870f6c201553f0f5bc066fe65b3a0d79144e293a6a3a9ded2e65ad4  tests/asset_pins.rs  verbatim
 532eaab96460db7d21ba2dabe724a9b63299098268610f99c587d7a76c059b6e  tests/common/fixture.rs  modified
 be4feeabff9b735b6d73f7f742151bf76ef64a0488027cf71e04400db9abc7eb  tests/common/mod.rs  modified
@@ -334,6 +379,10 @@ cfc68ad047d9dff9f4cb368c901238019de4d6284cbd23853b5224f97a2bf3ca  tests/frost_dk
 d3b6abc6195a5cae856db2fb7543964dcd8c5222221d5a839a6a2e81d6e4f14d  tests/pay_vectors.rs  new
 60c36d7f131b8ec07d9d2256241873f31488cfee379f48b1f926e21b41c2b81d  tests/payment.rs  new
 95290d8683b751fb47f647d29eb2486fcd3dad545aa35a368d1a5fb0733151b1  tests/pin_bytes.rs  verbatim
+b8d84f642e38e6d980b347c49e97de67b3fa9698e8c5ae535dcb3b096349c5e7  tests/plain.rs  new
+cd6fcc69bbf63c6cced315785d7ae05411837626acc9f5565b199a8c8c0876bb  tests/plain_rules.rs  new
+606375570b526f2f08fa5246f9ed422b3e61af39f6f889006a1cb1e100576ba7  tests/plain_sign.rs  new
+9661dfb8f60c38a439c8b67dfd524b65aa2eef57a21dcdc14f8928da5c5297f6  tests/plain_wallet.rs  new
 588ffdab940ee0f56e9faac65cad18c1db6468e3dc8ad06f58314c1e07e342dc  tests/program.rs  new
 3037d149887a37309b07c8765f862acf9994f0802138861188bd9ffc1869e829  tests/real.rs  modified
 f5bf76e96e869245c0261e3c15548dd7591f1625df9e2e87b3aa58097669fa74  tests/repo_pins.rs  modified
@@ -341,6 +390,7 @@ fd7d2f1c27a36ca3864deb93f4ff9583cde64ac5059d47c17854f677cb9808d6  tests/roles.rs
 07caa15bfe9a3cafc8846490b11b31cddbbaf0419c27e8a766b693d45a8e6bce  tests/sign_split.rs  new
 0f413556f3a5f04b281b2599900b905092f925fcf09c5d53e9af6bf7be9a7c30  tests/slot_order.rs  modified
 5b04cce30cfb739786da3490c20b9b3c49e70224dbf3b567ab3b6f8abeaecb8f  tests/support/ceremony.rs  new
+0f7203579b45a6d34a48dbb566f65c2dcd5054a851fa718c4d72b81193132ae8  tests/support/plain.rs  new
 0545f28d524bd62d5aa0cd1fe35fb1d0711619bb1c1acf3774ad6f29ed7294d9  tests/ts_edge.rs  modified
 8f9b9f11af5f1b2d78b5ce6a7b46d8fa83a5fcbb27ffbac9244257cf2dc8fcee  tests/ts_vectors.rs  verbatim
 e71e4685806338fcd1153f0765e52b26f3ece303b413b4b975ca8c7adc7281b4  tests/units.rs  modified
@@ -360,6 +410,111 @@ a28662f01b08d11df5d0b3a8ed87eb4b3e169ac3b64659a43de092158a0a8286  vectors/p2/wir
 2aa5708cd23ae3a4833b93b0261e9a2c925bdeeea0896553d6b51608d38af9b2  vectors/pay/pay-change.json  new
 da7ecc3e522333be5fde4b5fd583875797dc68ab17e771bcdaceb8a2aadecc40  vectors/pay/pay-two-inputs.json  new
 7573113e698c77f04809685c01778b8666854afcb8cacf8cecc986311cc39720  vectors/pay/withdraw-change.json  new
+60487bc98d1d93f08ad6dbd2fde357be6f74c856ff5e6480eb1902010df89a72  vectors/plain/devnet-pool-wallet.answer  new
+e6e6108d78a2d82aa9634128a5df4332d01ab486eb9266d4517c5d62eaca137d  vectors/plain/devnet-pool-wallet.chain  new
+8e373924be255a29395dfe1b5883eeccef86287676c67ed314bf49ec26dddcf8  vectors/plain/devnet-pool-wallet.intent  new
+1e91981016d332f9d0b004ee8dcb76e8712114fd83a11f063cb200b955239137  vectors/plain/devnet-pool-wallet.msg  new
+7111414cf7dc784524cbda346823954d6d65113415618cb9e6789bfd6a40089e  vectors/plain/devnet-pool-wallet.pins  new
+4a03c7f6a9fb825605fd062fcf75e1f68485cc9183600b253368af02104e7607  vectors/plain/devnet-s1-create-nonce.answer  new
+e339498fad63aef7167604e975db747055721997e6c94ea7725370fc378d3196  vectors/plain/devnet-s1-create-nonce.chain  new
+d3fb9e178c2fb1e5abe211c83a38a90e10f371aa410d2f3e4c4c3fae0deb7e80  vectors/plain/devnet-s1-create-nonce.intent  new
+cdad7f299c68858c4aa78883415ad3d7579fa845c5c9b3dee3880a6652eddcb6  vectors/plain/devnet-s1-create-nonce.msg  new
+b0cf24f660a412aee9ccde247b95c2ba61ef492be0ba106eac53b9c71a8d5ce8  vectors/plain/devnet-s1-create-nonce.pins  new
+46b21b16543a231573227b8f221056061d1b2a20623034ef44f027a2ac8683b5  vectors/plain/devnet-s2-send-sol.answer  new
+ba13214af271b7012acae5350d9633cc8f48a9f18707d61948f90db35db38cae  vectors/plain/devnet-s2-send-sol.chain  new
+8e373924be255a29395dfe1b5883eeccef86287676c67ed314bf49ec26dddcf8  vectors/plain/devnet-s2-send-sol.intent  new
+1e91981016d332f9d0b004ee8dcb76e8712114fd83a11f063cb200b955239137  vectors/plain/devnet-s2-send-sol.msg  new
+b0cf24f660a412aee9ccde247b95c2ba61ef492be0ba106eac53b9c71a8d5ce8  vectors/plain/devnet-s2-send-sol.pins  new
+e96da5311b1974d7503d76c01bf05bffb56507ecad5a26a16269e544c9cd04a3  vectors/plain/devnet-s3-send-usdc.answer  new
+0d5a084cb99bb8de6880370f5bb96b265a8252335309064dec05f34ec966176a  vectors/plain/devnet-s3-send-usdc.chain  new
+81c8c16ff5dc3221166a19a1c0a1c8a98b132b3215794226fabb4e93e3f9565a  vectors/plain/devnet-s3-send-usdc.intent  new
+c1fc4e5650f699e911d6ff4588846270f0eaf57b63d23c971df6ab759df69f3b  vectors/plain/devnet-s3-send-usdc.msg  new
+b0cf24f660a412aee9ccde247b95c2ba61ef492be0ba106eac53b9c71a8d5ce8  vectors/plain/devnet-s3-send-usdc.pins  new
+b6128836721a7a332fd17392d89564915a63b804d3c1fd9e8aeb6cfcdfaf7b6e  vectors/plain/devnet-s4-enable-usdc.answer  new
+9b93898cfe6600fd5fabb64d442d92148f3835765e3d0d9a52d3151e4909a176  vectors/plain/devnet-s4-enable-usdc.chain  new
+7c63d31c0c91eef7515a8c4338d1e220c901cfd896c839bd7dd0944efafe735b  vectors/plain/devnet-s4-enable-usdc.intent  new
+a1c3aba1097853f7fb12ce10eb5d7175ba3b24c9240ba60ed129aa73817d003d  vectors/plain/devnet-s4-enable-usdc.msg  new
+b0cf24f660a412aee9ccde247b95c2ba61ef492be0ba106eac53b9c71a8d5ce8  vectors/plain/devnet-s4-enable-usdc.pins  new
+f61621caa922fe130124d41900a4ba79cbb84e6b2ef460ee76e5ec9b3108d42b  vectors/plain/devnet-s5-cancel.answer  new
+233141981603082f2433b5be1e3c4a9020bfd863bc600c5d7d740bebcf03ec3e  vectors/plain/devnet-s5-cancel.chain  new
+26c3a06cb97c68d146c8d7d464ff84c92610f5dd5d2d3d66aee7873c0da3074c  vectors/plain/devnet-s5-cancel.intent  new
+8ab45471b034bcfc0883bd1f7b3ef70bf4d8969f2416a21cc481a6b6ad1de011  vectors/plain/devnet-s5-cancel.msg  new
+b0cf24f660a412aee9ccde247b95c2ba61ef492be0ba106eac53b9c71a8d5ce8  vectors/plain/devnet-s5-cancel.pins  new
+6c0f7362444806d04578e8893039fef9b92e9bcc830677be17f9165792424e7e  vectors/plain/mainnet-changed-data.answer  new
+e6e6108d78a2d82aa9634128a5df4332d01ab486eb9266d4517c5d62eaca137d  vectors/plain/mainnet-changed-data.chain  new
+8e373924be255a29395dfe1b5883eeccef86287676c67ed314bf49ec26dddcf8  vectors/plain/mainnet-changed-data.intent  new
+268fdf567d1ca6fc39a79ce55e2bd9535c1d0f1d8e27ecaeda8c987f473ef0fd  vectors/plain/mainnet-changed-data.msg  new
+f048ed34e504e0be3da71901adf56fd52f03863ab39d9a1f8ae1cf7e51949e1e  vectors/plain/mainnet-changed-data.pins  new
+bcac06304e181bb1be1e07e7a1ed0adfb297f81d69e8226f39f8f36ce656930b  vectors/plain/mainnet-changed-units.answer  new
+e6e6108d78a2d82aa9634128a5df4332d01ab486eb9266d4517c5d62eaca137d  vectors/plain/mainnet-changed-units.chain  new
+8e373924be255a29395dfe1b5883eeccef86287676c67ed314bf49ec26dddcf8  vectors/plain/mainnet-changed-units.intent  new
+fe6c0f1008dfaa8a0c7a59fce3ca8ad9214987692799be8fa510f8fa51a6121a  vectors/plain/mainnet-changed-units.msg  new
+f048ed34e504e0be3da71901adf56fd52f03863ab39d9a1f8ae1cf7e51949e1e  vectors/plain/mainnet-changed-units.pins  new
+75e0bb4a9396acfbc19073d2503efbb4204909397ac98606b847333c83265d25  vectors/plain/mainnet-frozen-source.answer  new
+46fc95facb4897a9bfbcfe4f5449e48641f43f1cd8fd7da373648f6a2ffe659b  vectors/plain/mainnet-frozen-source.chain  new
+81c8c16ff5dc3221166a19a1c0a1c8a98b132b3215794226fabb4e93e3f9565a  vectors/plain/mainnet-frozen-source.intent  new
+8e28174d9dafcfc0e44956f641f0a461bd4be54434b290d0c6a733be36d19180  vectors/plain/mainnet-frozen-source.msg  new
+f048ed34e504e0be3da71901adf56fd52f03863ab39d9a1f8ae1cf7e51949e1e  vectors/plain/mainnet-frozen-source.pins  new
+f6c146434cd1f9d6410a5628adf45e8e89942bff8719de75ee8d49d6c52a9d43  vectors/plain/mainnet-mint-recipient.answer  new
+3188c087c792d04beaa8f83afb10e3f97472d4648e39d862a30a895ca01dce1f  vectors/plain/mainnet-mint-recipient.chain  new
+8e9988e81f365c87a8e266dc76ccf484d7e1f399610252e8a2cf3134a024acb7  vectors/plain/mainnet-mint-recipient.intent  new
+e47cadcc5d4de262e5e5ae68b261692fe12c738269d89ede9b70f931129d1a0c  vectors/plain/mainnet-mint-recipient.msg  new
+f048ed34e504e0be3da71901adf56fd52f03863ab39d9a1f8ae1cf7e51949e1e  vectors/plain/mainnet-mint-recipient.pins  new
+3bbc09b052ec4227812a8befe521437d7d57ae037692b6d9d82e867368e70bf7  vectors/plain/mainnet-missing-read.answer  new
+71846a1c13dbbb2d659b699b09fe4ddfc24e76aa9427b2334b871829cd56e2e4  vectors/plain/mainnet-missing-read.chain  new
+8e373924be255a29395dfe1b5883eeccef86287676c67ed314bf49ec26dddcf8  vectors/plain/mainnet-missing-read.intent  new
+1e91981016d332f9d0b004ee8dcb76e8712114fd83a11f063cb200b955239137  vectors/plain/mainnet-missing-read.msg  new
+f048ed34e504e0be3da71901adf56fd52f03863ab39d9a1f8ae1cf7e51949e1e  vectors/plain/mainnet-missing-read.pins  new
+131a7503abec8288046ef74ec095a9d2983cc33d7cff9b86d1298a1932c7426c  vectors/plain/mainnet-payer-under-minimum.answer  new
+2ba7d3420778fa54188bd70f486de00ac406672e9b5f6057de2684834992daf0  vectors/plain/mainnet-payer-under-minimum.chain  new
+8e373924be255a29395dfe1b5883eeccef86287676c67ed314bf49ec26dddcf8  vectors/plain/mainnet-payer-under-minimum.intent  new
+1e91981016d332f9d0b004ee8dcb76e8712114fd83a11f063cb200b955239137  vectors/plain/mainnet-payer-under-minimum.msg  new
+f048ed34e504e0be3da71901adf56fd52f03863ab39d9a1f8ae1cf7e51949e1e  vectors/plain/mainnet-payer-under-minimum.pins  new
+38ec01e50be18e2d45ff19a374508d4224215ea7fd5a31913d15810280412a7f  vectors/plain/mainnet-pda-recipient.answer  new
+5d6e8bda6c95bb61bece941b32451296bc7141d59beda19c3fe2cd9f9fd00950  vectors/plain/mainnet-pda-recipient.chain  new
+43cbde02cf1a4a6523e83790ff82e1e2dca6f651f0b893020228890be968152b  vectors/plain/mainnet-pda-recipient.intent  new
+1e75ef5f10cd76552816744d11b46321e9b588cc6c7321d04bf244cfada331f6  vectors/plain/mainnet-pda-recipient.msg  new
+f048ed34e504e0be3da71901adf56fd52f03863ab39d9a1f8ae1cf7e51949e1e  vectors/plain/mainnet-pda-recipient.pins  new
+b3be86613f16717f8800e4eeb6a98ae27ba0cb295293d36c9ac3854a9c9bd234  vectors/plain/mainnet-recipient-owner.answer  new
+b8a11ed92d9c84902aa691e6a4f8fe037a8ec353fc86522e1b6b2d358d7c78de  vectors/plain/mainnet-recipient-owner.chain  new
+8e373924be255a29395dfe1b5883eeccef86287676c67ed314bf49ec26dddcf8  vectors/plain/mainnet-recipient-owner.intent  new
+1e91981016d332f9d0b004ee8dcb76e8712114fd83a11f063cb200b955239137  vectors/plain/mainnet-recipient-owner.msg  new
+f048ed34e504e0be3da71901adf56fd52f03863ab39d9a1f8ae1cf7e51949e1e  vectors/plain/mainnet-recipient-owner.pins  new
+410548c9fad24eeb71fb4434a97f28f761a7bc8e9684e3aac315833f48efdb3f  vectors/plain/mainnet-s1-create-nonce.answer  new
+76b1f4795ff17e43251d53cc6064b2e0e1a3a8677c79807461f1d3193df3a473  vectors/plain/mainnet-s1-create-nonce.chain  new
+d3fb9e178c2fb1e5abe211c83a38a90e10f371aa410d2f3e4c4c3fae0deb7e80  vectors/plain/mainnet-s1-create-nonce.intent  new
+cdad7f299c68858c4aa78883415ad3d7579fa845c5c9b3dee3880a6652eddcb6  vectors/plain/mainnet-s1-create-nonce.msg  new
+f048ed34e504e0be3da71901adf56fd52f03863ab39d9a1f8ae1cf7e51949e1e  vectors/plain/mainnet-s1-create-nonce.pins  new
+1a4962cf3355cbb05026361392c17f08c6daf95368731e9abc20112cc798447b  vectors/plain/mainnet-s2-send-sol.answer  new
+e6e6108d78a2d82aa9634128a5df4332d01ab486eb9266d4517c5d62eaca137d  vectors/plain/mainnet-s2-send-sol.chain  new
+8e373924be255a29395dfe1b5883eeccef86287676c67ed314bf49ec26dddcf8  vectors/plain/mainnet-s2-send-sol.intent  new
+1e91981016d332f9d0b004ee8dcb76e8712114fd83a11f063cb200b955239137  vectors/plain/mainnet-s2-send-sol.msg  new
+f048ed34e504e0be3da71901adf56fd52f03863ab39d9a1f8ae1cf7e51949e1e  vectors/plain/mainnet-s2-send-sol.pins  new
+78a2337d5335bf608fbfd3b20b880409c1d3e861d22bf0afd14e8940e5104280  vectors/plain/mainnet-s3-send-usdc.answer  new
+750705d12efdf2f9dd8170763d01ea2674cd4635aea2c18f4b4c85015089f8bd  vectors/plain/mainnet-s3-send-usdc.chain  new
+81c8c16ff5dc3221166a19a1c0a1c8a98b132b3215794226fabb4e93e3f9565a  vectors/plain/mainnet-s3-send-usdc.intent  new
+8e28174d9dafcfc0e44956f641f0a461bd4be54434b290d0c6a733be36d19180  vectors/plain/mainnet-s3-send-usdc.msg  new
+f048ed34e504e0be3da71901adf56fd52f03863ab39d9a1f8ae1cf7e51949e1e  vectors/plain/mainnet-s3-send-usdc.pins  new
+d888a34ea725cf4e70bdc2eeb67794a2508e6ddc5ea5e3ed7c683a3fee1d3503  vectors/plain/mainnet-s4-enable-usdc.answer  new
+35218a965647b14609e91b0727f0fe4e6f1d86b279e2013d9d224c5965d4a7d7  vectors/plain/mainnet-s4-enable-usdc.chain  new
+7c63d31c0c91eef7515a8c4338d1e220c901cfd896c839bd7dd0944efafe735b  vectors/plain/mainnet-s4-enable-usdc.intent  new
+55fb7238081de8d66ec42d28a52a8e8158a0fa8c5b38ecb436461c7e20f6e8d8  vectors/plain/mainnet-s4-enable-usdc.msg  new
+f048ed34e504e0be3da71901adf56fd52f03863ab39d9a1f8ae1cf7e51949e1e  vectors/plain/mainnet-s4-enable-usdc.pins  new
+809d0ffe1ceb0419231c94b285a3776ba99d1691958d497254b69ccf656a64f6  vectors/plain/mainnet-s5-cancel.answer  new
+31607bcabbbbf1b4059dc5dc31ab1487f392afd280bb33e72e55ecfe831f9ba1  vectors/plain/mainnet-s5-cancel.chain  new
+26c3a06cb97c68d146c8d7d464ff84c92610f5dd5d2d3d66aee7873c0da3074c  vectors/plain/mainnet-s5-cancel.intent  new
+8ab45471b034bcfc0883bd1f7b3ef70bf4d8969f2416a21cc481a6b6ad1de011  vectors/plain/mainnet-s5-cancel.msg  new
+f048ed34e504e0be3da71901adf56fd52f03863ab39d9a1f8ae1cf7e51949e1e  vectors/plain/mainnet-s5-cancel.pins  new
+fb413ac654e5f985430a516c887d61c569c32e449f867bc62e0b7cfebbb70dba  vectors/plain/mainnet-truncated.answer  new
+e6e6108d78a2d82aa9634128a5df4332d01ab486eb9266d4517c5d62eaca137d  vectors/plain/mainnet-truncated.chain  new
+8e373924be255a29395dfe1b5883eeccef86287676c67ed314bf49ec26dddcf8  vectors/plain/mainnet-truncated.intent  new
+102fabc150851da29c77d0ec95b5b02739b58f38dfc5ea0dd68492ee58a2193e  vectors/plain/mainnet-truncated.msg  new
+f048ed34e504e0be3da71901adf56fd52f03863ab39d9a1f8ae1cf7e51949e1e  vectors/plain/mainnet-truncated.pins  new
+9c3a7747e9784b70b573ed9fe6a97109646d6e74f61649d2be4570540af301bc  vectors/plain/mainnet-wrong-genesis.answer  new
+ba13214af271b7012acae5350d9633cc8f48a9f18707d61948f90db35db38cae  vectors/plain/mainnet-wrong-genesis.chain  new
+8e373924be255a29395dfe1b5883eeccef86287676c67ed314bf49ec26dddcf8  vectors/plain/mainnet-wrong-genesis.intent  new
+1e91981016d332f9d0b004ee8dcb76e8712114fd83a11f063cb200b955239137  vectors/plain/mainnet-wrong-genesis.msg  new
+f048ed34e504e0be3da71901adf56fd52f03863ab39d9a1f8ae1cf7e51949e1e  vectors/plain/mainnet-wrong-genesis.pins  new
 000eab1bc460dde942f2c48570bec3b0a364ea0601f05246ad8f386bb7ea47f7  vectors/program/landed.json  new
 c76c4455922d40026491f8f1e16d10d70b959fde9cb5cdba85915a420d016dc9  vectors/real/chain-p6a.msg  verbatim
 69634e9bc1223148d8074b6313ef6f47e09c89dcf5084fd159e874c16b258304  vectors/real/chain-p6b.msg  verbatim
