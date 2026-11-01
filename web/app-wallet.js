@@ -9,7 +9,7 @@ import { inviteLink, senderNote } from "./app-links.js";
 import {
   addrHidden, atCap, balanceNow, balOf, capText, capUnknown, chain, curChain, curNet, explorerText,
   inFlight,
-  netName, readsMemos, runSync, setMemoReading, spanMs,
+  mempoolNow, mempoolTotal, netName, readsMemos, runSync, setMemoReading, spanMs,
 } from "./app-chain.js";
 import { canWriteAs, signedMode } from "./app-filter.js";
 import {
@@ -418,7 +418,7 @@ function emptyApprovalsRead(sol) {
 }
 
 // The row of a received payment opens the explorer: the note says what that site sees.
-const receivedNote = (list) => list.some((a) => a.r) ? el("p", { class: "small muted card-pad" },
+const receivedNote = (list) => list.some((a) => a.r || a.m) ? el("p", { class: "small muted card-pad" },
   explorerText(curNet(), "A received payment in this list")) : null;
 
 // A move sends the Zcash funds only (proposeMove). solOn() says only that the wallet can have a
@@ -586,7 +586,8 @@ function zecAsset(c) {
     el("div", { class: "asset-balance-block" }, el("span", { class: "label" }, "Available"),
       amount(b?.spendable, "xl"),
       el("p", { class: "asset-row-status small muted", role: "status" }, status),
-      b?.pending ? el("p", { class: "asset-incoming small muted" }, "Incoming ", amount(b.pending)) : null),
+      b?.pending ? el("p", { class: "asset-incoming small muted" }, "Incoming ", amount(b.pending)) : null,
+      notInBlockLine(c)),
     shieldingActions("zec", false)),
     b?.sending ? sendingLine(b.sending) : null, atCap() ? capNote() : null,
     assetNote("zec", "Balance details", [
@@ -595,6 +596,14 @@ function zecAsset(c) {
       el("p", {}, "Includes available and incoming ZEC."),
       el("p", { id: "zec-shielding-note" }, "Percentages unavailable: this wallet tracks shielded ZEC only. Unshielded ZEC balances and shield/unshield transfers are not supported."),
     ]));
+}
+
+// The payments that the mempool of the server shows and that no block holds. They are no part of
+// Available, Incoming or the total.
+export function notInBlockLine(c) {
+  const zat = mempoolTotal(c);
+  return zat > 0
+    ? el("p", { class: "asset-incoming small muted" }, "Not in a block yet: ", money(zat)) : null;
 }
 
 // Main has no complete, same-scope shielded/unshielded balance pair for these assets. Unknown
@@ -798,7 +807,8 @@ function activity() {
   const got = (c && c.received || [])
     .map((r) => ({ t: Date.now() - spanMs(net, r.height, tip), r }));
   const onSol = (solPart() ? solActivity() ?? [] : []).map((r) => ({ t: r.t, sol: r }));
-  return [...sent, ...got, ...onSol].sort((a, b) => b.t - a.t);
+  const waiting = mempoolNow(c).map((m) => ({ t: Date.now(), m }));
+  return [...sent, ...got, ...onSol, ...waiting].sort((a, b) => b.t - a.t);
 }
 
 // The empty text of each choice: "none" is a wallet with no Solana part.
@@ -857,6 +867,7 @@ function activityRows(list, pick = "all", line = "border-top:1px solid var(--lin
 
 function rowOf(a, flying) {
   if (a.ss) return guard(sentRow, a.ss, flying);
+  if (a.m) return guard(mempoolRow, a.m);
   return a.sol ? guard(solActivityRow, a.sol) : guard(receivedRow, a.r);
 }
 
@@ -959,6 +970,20 @@ function receivedRow(r) {
       r.memo_pending && readsMemos(state.gid)
         ? el("span", { class: "ri-sub" }, "Memo not read yet") : null),
     el("span", { class: "ri-end" }, money(r.value, "md", "in"), el("span", { class: "badge " + (r.confirmed ? "ok" : "info") }, r.confirmed ? "Confirmed" : "Confirming")),
+    el("span", { class: "chev" }, icon("external")));
+}
+
+// A payment that the server shows in its mempool and that no block holds yet. It has no block, no
+// memo and no confirmation count. When a block holds it, the received row replaces this one.
+function mempoolRow(m) {
+  return el("a", { class: "row-item", href: curNet().explorer + m.txid, target: "_blank",
+    rel: "noopener", title: "View in explorer" },
+    el("span", { class: "tx-ico in", "aria-hidden": "true" }, icon("receive")),
+    el("span", { class: "ri-main" },
+      el("span", { class: "ri-title" }, "Receiving · not in a block yet"),
+      el("span", { class: "ri-sub" }, "Zcash " + curNet().label),
+      privacyBadge(el, "shielded")),
+    el("span", { class: "ri-end" }, money(m.value, "md", "in")),
     el("span", { class: "chev" }, icon("external")));
 }
 

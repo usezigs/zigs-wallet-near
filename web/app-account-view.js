@@ -25,7 +25,7 @@ import { composer } from "./app-thread.js";
 import { openAccountBackup } from "./app-backups.js";
 import { chatsWorkspace } from "./app-shell.js";
 import { clearMessageDraft, focusAfter, messagingAccountScope, render } from "./app-loop.js";
-import { syncLine } from "./app-wallet.js";
+import { notInBlockLine, syncLine } from "./app-wallet.js";
 import { messagingCostReview } from "./messaging-cost-review.js";
 
 export function personalCard(pickRestore) {
@@ -126,6 +126,7 @@ function accountBalanceBlock(b) {
     el("div", { class: "stats" },
       el("div", {}, el("span", { class: "label" }, "Available"), money2(b && b.spendable)),
       el("div", {}, el("span", { class: "label" }, "Incoming"), money2(b && b.pending))),
+    notInBlockLine(acct),
     flightNow().length ? el("div", { class: "sending" }, el("span", { class: "dot busy" }),
       "A message is waiting for its block") : null);
 }

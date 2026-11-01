@@ -1,4 +1,4 @@
-// Networks, chain sync, the balance cache, memo reading and the 60 s refresh.
+// Networks, chain sync, the balance cache, memo reading, the mempool and the 60 s refresh.
 import { finite } from "./util.js";
 import { log, state } from "./app-state.js";
 import {
@@ -174,6 +174,7 @@ export async function runSync(c) {
     const again = c.again && current(c);   // not for a wallet that closed meanwhile
     c.again = false;
     if (again) runSync(c);
+    else if (!c.error) runMempool(c);
   }
 }
 // A sync now, or one more after the sync that runs: a proposal stalled during it, and that sync can
@@ -304,6 +305,65 @@ export function setMemoReading(gid, on) {
   writeLocal("zf-memos", memoPref);
   if (on && chain && chain.gid === gid) runMemos(chain);
 }
+// Payments in the mempool (PRIVACY.md). The engine lists the notes of the wallet that sit in the
+// mempool of the light-wallet server and that no block holds. The page only shows them, as a line
+// in the balance and a row in the activity. They never count as Available or Incoming, and they
+// never reach the balance, the cap or the saved balance. A wallet that is open in a visible tab
+// asks after each finished sync and every 30 s, one call at a time. A failed call shows nothing,
+// and the last good list stays for 2 minutes.
+// ponytail: a call that never ends stops the questions of that wallet object until the next
+// server change. Upgrade path: drop the future of the engine with an abort.
+const MEMPOOL_EVERY_MS = 30000, MEMPOOL_KEEP_MS = 120000;
+// A synced wallet on a server that answered, in a visible tab, with no call to the engine open.
+const canAsk = (c) => document.visibilityState === "visible" && current(c) && !!c.cw && !!c.url
+  && !!c.bal && !c.syncing && c.mempoolBusy !== c.cw;
+export async function runMempool(c) {
+  if (!canAsk(c)) return;
+  const cw = c.cw;
+  c.mempoolBusy = cw;
+  try {
+    const list = J(await track(cw, cw.mempool()));
+    if (c.cw === cw && current(c)) keepMempool(c, list);
+    c.mempoolFailed = false;
+  } catch (e) {
+    if (!c.mempoolFailed) log("could not read the mempool: " + (e.message || e));
+    c.mempoolFailed = true;
+  } finally {
+    if (c.mempoolBusy === cw) c.mempoolBusy = null;
+  }
+}
+// Stores the answer, paints the page when what it shows changed, and drops the list after 2
+// minutes without a good answer.
+function keepMempool(c, list) {
+  const was = S(mempoolNow(c));
+  c.mempool = { list, at: Date.now() };
+  clearTimeout(c.mempoolTimer);
+  c.mempoolTimer = setTimeout(() => {
+    const had = mempoolNow(c).length > 0;
+    c.mempool = null;
+    if (had) render();
+  }, MEMPOOL_KEEP_MS);
+  if (S(mempoolNow(c)) !== was) render();
+}
+// The payments of `c` that wait for a block, one entry `{ txid, value }` for each transaction. A
+// transaction that a synced block holds is left out (its received row shows), and so is a list
+// that is older than 2 minutes and a note of no value (a message part).
+export function mempoolNow(c) {
+  const m = c?.mempool;
+  if (!m || Date.now() - m.at >= MEMPOOL_KEEP_MS) return [];
+  const mined = new Set((c.received || []).map((r) => r.txid));
+  const byTx = new Map();
+  for (const n of m.list) {
+    const value = finite(n.value);
+    if (value > 0 && !mined.has(n.txid)) byTx.set(n.txid, (byTx.get(n.txid) ?? 0) + value);
+  }
+  return [...byTx].map(([txid, value]) => ({ txid, value }));
+}
+export const mempoolTotal = (c) => mempoolNow(c).reduce((sum, m) => sum + m.value, 0);
+// A payment that waits for its block shows within 30 s, also when no sync runs.
+setInterval(() => {
+  for (const c of [curChain(), acct]) if (c) runMempool(c);
+}, MEMPOOL_EVERY_MS);
 // The expected milliseconds from block `from` to block `to`, at the block time of each block (75
 // seconds before NU7, 25 from it). The engine knows the upgrade heights of each network.
 export const spanMs = (net, from, to) => Z.blockSpanSeconds(net, from, to) * 1000;
