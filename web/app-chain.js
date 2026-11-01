@@ -307,8 +307,10 @@ export function setMemoReading(gid, on) {
 // The expected milliseconds from block `from` to block `to`, at the block time of each block (75
 // seconds before NU7, 25 from it). The engine knows the upgrade heights of each network.
 export const spanMs = (net, from, to) => Z.blockSpanSeconds(net, from, to) * 1000;
-// A signer shows the address only after its own seat checked it against its key share.
-export const addrHidden = () => atCap() || (localSeats().length > 0 && !myVerified());
+// A signer shows the address only after its own seat checked it against its key share. A wallet
+// of a network with a cap shows it only when the balance is known and under the cap.
+export const addrHidden = () => atCap() || capUnknown()
+  || (localSeats().length > 0 && !myVerified());
 export const curChain = () => chain && chain.gid === state.gid ? chain : null;
 
 // Sent payments that no synced block contains yet. Until one does, the synced balance still
@@ -344,9 +346,16 @@ export function balanceNow(b) {
 
 // Unaudited code holds real money only up to the network's cap; past it the address is hidden.
 export function atCap() {
-  const cap = curNet().cap, total = openTotal();
+  const cap = curNet().cap, total = knownTotal();
   return !!cap && total !== undefined && total >= cap;
 }
+
+// The balance that the cap is checked against: the open wallet's, else the one that the last sync
+// of this browser saved, else undefined.
+const knownTotal = () => openTotal() ?? balOf(state.gid)?.total;
+// A network with a cap and no known balance (before the first sync): the app treats it as at the
+// cap, so the address stays hidden.
+export const capUnknown = () => !!curNet().cap && knownTotal() === undefined;
 
 // The balance of the open wallet, or undefined before its first sync.
 export function openTotal() {

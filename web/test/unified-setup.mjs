@@ -676,6 +676,16 @@ function emptyInbox() {
   }
 }
 // Receive names the network of the open wallet (D3); a received row says what and where.
+// Before the first sync, a mainnet wallet knows no balance, so the dialog shows no address.
+function noAddressBeforeSync() {
+  const gid = t.state.gid, saved = t.balCache[gid];
+  delete t.balCache[gid];
+  t.setChain(null);
+  const unknown = textOf(receiveDialog());
+  assert.match(unknown, /Wait for the first sync to finish\./, "no balance: the dialog waits");
+  assert.doesNotMatch(unknown, /Copy address|Send only/, "and shows no address");
+  t.balCache[gid] = saved;
+}
 function receiveTexts() {
   const real = globalThis.document, { g } = t.state, chain = t.chain, { tab } = t.ui;
   const share = Object.getOwnPropertyDescriptor(globalThis, "navigator");
@@ -740,6 +750,9 @@ function receiveTexts() {
       t.secrets = secretsWere;
     }
     t.state.g = { ...g, network: "mainnet" };
+    noAddressBeforeSync();
+    t.setChain({ gid: t.state.gid, cw: {}, bal: { spendable: 1000000, pending: 0,
+      height: 4500100 }, sent: new Set(), received: [] });
     const main = receiveDialog();
     assert.ok(byText(main, "Zcash Mainnet"), "a mainnet wallet reads Mainnet");
     assert.doesNotMatch(textOf(main), /testnet|faucet/i, "and claims no testnet");
@@ -1841,7 +1854,7 @@ async function walkSteps(fields, times, fresh = true) {
   assert.equal(ui.sol, false, "the box keeps the person's no");
   assert.ok(!("checked" in byId(dialogTree(), "g-sol").attrs), "a redraw keeps the person's no");
   ui.sol = undefined;
-  // The picker offers testnet only (mainnet-off.mjs). A Change devices dialog has no choice.
+  // The Solana choice is for a new testnet wallet (mainnet-on.mjs). Change devices has none.
   assert.doesNotMatch(textOf(dialogTree({ ...g, network: "mainnet" })), CHOICE, "never for `from`");
   config.down = true;
   delete ui.solServed;

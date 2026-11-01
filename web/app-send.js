@@ -9,7 +9,7 @@ import { fmtZec } from "./app-kit.js";
 import { Z } from "./app-engine.js";
 import { gkeys } from "./app-keystore.js";
 import { DRAFT_MS, draftLive, draftOf, emptyForm, reviewFresh } from "./payment-model.js";
-import { addrHidden, atCap, curChain, curNet, netName } from "./app-chain.js";
+import { addrHidden, atCap, capUnknown, curChain, curNet, netName } from "./app-chain.js";
 import {
   act, addrGroups, copyBtn, el, groupName, memoRow, money, normalized, noteFor, onNetwork, qrBox,
   setNote,
@@ -22,7 +22,7 @@ import { requestOf } from "./app-payreq.js";
 import { nameOf, recentNote, registry, resolveRecipient, zecName } from "./zns.js";
 import { focusAfter, render } from "./app-loop.js";
 import {
-  capNote, FAUCET_TEXT, movedNote, receiveLimit, receiveWhat, SOL_STAYS,
+  capNote, capUnknownNote, FAUCET_TEXT, movedNote, receiveLimit, receiveWhat, SOL_STAYS,
 } from "./app-wallet.js";
 import { solOn } from "./app-sol.js";
 import { recipientSelect } from "./app-recipients.js";
@@ -71,6 +71,7 @@ export function receiveDialog() {
 function receiveLead(hidden, moved) {
   if (moved) return movedNote();
   if (atCap()) return capNote();
+  if (capUnknown()) return capUnknownNote();
   if (hidden) {
     return el("p", { class: "small muted" }, "The address shows here after your device checks it "
       + "against its own key.");

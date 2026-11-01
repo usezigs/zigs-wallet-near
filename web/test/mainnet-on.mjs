@@ -1,8 +1,9 @@
 // Mainnet is on (M1 of docs/hackathon-release.md), and the testnet faucet is the Valar faucet
 // (M2). The network picker of a new wallet and of the personal account offers Testnet and Mainnet,
 // Testnet is chosen, and Mainnet shows a tick that must be checked: in the create dialog before
-// the device step ends, and on the join card before a seat is taken. A chat reads testnet and
-// mainnet requests. Run: node web/test/mainnet-on.mjs   (Node 26)
+// the device step ends, and on the join card before a seat is taken. A mainnet wallet shows a
+// badge with its risk, a chat reads testnet and mainnet requests, and the address of a network
+// with a cap stays hidden until the balance is known. Run: node web/test/mainnet-on.mjs (Node 26)
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { loadRig } from "./sol-rig.mjs";
@@ -10,10 +11,12 @@ import { fakePasskey } from "./passkey-fixture.mjs";
 
 const rig = await loadRig();
 const { t, waitFor } = rig;
-const { MAINNET_ON, NETWORKS } = await import("../app-chain.js");
+const { MAINNET_ON, NETWORKS, capUnknown } = await import("../app-chain.js");
 const { mainnetRisk, networkPick } = await import("../app-dom.js");
 const { inviteMessage } = await import("../app-setup.js");
 const { createDialog, browserSettings } = await import("../app-shell.js");
+const { receiveDialog } = await import("../app-send.js");
+const { walletHeader } = await import("../app-wallet.js");
 const keystore = await import("../app-keystore.js");
 assert.equal(MAINNET_ON, true, "mainnet is on in this release");
 
@@ -295,6 +298,56 @@ console.log("ok  a chat reads testnet and mainnet requests");
   assert.notEqual(t.state.gid, old, "Change devices makes the new wallet");
   assert.equal(t.state.g.network, "mainnet", "on the network of the old wallet");
   console.log("ok  Change devices of a mainnet wallet needs no tick");
+}
+
+// ── A wallet of mainnet ──
+const gid = await rig.wallet({ name: "Main", network: "mainnet" });
+const wallet = t.state.g;
+assert.equal(wallet.network, "mainnet");
+{
+  const room = t.requestOf(`zcash:${mainAddr}?amount=2`, false);
+  assert.equal(room?.net, "main", "the room of a mainnet wallet reads its own requests");
+
+  // The header of a mainnet wallet says Mainnet, Beta and Not audited in its text.
+  const head = textOf(drawn(() => walletHeader(wallet)));
+  assert.match(head, /Mainnet · Beta · Not audited/, "the header badge is text");
+  assert.doesNotMatch(textOf(drawn(() => walletHeader({ ...wallet, network: "testnet" }))),
+    /Beta|Not audited/, "a testnet header has no such badge");
+  console.log("ok  the header of a mainnet wallet says Mainnet, Beta and Not audited");
+
+  // The address stays hidden until the balance is known (fail closed), and the notes say that an
+  // address that was shared stays valid.
+  const address = wallet && t.state.wallet.address;
+  assert.ok(address, "the wallet has an address");
+  const shows = () => textOf(drawn(() => receiveDialog())).includes(address.slice(0, 12));
+  t.setChain(null);
+  delete t.balCache[gid];
+  assert.equal(capUnknown(), true, "no balance known: unknown");
+  assert.equal(shows(), false, "before the first sync the receive dialog hides the address");
+  assert.match(textOf(drawn(() => receiveDialog())),
+    /Wait for the first sync to finish\..*stays valid after it is shared/);
+  t.balCache[gid] = null;
+  assert.equal(capUnknown(), true, "an unreadable balance is unknown");
+  t.balCache[gid] = { total: 49999999, at: 0 };
+  assert.equal(capUnknown(), false, "a saved balance under the cap is known");
+  assert.equal(shows(), true, "the saved balance under the cap shows the address");
+  assert.match(textOf(drawn(() => receiveDialog())), /The address stays valid after you share it\./);
+  t.balCache[gid] = { total: 50000000, at: 0 };
+  assert.equal(shows(), false, "a saved balance at the cap hides it");
+  assert.match(textOf(drawn(() => receiveDialog())), /stays valid after it is shared/);
+  // The live balance wins over the saved one.
+  t.setChain({ gid, bal: { spendable: 1, pending: 0, height: 1 }, received: [], sent: new Set(),
+    cw: null });
+  assert.equal(shows(), true, "a live balance under the cap shows the address");
+  t.setChain(null);
+  // A testnet wallet has no cap.
+  const keep = t.state.g;
+  t.state.g = { ...keep, network: "testnet" };
+  delete t.balCache[gid];
+  assert.equal(capUnknown(), false, "a testnet wallet has no cap");
+  assert.equal(shows(), true, "and shows its address before the first sync");
+  t.state.g = keep;
+  console.log("ok  the address of a mainnet wallet stays hidden until the balance is known");
 }
 
 // ── Numbers and texts ──

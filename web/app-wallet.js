@@ -7,7 +7,8 @@ import { gkeys, mySeatSecrets, sec } from "./app-keystore.js";
 import { keysDiffer, localSeats, seatIds, seatMine, seatStage, STAGE_LABEL } from "./app-seats.js";
 import { inviteLink, senderNote } from "./app-links.js";
 import {
-  addrHidden, atCap, balanceNow, balOf, capText, chain, curChain, curNet, explorerText, inFlight,
+  addrHidden, atCap, balanceNow, balOf, capText, capUnknown, chain, curChain, curNet, explorerText,
+  inFlight,
   netName, readsMemos, runSync, setMemoReading, spanMs,
 } from "./app-chain.js";
 import { canWriteAs, signedMode } from "./app-filter.js";
@@ -221,7 +222,7 @@ function groupHead(g, ready, why, persistent = false) {
         descriptionOf(g.id).text
           ? el("p", { class: "small wallet-description" }, descriptionOf(g.id).text) : null)),
       el("div", { class: "ph-meta wallet-meta" },
-        netBadge(g),
+        netBadge(g, true),
         !compact ? el("span", { class: "badge plain", title: ruleText(g.t, g.n) },
           "Any " + g.t + " of " + g.n + " devices") : null,
         !compact ? el("span", { class: "stack" }, seatIds().map((i) => avatar(i))) : null,
@@ -703,11 +704,18 @@ function solAmount(text, size = "xl", sign = "") {
 
 export const capNote = () => el("div", { class: "callout bad" },
   "This wallet holds " + capText(curNet().cap) + ", the warning level for unaudited mainnet "
-  + "wallets. Do not send more to it. The app cannot block deposits. Payments out still work.");
+  + "wallets. Do not send more to it. The address stays valid after it is shared, and the app "
+  + "cannot block deposits. Payments out still work.");
+
+/** The note of a wallet whose balance the app does not know yet: its address stays hidden. */
+export const capUnknownNote = () => el("div", { class: "callout" },
+  "Wait for the first sync to finish. The app shows the address of a mainnet wallet only when it "
+  + "knows the balance. The address stays valid after it is shared.");
 
 export const receiveWhat = () => curNet().cap ? "ZEC" : "testnet ZEC";
 export const receiveLimit = () => curNet().cap ? " Keep the total under " + capText(curNet().cap)
-  + ". The app warns at that level and cannot block deposits." : "";
+  + ". The app warns at that level and cannot block deposits. The address stays valid after you "
+  + "share it." : "";
 
 /** The note of a wallet that a new wallet replaces: its senders must use the new address. */
 export const movedNote = () => el("div", { class: "callout" }, "Change devices replaces this "
@@ -720,6 +728,7 @@ function receiveCard() {
       privacyBadge(el, addrHidden() ? "unknown" : "shielded")),
     state.g.movedTo ? movedNote()
       : atCap() ? capNote()
+      : capUnknown() ? capUnknownNote()
       : el("p", { class: "small muted" }, "Share this address to receive " + receiveWhat()
         + ". Payments to it are shielded." + receiveLimit()),
     addrHidden() ? null : el("div", { class: "addr-box" }, el("span", { class: "hex" }, short(w.address, 18)), copyBtn(w.address)),
@@ -1340,6 +1349,7 @@ function walletFacts() {
   const w = state.wallet, net = curNet();
   const address = addrHidden()
     ? settingsRow("Wallet address", atCap() ? "Hidden at the unaudited mainnet warning level. Deposits cannot be blocked."
+      : capUnknown() ? "Hidden until the first sync shows the balance."
       : "Shown after this device checks it against its key share.", el("span", { class: "preference-state" }, "Hidden"))
     : el("div", { class: "preference-address" }, settingsRow("Wallet address", short(w.address, 12), copyBtn(w.address, "Copy address")),
       settingsDisclosure("View full address", null, el("div", { class: "addr-full" }, addrGroups(w.address))));
