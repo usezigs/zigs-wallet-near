@@ -1,7 +1,7 @@
 // The /lwd route of cf/src/index.js. The Worker relays the light-wallet calls of the page to the
 // testnet server, adds the secret key, and passes no credential of the user. Also the key of a
 // client for the limits per network (PRIV-9) at its three places. The Cloudflare import and fetch
-// are stubs, so nothing here reaches a network.
+// are stubs, so nothing here reaches a network. GetMempoolTx passes with a small body only.
 // Run: node web/test/lwd.mjs   (Node 26)
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -43,6 +43,9 @@ const keyless = async (res, name) => {
 // The GetBlockRange body that the engine (web/pkg) sends for its largest range: blocks 3,000,000
 // to 3,000,999 (BATCH), recorded from ChainWallet.sync with a stub of fetch.
 const ENGINE_RANGE = Buffer.from("000000000e0a0508c08db701120508a795b701", "hex");
+// The GetMempoolTx body that the engine (web/pkg) sends: no exclude list, pool type Ironwood (4).
+// Recorded from ChainWallet.mempool with a stub of fetch.
+const ENGINE_MEMPOOL = Buffer.from("00000000031a0104", "hex");
 const varint = (n) => {
   const out = [];
   for (; n >= 128; n = Math.floor(n / 128)) out.push((n % 128) | 128);
@@ -66,9 +69,10 @@ const frame = (msg, flag = 0) => {
 // ── Only the methods that the engine calls pass: 404 for a path, then 405 for a method ──
 {
   // The other methods of the service (CompactTxStreamer, zcash_client_backend 0.25).
+  // GetMempoolStream keeps its answer open until the next block, so it stays closed.
   const closed = ["GetAddressUtxos", "GetAddressUtxosStream", "GetBlock", "GetBlockNullifiers",
     "GetBlockRangeNullifiers", "GetLatestTreeState", "GetLightdInfo", "GetMempoolStream",
-    "GetMempoolTx", "GetSubtreeRoots", "GetTaddressBalance", "GetTaddressBalanceStream",
+    "GetSubtreeRoots", "GetTaddressBalance", "GetTaddressBalanceStream",
     "GetTaddressTransactions", "GetTaddressTxids", "Ping"];
   const paths = [
     ...closed.map((m) => "/lwd" + SERVICE + m),
@@ -95,17 +99,18 @@ const frame = (msg, flag = 0) => {
     assert.equal((await ask("/lwd/other", { method })).status, 404, method + " on a bad path");
   }
   assert.deepEqual(calls, [], "no call went upstream");
-  step("the 15 methods that the engine does not call, and a bad path, give 404; a bad method 405");
+  step("the 14 methods that the engine does not call, and a bad path, give 404; a bad method 405");
 }
 
-// ── The five methods that the engine calls go upstream with their body ──
+// ── The six methods that the engine calls go upstream with their body ──
 {
-  // A body of 300 bytes that is no BlockRange: only GetBlockRange gets the range check.
+  // A body of 300 bytes that is no BlockRange: only GetBlockRange and GetMempoolTx get a check.
   const raw = frame(sub(1, Array(295).fill(7)));
   const methods = ["GetLatestBlock", "GetTreeState", "GetBlockRange", "GetTransaction",
-    "SendTransaction"];
+    "SendTransaction", "GetMempoolTx"];
+  const engine = { GetBlockRange: ENGINE_RANGE, GetMempoolTx: ENGINE_MEMPOOL };
   for (const method of methods) {
-    const body = method === "GetBlockRange" ? ENGINE_RANGE : raw;
+    const body = engine[method] ?? raw;
     calls.length = 0;
     const res = await ask("/lwd" + SERVICE + method, { body });
     assert.equal(res.status, 200, method);
@@ -114,7 +119,43 @@ const frame = (msg, flag = 0) => {
     assert.deepEqual(sent, new Uint8Array(body), method + ": the body goes unchanged");
   }
   calls.length = 0;
-  step("the five methods that the engine calls go upstream, and only GetBlockRange is bounded");
+  step("the six methods that the engine calls go upstream; GetBlockRange and GetMempoolTx are bounded");
+}
+
+// ── A GetMempoolTx call has a small body: the exclude list is empty, one pool type ──
+{
+  const path = "/lwd" + SERVICE + "GetMempoolTx";
+  const send = (body) => ask(path, { body });
+  const suffix = (n) => sub(1, Array(n).fill(7));
+  calls.length = 0;
+  let res = await send(ENGINE_MEMPOOL);
+  assert.equal(res.status, 200, "the body that the engine sends passes");
+  assert.deepEqual(new Uint8Array(calls[0].init.body), new Uint8Array(ENGINE_MEMPOOL), "unchanged");
+  const ok = [
+    ["two short suffixes to exclude", frame([...suffix(8), ...suffix(8), 0x1a, 1, 4])],
+    ["a frame of 64 bytes", frame(Array(59).fill(0))],
+  ];
+  assert.equal(ok[1][1].length, 64);
+  for (const [name, body] of ok) assert.equal((await send(body)).status, 200, name);
+  assert.equal(calls.length, 1 + ok.length);
+  calls.length = 0;
+  const bad = [
+    ["a frame of 65 bytes", frame(Array(60).fill(0))],
+    ["the exclude list of a full mempool", frame(Array(40).fill(0).flatMap(() => suffix(8)))],
+    ["a body of 300 bytes", new Uint8Array(300)],
+    ["a body of 64 KB", new Uint8Array(65536)],
+  ];
+  for (const [name, body] of bad) {
+    res = await send(body);
+    assert.equal(res.status, 400, name);
+    assert.match(await res.clone().text(), /Send one GetMempoolTx request/, name);
+    await keyless(res, name);
+  }
+  assert.equal(calls.length, 0, "a refused body sends nothing upstream");
+  assert.equal((await ask("/lwd" + SERVICE + "GetMempoolStream", { body: ENGINE_MEMPOOL })).status,
+    404, "the stream that stays open is still closed");
+  assert.equal(calls.length, 0);
+  step("a GetMempoolTx body of up to 64 bytes passes; a larger one gives 400; GetMempoolStream 404");
 }
 
 // ── A GetBlockRange call asks for at most LWD_MAX_BLOCKS blocks ──

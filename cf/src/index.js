@@ -149,16 +149,18 @@ async function assets(req, env, url) {
 // The public side of the testnet light-wallet server answers this Worker only: Envoy checks the
 // secret LWD_KEY that the Worker adds (infra/lwd). The page calls /lwd behind the password gate
 // and never holds the key. Only the gRPC methods that the engine calls pass (wasm/src/chain.rs),
-// so the route is no open proxy, and long streams such as GetMempoolStream stay closed.
+// so the route is no open proxy. GetMempoolTx passes: it ends with the mempool. The stream that
+// stays open, GetMempoolStream, is closed.
 const LWD_ORIGIN = "https://lwd.zigs.app";
 const LWD_PATH = /^\/lwd(\/cash\.z\.wallet\.sdk\.rpc\.CompactTxStreamer\/([A-Za-z]+))$/;
 const LWD_METHODS = new Set(["GetLatestBlock", "GetTreeState", "GetBlockRange", "GetTransaction",
-  "SendTransaction"]);
+  "SendTransaction", "GetMempoolTx"]);
 // One GetBlockRange call asks for at most this many blocks, so no call asks for the whole chain.
 // The engine asks for BATCH (1,000) blocks at a time (wasm/src/chain.rs); the margin of one more
 // batch keeps a later, larger BATCH working. web/test/lwd.mjs checks that the limit stays above.
 const LWD_MAX_BLOCKS = 2_000;
 const LWD_MAX_RANGE_BODY = 256; // bytes; the frame of the engine has 19
+const LWD_MAX_MEMPOOL_BODY = 64; // bytes; the frame of the engine has 8 (no exclude list)
 const LWD_REQUEST = ["content-type", "x-grpc-web", "x-user-agent", "grpc-timeout"];
 const LWD_RESPONSE = ["content-type", "grpc-status", "grpc-message"];
 
@@ -292,9 +294,14 @@ async function smallBody(req, max) {
   return out;
 }
 
-// The body to send upstream: a GetBlockRange body only when its range is small enough. Other
-// bodies stream as they come. A Response when the call is refused.
+// The body to send upstream: a GetBlockRange body only when its range is small enough, and a
+// GetMempoolTx body only when it is small. Other bodies stream as they come. A Response when the
+// call is refused.
 async function lwdBody(req, method) {
+  if (method === "GetMempoolTx") {
+    const bytes = await smallBody(req, LWD_MAX_MEMPOOL_BODY);
+    return bytes ?? new Response("Send one GetMempoolTx request.\n", { status: 400 });
+  }
   if (method !== "GetBlockRange") return req.body;
   const bytes = await smallBody(req, LWD_MAX_RANGE_BODY);
   const span = bytes && rangeSpan(bytes);
