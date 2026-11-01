@@ -5,9 +5,14 @@
 // secrets and the once-only fields of storage first, so the burned nonce never comes back. A step
 // that holds the lock saves with the held variant: a step that waited for the lock again would
 // hang, and the deadlock cases below run each holder under a time limit.
+// A save waits for the lock. A step that holds it and reads storage must not undo the changes of
+// its own tab that wait behind it: a new chat or account change, a removed seat, wallet key, chat
+// or account, the saves of a passkey prompt. Those cases (laterLocks) grant the lock in a later
+// task, as a browser does: Node's own navigator.locks runs the step at once and hides the race.
 // Tab B is the page under test. Tab A is a write to storage, as another tab makes it.
 // Run: node web/test/nonce-locks.mjs   (Node 26)
 import assert from "node:assert/strict";
+import { newPersonal } from "../personal.js";
 import { aesKey, open as openVault, seal } from "../vault.js";
 import { approvalOnce, clearPending, dropNonces, saveNonces, shareOnce } from "../sol/nonces.js";
 import { putSol } from "../sol/secrets.js";
@@ -20,14 +25,15 @@ const ks = await import("../app-keystore.js");
 const { planSolana, solHost } = await import("../app-sol.js");
 const realNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
 
-const GID = "ab".repeat(10), K = GID + ":1", KEY = "k".repeat(43);
+const GID = "ab".repeat(10), K = GID + ":1", K2 = GID + ":2", KEY = "k".repeat(43);
 const share = { identifier: "01", verifying_share: "aa" };
 const CID = "cc".repeat(10), ROOM = { key: "v".repeat(43), member: "dd".repeat(10), at: 1 };
 const vrec = { cred: "YQ", salt: "Yg" };
 const vkey = await aesKey(new Uint8Array(32).fill(7));
 const addressOf = (byte) => JSON.parse(Z.accountKeys(byte.repeat(32), "testnet")).address;
 
-// Seat 1 as tab B holds it (the nonces are live), and as tab A saved it (they are burned).
+// Seat 1 as tab B holds it (the nonces are live), and as tab A saved it (they are burned). Tab A
+// also holds a mark, a salt and a body that tab B lacks: a save of tab B must keep them.
 const solPart = (records) => ({ keyPackage: { sol: 1 }, ...records });
 const seatB = () => ({
   keyPackage: share, nonces: { s1: { sighash: "aa", nonces: "n" } },
@@ -35,9 +41,17 @@ const seatB = () => ({
   sol: solPart({ nonces: { z1: { digest: "d1", nonces: "sn" } }, used: {}, pending: {} }),
 });
 const seatA = () => ({
-  keyPackage: share, nonces: {}, marks: { s1: { approved: "aa" } },
+  keyPackage: share, nonces: {}, marks: { s1: { approved: "aa" }, s2: { burned: true } },
   unsent: { s1: { share: "x" } },
-  sol: solPart({ nonces: {}, used: { d1: "z1" }, pending: { z1: { share: "sx", digest: "d1" } } }),
+  sol: solPart({ nonces: {}, used: { d1: "z1" }, pending: { z1: { share: "sx", digest: "d1" } },
+    salts: { z1: "salt" }, bodies: { c1: "body" } }),
+});
+// A second seat with live nonces in every once-only field.
+const seat2 = () => ({
+  keyPackage: share, nonces: { s1: { sighash: "bb", nonces: "n2" } },
+  marks: { s1: { approved: "bb" } }, unsent: { s1: { share: "y" } },
+  sol: solPart({ nonces: { z2: { digest: "d2", nonces: "sn2" } }, used: { d2: "z2" }, pending: {},
+    salts: { z2: "salt2" }, bodies: { c2: "body2" } }),
 });
 
 // ── The stored record, in the two modes ──
@@ -46,16 +60,16 @@ const parts = async (mode) => mode === "plain"
     chats: JSON.parse(storage.get("zf-chats")) }
   : openVault(vkey, JSON.parse(storage.get("zf-vault")));
 
-async function storeAs(mode, secrets) {
+async function storeAs(mode, secrets, more = {}) {
+  const { keys = {}, chats = { profile: null, list: {} }, personal = null } = more;
   storage.clear();
   if (mode === "plain") {
     storage.set("zf-secrets", JSON.stringify(secrets));
-    storage.set("zf-keys", "{}");
-    storage.set("zf-chats", JSON.stringify({ profile: null, list: {} }));
+    storage.set("zf-keys", JSON.stringify(keys));
+    storage.set("zf-chats", JSON.stringify(chats));
     return;
   }
-  const rec = await seal(vkey, vrec, { secrets, keys: {}, chats: { profile: null, list: {} },
-    personal: null });
+  const rec = await seal(vkey, vrec, { secrets, keys, chats, personal });
   storage.set("zf-vault", JSON.stringify(rec));
 }
 
@@ -65,6 +79,7 @@ async function twoTabs(mode) {
   ks.setVault(mode === "sealed" ? { rec: vrec, key: vkey } : null);
   t.secrets = { [K]: seatB() };
   t.gkeys = {};
+  t.adoptPersonal(null);
   for (const id of Object.keys(t.chats.list)) delete t.chats.list[id];
   t.restoreWatch.clear();
   await storeAs(mode, { [K]: seatA() });
@@ -79,6 +94,9 @@ function assertBurned(secrets, what) {
   assert.equal(s.sol.nonces.z1, undefined, what + ": the Solana nonce stays burned");
   assert.equal(s.sol.used.d1, "z1", what + ": the used digest stays");
   assert.ok(s.sol.pending.z1, what + ": the Solana share stays");
+  assert.deepEqual(s.marks.s2, { burned: true }, what + ": a mark that only storage holds stays");
+  assert.equal(s.sol.salts.z1, "salt", what + ": the Solana salt stays");
+  assert.equal(s.sol.bodies.c1, "body", what + ": the Solana body stays");
 }
 
 // ── The writers: every kind of save that is no locked step ──
@@ -280,6 +298,315 @@ await solanaCases("sealed");
   assert.throws(() => ks.putSecHeld(GID, 1, { guard: 1 }), /without the lock/);
   assert.equal(t.sec(GID, 1).guard, undefined, "the refused change did not reach memory");
 }
+
+// A seat that storage lacks gets no once-only field from this tab either.
+async function unknownSeat(mode) {
+  await twoTabs(mode);
+  t.secrets[K2] = seat2();
+  assert.equal(await ks.putKey("other", KEY), true);
+  const kept = { keyPackage: share, sol: solPart({}) };
+  assert.deepEqual((await parts(mode)).secrets[K2], kept, mode + ": a seat that storage lacks");
+  assert.deepEqual(t.sec(GID, 2), kept, mode + ": and in memory");
+}
+await unknownSeat("plain");
+await unknownSeat("sealed");
+await assert.rejects(ks.persistSealed(), /needs the argument fresh/, "fresh is required");
+
+// ── The lock is granted in a later task, as a browser does ──
+// A step that holds it reads storage, and the saves of this tab wait behind it. They must not
+// undo each other.
+function laterLocks() {
+  const turns = new Map(), line = new Map();
+  return {
+    queued: (name) => line.get(name) ?? 0,
+    request: (name, fn) => {
+      line.set(name, (line.get(name) ?? 0) + 1);
+      const run = (turns.get(name) || Promise.resolve())
+        .then(() => new Promise((go) => setTimeout(go, 0)))
+        .then(() => {
+          line.set(name, line.get(name) - 1);
+          return fn();
+        });
+      turns.set(name, run.catch(() => {}));
+      return run;
+    },
+  };
+}
+const setNavigator = (value) => Object.defineProperty(globalThis, "navigator",
+  { configurable: true, value });
+async function until(ok) {
+  for (let n = 0; !ok(); n++) {
+    assert.ok(n < 1000, "timeout");
+    await sleep(2);
+  }
+}
+// Holds the lock of the secrets, as a step of another tab does, until the returned function runs.
+async function gateLock(locks) {
+  let open;
+  await new Promise((entered) => {
+    const step = new Promise((done) => { open = done; });
+    locks.request("zigs-secrets", () => {
+      entered();
+      return step;
+    });
+  });
+  return open;
+}
+
+const G2 = "ef".repeat(10), K3 = G2 + ":1", CID2 = "c1".repeat(10);
+const ROOM2 = { key: "w".repeat(43), member: "d1".repeat(10), at: 2 };
+const account = newPersonal({ seed: "01".repeat(32), network: "testnet", birthday: 1000 },
+  "a".repeat(43));
+const memory = () => ({ secrets: t.secrets, keys: t.gkeys, chats: t.chats, personal: t.personal });
+// Tab B holds the older copy of a full record (three seats, two wallet keys, a chat and, sealed,
+// an account). Storage holds what tab A saved: the burned nonces of seat 1.
+async function fullTabs(mode) {
+  await twoTabs(mode);
+  const rest = () => ({ [K2]: seat2(), [K3]: { keyPackage: share } });
+  const room = { profile: null, list: { [CID]: ROOM } };
+  await storeAs(mode, { [K]: seatA(), ...rest() }, { keys: { [GID]: KEY, [G2]: KEY },
+    chats: room, personal: mode === "sealed" ? account : null });
+  t.secrets = { [K]: seatB(), ...rest() };
+  t.gkeys = { [GID]: KEY, [G2]: KEY };
+  t.chats.list[CID] = ROOM;
+  if (mode === "sealed") t.personal = structuredClone(account);
+}
+const bothCopies = async (mode, ok, what) => {
+  const stored = await parts(mode);
+  assert.ok(ok(stored), mode + " " + what + ": in storage");
+  assert.ok(ok(memory()), mode + " " + what + ": in memory");
+  assertBurned(stored.secrets, mode + " " + what);
+  assertBurned({ [K]: t.sec(GID, 1) }, mode + " " + what + " (memory)");
+};
+
+// ── M1: a storage step holds the lock; a chat or account change asks a save behind it ──
+const addChat = () => {
+  t.chats.list[CID2] = ROOM2;
+  return ks.persist();
+};
+const hasChat = (p) => p.chats.list[CID2]?.member === ROOM2.member;
+const changes = [
+  ["chat", "plain", "zf-chats", addChat, hasChat],
+  ["chat", "sealed", "zf-vault", addChat, hasChat],
+  ["account", "sealed", "zf-vault", () => t.changePersonal((p) => { p.backedUp = true; }),
+    (p) => p.personal?.backedUp === true],
+];
+async function changeBehindStep([what, mode, key, change, saved]) {
+  const locks = laterLocks();
+  setNavigator({ locks });
+  await fullTabs(mode);
+  const open = await gateLock(locks);
+  const step = t.takeFromTab(key);
+  const changing = change();
+  await until(() => locks.queued("zigs-secrets") >= 2);
+  open();
+  await Promise.all([step, changing]);
+  await bothCopies(mode, saved, "a " + what + " change behind a storage step");
+}
+for (const c of changes) await changeBehindStep(c);
+
+// ── M2: a locked step runs before the save of a removal; the item stays removed ──
+const removals = [
+  ["seat", () => t.undoRestore({ gid: GID, seat: 2, addedKey: false }),
+    (p) => !(K2 in p.secrets) && K in p.secrets],
+  ["wallet key", () => t.undoRestore({ gid: G2, seat: 1, addedKey: true }),
+    (p) => !(K3 in p.secrets) && !(G2 in p.keys) && GID in p.keys],
+  ["chat", () => t.leaveChat(CID), (p) => !(CID in p.chats.list)],
+  ["account", () => t.removeAccount(), (p) => p.personal === null],
+];
+async function removeBehindStep(mode, [what, remove, gone]) {
+  if (what === "account" && mode === "plain") return;
+  const locks = laterLocks();
+  setNavigator({ locks });
+  await fullTabs(mode);
+  const open = await gateLock(locks);
+  const step = t.exclusive("secrets", async () => {
+    await sleep(30);
+    await t.takeStored();
+  });
+  const removing = remove();
+  open();
+  await Promise.all([step, removing]);
+  await t.exclusive("secrets", async () => {});   // undoRestore does not wait for its save
+  await bothCopies(mode, gone, "a removed " + what);
+}
+for (const r of removals) await removeBehindStep("plain", r);
+for (const r of removals) await removeBehindStep("sealed", r);
+
+// ── H1: saves during the passkey prompt are in the sealed record ──
+async function protectionWindow() {
+  const locks = laterLocks(), pk = fakePasskey(locks), create = pk.credentials.create;
+  let open, asking = false;
+  const gate = new Promise((go) => { open = go; });
+  pk.credentials.create = async (...args) => {
+    asking = true;
+    await gate;
+    return create(...args);
+  };
+  setNavigator(pk);
+  await fullTabs("plain");
+  ks.setVault(null);
+  const locking = ks.lockWithPasskey();
+  await until(() => asking);
+  const saves = [t.putSec(GID, 1, { signSk: "sk", signPk: "pk" }), ks.putKey("other", KEY),
+    t.putSec(GID, 2, { room: { id: "r", key: KEY } })];
+  delete t.chats.list[CID];
+  saves.push(addChat());
+  open();
+  await locking;
+  assert.deepEqual(await Promise.all(saves), [true, true, true, true], "the saves resolve true");
+  const sealed = await openVault(ks.vault.key, JSON.parse(storage.get("zf-vault")));
+  const ok = (p) => p.secrets[K].signSk === "sk" && p.secrets[K].signPk === "pk"
+    && p.keys.other === KEY && p.secrets[K2].room.id === "r" && hasChat(p)
+    && !(CID in p.chats.list);
+  assert.ok(ok(sealed), "the changes of the prompt are in the sealed record");
+  assert.ok(ok(memory()), "and in memory");
+  assertBurned(sealed.secrets, "protection window");
+  assertBurned({ [K]: t.sec(GID, 1) }, "protection window (memory)");
+  assert.equal(storage.has("zf-secrets"), false, "the plain copies are gone");
+}
+await protectionWindow();
+
+// ── No save waits: a step takes what another tab saved, and writes nothing over it ──
+async function takesOtherTab(mode, key) {
+  await twoTabs(mode);
+  await storeAs(mode, { [K]: seatA(), [K2]: seat2() }, { keys: { other: KEY },
+    chats: { profile: null, list: { [CID]: ROOM } } });
+  await t.takeFromTab(key);
+  const ok = (p) => K2 in p.secrets && p.keys.other === KEY && CID in p.chats.list;
+  assert.ok(ok(memory()), mode + ": this tab takes the seat, the key and the chat");
+  assert.ok(ok(await parts(mode)), mode + ": and storage keeps them");
+  assertBurned((await parts(mode)).secrets, mode + " no save waits");
+}
+await takesOtherTab("plain", "zf-chats");
+await takesOtherTab("sealed", "zf-vault");
+
+// One write holds the ask of every save before it: a second step flushes nothing again. Tab A
+// saves a seat between the two steps, and the second step takes it.
+async function secondStep(mode) {
+  const locks = laterLocks();
+  setNavigator({ locks });
+  await twoTabs(mode);
+  await storeAs(mode, { [K]: seatB() });
+  const open = await gateLock(locks);
+  const first = t.exclusive("secrets", () => t.takeStored());
+  const otherTab = t.exclusive("secrets", () => storeAs(mode, { [K]: seatB(), [K2]: seat2() }));
+  const second = t.exclusive("secrets", () => t.takeStored());
+  const saving = ks.putKey("other", KEY);
+  open();
+  await Promise.all([first, otherTab, second, saving]);
+  const ok = (p) => K2 in p.secrets && p.keys.other === KEY;
+  assert.ok(ok(await parts(mode)) && ok(memory()), mode + ": the seat of tab A stays");
+}
+await secondStep("plain");
+await secondStep("sealed");
+
+// A save asks for the lock while the step decrypts the record: the step reads it again.
+async function askedDuringRead() {
+  const locks = laterLocks(), get = localStorage.getItem;
+  setNavigator({ locks });
+  await fullTabs("sealed");
+  let armed = true, saving;
+  localStorage.getItem = (name) => {
+    if (armed && name === "zf-vault") {
+      armed = false;
+      delete t.secrets[K2];
+      saving = ks.persist();
+    }
+    return get(name);
+  };
+  try {
+    await t.exclusive("secrets", () => t.takeStored());
+  } finally { localStorage.getItem = get; }
+  await saving;
+  await bothCopies("sealed", (p) => !(K2 in p.secrets), "a seat removed during the read");
+}
+await askedDuringRead();
+
+// A save asks for the lock between the read of a storage step and its replace of the chats.
+async function askedAfterRead() {
+  const locks = laterLocks(), get = localStorage.getItem;
+  setNavigator({ locks });
+  await fullTabs("plain");
+  let armed = true, saving;
+  localStorage.getItem = (name) => {
+    if (armed && name === "zf-secrets") {
+      armed = false;
+      queueMicrotask(() => { saving = addChat(); });
+    }
+    return get(name);
+  };
+  try { await t.takeFromTab("zf-chats"); } finally { localStorage.getItem = get; }
+  await saving;
+  await bothCopies("plain", hasChat, "a chat added after the read");
+}
+await askedAfterRead();
+
+// A write that fails stops the step: nothing is read over the changes of this tab, and no loop.
+async function flushFails(mode) {
+  const locks = laterLocks();
+  setNavigator({ locks });
+  await twoTabs(mode);
+  if (mode === "plain") storage.set("zf-secrets", "{damaged");
+  else storage.set("zf-vault", "{\"v\":1,\"junk\":true}");
+  const open = await gateLock(locks);
+  const step = t.exclusive("secrets", () => t.takeStored()).then(() => "no stop", (e) => e.message);
+  const saving = addChat();
+  open();
+  assert.match(await within(mode + " failed flush", step), /could not save its own changes/);
+  assert.equal(await saving, false, mode + ": the save fails too");
+  assert.ok(hasChat(memory()), mode + ": memory keeps the change");
+}
+await flushFails("plain");
+await flushFails("sealed");
+await twoTabs("plain");
+assert.equal(await ks.persist(), true, "a save that works clears the failure");
+t.adoptPersonal(null);
+t.setAcct(null);
+Object.defineProperty(globalThis, "navigator", realNavigator);
+
+// ── The payment steps hold the lock too: the approval (commitNow), the cancel (burnUnsigned)
+// and the drop of a sent share (dropUnsent). Each runs for real, under a short limit. ──
+const wallet = { orchard_fvk: "fvk", ufvk: "u", birthday: 1 };
+function payRig() {
+  const inspect = JSON.stringify({ sighash: "sh", tx_version: "V6", spends: [], lines: [], fee: 1,
+    standard_fee: 1, expiry_height: 5000000, txid: "tx" });
+  t.setZ({ ...Z, inspect: () => inspect, latestHeight: async () => 1000,
+    signCommit: () => JSON.stringify({ nonces: ["n"], commitments: ["c"] }) });
+  Object.assign(t.state, { gid: GID, wallet, seats: { 1: { uid: "me-uid" } },
+    g: { network: "testnet" } });
+  t.setChain({ gid: GID, url: "https://lwd.test", bal: { height: 1000, spendable: 1e8, pending: 0 },
+    received: [], sent: new Set(), cw: { free() {} } });
+}
+const payment = (id, more) => ({ id, status: "collecting", pczt: "P" + id, createdBy: "me-uid",
+  ...more });
+async function paySync(mode, more) {
+  await twoTabs(mode);
+  payRig();
+  const seat = () => ({ keyPackage: share, checkedWallet: JSON.stringify(wallet), ...more });
+  await storeAs(mode, { [K]: seat() });
+  t.secrets = { [K]: seat() };
+}
+const kept = { nonces: ["n"], commitments: ["c"], sighash: "sh" };
+async function payCases(mode) {
+  await paySync(mode, {});
+  await within(mode + " approve", t.approve(payment("a" + mode), 1));
+  assert.ok((await parts(mode)).secrets[K].nonces["a" + mode], mode + ": the approval is saved");
+  await paySync(mode, { nonces: { ["c" + mode]: kept } });
+  await within(mode + " cancel", t.cancelPayment(payment("c" + mode)));
+  assert.equal((await parts(mode)).secrets[K].nonces["c" + mode], undefined, mode + ": burned");
+  const sid = "d" + mode, unsent = { rel: "sessions/" + sid + "/shares/1", doc: { shares: "x" } };
+  await paySync(mode, { nonces: { [sid]: kept }, unsent: { [sid]: unsent } });
+  t.reactSession(payment(sid, { status: "signing", package: "pkg", signers: [1] }),
+    { commits: {}, shares: {} });
+  await rig.waitFor(mode + " dropUnsent", () => !t.sec(GID, 1).unsent[sid], 5000);
+  assert.ok(rig.data.has("groups/" + GID + "/" + unsent.rel), mode + ": the share went out");
+  await within(mode + " dropUnsent", t.exclusive("secrets", async () => {}));
+  assert.equal((await parts(mode)).secrets[K].unsent[sid], undefined, mode + ": and its copy went");
+}
+payRig();
+await payCases("plain");
+await payCases("sealed");
 
 // A step that holds the lock and saves with the locking save hangs. The cases above would fail.
 {
