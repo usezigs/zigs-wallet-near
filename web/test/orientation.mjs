@@ -52,6 +52,9 @@ const sheets = ["app.css", "network-privacy-popup.css", "premium-experience.css"
 assert.ok(sheets.every((sheet) => !sheet.includes(":has(>.pp-header-status)")),
   "no page header makes room for the Tor chip");
 assert.ok(has(rules(sheets[1]), ".side-privacy", /display:flex/), "the slot is a flex row");
+// The chip rules of the wallet header also kept Return home on one line. That rule stays.
+assert.ok(has(rules(sheets[2]), ".wallet-context-header>.wallet-home",
+  /max-width:none; white-space:nowrap;/), "Return home stays on one line in a phone wallet header");
 assert.ok(has(app, ".logo-word", /display:\s*none/), "a narrow phone shows the logo mark only");
 assert.ok(read("app.css").includes("@media(max-width:360px) { .logo-word { display:none; } }"),
   "from 360 px down");

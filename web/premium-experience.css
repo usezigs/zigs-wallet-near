@@ -313,6 +313,13 @@
 .premium-paused .premium-empty-art { animation:none!important; }
 .premium-paused .symbol { scale:none!important; }
 .premium-paused .icon-detail { translate:none!important; rotate:none!important; }
+/* Keep Return home on one line beside the wallet meta on a phone. */
+@media(max-width:760px) {
+  .wallet-topbar.wallet-context-header { gap:8px; }
+  .wallet-context-header>.wallet-home {
+    max-width:none; white-space:nowrap; padding-inline:8px; gap:6px; font-size:13px;
+  }
+}
 @media(prefers-reduced-motion:reduce),(update:slow) {
   *,*::before,*::after { animation:none!important; transition:none!important; }
   [data-premium-surface]::after { display:none; }

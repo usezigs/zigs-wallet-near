@@ -3333,6 +3333,10 @@ export const MUTATIONS = [
     '  .home-environment,.lobby-home .home-hero .join {',
     '  .home-threshold,.home-environment,.lobby-home .home-hero .join {'],
   ORIENT, /homepage\.css has no \.home-threshold rule/),
+  program("OR-home-wrap", "Return home wraps in a phone wallet header", [
+    "web/premium-experience.css", "max-width:none; white-space:nowrap; padding-inline:8px;",
+    "padding-inline:8px;"],
+  ORIENT, /Return home stays on one line in a phone wallet header/),
   // The funding checkout: a demo with no payment, never a step of the wallet setup.
   program("L-fund-label", "the funding demo does not say Demo, no payment", [FUNDING,
     'export const FUNDING_DEMO_LABEL = "Demo, no payment";',

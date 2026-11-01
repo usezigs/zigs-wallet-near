@@ -83,8 +83,8 @@ try {
     'Rejected full-screen synthetic app is absent');
   check(await page.locator('.privacy-demo-topbar').count() === 0,
     'No extra header or bar above the app');
-  check(await status.evaluate((n) => !!n.closest('.home-masthead')),
-    'Status is part of the original landing header');
+  check(await status.evaluate((n) => !!n.closest('#privacy-slot')),
+    'Status is in the one slot of the side panel');
   check(await popup.getByText(
     'Preview only. No Tor connection is created; traffic stays direct.', {
       exact: true }).isVisible(), 'Popup always explains simulation and direct traffic');
