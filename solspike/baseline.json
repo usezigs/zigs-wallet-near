@@ -1,5 +1,5 @@
 {
-  "baseCommit": "68c77c0815f2d929d5ae5ec95ef9f49fcb764144",
+  "baseCommit": "cfc488db4cdbcdff3f4549e46fe5420fb8fe4dce",
   "node": "v26.12.1",
   "tests": {
     "web/test/messaging-presentation.mjs": {
@@ -168,6 +168,9 @@
       "exit": 0
     },
     "web/test/contrast.mjs": {
+      "exit": 0
+    },
+    "web/test/orientation.mjs": {
       "exit": 0
     },
     "web/test/overview.mjs": {
