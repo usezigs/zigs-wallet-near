@@ -618,7 +618,6 @@ const status = async (label, address = DEPOSIT, e = LIVE, init = {}) => {
     "a deadline that is no time": (b) => { b.quote.deadline = "soon"; },
     "a deadline in the past": (b) => { b.quote.deadline = minutes(-1); },
     "a deadline in 4 minutes": (b) => { b.quote.deadline = minutes(4); },
-    "a deadline in 3 days": (b) => { b.quote.deadline = minutes(3 * 24 * 60); },
     "another amountIn": (b) => { b.quote.amountIn = "17500001"; },
     "minAmountOut above amountOut": (b) => { b.quote.minAmountOut = "133001"; },
     "a text amountOut": (b) => { b.quote.amountOut = "lots"; },
@@ -629,17 +628,21 @@ const status = async (label, address = DEPOSIT, e = LIVE, init = {}) => {
     assert.equal(out.status, 502, "the live check: " + what);
     assert.deepEqual(await json(out), { error: "unavailable" }, what);
   }
-  for (const [what, edit] of Object.entries({
-    "a deadline in 5 minutes": (b) => { b.quote.deadline = minutes(5); },
-    "a deadline in 2 days": (b) => { b.quote.deadline = minutes(2 * 24 * 60); },
-    "no inactive time": (b) => { delete b.quote.timeWhenInactive; },
-    "no correlation id or signature": (b) => { delete b.correlationId; b.signature = "<x>"; },
-  })) {
+  // The page shows the earlier of the address deadline and the refund time of the request.
+  for (const [what, edit, payBy] of [
+    ["a deadline in 5 minutes", (b) => { b.quote.deadline = minutes(5); }, minutes(5)],
+    ["a deadline in 3 days", (b) => { b.quote.deadline = minutes(3 * 24 * 60); }, minutes(30)],
+    ["no inactive time", (b) => { delete b.quote.timeWhenInactive; }, minutes(30)],
+    ["no correlation id or signature", (b) => { delete b.correlationId; b.signature = "<x>"; },
+      minutes(30)],
+  ]) {
     reply = (sent) => liveGood(sent, edit);
     const out = await swap(what, swapAsk);
     assert.equal(out.status, 200, what + " passes");
     const body = await json(out);
     assert.notEqual(body.signature, "<x>", what + ": a signature of another form stays behind");
+    assert.equal(body.deadline, payBy,
+      what + ": the deadline is the earlier of the address deadline and the refund time");
   }
   reply = (sent) => liveGood(sent, (b) => { b.quote.depositMemo = "1"; });
   assert.ok(!(await (await swap("memo text", swapAsk)).text()).includes(DEPOSIT),
@@ -707,9 +710,9 @@ const status = async (label, address = DEPOSIT, e = LIVE, init = {}) => {
   assert.ok(!text.includes("evil.example"), "no explorer link from upstream");
   for (const [what, edit, check] of [
     ["a state that is not known", (b) => { b.status = "NEW_STATE"; },
-      (o) => assert.equal(o.status, "unknown")],
+      (o) => assert.equal(o.status, "other", "a state that is not known is other")],
     ["a lower case state", (b) => { b.status = "success"; },
-      (o) => assert.equal(o.status, "unknown")],
+      (o) => assert.equal(o.status, "other")],
     ["no details", (b) => { delete b.swapDetails; },
       (o) => assert.deepEqual([o.originTxs, o.destinationTxs, o.amountOut], [[], [], undefined])],
     ["bad hashes", (b) => { b.swapDetails.originChainTxHashes = [tx("<script>"), tx(5), "x",

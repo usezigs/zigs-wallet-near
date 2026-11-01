@@ -28,8 +28,8 @@ export const SWAP_PRIVACY = 'To open the swap, Zigs sends the amount, the ZEC ad
 export const SWAP_AGREE = 'I understand that this swap moves real funds and that the payout to a '
   + 'shielded address is untested.';
 export const SWAP_EXPIRED = 'The deposit address is no longer active. Do not send SOL to it.';
-const SWAP_KEEP = 'The swap goes on without this page. Copy the deposit address and the quote ID: '
-  + 'after a reload, this page cannot show this swap again.';
+const SWAP_KEEP = 'The swap goes on without this page. Keep a copy of the deposit address, the '
+  + 'quote ID and the quote signature: after a reload, this page cannot show this swap again.';
 const NO_PAYOUT = 'Choose a mainnet wallet to receive the ZEC.';
 const SWAP_STATES = Object.freeze({
   unknown: 'NEAR Intents does not list this swap yet.',
@@ -42,6 +42,8 @@ const SWAP_STATES = Object.freeze({
     + 'sync.',
   REFUNDED: 'Refunded. NEAR Intents sent the SOL back to the refund address.',
   FAILED: 'The swap failed. Contact NEAR Intents support with the quote ID.',
+  other: 'NEAR Intents gives a state that Zigs does not know. Do not send SOL again. Contact '
+    + 'NEAR Intents support with the quote ID.',
 });
 const swapState = (live) => (live.status ? SWAP_STATES[live.status.status]
   : 'Asking NEAR Intents for the state of the swap…');
@@ -405,13 +407,21 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     select.id = 'swap-modal-destination'; select.value = s.destination;
     select.addEventListener('change', (ev) => { model.chooseDestination(ev.target.value); });
     detailBlock = el('div', {}, quoteBlock(s));
+    const live = liveRoute();
+    const receive = live
+      ? el('dl', { class: 'swap-review-details' },
+        detail('Receive to', payoutText(source.payout ?? {})))
+      : el('div', { class: 'swap-destination' },
+        el('label', { for: select.id }, 'Receive to · Demo'), select);
+    const zec = from.symbol === 'ZEC' || to.symbol === 'ZEC';
     modal.querySelector('.swap-modal-content').replaceChildren(
       text('swap-details-route', from.network + ' → NEAR Intents → ' + to.network),
       detailBlock,
-      el('div', { class: 'swap-destination' }, el('label', { for: select.id }, 'Receive to · Demo'), select),
+      receive,
       text('swap-caption', sourceLine.textContent),
       el('div', { class: 'swap-review-warning' }, text('', 'Privacy & network context', 'strong'),
-        text('', privacy(from.symbol === 'ZEC' || to.symbol === 'ZEC')), text('', networkLine.textContent),
+        text('', live ? SWAP_PRIVACY : privacy(zec)),
+        text('', networkLine.textContent),
         text('', 'A swap through NEAR Intents would run through an external provider and a trusted swapping agent. Wallet approval protection would not extend to the whole route.')),
       text('swap-caption', 'Only ZEC, SOL and USDC are shown.'),
       button('Back to swap', 'swap-secondary', () => closeModal()));
@@ -504,7 +514,8 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
         detail('Pay from', 'A Solana wallet outside Zigs'),
         detail('Route', from.network + ' → NEAR Intents → ' + to.network)),
       el('label', { for: 'swap-refund', class: 'swap-field-label' },
-        'Refund address: the Solana address that you pay from'),
+        'Refund address: the Solana address that you pay from. Use a wallet that you control, '
+          + 'not an exchange.'),
       refund, refundNote,
       el('div', { class: 'swap-review-warning' }, text('', 'Real funds', 'strong'),
         text('', UNTESTED), text('', SWAP_PRIVACY)),
@@ -549,7 +560,8 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
         detail('Payout', 'About ' + swapDecimal(w.amountOut, zec) + ' ZEC, at least '
           + swapDecimal(w.minAmountOut, zec) + ' ZEC'),
         detail('Paid to', [live.wallet + ' · ', addressText(w.recipient)]),
-        detail('Quote ID', w.correlationId || '—')),
+        detail('Quote ID', w.correlationId || '—'),
+        detail('Quote signature', w.signature ? addressText(w.signature) : '—')),
       depositCopy, depositState, text('swap-caption', SWAP_KEEP),
       button('Close', 'swap-secondary', () => model.closeSwap(),
         { 'data-key': 'swap-close-deposit' }));

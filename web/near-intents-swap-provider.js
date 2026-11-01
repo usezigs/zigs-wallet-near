@@ -14,7 +14,7 @@ const MESSAGES = Object.freeze({
 // A live quote holds the two addresses, so a refusal can come from one of them.
 const SWAP_REFUSED = 'NEAR Intents refused this swap. Check the amount and the refund address.';
 const STATES = new Set(['KNOWN_DEPOSIT_TX', 'PENDING_DEPOSIT', 'INCOMPLETE_DEPOSIT',
-  'PROCESSING', 'SUCCESS', 'REFUNDED', 'FAILED', 'unknown']);
+  'PROCESSING', 'SUCCESS', 'REFUNDED', 'FAILED', 'unknown', 'other']);
 
 /**
  * An error with a `code`: 'too-low' (with `minAmount`), 'no-route', 'busy', 'unavailable' or

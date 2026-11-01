@@ -360,6 +360,8 @@ async function reviewed(pro, clock = fakeClock()) {
     ['/near/status?depositAddress=' + DEPOSIT, undefined, 'no-store'], 'a GET of the state');
   answer = () => Response.json({ error: 'unknown' }, { status: 404 });
   assert.equal((await provider.swapStatus(DEPOSIT)).status, 'unknown', 'a swap not listed yet');
+  answer = () => Response.json(stateOf('other'));
+  assert.equal((await provider.swapStatus(DEPOSIT)).status, 'other', 'a state the server marks other');
   for (const [what, make, code] of [['a 404 of a server with no live swap',
     () => new Response('Not found', { status: 404 }), 'unavailable'],
   ['a state that is not known', () => Response.json({ status: 'NEW' }), 'unavailable'],
@@ -419,6 +421,21 @@ async function reviewed(pro, clock = fakeClock()) {
   await late.clock.tick(DEADLINE_MS);
   assert.equal(late.swapExpired(), false, 'a seen deposit never expires');
   console.log('ok  the live swap opens once, keeps its life apart from the quote, and closes');
+}
+{
+  // The deadline redraws the page also when no read of the state falls on it.
+  const clock = fakeClock(), drawn = [];
+  const m = new SwapPreviewModel(swapPro(), () => drawn.push(clock.now()), clock);
+  await m.update({ from: sol.id, to: zec.id, amount: '0.0175' });
+  m.review();
+  await clock.tick(3_000);
+  await m.openSwap(where); await settle();
+  await clock.tick(DEADLINE_MS - clock.now());
+  assert.ok(drawn.includes(DEADLINE_MS), 'the deadline redraws the page');
+  assert.equal(m.swapExpired(), true);
+  m.closeSwap();
+  assert.equal(clock.pending, 0, 'a closed swap leaves no timer');
+  console.log('ok  the deadline redraws the page');
 }
 {
   // An error doubles the wait up to 60 s; a final state ends the reads.
@@ -880,6 +897,12 @@ try {
     'the payout is the address of the wallet');
   assert.equal(root.querySelector('.swap-payout').hidden, false);
   assert.ok(view().includes(SWAP_PRIVACY), 'the page says what the live swap sends');
+  press(root, 'Swap details');
+  const details = walk(body, (n) => n.tag === 'dialog').at(-1);
+  assert.ok(text(details).includes('Receive toSavings · u1ddnjsdcp…ece3lvm0')
+    && !text(details).includes('Receive to · Demo') && text(details).includes(SWAP_PRIVACY),
+  'the details of the live route show the payout of the wallet');
+  press(details, 'Back to swap');
   press(root, 'Review quote');
   const modal = walk(body, (n) => n.tag === 'dialog').at(-1);
   const review = text(modal);
@@ -910,7 +933,8 @@ try {
   for (const row of [UNTESTED, 'Send exactly0.0175 SOL (17,500,000 lamports)',
     'To this address' + DEPOSIT, 'Pay before1970-01-01 00:30:00 UTC. A deposit after this time can '
       + 'be lost.', 'Refund address' + REFUND, 'PayoutAbout 0.00133 ZEC, at least 0.0013167 ZEC',
-    'Paid toSavings · ' + UA, 'Quote IDc-1', 'Status: Waiting for your deposit.', SWAP_TAG]) {
+    'Paid toSavings · ' + UA, 'Quote IDc-1', 'Quote signatureed25519:5wQ',
+    'Status: Waiting for your deposit.', SWAP_TAG]) {
     assert.ok(text(deposit).includes(row), 'the deposit screen shows ' + row.slice(0, 40));
   }
   const copy = named(deposit, 'Copy address');
@@ -923,6 +947,10 @@ try {
   await clock.tick(SWAP_STATUS_MS);
   assert.match(text(deposit), /Status: Swapping\..*Solana transaction5wQkS9AAAA/);
   assert.equal(copy.hidden, true, 'no copy once the deposit is seen');
+  state = stateOf('other');
+  await clock.tick(SWAP_STATUS_MS);
+  assert.match(text(deposit), /Status: NEAR Intents gives a state that Zigs does not know\. Do not/);
+  assert.equal(copy.hidden, true, 'no copy for a state that Zigs does not know');
   state = stateOf('SUCCESS', { destinationTxs: ['ab'.repeat(32)] });
   await clock.tick(SWAP_STATUS_MS);
   assert.match(text(deposit), /Status: Done\. NEAR Intents sent the ZEC to the wallet\./);

@@ -21,7 +21,7 @@ import { parseArgs } from "node:util";
 const ORIGIN = "https://staging.zigs.app";
 const PASSWORD_FILE = join(homedir(), ".config", "zigs", "staging-password");
 const LOGS = join(dirname(fileURLToPath(import.meta.url)), "..", "logs");
-const SLIPPAGE_BPS = 100; // the widest choice of the page: a refund wastes the run
+const SLIPPAGE_BPS = 100; // the middle choice of the page: a refund wastes the run
 const READ_MS = 10_000;
 const AFTER_DEADLINE_MS = 7_200_000;
 const CALL_MS = 15_000;

@@ -258,6 +258,9 @@ export class SwapPreviewModel {
     if (BigInt(swap.amountOut) > BigInt(where.room)) return this.swapFailed(OVER_CAP);
     s.live = { swap, wallet: where.wallet, status: null, statusError: '', wait: SWAP_STATUS_MS,
       timer: null };
+    // The page must hide the address at the deadline, also when no read falls on it.
+    const left = Math.max(0, Date.parse(swap.deadline) - this.clock.now());
+    s.live.end = this.clock.set(() => this.emit(), left);
     if (s.phase === 'REVIEW_OPEN') s.phase = 'QUOTE_READY';
     this.emit();
     void this.readSwap(s.live);
@@ -279,7 +282,9 @@ export class SwapPreviewModel {
       Object.assign(live, { statusError: STATUS_DOWN,
         wait: Math.min(live.wait * 2, SWAP_STATUS_MAX_MS) });
     }
-    if (!SWAP_FINAL.includes(live.status?.status)) {
+    if (SWAP_FINAL.includes(live.status?.status)) {
+      this.clock.clear(live.end);
+    } else {
       const late = this.clock.now() >= Date.parse(live.swap.deadline);
       live.timer = this.clock.set(() => { void this.readSwap(live); },
         late ? SWAP_STATUS_MAX_MS : live.wait);
@@ -294,6 +299,7 @@ export class SwapPreviewModel {
   }
   closeSwap() {
     this.clock.clear(this.value.live?.timer);
+    this.clock.clear(this.value.live?.end);
     Object.assign(this.value, { live: null, swapError: '' });
     this.emit();
   }

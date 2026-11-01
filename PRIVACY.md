@@ -296,8 +296,8 @@ How a quote works:
   (`X-API-Key`) when the server has one. It sends no cookie, no IP address and no user agent of
   yours. It checks the answer, keeps seven fields, and answers with `Cache-Control: no-store`. It
   stores nothing and writes no log.
-- The Worker limits `/near/quote` to 60 calls a minute for each IPv4 address or IPv6 /64
-  (`NEAR_PER_IP`, counted per Cloudflare location). It uses the IP address in memory only.
+- The Worker limits `/near/quote`, `/near/swap` and `/near/status` together to 60 calls a minute
+  for each IPv4 address or IPv6 /64 (`NEAR_PER_IP`, counted per Cloudflare location). It uses the IP address in memory only.
 - The Overview of a mainnet wallet asks for the price of 1 ZEC through the same route. It posts
   exactly 1 ZEC (100,000,000 zatoshi) to USDC with the slippage 50. The amount is fixed: it never
   depends on your balance. The page multiplies the price by the ZEC total of the wallet, on the
@@ -355,16 +355,17 @@ How a live swap works:
   of the app Worker.
 - The Worker builds a live quote request (`"dry": false`) from SOL to ZEC with these two addresses
   and a deadline 30 minutes later. It never puts a sample address in a live request. It checks
-  that the answer repeats both addresses, the amount and the assets, that the deposit address is
-  a Solana address with no memo, and that its deadline is at least 5 minutes away. It answers
-  with the deposit address, the amounts, the deadline, the two addresses, the quote id and the
-  quote signature.
+  that the answer repeats both addresses, the amount and the assets, and that the deposit address
+  is a Solana address with no memo. The deadline is the earlier of the deadline of the deposit
+  address and the refund time of the request, and it must be at least 5 minutes away. The Worker
+  answers with the deposit address, the amounts, the deadline, the two addresses, the quote id
+  and the quote signature.
 - The deposit screen shows the deposit address, the exact amount, the deadline, the refund
-  address, the payout address and the quote id. It stays in memory only: after a reload the page
+  address, the payout address, the quote id and the quote signature. It stays in memory only: after a reload the page
   cannot show the swap again, but the swap goes on.
 - While the screen shows, the page reads `/near/status` every 10 seconds (up to 60 seconds after
-  errors and after the deadline) until the state is final. The Worker passes only the state, the
-  transaction hashes and the amounts. It drops the explorer links of NEAR Intents.
+  errors and after the deadline) until the state is final. The Worker passes only the state, its
+  time, the transaction hashes, the amounts and the refund reason. It drops the explorer links of NEAR Intents.
 - The page refuses a payout that would take the wallet over the warning level of unaudited
   mainnet wallets (0.5 ZEC).
 
@@ -373,13 +374,12 @@ How a live swap works:
 | NEAR Intents (`1click.chaindefuser.com`) | The amount, the ZEC address of the wallet and your refund address, linked to the deposit address. It screens the addresses (its terms) and can keep them. It sees the Worker, not your IP address |
 | App Worker | Your IP address, the amount and both addresses. It keeps no log |
 | Solana observers | Your payment: the refund address, the deposit address, the amount and the time |
-| Zcash observers | A shielded payment to the wallet, as for any other shielded payment |
+| Zcash observers | The payout to the wallet. NEAR Intents lists Zcash with transparent addresses only, and a shielded payout is untested: the payout can be public |
 | Group server, light-wallet server | Nothing |
 
 What stays visible:
 
-- NEAR Intents links your Solana address to the ZEC address of the wallet. Use a fresh address of
-  the wallet if you do not want this link on that address.
+- NEAR Intents links your Solana address to the ZEC address of the wallet.
 - A failed swap sends the SOL back to the refund address after the deadline. NEAR Intents has no
   duty to refund a deposit that it cannot process (its terms).
 
@@ -570,8 +570,8 @@ What makes this safe to rely on:
 
 Not tested yet: a full session in Tor Browser. Also not tested: whether the light-wallet servers
 accept connections from every Tor exit. Also not tested: whether many Tor users on one exit reach
-the rate limits of the group server, of `/lwd` and of `/near/quote` (`NEAR_PER_IP`, 60 calls a
-minute), which count each IPv4 address or IPv6 /64.
+the rate limits of the group server, of `/lwd` and of the `/near/` routes (`NEAR_PER_IP`, 60 calls
+a minute), which count each IPv4 address or IPv6 /64.
 
 ## Your device
 

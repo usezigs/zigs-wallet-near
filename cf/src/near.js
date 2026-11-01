@@ -16,10 +16,9 @@ const NEAR_DEADLINE_MS = 600_000; // the deadline of a quote request: 10 minutes
 // The deadline of a live swap: refunds start when the swap is not done 30 minutes after the
 // quote. The person pays from a wallet outside Zigs, which takes minutes, not hours.
 const NEAR_SWAP_DEADLINE_MS = 1_800_000;
-// A deposit address with less time left than this, or with a deadline later than 2 days, is
-// refused: the person could pay after its deadline, and NEAR Intents can lose such a deposit.
+// A live quote with less time left than this to pay is refused: the person could pay after the
+// deadline, and NEAR Intents can then refund or lose the deposit.
 const NEAR_SWAP_MIN_LEFT_MS = 300_000;
-const NEAR_SWAP_MAX_LEFT_MS = 172_800_000;
 const NEAR_NO_STORE = { "Cache-Control": "no-store" };
 
 // The keys that the page may send. The samples are a public ZIP-316 test vector (Orchard only)
@@ -154,6 +153,9 @@ const nearIntegers = (quote) => NEAR_QUOTE_AMOUNTS.every(
 const nearTime = (text) => (typeof text === "string" ? Date.parse(text) : NaN);
 const nearIso = (text) => (Number.isNaN(nearTime(text))
   ? undefined : new Date(nearTime(text)).toISOString());
+// The time to pay before: the deadline of the deposit address, or the refund time of the request
+// when that comes first. A deposit after the refund time is refunded, not swapped.
+const nearPayBy = (quote, sent) => Math.min(nearTime(quote.deadline), nearTime(sent.deadline));
 
 // True when the answer is a quote for the request that was sent, with sound amounts.
 function nearSound(json, sent) {
@@ -169,12 +171,12 @@ function nearSwapSound(json, sent, now) {
   const { quote, quoteRequest: echo } = json ?? {};
   const echoed = NEAR_SWAP_ECHO.every((k) => echo?.[k] === sent[k]);
   if (!echoed || !nearIntegers(quote)) return false;
-  const left = nearTime(quote.deadline) - now;
+  const left = nearPayBy(quote, sent) - now;
   const sound = [quote.amountIn === sent.amount,
     BigInt(quote.minAmountOut) <= BigInt(quote.amountOut),
     NEAR_SWAP_NONE.every((k) => !(k in quote) && !(k in echo)),
     nearSolAddress(quote.depositAddress),
-    left >= NEAR_SWAP_MIN_LEFT_MS && left <= NEAR_SWAP_MAX_LEFT_MS];
+    left >= NEAR_SWAP_MIN_LEFT_MS];
   return sound.every(Boolean);
 }
 
@@ -208,7 +210,8 @@ const nearToken = (value) => (typeof value === "string" && NEAR_TOKEN.test(value
 function nearSwapAnswer(json, sent, now) {
   return {
     ...nearAnswer(json, now), depositAddress: json.quote.depositAddress,
-    deadline: nearIso(json.quote.deadline), timeWhenInactive: nearIso(json.quote.timeWhenInactive),
+    deadline: new Date(nearPayBy(json.quote, sent)).toISOString(),
+    timeWhenInactive: nearIso(json.quote.timeWhenInactive),
     recipient: sent.recipient, refundTo: sent.refundTo,
     correlationId: nearToken(json.correlationId), signature: nearToken(json.signature),
   };
@@ -277,11 +280,12 @@ function nearStatusSound(json, address) {
     && json.quoteResponse?.quote?.depositAddress === address;
 }
 
-// Only these fields of a state go to the page. A state that is not known is "unknown".
+// Only these fields of a state go to the page. A state that is not known is "other": "unknown"
+// is for a swap that NEAR Intents does not list (404).
 function nearStatusAnswer(json) {
   const details = json.swapDetails ?? {};
   const out = {
-    status: NEAR_STATES.has(json.status) ? json.status : "unknown",
+    status: NEAR_STATES.has(json.status) ? json.status : "other",
     updatedAt: nearIso(json.updatedAt),
     originTxs: nearHashes(details.originChainTxHashes),
     destinationTxs: nearHashes(details.destinationChainTxHashes),
