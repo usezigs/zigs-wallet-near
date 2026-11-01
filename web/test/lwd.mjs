@@ -5,6 +5,7 @@
 // Run: node web/test/lwd.mjs   (Node 26)
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import * as Z from "../pkg/zigs_engine.js";
 
 // A data: URL module resolves no relative import, so the gate and near modules get file URLs.
 const GATE = new URL("../../cf/src/gate.js", import.meta.url).href;
@@ -44,7 +45,7 @@ const keyless = async (res, name) => {
 // to 3,000,999 (BATCH), recorded from ChainWallet.sync with a stub of fetch.
 const ENGINE_RANGE = Buffer.from("000000000e0a0508c08db701120508a795b701", "hex");
 // The GetMempoolTx body that the engine (web/pkg) sends: no exclude list, pool type Ironwood (4).
-// Recorded from ChainWallet.mempool with a stub of fetch.
+// The test after the body bounds checks it against the real engine.
 const ENGINE_MEMPOOL = Buffer.from("00000000031a0104", "hex");
 const varint = (n) => {
   const out = [];
@@ -156,6 +157,26 @@ const frame = (msg, flag = 0) => {
     404, "the stream that stays open is still closed");
   assert.equal(calls.length, 0);
   step("a GetMempoolTx body of up to 64 bytes passes; a larger one gives 400; GetMempoolStream 404");
+}
+
+// ── The request that the real engine sends is ENGINE_MEMPOOL ──
+{
+  Z.initSync({ module: readFileSync(new URL("../pkg/zigs_engine_bg.wasm", import.meta.url)) });
+  const { ufvk } = JSON.parse(Z.accountNew("testnet"));
+  const stub = globalThis.fetch, seen = [];
+  const trailer = Buffer.from("grpc-status: 0\r\n");
+  const end = Buffer.concat([Buffer.from([0x80, 0, 0, 0, trailer.length]), trailer]);
+  globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init);
+    seen.push({ url: request.url, body: Buffer.from(await request.arrayBuffer()) });
+    return new Response(end, { headers: { "content-type": "application/grpc-web+proto" } });
+  };
+  try { assert.equal(await new Z.ChainWallet(ufvk, 4500000, "https://engine.test").mempool(), "[]"); }
+  finally { globalThis.fetch = stub; }
+  assert.equal(seen.length, 1, "one call");
+  assert.equal(seen[0].url, "https://engine.test" + SERVICE + "GetMempoolTx");
+  assert.deepEqual(seen[0].body, ENGINE_MEMPOOL, "no exclude list, one pool type: Ironwood");
+  step("the real engine sends ENGINE_MEMPOOL");
 }
 
 // ── A GetBlockRange call asks for at most LWD_MAX_BLOCKS blocks ──
