@@ -228,14 +228,20 @@ async function identities() {
 }
 
 async function largeValues() {
+  // A mainnet wallet shows a USD total from the quote of 1 ZEC: here 1 ZEC is 100 USDC.
+  await page.route("**/near/quote", (route) => route.fulfill({ contentType: "application/json",
+    body: JSON.stringify({ amountIn: "100000000", amountOut: "100000000",
+      minAmountOut: "99000000" }) }));
   await page.evaluate(async () => {
-    const { balanceOverview } = await import("/app-wallet.js");
-    document.querySelector(".overview-hero").replaceWith(balanceOverview(123456789.12));
+    const { state } = await import("/app-state.js");
+    state.g = { ...state.g, network: "mainnet" };
     const chain = await import("/app-chain.js");
     chain.chain.bal.spendable = 123456712345678;
     chain.chain.bal.pending = 2345678;
+    (await import("/app-loop.js")).draw();
   });
-  check(await page.locator("[data-valuation-state=known]").innerText() === "$123,456,789.12",
+  await page.waitForSelector("[data-valuation-state=known]");
+  check(await page.locator("[data-valuation-state=known]").innerText() === "$123,456,714.69",
     "finite USD valuation formats without a placeholder");
   await capture("known-usd-1440-light");
   await draw();
@@ -246,6 +252,10 @@ async function largeValues() {
   check(await page.locator("[aria-labelledby=asset-zec] .money.xl")
     .getAttribute("aria-label") === "1,234,567.12345678 ZEC", "large ZEC retains exact precision");
   await capture("large-balance-320-light");
+  await page.evaluate(async () => {
+    const { state } = await import("/app-state.js");
+    state.g = { ...state.g, network: "testnet" };
+  });
 }
 
 async function preferences() {

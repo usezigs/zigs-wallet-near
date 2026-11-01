@@ -3103,7 +3103,7 @@ export const MUTATIONS = [
     ["web/app-wallet.js", 'onclick: () => { ui.tab = "swap"; render(); } },',
       "onclick: () => { render(); } },"], SOL_APP, /Swap opens the swap page/),
   program("R-demo-usd", "the USD total has no Demo badge",
-    ["web/app-wallet.js", '"USD"), demoBadge()),', '"USD")),'], SOL_APP,
+    ["web/app-wallet.js", '"USD"), view.demo ? demoBadge() : null),', '"USD")),'], SOL_APP,
     /the USD total reads as a demo value/),
   program("R-demo-prices", "the USD total says Placeholder, not Demo prices",
     ["web/app-wallet.js", '}, "Demo prices"),', '}, "Placeholder"),'], SOL_APP,

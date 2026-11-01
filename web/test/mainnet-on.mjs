@@ -354,6 +354,114 @@ assert.equal(wallet.network, "mainnet");
   console.log("ok  the address of a mainnet wallet stays hidden until the balance is known");
 }
 
+// ── The USD total of the Overview ──
+// A mainnet wallet asks /near/quote for the price of a fixed 1 ZEC while its Overview shows; a
+// testnet wallet and a hidden tab ask nothing. A stub replaces fetch, and `skew` moves Date.now.
+{
+  const realFetch = globalThis.fetch, realNow = Date.now, realDocument = globalThis.document;
+  const quotes = [], BODY = '{"from":"zec","to":"usdc","amount":"100000000","slippageBps":50}';
+  const quote = (out) => () => Response.json({ amountIn: "100000000", amountOut: out,
+    minAmountOut: "1" });
+  let skew = 0, reply = quote("1232971711"), visibility = "visible";
+  globalThis.fetch = async (url, init) => {
+    if (String(url) !== "/near/quote") return realFetch(url, init);
+    quotes.push(init.body);
+    return reply();
+  };
+  Date.now = () => realNow() + skew;
+  const hero = () => {
+    globalThis.document = new Proxy(realDocument, { get: (o, k) => ({
+      createElement: (tag) => new Rec(tag), createElementNS: (_ns, tag) => new Rec(tag),
+      createTextNode: (text) => ({ text }), visibilityState: visibility })[k] ?? o[k] });
+    try {
+      t.ui.tab = "overview";
+      return findNode(t.walletView(null, null), (n) => n.className === "overview-hero");
+    } finally { globalThis.document = realDocument; }
+  };
+  const total = (tree) => findNode(tree, (n) => n.className?.split(" ").includes("portfolio-value"));
+  const note = (tree) => textOf(byId(tree, "usd-note"));
+  const summary = (tree) => findNode(tree, (n) => n.className === "portfolio-summary");
+  const chain = (spendable, pending = 0) => t.setChain({ gid, bal: { spendable, pending, height: 1 },
+    received: [], sent: new Set(), cw: null });
+  const keep = t.state.g;
+  try {
+    // A testnet wallet: the demo total, and no call.
+    t.state.g = { ...keep, network: "testnet" };
+    chain(900_000, 100_000);
+    let tree = hero();
+    assert.match(textOf(tree), /Portfolio balanceUSDDemo\$0\.00Demo prices/);
+    assert.match(textOf(tree), /Test funds have no cash value/);
+    assert.deepEqual(quotes, [], "a testnet wallet asks for no price");
+    t.state.g = keep;
+
+    // A mainnet wallet: one call at a time. The call fails, so there is no price and no $0.00.
+    reply = () => Response.json({ error: "unavailable" }, { status: 502 });
+    visibility = "hidden";
+    hero();
+    assert.deepEqual(quotes, [], "a hidden tab asks for no price");
+    visibility = "visible";
+    tree = hero(); hero();
+    assert.deepEqual(quotes, [BODY], "one call for two draws");
+    assert.equal(note(tree), "Price not available yet", "while the call runs");
+    await waitFor("the failed call", () => note(hero()) === "Price not available");
+    tree = hero();
+    assert.equal(total(tree).attrs["aria-label"], "USD value not available");
+    assert.equal(total(tree).attrs["data-valuation-state"], "unknown");
+    assert.equal(textOf(total(tree)), "—", "no $0.00 without a price");
+    assert.doesNotMatch(textOf(summary(tree)), /Demo|\$0\.00/);
+    skew += 59_000; hero();
+    assert.equal(quotes.length, 1, "no retry before 60 s");
+    reply = quote("1232971711");
+    skew += 2_000; hero();
+    assert.equal(quotes.length, 2, "a retry after 60 s");
+
+    // The price arrives. The value is the total of the asset row (spendable and incoming) times
+    // the price. The label says what the price is, and nothing says Demo.
+    await waitFor("the price", () => total(hero()).attrs["data-valuation-state"] === "known");
+    tree = hero();
+    assert.equal(textOf(total(tree)), "$12.33");
+    assert.equal(total(tree).attrs["aria-label"], "About $12.33");
+    assert.match(note(tree), /^≈ Price of a NEAR Intents quote for 1 ZEC, just now\. 1 USDC counts as 1 USD\. The quote includes fees and spread\. It is not a market rate/);
+    assert.equal(total(tree).attrs["aria-describedby"], "usd-note");
+    assert.doesNotMatch(textOf(summary(tree)), /Demo|Test funds/);
+    assert.match(textOf(summary(tree)),
+      /^Portfolio balanceUSD\$12\.33≈ Price of a NEAR Intents quote/);
+
+    // The price is reused for 5 minutes, whatever the balance. After that one new call has the
+    // same body, so the balance never reaches the request.
+    chain(5_000_000_250);
+    tree = hero();
+    assert.equal(textOf(total(tree)), "$61,648.59", "the new balance, the same price");
+    skew += 4 * 60_000; tree = hero();
+    assert.equal(quotes.length, 2, "a price of about 4 minutes is reused");
+    assert.match(note(tree), /for 1 ZEC, 4 minutes ago/);
+    chain(250_000_000);
+    skew += 61_000; hero();
+    assert.deepEqual(quotes, [BODY, BODY, BODY], "the third call has the same fixed body");
+    await waitFor("the third price", () => note(hero()).includes("1 ZEC, just now"));
+    reply = quote("1250500000");
+    visibility = "hidden";
+    skew += 6 * 60_000; hero();
+    assert.equal(quotes.length, 3, "a hidden tab asks no new price");
+    visibility = "visible";
+    hero();
+    assert.equal(quotes.length, 4, "a visible Overview with an old price asks");
+    await waitFor("the new price", () => textOf(total(hero())) === "$3,126.25");
+
+    // Before the first sync the total has no value, and the price call goes on.
+    t.setChain(null);
+    tree = hero();
+    assert.equal(textOf(total(tree)), "—");
+    assert.equal(total(tree).attrs["aria-label"], "USD value not available until the first sync");
+    assert.equal(note(tree), "Balance not synced yet");
+    assert.equal(quotes.length, 4, "a price younger than 5 minutes is reused");
+    console.log("ok  the USD total of a mainnet wallet comes from a fixed quote of 1 ZEC");
+  } finally {
+    globalThis.fetch = realFetch; Date.now = realNow; globalThis.document = realDocument;
+    t.state.g = keep; t.setChain(null);
+  }
+}
+
 // ── Numbers and texts ──
 // The faucet is the Valar testnet faucet. Mainnet has a server and a warning level.
 assert.equal(NETWORKS.testnet.faucet, "https://faucet.testnet.valargroup.dev/");

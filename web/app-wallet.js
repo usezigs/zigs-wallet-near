@@ -42,7 +42,10 @@ import {
   solActivityWaits, solLoadingCount, solOlderCount, solOn, solPending, solPendingRows, solSetup,
   solNotAdded, solObserveOverview, solSync, solTab,
 } from "./app-sol.js";
-import { formatUsdBalance, pendingShortcut, solRow, zecInProgress, zecTotal } from "./overview-model.js";
+import {
+  createZecPrice, formatUsdBalance, pendingShortcut, portfolioView, solRow, zecInProgress, zecTotal,
+} from "./overview-model.js";
+import { NearIntentsSwapProvider } from "./near-intents-swap-provider.js";
 import { icon, sculptedIcon } from "./app-icons.js";
 import { beginGuided, guidedEnabled, guidedState } from "./app-guided-setup.js";
 import { descriptionOf, setWalletDescription } from "./wallet-description.js";
@@ -234,8 +237,21 @@ function groupHead(g, ready, why, persistent = false) {
         icon("home"), "Return home"));
 }
 
+// The price of 1 ZEC in USD for the Overview of a mainnet wallet (overview-model.js). One price
+// for the page session, in memory only.
+const zecPrice = createZecPrice({ provider: new NearIntentsSwapProvider(),
+  settled: () => render() });
+const isMainnet = () => netName(state.g) === "mainnet";
+
+// A testnet wallet and a hidden tab ask nothing.
+function observePrice() {
+  if (!isMainnet() || globalThis.document?.visibilityState === "hidden") return;
+  void zecPrice.ask();
+}
+
 function overviewTab() {
   solObserveOverview();
+  observePrice();
   const c = curChain();
   return el("div", { class: "page overview-page" },
     state.g.movedTo ? moveCard(c) : null,
@@ -259,27 +275,50 @@ function overviewTab() {
         openSecurity: openWalletSection("recovery") }))));
 }
 
-function balanceOverview(valuation = null) {
-  // This branch has no valuation source. The fallback never enters wallet or pricing state.
-  const value = formatUsdBalance(valuation);
+function balanceOverview() {
+  const view = portfolioView({ mainnet: isMainnet(), total: zecTotal(zecBal(curChain())),
+    price: zecPrice.read(), now: Date.now() });
   return el("section", { class: "overview-hero", "aria-labelledby": "total-balance-title" },
     el("div", { class: "overview-wallet-summary" }, walletMark(state.g, 64),
     el("div", { class: "portfolio-summary" }, el("div", { class: "balance-heading" },
       el("h2", { id: "total-balance-title", class: "label" }, "Portfolio balance"),
-      el("span", { class: "portfolio-currency" }, "USD"), demoBadge()),
-    el("p", { class: "portfolio-value", role: "img", "aria-label": value.text,
-      "data-valuation-state": value.known ? "known" : "unknown",
-      "aria-describedby": value.known ? null : "usd-placeholder" },
-    el("span", { "aria-hidden": "true" }, value.whole),
-    el("span", { class: "portfolio-decimals", "aria-hidden": "true" }, value.fraction)),
-    !value.known ? el("p", { class: "portfolio-placeholder", id: "usd-placeholder" },
-      el("span", { class: "placeholder-indicator" }, "Demo prices"),
-      el("span", { class: "sr-only" }, "The USD total is a demo. The displayed $0.00 is not a confirmed balance.")) : null,
-    state.g.network === "testnet" ? el("p", { class: "portfolio-network-note" }, "Test funds have no cash value.") : null)),
+      el("span", { class: "portfolio-currency" }, "USD"), view.demo ? demoBadge() : null),
+    view.demo ? demoTotal() : liveTotal(view))),
     el("div", { class: "overview-actions" }, assetActionPicker("send"), assetActionPicker("receive"),
       el("button", { class: "btn", type: "button", "data-key": "overview-swap",
         title: "Open Swap", onclick: () => { ui.tab = "swap"; render(); } },
       icon("swap"), "Swap")));
+}
+
+// A testnet wallet has no price source and no cash value. The fallback never enters wallet or
+// pricing state.
+function demoTotal() {
+  const value = formatUsdBalance(null);
+  return [el("p", { class: "portfolio-value", role: "img", "aria-label": value.text,
+    "data-valuation-state": value.known ? "known" : "unknown",
+    "aria-describedby": value.known ? null : "usd-placeholder" },
+  el("span", { "aria-hidden": "true" }, value.whole),
+  el("span", { class: "portfolio-decimals", "aria-hidden": "true" }, value.fraction)),
+  !value.known ? el("p", { class: "portfolio-placeholder", id: "usd-placeholder" },
+    el("span", { class: "placeholder-indicator" }, "Demo prices"),
+    el("span", { class: "sr-only" },
+      "The USD total is a demo. The displayed $0.00 is not a confirmed balance.")) : null,
+  state.g.network === "testnet"
+    ? el("p", { class: "portfolio-network-note" }, "Test funds have no cash value.") : null];
+}
+
+// A mainnet wallet shows no value, and no $0.00, until it knows the balance and the price.
+// ponytail: only ZEC counts. SOL and USDC join when the plain Solana mainnet wallet lands; the
+// SOL and USDC rows of a testnet wallet are Devnet or Demo and never count.
+function liveTotal(view) {
+  const { value } = view;
+  return [el("p", { class: "portfolio-value", role: "img", "aria-label": view.label,
+    "data-valuation-state": value ? "known" : "unknown", "aria-describedby": "usd-note" },
+  value ? [el("span", { "aria-hidden": "true" }, value.whole),
+    el("span", { class: "portfolio-decimals", "aria-hidden": "true" }, value.fraction)]
+    : el("span", { "aria-hidden": "true" }, "—")),
+  el("p", { class: "portfolio-network-note", id: "usd-note" }, view.note,
+    view.facts ? ". " + view.facts : null)];
 }
 
 const demoBadge = () => el("span", { class: "badge plain demo-badge" }, "Demo");

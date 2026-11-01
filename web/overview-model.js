@@ -1,6 +1,7 @@
 // The words and numbers of the Overview: the asset rows and the pending shortcut. Display only:
 // nothing here approves, signs or sends. An amount that is not known shows as unknown, never as
-// zero, except for the explicitly labelled presentation-only USD placeholder.
+// zero, except for the explicitly labelled presentation-only USD placeholder of a testnet wallet.
+import { SWAP_ASSETS } from "./swap-preview-model.js";
 
 const usd = new Intl.NumberFormat("en-US", {
   style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2,
@@ -15,6 +16,83 @@ export function formatUsdBalance(valuation) {
 
 /** The ZEC of the asset row in zatoshi: spendable plus incoming, or null before the first sync. */
 export const zecTotal = (b) => (b ? b.spendable + b.pending : null);
+
+export const PRICE_FRESH_MS = 5 * 60_000; // a price younger than this is reused
+export const PRICE_RETRY_MS = 60_000; // the wait after a failed call
+const assetId = (key) => SWAP_ASSETS.find((a) => a.key === key).id;
+// The ask is fixed: exactly 1 ZEC in zatoshi, never an amount that depends on a wallet.
+const PRICE_ASK = Object.freeze({ originAssetId: assetId("zec"),
+  destinationAssetId: assetId("usdc"), amountAtomic: "100000000", slippageBps: 50 });
+
+/**
+ * The USD price of 1 ZEC for the Overview of a mainnet wallet, from one dry NEAR Intents quote of
+ * 1 ZEC to USDC (1 USDC counts as 1 USD). It lives in memory for the page session. `ask()` calls
+ * `provider.previewQuote` only when no call runs, no price is younger than 5 minutes and the last
+ * failed call is at least 60 s old. `settled()` runs after each call, whatever its result.
+ * ponytail: no timer. The Overview redraws about once a minute (the sync of the open wallet) and
+ * each redraw calls `ask()`. Upgrade path: a shared fetch of the Worker for all page sessions.
+ */
+export function createZecPrice({ provider, now = () => Date.now(), settled = () => {} }) {
+  let usdPerZec = null, at = null, failedAt = null, busy = false;
+  const want = () => {
+    const t = now();
+    if (busy || (at !== null && t - at < PRICE_FRESH_MS)) return false;
+    return failedAt === null || t - failedAt >= PRICE_RETRY_MS;
+  };
+  async function ask() {
+    if (!want()) return;
+    busy = true;
+    try {
+      const price = Number((await provider.previewQuote(PRICE_ASK)).amountOut) / 1e6;
+      if (!(price > 0)) throw new Error("no price");
+      usdPerZec = price; at = now(); failedAt = null;
+    } catch {
+      failedAt = now();
+    }
+    busy = false;
+    settled();
+  }
+  return { ask, want, read: () => ({ usd: usdPerZec, at, failed: failedAt !== null }) };
+}
+
+/** The USD value of `zat` zatoshi at `usdPerZec` USD for 1 ZEC, or null when one is unknown. */
+export const zecUsd = (zat, usdPerZec) => (zat === null || usdPerZec === null ? null
+  : (zat / 1e8) * usdPerZec);
+
+/** The age of a price in whole minutes or hours, as words. */
+export function ageText(ms) {
+  const min = Math.floor(Math.max(0, ms) / 60_000), hours = Math.floor(min / 60);
+  if (min < 1) return "just now";
+  if (min < 60) return min + (min === 1 ? " minute ago" : " minutes ago");
+  return hours + (hours === 1 ? " hour ago" : " hours ago");
+}
+
+const NO_VALUE = {
+  sync: { note: "Balance not synced yet", label: "USD value not available until the first sync" },
+  wait: { note: "Price not available yet", label: "USD value not available yet" },
+  failed: { note: "Price not available", label: "USD value not available" },
+};
+const QUOTE_FACTS = "1 USDC counts as 1 USD. The quote includes fees and spread. It is not a "
+  + "market rate, and a swap can give another amount.";
+
+/**
+ * What the USD total of the Overview shows. `mainnet`: the wallet is on mainnet; `total`: zecTotal
+ * or null; `price`: the read() of createZecPrice; `now`: the time in ms. A testnet wallet is a
+ * demo ({demo: true}). A mainnet wallet is never a demo: `value` is null while the total or the
+ * price is unknown, and `note` says why. `label` is the accessible name of the total, and `facts`
+ * is the line that tells what the price is.
+ * @returns {{demo: boolean, value?: object|null, label?: string, note?: string, facts?: string}}
+ */
+export function portfolioView({ mainnet, total, price, now }) {
+  if (!mainnet) return { demo: true };
+  if (total === null) return { demo: false, value: null, ...NO_VALUE.sync, facts: "" };
+  if (price.usd === null) {
+    return { demo: false, value: null, ...NO_VALUE[price.failed ? "failed" : "wait"], facts: "" };
+  }
+  const value = formatUsdBalance(zecUsd(total, price.usd));
+  return { demo: false, value, label: "About " + value.text, facts: QUOTE_FACTS,
+    note: "≈ Price of a NEAR Intents quote for 1 ZEC, " + ageText(now - price.at) };
+}
 
 // The row for each setup status of the Solana part (setupSummary of web/sol/view.js) but ready.
 const SOL_STATES = {
