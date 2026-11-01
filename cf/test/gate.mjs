@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { PLAIN_WORKER_POLICY } from "../../web/sol/plain/guard.js";
 import { COOKIE, MAX_AGE_S, gate, sessionCookie, withCookie } from "../src/gate.js";
 
 // The real fetch handler of cf/src/index.js, as web/test/lwd.mjs loads it: a stub for the
@@ -207,5 +208,183 @@ let session = null;
   const quiet = await call(SOCKET);
   assert.deepEqual([quiet.status, quiet.headers.get("WWW-Authenticate")], [401, null]);
   console.log("ok  the real handler sets the cookie, takes it alone, and prompts no socket");
+}
+
+// ── The plain Solana wallet: /sol/config-mainnet.json and the files of /sol/plain ──
+// SOL_MAINNET is the switch of the owner. It is off ("0") in cf/wrangler.jsonc, and the Devnet
+// beta (/sol/config.json and the other files of /sol) answers as before.
+{
+  const served = [];
+  const assets = {
+    fetch: async (req) => {
+      served.push(new URL(req.url).pathname);
+      return new Response("asset body", { headers: { "content-type": "text/javascript" } });
+    },
+  };
+  const WORKER_POLICY = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; " +
+    "connect-src 'self' https://devnet.helius-rpc.com " +
+    "https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/3a1c88f90f609eb1/; base-uri 'none'";
+  const PLAIN_POLICY = "default-src 'none'; script-src 'self'; connect-src 'self' " +
+    "https://devnet.helius-rpc.com https://mainnet.helius-rpc.com; base-uri 'none'";
+  const PROVER_POLICY = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; " +
+    "connect-src 'self'; base-uri 'none'";
+  const MAIN_SECRET = "https://mainnet.helius-rpc.com/?api-key=mainnet-test-value";
+  const DEV_SECRET = "https://devnet.helius-rpc.com/?api-key=devnet-test-value";
+  const OPEN = { DEV_NO_AUTH: "1", ASSETS: assets, HELIUS_MAINNET_URL: MAIN_SECRET,
+    HELIUS_DEVNET_URL: DEV_SECRET };
+  const ask = (path, env, init = {}) => worker.fetch(
+    new Request(BASE + path, { headers: { "x-forwarded-proto": "https" }, ...init }), env);
+  const CONFIG = "/sol/config-mainnet.json";
+  const policyOf = async (path, env) =>
+    (await ask(path, env)).headers.get("content-security-policy");
+  const hasNoSecret = async (res, what) =>
+    assert.doesNotMatch(await res.text(), /test-value/, `${what} gave a value`);
+
+  assert.equal(PLAIN_WORKER_POLICY, PLAIN_POLICY, "the page and the server agree on one text");
+  const wrangler = JSON.parse(readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8")
+    .replace(/^\s*\/\/.*$/gm, ""));
+  assert.equal(wrangler.vars.SOL_MAINNET, "0", "mainnet is off at the top level");
+  assert.equal(wrangler.env.staging.vars.SOL_MAINNET, "0", "and in staging");
+  assert.equal(JSON.stringify(wrangler).includes("api-key"), false, "no key in the config");
+
+  // The config route is 404 for everything but the string "1", with or without the secret.
+  for (const SOL_MAINNET of [undefined, "0", "", "true", " 1", "1 ", "on", 1, true, null]) {
+    for (const SOL of ["1", "0"]) {
+      const env = { ...OPEN, SOL, SOL_MAINNET };
+      served.length = 0;
+      for (const method of ["GET", "POST"]) {
+        const res = await ask(CONFIG, env, { method });
+        assert.equal(res.status, 404, `${method} with SOL_MAINNET=${String(SOL_MAINNET)}`);
+        await hasNoSecret(res, "a 404");
+      }
+      assert.deepEqual(served, [], "the asset server was not asked");
+    }
+  }
+  console.log("ok  /sol/config-mainnet.json is 404 unless SOL_MAINNET is the string 1");
+
+  // On: 503 without the secret, 200 with it, GET only, never cached.
+  for (const SOL of ["1", "0", undefined]) {
+    const env = { ...OPEN, SOL, SOL_MAINNET: "1" };
+    const res = await ask(CONFIG, env);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get("content-type"), /^application\/json/);
+    assert.equal(res.headers.get("cache-control"), "no-store");
+    assert.equal(res.headers.get("referrer-policy"), "no-referrer");
+    assert.deepEqual(await res.json(), { rpcUrl: MAIN_SECRET });
+    assert.equal((await ask(`${CONFIG}?x=1`, env)).status, 200, "a query string");
+    for (const unset of [undefined, "", null]) {
+      const none = await ask(CONFIG, { ...env, HELIUS_MAINNET_URL: unset });
+      assert.equal(none.status, 503, `unset as ${JSON.stringify(unset)}`);
+      assert.equal(none.headers.get("cache-control"), "no-store");
+      const body = await none.json();
+      assert.equal(typeof body.error, "string");
+      assert.equal(body.rpcUrl, undefined);
+    }
+    for (const method of ["POST", "PUT", "DELETE", "PATCH", "HEAD"]) {
+      const bad = await ask(CONFIG, env, { method });
+      assert.equal(bad.status, 405, method);
+      await hasNoSecret(bad, `a ${method}`);
+    }
+  }
+  const spellings = ["/SOL/config-mainnet.json", "//sol/config-mainnet.json",
+    "/sol//config-mainnet.json", "/sol/config-mainnet.json/", "/sol/Config-Mainnet.json",
+    "/sol%2Fconfig-mainnet.json", "/sol/%63onfig-mainnet.json", "/sol/config-mainnet.json%2f"];
+  for (const path of spellings) {
+    await hasNoSecret(await ask(path, { ...OPEN, SOL: "1", SOL_MAINNET: "1" }), path);
+  }
+  console.log("ok  with SOL_MAINNET on: 503 without the secret, 200 with it, GET only, no-store");
+
+  // The password gate comes first. A request with the password gets the answer.
+  const gated = { ...OPEN, DEV_NO_AUTH: undefined, APP_PASSWORD: PASSWORD, SOL_MAINNET: "1" };
+  const denied = await ask(CONFIG, gated);
+  assert.equal(denied.status, 401);
+  await hasNoSecret(denied, "the gate");
+  const withPassword = {
+    headers: { "x-forwarded-proto": "https", Authorization: basic(PASSWORD) },
+  };
+  const pass = await ask(CONFIG, gated, withPassword);
+  assert.equal(pass.status, 200);
+  assert.deepEqual(await pass.json(), { rpcUrl: MAIN_SECRET });
+  const plainDenied = await ask("/sol/plain/worker.js", { ...gated, SOL: "1" });
+  assert.equal(plainDenied.status, 401, "the files of /sol/plain are behind the gate too");
+  console.log("ok  the password gate answers before /sol/config-mainnet.json and /sol/plain");
+
+  // /sol/config.json keeps its behaviour, whatever SOL_MAINNET says.
+  for (const SOL_MAINNET of ["0", "1"]) {
+    const env = { ...OPEN, SOL: "1", SOL_MAINNET };
+    const on = await ask("/sol/config.json", env);
+    assert.equal(on.status, 200);
+    assert.deepEqual(await on.json(), { rpcUrl: DEV_SECRET });
+    assert.equal(on.headers.get("content-security-policy"), WORKER_POLICY);
+    const off = await ask("/sol/config.json", { ...env, SOL: "0" });
+    assert.equal(off.status, 404, "with SOL off");
+    await hasNoSecret(off, "SOL off");
+    const unset = await ask("/sol/config.json", { ...env, HELIUS_DEVNET_URL: undefined });
+    assert.equal(unset.status, 503);
+    assert.equal((await ask("/sol/config.json", env, { method: "POST" })).status, 405);
+  }
+  console.log("ok  /sol/config.json answers as before and never holds the mainnet URL");
+
+  // The files of /sol/plain carry the policy of the plain Worker, in every spelling.
+  for (const [SOL, SOL_MAINNET] of [["1", "0"], ["1", "1"], ["0", "1"], ["1", undefined]]) {
+    const env = { ...OPEN, SOL, SOL_MAINNET };
+    for (const file of ["worker.js", "guard.js"]) {
+      const res = await ask(`/sol/plain/${file}`, env);
+      assert.equal(res.status, 200, `SOL=${SOL} SOL_MAINNET=${SOL_MAINNET}`);
+      assert.equal(res.headers.get("content-security-policy"), PLAIN_POLICY);
+      assert.equal(res.headers.get("referrer-policy"), "no-referrer");
+      assert.equal(res.headers.get("x-content-type-options"), "nosniff");
+      assert.equal(await res.text(), "asset body");
+    }
+  }
+  const loose = ["/SOL/Plain/worker.js", "/sol//plain/worker.js", "/sol/plain%2Fworker.js",
+    "/sol%2Fplain%2Fworker.js", "/sol\\plain\\worker.js", "/sol/pl%61in/guard.js",
+    "/sol/plain/..%2fworker.js", "/sol/plain", "/sol/plain/", "/sol/plain/x/y.wasm"];
+  for (const path of loose) {
+    assert.equal(await policyOf(path, { ...OPEN, SOL: "1" }), PLAIN_POLICY, path);
+  }
+  const rest = [["/sol/worker.js", WORKER_POLICY], ["/sol/guard.js", WORKER_POLICY],
+    ["/sol/plainx.js", WORKER_POLICY], ["/sol/xplain/a.js", WORKER_POLICY],
+    ["/sol/prover/prover.worker.js", PROVER_POLICY], ["/sol/plain.js", WORKER_POLICY]];
+  for (const [path, policy] of rest) {
+    assert.equal(await policyOf(path, { ...OPEN, SOL: "1", SOL_MAINNET: "1" }), policy, path);
+  }
+  console.log("ok  /sol/plain carries the plain Worker policy; the other /sol files keep theirs");
+
+  // With SOL off and SOL_MAINNET on, only the plain modules answer, in one spelling.
+  const only = { ...OPEN, SOL: "0", SOL_MAINNET: "1" };
+  const closed = ["/sol/worker.js", "/sol/guard.js", "/sol/config.json", "/sol/zolana.bundle.js",
+    "/sol/wasm/sol_wasm_bg.wasm", "/sol/prover/prover.worker.js", "/sol", "/sol/", "/sol/plain",
+    "/sol/plain/", "/SOL/plain/worker.js", "/sol/Plain/worker.js", "/sol/plain/Worker.js",
+    "/sol//plain/worker.js", "/sol/plain/..%2fworker.js", "/sol/plain%2Fworker.js",
+    "/sol%2Fplain/worker.js", "/sol/plain/wor%6Ber.js", "/sol/plain/worker.js/",
+    "/sol/plain/worker.json", "/sol/plain/sub/worker.js", "/sol/plain/.js", "/sol/plain/a_b.js",
+    "/sol/plain/./../worker.js", "/sol/plain\\..\\worker.js", "/sol/plain/%2e%2e/worker.js",
+    "/sol/plain/worker.js%00", "/sol/plain/worker.js%2f..%2fguard.js"];
+  served.length = 0;
+  for (const path of closed) {
+    const res = await ask(path, only);
+    assert.equal(res.status, 404, path);
+    assert.equal(res.headers.get("content-security-policy"), null, path);
+    await hasNoSecret(res, path);
+  }
+  assert.deepEqual(served, [], "the asset server was not asked for any Devnet file");
+  for (const file of ["worker", "guard"]) {
+    assert.equal((await ask(`/sol/plain/${file}.js?v=1`, only)).status, 200);
+  }
+  assert.deepEqual(served, ["/sol/plain/worker.js", "/sol/plain/guard.js"]);
+  console.log("ok  with SOL off, only /sol/plain/<name>.js answers: no path reaches a Devnet file");
+
+  // Both off: nothing under /sol answers, the plain files too, and other paths still do.
+  for (const SOL_MAINNET of [undefined, "0", "true", ""]) {
+    served.length = 0;
+    const off = { ...OPEN, SOL: "0", SOL_MAINNET };
+    for (const path of ["/sol/plain/worker.js", "/sol/plain/guard.js", "/sol/worker.js", CONFIG]) {
+      assert.equal((await ask(path, off)).status, 404, `${path} with SOL_MAINNET=${SOL_MAINNET}`);
+    }
+    assert.deepEqual(served, []);
+    assert.equal((await ask("/app.js", off)).status, 200, "other paths still reach the assets");
+  }
+  console.log("ok  with both switches off, no /sol path answers");
 }
 console.log("gate: ok");

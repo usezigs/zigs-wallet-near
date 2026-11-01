@@ -30,16 +30,33 @@ function policy(url) {
 // The Solana Worker (web/sol/worker.js) owns all Helius traffic. A Worker takes the policy of its
 // own script response, so only the /sol responses name the Helius host and policy() stays as is.
 const SOL_HOST = "https://devnet.helius-rpc.com";
+const SOL_HOST_MAINNET = "https://mainnet.helius-rpc.com";
 // The pinned key folder of the local prover (SOL-4): a path source, so no other object of that
 // host. Only the /sol policy names it: the Solana Worker fetches the keys, the page does not.
 const SOL_KEYS = "https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/3a1c88f90f609eb1/";
 const SOL_CONFIG = "/sol/config.json";
+const SOL_CONFIG_MAINNET = "/sol/config-mainnet.json";
+// With SOL off and SOL_MAINNET "1", only these files answer, in this spelling: no other path can
+// map to a file of the Devnet beta. Name a new module of web/sol/plain with this pattern.
+const PLAIN_FILE = /^\/sol\/plain\/[a-z0-9-]+\.js$/;
 
 function solWorkerPolicy() {
   return [
     "default-src 'none'",
     "script-src 'self' 'wasm-unsafe-eval'",
     `connect-src 'self' ${SOL_HOST} ${SOL_KEYS}`,
+    "base-uri 'none'",
+  ].join("; ");
+}
+
+// The plain Solana Worker (web/sol/plain/worker.js, ZOLANA.md "Plain wallet RPC") has no SDK and
+// no wasm. It imports its own guard module and calls the Helius host of one cluster. The page
+// compares the header with PLAIN_WORKER_POLICY of web/sol/plain/guard.js, which holds this text.
+function plainWorkerPolicy() {
+  return [
+    "default-src 'none'",
+    "script-src 'self'",
+    `connect-src 'self' ${SOL_HOST} ${SOL_HOST_MAINNET}`,
     "base-uri 'none'",
   ].join("; ");
 }
@@ -71,6 +88,14 @@ function isProverPath(url) {
   return /^[/\\]+sol[/\\]+prover([/\\]|$)/i.test(path);
 }
 
+// A path below /sol/plain, in any spelling that decodes to it, gets the policy of the plain
+// Worker.
+function isPlainPath(url) {
+  let path;
+  try { path = decodeURIComponent(url.pathname); } catch { return false; }
+  return /^[/\\]+sol[/\\]+plain([/\\]|$)/i.test(path);
+}
+
 function solResponse(res, policy = solWorkerPolicy()) {
   const out = new Response(res.body, res);
   out.headers.set("Content-Security-Policy", policy);
@@ -91,13 +116,34 @@ function solConfig(req, env) {
   }));
 }
 
+// The Helius mainnet URL of the plain wallet is the secret HELIUS_MAINNET_URL, served the way
+// solConfig serves the Devnet URL. It is off (404) until SOL_MAINNET is "1", so the page learns
+// nothing of mainnet before the owner turns it on.
+function solMainnetConfig(req, env) {
+  if (env.SOL_MAINNET !== "1") return new Response("Not found\n", { status: 404 });
+  if (req.method !== "GET") return solResponse(new Response("Use GET.\n", { status: 405 }));
+  const url = env.HELIUS_MAINNET_URL;
+  const body = url ? { rpcUrl: url } : { error: "Solana mainnet is not set up on this server." };
+  return solResponse(Response.json(body, {
+    status: url ? 200 : 503, headers: { "Cache-Control": "no-store" },
+  }));
+}
+
+function policyOfPath(url) {
+  if (isProverPath(url)) return proverPolicy();
+  return isPlainPath(url) ? plainWorkerPolicy() : solWorkerPolicy();
+}
+
 // Every file but the page.
 async function assets(req, env, url) {
   if (!isSolPath(url)) return env.ASSETS.fetch(req);
-  if (env.SOL !== "1") return new Response("Not found\n", { status: 404 });
+  if (url.pathname === SOL_CONFIG_MAINNET) return solMainnetConfig(req, env);
+  const plainOnly = env.SOL !== "1" && env.SOL_MAINNET === "1";
+  if (plainOnly ? !PLAIN_FILE.test(url.pathname) : env.SOL !== "1") {
+    return new Response("Not found\n", { status: 404 });
+  }
   if (url.pathname === SOL_CONFIG) return solConfig(req, env);
-  const policy = isProverPath(url) ? proverPolicy() : solWorkerPolicy();
-  return solResponse(await env.ASSETS.fetch(req), policy);
+  return solResponse(await env.ASSETS.fetch(req), policyOfPath(url));
 }
 
 // The public side of the testnet light-wallet server answers this Worker only: Envoy checks the
