@@ -309,11 +309,12 @@ export function setMemoReading(gid, on) {
 // mempool of the light-wallet server and that no block holds. The page only shows them, as a line
 // in the balance and a row in the activity. They never count as Available or Incoming, and they
 // never reach the balance, the cap or the saved balance. A wallet that is open in a visible tab
-// asks after each finished sync and every 30 s, one call at a time. A failed call shows nothing,
-// and the last good list stays for 2 minutes.
-// ponytail: a call that never ends stops the questions of that wallet object until the next
-// server change. Upgrade path: drop the future of the engine with an abort.
-const MEMPOOL_EVERY_MS = 30000, MEMPOOL_KEEP_MS = 120000;
+// asks after each finished sync and every 30 s, one call at a time for each wallet (the group
+// wallet and the personal account ask apart). A call that takes 20 s or fails shows nothing, and
+// the last good list stays for 2 minutes.
+// ponytail: the engine call of a timeout runs on until the server ends its stream, and its wallet
+// object stays held until then. Upgrade path: drop the future of the engine with an abort.
+const MEMPOOL_EVERY_MS = 30000, MEMPOOL_KEEP_MS = 120000, MEMPOOL_WAIT_MS = 20000;
 // A synced wallet on a server that answered, in a visible tab, with no call to the engine open.
 const canAsk = (c) => document.visibilityState === "visible" && current(c) && !!c.cw && !!c.url
   && !!c.bal && !c.syncing && c.mempoolBusy !== c.cw;
@@ -322,7 +323,8 @@ export async function runMempool(c) {
   const cw = c.cw;
   c.mempoolBusy = cw;
   try {
-    const list = J(await track(cw, cw.mempool()));
+    const host = new URL(c.url).host;
+    const list = J(await withTimeout(track(cw, cw.mempool()), MEMPOOL_WAIT_MS, host));
     if (c.cw === cw && current(c)) keepMempool(c, list);
     c.mempoolFailed = false;
   } catch (e) {
