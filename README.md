@@ -366,7 +366,7 @@ app and on the iPhone.
 | [`wasm/src/ffi.rs`](wasm/src/ffi.rs) | C interface for the iPhone and Mac apps |
 | [`web/index.html`](web/index.html), [`web/app.css`](web/app.css), [`web/app.js`](web/app.js), `web/app-*.js` | The web app: page, styles, and the script: `web/app.js` lists the 9 pure modules and the 25 page modules and starts the page (no inline script or style; see [The page modules](#the-page-modules)) |
 | [`web/shim.js`](web/shim.js), [`web/qr.js`](web/qr.js), [`web/payees.js`](web/payees.js), [`web/requests.js`](web/requests.js), [`web/personal.js`](web/personal.js), [`web/vault.js`](web/vault.js), [`web/chat.js`](web/chat.js), [`web/signed.js`](web/signed.js), [`web/zns.js`](web/zns.js) | Store client, QR encoder, payment list parser with the memo rules and the recipient check, payment request cards and Send form rows, the rules of the personal account (contacts, fee, states of a message, backup), passkey lock, message helpers, the rules for signed writes, and the ZNS name lookup with the check of an approver (no third-party code) |
-| [`cf/src/index.js`](cf/src/index.js) | Group server: Cloudflare Worker with one Durable Object per wallet, limits against abuse. It also serves `/sol` and `/sol/config.json` for the Solana beta, relays `/lwd` to our testnet light-wallet node, serves `/zns`, a copy of the testnet ZNS name registry, and answers `/near/quote` (`cf/src/near.js`) with a dry NEAR Intents quote of ZEC, SOL or USDC (the Swap page; no funds move; [how](PRIVACY.md#swap-quotes-near-intents)) |
+| [`cf/src/index.js`](cf/src/index.js) | Group server: Cloudflare Worker with one Durable Object per wallet, limits against abuse. It also serves `/sol`, `/sol/config.json` and `/sol/config-mainnet.json` for the Solana beta and the plain wallet, relays `/lwd` to our testnet light-wallet node, serves `/zns`, a copy of the testnet ZNS name registry, and answers `/near/quote` (`cf/src/near.js`) with a dry NEAR Intents quote of ZEC, SOL or USDC (the Swap page; no funds move; [how](PRIVACY.md#swap-quotes-near-intents)) |
 | [`web/sol/`](web/sol) | Solana beta in the page: ceremony, signing sessions, backup, the Worker that talks to Helius, the Solana wasm, and the vendored Zolana SDK bundle (third-party code, hash pinned in `SHA256SUMS`) |
 | [`infra/lwd/`](infra/lwd) | Our testnet light-wallet node: Zakura, lightwalletd and Envoy with a keyed tunnel listener and a tailnet listener, and the Cloudflare tunnel |
 | [`wasm-sol/`](wasm-sol) | Solana engine in Rust: message checker, FROST-Ed25519 ceremony and signing, key roles. It has its own lockfile and builds to `web/sol/wasm/` |
@@ -463,6 +463,14 @@ Helius for the deployed key. On the server, set the secret with
 Set it to another value to turn the Solana beta off: the tab then says the same text. The Solana
 tab shows for version 3 wallets on testnet only. Build the Solana wasm with
 `sh wasm-sol/build.sh`, and see [`solspike/README.md`](solspike/README.md) for the checks.
+
+The plain Solana wallet on mainnet needs the secret `HELIUS_MAINNET_URL`: your Helius mainnet URL.
+The Worker gives it to the page at `/sol/config-mainnet.json`. The route answers 404 until the
+variable `SOL_MAINNET` in `cf/wrangler.jsonc` is `"1"`. It is `"0"` at the top level and in
+staging. Set the secret like the Devnet one (`npx wrangler secret put HELIUS_MAINNET_URL`, with
+`--env staging` for staging), and allow only the origin of the page at Helius. Without the secret,
+the route answers 503. The page code of the plain wallet comes in a later step; this step adds the
+Worker (`web/sol/plain/`) and the route (ZOLANA.md 3.8).
 
 To try the beta by hand, make a testnet wallet, add the Solana part, and open the Solana tab. Each
 device that this browser holds shows **Your fee address**. Send Devnet SOL to it (the **Get Devnet

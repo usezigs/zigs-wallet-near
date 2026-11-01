@@ -183,6 +183,25 @@ pinned CDN folder.
 | Live check | 18 October 2026, commit `7b1a1c6`, run by the coordinator after the owner's yes (`scenario-f.mjs --local`): a new group turned local proving on before its first spend; the three devices made their test proofs in 6.5, 6.3 and 6.6 s; then 0.001 SOL went privately to key B with both proofs made on the devices (execute `FFdpbZZU…aXaJ`, slot 512,535,787, 149,541 compute units, paid by seat 2). No page sent a request to the prove path of Helius (`hostedProofs` 0), and the logs hold no Helius key |
 | Who sees what | The prover of Helius: nothing (not the amounts, the blindings or the nullifier secret). The indexer: which notes a payment spends (the device asks it for their Merkle and non-inclusion proofs), the tag and nullifier queries of the wallet, the RPC calls and the IP address, as before. The owner key of the payee is public on chain. The key CDN: the IP address, the `Origin` of the app (a CORS request; the Worker sends no `Referer`) and the key name (the input count) at the first use of a shape |
 
+**3.8 Plain wallet RPC (P3).** The plain wallet has no pool and no privacy. It reads and sends
+through its own Worker, `web/sol/plain/worker.js`. This Worker uses fetch only: it has no SDK, no
+prover, no wasm and no key. Its commands are `init`, `genesis`, `blockhash`, `accounts`,
+`balance`, `tokenAccounts`, `rent`, `history`, `transaction`, `simulate`, `send`, `status` and
+`confirm`. `web/sol/plain/guard.js` checks each command before any fetch. `init` takes `devnet` or
+`mainnet` and a Helius URL. The URL must have the exact origin `https://devnet.helius-rpc.com` or
+`https://mainnet.helius-rpc.com`, with no user name, port, path or redirect. `init` then reads
+`getGenesisHash`. If the hash is not the one of the cluster, the Worker refuses every later
+command. `send` accepts only bytes that this Worker simulated in the last 30 s with `sigVerify`
+true, `replaceRecentBlockhash` false and no error. The Worker makes at most 8 calls and 1 send a
+second. The server gives `/sol/plain/*` its own policy (`PLAIN_WORKER_POLICY` in `guard.js`, and
+`plainWorkerPolicy` in `cf/src/index.js`; `cf/test/gate.mjs` checks that they agree). It serves
+`/sol/config-mainnet.json` behind the password gate. The route answers 404 until the var
+`SOL_MAINNET` is `"1"` (it is `"0"` at the top level and in staging). It answers 503 without the
+secret `HELIUS_MAINNET_URL`, and else `{ rpcUrl }` with `Cache-Control: no-store`. A Helius Secure
+URL (paid plan) has another host, so it needs a change of the pin in both files. A new module in
+`web/sol/plain` needs a name of letters, digits and hyphens: no other name answers when `SOL` is
+off.
+
 ## 4. The second DKG, key roles and backups
 
 **4.1 The ceremony.** It runs on the same seats, after the wallet exists. It does not touch the
