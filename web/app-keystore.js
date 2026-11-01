@@ -328,8 +328,9 @@ export async function lockWithPasskey() {
   canEnableProtection();
   protectionPending = true; protectionVerified = false;
   try {
-    // Account changes take only `account`; secret changes take only `secrets`. Neither takes
-    // these in reverse order. Holding both also keeps their saves out of the credential prompt.
+    // The order is `account`, then `secrets`: an account change saves the sealed record through
+    // persist, which takes `secrets` inside `account`. No step that holds `secrets` waits for
+    // `account` or `send`. Holding both also keeps their saves out of the credential prompt.
     await exclusive("account", () => exclusive("secrets", async () => {
       canEnableProtection();
       const made = await createPasskey();
@@ -662,7 +663,9 @@ function updateRecipient(previous, next) {
       (b) => b.toString(16).padStart(2, "0")).join("");
     const changed = changeRecipient(recipients, previous, next, id);
     if (vault) {
-      if (!await persistHeld(changed)) throw new Error("The recipient could not be saved. Your changes are still in the form.");
+      if (!await persistHeld(changed)) {
+        throw new Error("The recipient could not be saved. Your changes are still in the form.");
+      }
     } else {
       if (lockedElsewhere()) throw new Error(LOCKED_ELSEWHERE);
       try { localStorage.setItem(RECIPIENTS_KEY, S(changed)); }
