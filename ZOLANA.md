@@ -202,6 +202,16 @@ URL (paid plan) has another host, so it needs a change of the pin in both files.
 `web/sol/plain` needs a name of lowercase letters, digits and hyphens: no other name answers when `SOL` is
 off.
 
+**3.9 Known limits of the plain wallet (P1).**
+
+1. A System-owned account that holds lamports at an associated token account address stops that
+   address. The checker refuses the message with `plain-source-account` (the group address, Enable
+   S4) or `plain-dest-account` (the recipient address, send S3). Anyone can block Enable or a send
+   to one recipient this way for 650,240 lamports. Workaround: any wallet runs `CreateIdempotent`
+   for that owner and mint. After that, Zigs works.
+2. For the page step P4: a FROST key package carries no mode. The page must keep the mode (plain
+   or pool) in the wallet record. The page must never pass a plain key package to a pool entry.
+
 ## 4. The second DKG, key roles and backups
 
 **4.1 The ceremony.** It runs on the same seats, after the wallet exists. It does not touch the
