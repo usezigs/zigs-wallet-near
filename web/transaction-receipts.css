@@ -48,7 +48,7 @@
 .transaction-receipt::before { content:""; width:32px; height:2px; background:var(--accent); position:absolute; top:0; left:24px; }
 .transaction-receipt .review-context { gap:6px 10px; }
 .transaction-receipt .privacy-notice { padding:14px; background:var(--sunk); border:0; border-radius:12px; }
-.transaction-receipt .privacy-notice p { font-size:12px; line-height:1.7; }
+.transaction-receipt .privacy-notice p { font-size:13px; line-height:1.7; }
 .transaction-receipt .pay-status h3 { font-size:17px; }
 .transaction-receipt .review-costs { font-variant-numeric:tabular-nums; }
 @supports (backdrop-filter:blur(1px)) {

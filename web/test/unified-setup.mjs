@@ -1410,8 +1410,8 @@ async function approvalCount(ctl) {
   assert.doesNotMatch(css, /\.btn:disabled[^{]*\{[^}]*opacity/,
     "a disabled button keeps the contrast of its text");
   const disabled = /\.btn:disabled, \.btn\.primary:disabled \{([^}]*)\}/.exec(css)?.[1] ?? "";
-  assert.match(disabled, /background: var\(--sunk\).*color: var\(--faint\)/s,
-    "faint on sunk, the pair that contrast.mjs checks");
+  assert.match(disabled, /background: var\(--sunk\).*color: var\(--muted\)/s,
+    "muted on sunk, the pair that contrast.mjs checks");
   assert.match(css, /\.btn\.ghost:hover:not\(:disabled\)/, "a disabled ghost button keeps still");
 }
 
@@ -3082,7 +3082,11 @@ assert.equal(quickCode(null), null);
     assert.equal(mark.attrs.alt, "", "the repeated decorative logo has no spoken label");
     assert.equal(findNode(brand, (n) => n.className === "welcome-object-caption"), null,
       "the zebra stands alone without a repeated shared-wallet caption");
-    assert.match(textOf(card), /ZIGS · PRIVATE BY DESIGN/);
+    assert.doesNotMatch(textOf(card),
+      /PRIVATE BY DESIGN|SHIELDED SELF-CUSTODY|Distributed ownership/,
+      "the first screen has no eyebrow labels and no tag line");
+    const opens = findAll(card, (n) => /How Zigs works/.test(textOf(n)) && n.tag === "button");
+    assert.equal(opens.length, 1, "one button opens the guide");
     const wallets = byId(card, "welcome-wallets");
     assert.equal(wallets, null, "the empty welcome has no zero-wallet selector");
     const explanation = byId(card, "home-how");

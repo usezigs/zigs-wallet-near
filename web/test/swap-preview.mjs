@@ -513,15 +513,16 @@ try {
   const swap = createSwapPreview(context, pro, clock);
   const root = swap.element;
   const view = () => text(root);
-  assert.equal(LIVE_TAG, 'Live quotes · no funds move', 'the live tag says Live quotes');
+  assert.equal(LIVE_TAG, 'Quotes only', 'the live tag says Quotes only');
   assert.ok(view().includes(LIVE_TAG), 'the swap page carries the live tag');
   assert.match(view(), /Live prices from NEAR Intents on mainnet\. Zigs cannot run a swap, so no funds move\./,
     'the subtitle says mainnet prices, no swap and no funds');
   assert.doesNotMatch(view(), /Private Swaps?|Powered by/,
     'the swap page does not claim a private swap or a provider');
-  assert.match(view(), /SwapQuotes: NEAR Intents \(mainnet\)Live quotes/, 'the first tab says Live quotes');
-  assert.match(view(), /Post-quantum swap demoPlanned provider: NEAR IntentsDemo/,
-    'the second tab is a demo with a planned provider');
+  assert.match(view(), /SwapLive quotes/, 'the first tab says Live quotes');
+  assert.match(view(), /Post-quantum swapDemo/, 'the second tab is a demo');
+  assert.match(view(), /ZEC leaves the shielded poolNEAR Intents takes ZEC only at a public deposit address\./,
+    'the privacy box of a swap from ZEC names the public deposit address in one line');
   assert.deepEqual(walk(root, (n) => /privacy options/i.test(n.attrs['aria-label'] ?? '')), [],
     'the swap tabs are not named as privacy options');
   assert.match(ZEC_PRIVACY, /leaves the shielded pool, because NEAR Intents takes ZEC only at a transparent deposit address, which is public\. NEAR Intents accepts a shielded address as the recipient of a swap to ZEC, but no real swap has tested this\.$/,
@@ -533,7 +534,7 @@ try {
   assert.ok(view().includes(QUOTE_PRIVACY), 'the page says what the quote request sends');
   assert.equal(NO_RUN, 'Zigs cannot run this swap: the page shows quotes only, and no funds '
     + 'move.', 'the words of the no-run message');
-  assert.ok(view().includes(NO_RUN), 'the page says that Zigs cannot run the swap');
+  assert.ok(!view().includes(NO_RUN), 'the subtitle, not a second note, says that no funds move');
   assert.ok(view().includes('Receive to · Demo'), 'the destination is labelled Demo');
   assert.match(view(), /Choose a pair and enter an amount to get a live quote\./);
   // A key press asks nothing at once; the quote comes after the wait.
@@ -621,7 +622,7 @@ try {
   press(walk(body, (n) => n.tag === 'dialog').at(-1), 'Back to swap');
   const flow = root.querySelector('.pq-flow');
   press(root, 'Continue');
-  assert.match(text(flow), /DEMO · NO FUNDS MOVE/, 'the post-quantum flow is labelled as a demo');
+  assert.match(text(flow), /Demo · no funds move/, 'the post-quantum flow is labelled as a demo');
   await delay();
   for (const label of ['Review demo swap', 'Continue to demo approvals',
     'Simulate this device approval', 'Simulate second device approval',

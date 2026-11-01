@@ -361,7 +361,7 @@ export function deviceProtection(context = "setup", onReady = null) {
           focusAfter("skip-back-" + context, true); render();
         } }, "Skip for now") : null),
     !skipped ? el("p", { class: "small muted" }, supported
-      ? "Recommended: encrypt this browser’s signing shares with a passkey. A passkey is not an additional signing device."
+      ? "Recommended. A passkey locks this device’s key. It does not count as another device."
       : !storageOk ? "Storage is unavailable. Keep this tab open, enable persistent browser storage, and retry before relying on it as a signing device."
         : "This browser cannot enable passkey protection. Use a supported browser or authenticator."
           + (skippable ? " Or choose Skip for now to review unprotected storage." : " You can close setup, or restore an existing device from its recovery file.")) : null,
@@ -571,20 +571,10 @@ function walletRow(g, tab = "overview") {
   el("span", { class: "chev" }, icon("chevronRight")));
 }
 
-function homeExplanation() {
-  return el("button", { class: "welcome-details home-how-trigger", id: "home-how",
-    "data-key": "home-how", type: "button", "aria-haspopup": "dialog",
-    onclick: openHowZigsWorks },
-    el("span", { class: "welcome-security-copy" },
-      el("strong", {}, "How Zigs works"),
-      el("span", { class: "small muted" }, "Keys, payments, messaging and privacy. The complete guide.")),
-    el("span", { class: "home-how-arrow", "aria-hidden": "true" }, icon("external")));
-}
-
 function welcome(off, restoreLink) {
-  const wallets = state.groups.length, explanation = homeExplanation();
-  const learn = el("button", { class: "btn ghost home-learn", type: "button",
-    "aria-haspopup": "dialog", onclick: openHowZigsWorks }, "How Zigs works");
+  const wallets = state.groups.length;
+  const learn = el("button", { class: "btn ghost home-learn", id: "home-how", "data-key": "home-how",
+    type: "button", "aria-haspopup": "dialog", onclick: openHowZigsWorks }, "How Zigs works");
   const create = el("button", {
     class: "btn" + (wallets ? "" : " primary") + " lg", type: "button", ...off.attrs,
     onclick: () => { openCreate(); render(); },
@@ -610,31 +600,26 @@ function welcome(off, restoreLink) {
   return el("section", { class: "card card-pad welcome" + (wallets
     ? " welcome-returning" + (wallets === 1 ? " welcome-single" : " welcome-many") : " welcome-new"),
     "aria-labelledby": "welcome-title" },
-    el("header", { class: "home-masthead" },
-      el("span", { class: "label" }, "ZIGS · PRIVATE BY DESIGN")),
+    // The masthead holds the connection status that network-privacy-popup.js puts in it.
+    el("header", { class: "home-masthead" }),
     el("div", { class: "welcome-main home-hero", "data-home-hero": "" },
       el("div", { class: "welcome-brand", "aria-hidden": "true" },
         el("img", { class: "home-hero-art", src: "/assets/brand/hero-zebra.png?v=e2a70c42c377", alt: "",
           width: "1254", height: "1254", decoding: "async", draggable: "false" })),
       el("div", { class: "welcome-intro" },
-        el("p", { class: "label welcome-kicker" }, "SHIELDED SELF-CUSTODY / ZIGS"),
         el("h1", { id: "welcome-title" }, wallets ? "Welcome " : "Private by design. ",
           el("span", { class: "welcome-title-accent" }, wallets ? "back." : "Secured together.")),
         el("p", { class: "muted welcome-summary" }, wallets
           ? "Your assets. Your approval rules. One private place to return to."
           : "Hold your assets privately. Protect them with the people and devices you trust."),
-        wallets ? null : entryPaths,
-        !wallets ? el("p", { class: "home-signature" },
-          el("span", { "aria-hidden": "true" }), "Distributed ownership. ",
-          el("span", {}, "Designed for peace of mind.")) : null)),
+        wallets ? null : entryPaths)),
     wallets ? el("div", { class: "home-wallet-launcher" + (wallets === 1 ? " home-launcher-single" : "") },
       walletList,
       wallets === 1 ? el("aside", { class: "home-wallet-note" },
-        el("p", { class: "label" }, "BUILT FOR SHARED CONTROL"),
+        el("p", { class: "label" }, "Built for shared control"),
         el("h3", {}, "Separate shares. ", el("span", {}, "Shared confidence.")),
         el("p", {}, "Each device holds a separate key share. Payments need the approvals set by your wallet’s rule.")) : null) : null,
-    wallets ? entryPaths : null,
-    explanation);
+    wallets ? entryPaths : null);
 }
 
 // The form that opens a wallet from a pasted invite link. The field has no name and the handler
@@ -937,8 +922,7 @@ i === ui.createStep ? stepActions() : null);
 const introStep = () => step(0,
   el("div", { class: "setup-protection-layout" },
     skipProtectionAsk === "create-first" ? null : el("div", { class: "setup-protection-intro" },
-      passkeyIllustration(protectionPending ? "pending" : passkeyProtected() ? "verified" : "unprotected"),
-      el("p", {}, "A passkey protects the signing share saved in this browser.")),
+      passkeyIllustration(protectionPending ? "pending" : passkeyProtected() ? "verified" : "unprotected")),
     deviceProtection("create-first", () => {
       ui.createError = null; focusAfter("create-continue", true); render();
     })),

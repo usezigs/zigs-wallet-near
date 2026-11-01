@@ -155,10 +155,10 @@ export function passkeyIllustration(status = "unprotected") {
           el("span", { class: "passkey-shackle" }), el("span", { class: "passkey-lock-body" })))),
     el("figcaption", { class: "passkey-art-caption" },
       el("strong", {}, secured ? "Passkey secured" : status === "pending"
-        ? "Securing this browser…" : "Protect your local share"),
-      el("span", { class: "small muted" }, secured ? "Local vault verified · your approval rule stays the same"
-        : status === "pending" ? "Waiting for device authentication and the encrypted-copy check"
-          : "Protect this browser to encrypt its local signing share.")));
+        ? "Securing this browser…" : "Not protected yet"),
+      status === "unprotected" ? null : el("span", { class: "small muted" }, secured
+        ? "Local vault verified · your approval rule stays the same"
+        : "Waiting for device authentication and the encrypted-copy check")));
 }
 
 // These diagrams explain the implementation; they never observe or advance a ceremony.

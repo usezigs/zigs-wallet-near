@@ -3,13 +3,13 @@
   border:1px solid var(--line-2); border-radius:var(--r); background:var(--panel);
   box-shadow:inset 0 1px 0 var(--edge); color:var(--text); }
 .approval-policy { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px 16px;
-  color:var(--muted); font-size:.75rem; }
+  color:var(--muted); font-size:.8125rem; }
 .approval-policy strong { color:var(--text); font-weight:550; }
 .approval-stage { display:grid; gap:8px; padding-block:4px; }
 .approval-count { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 10px; }
 .approval-count strong { font-size:1.625rem; line-height:1.2; font-weight:550; letter-spacing:-.04em;
   font-variant-numeric:tabular-nums; }
-.approval-count>span { font-size:.75rem; color:var(--muted); }
+.approval-count>span { font-size:.8125rem; color:var(--muted); }
 .approval-current { margin:0; font-size:.8125rem; color:var(--accent-text); }
 .approval-visualization.attention .approval-current { color:var(--bad); }
 .approval-visualization.checking .approval-current { color:var(--muted); }
@@ -23,10 +23,10 @@
   box-shadow:inset 0 1px 0 var(--edge); font-size:18px; font-weight:650; }
 .approval-visualization.active .received .approval-node { border-color:var(--accent-text);
   color:var(--accent-text); background:var(--panel); }
-.approval-device-name { max-width:100%; overflow-wrap:anywhere; font-size:.75rem; font-weight:550; }
-.approval-device-state { font-size:.6875rem; color:var(--muted); }
+.approval-device-name { max-width:100%; overflow-wrap:anywhere; font-size:.8125rem; font-weight:550; }
+.approval-device-state { font-size:.8125rem; color:var(--muted); }
 .approval-legend { margin:0; padding-top:14px; border-top:1px solid var(--line);
-  font-size:.6875rem; line-height:1.6; color:var(--muted); }
+  font-size:.8125rem; line-height:1.6; color:var(--muted); }
 .approval-aggregate { display:grid; gap:6px; padding:12px; border:1px solid var(--line);
   border-radius:var(--r-control); background:var(--sunk); font-size:.8125rem; }
 .approval-aggregate p { margin:0; }

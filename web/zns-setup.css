@@ -3,7 +3,7 @@
 .guided-card.zns-setup { width:100%; max-width:780px; padding:16px 20px; gap:10px; }
 .zns-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
 .zns-title { display:grid; gap:3px; min-width:0; }
-.zns-title>.label { font-size:11px; }
+.zns-title>.label { font-size:13px; }
 .zns-setup .zns-title>h2 { font-size:24px; line-height:1.2; }
 .zns-setup>.callout { padding:8px 12px; font-size:13px; }
 .zns-name-form { display:grid; grid-template-columns:minmax(0,1fr) 180px; gap:10px 12px; }
@@ -43,7 +43,7 @@
 .zns-payment-details { grid-area:payment; display:grid; gap:8px; min-width:0; }
 .zns-payment-details>.btn { justify-self:start; }
 .zns-qr-figure { grid-area:qr; display:grid; justify-items:center; text-align:center; gap:8px; margin:0; }
-.zns-qr-figure>figcaption { font-size:12px; line-height:1.35; }
+.zns-qr-figure>figcaption { font-size:13px; line-height:1.35; }
 .zns-demo-qr { padding:8px; background:#fff; border-radius:12px; max-width:100%; width:176px; }
 .zns-demo-qr svg { display:block; width:100%; height:auto; }
 .zns-amount { font-family:var(--font-mono,monospace); font-size:24px; font-weight:600; line-height:1.3; }

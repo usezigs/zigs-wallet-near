@@ -54,7 +54,7 @@ export function createPostQuantumSwapPreview(onExit) {
   form.append(error, next);
   root.append(el('header', { class: 'pq-flow-heading' },
     button([icon('back'), 'Back'], 'pq-back', () => { reset(); onExit(); }, { 'aria-label': 'Back to introduction' }),
-    text('pq-demo-label', 'DEMO · NO FUNDS MOVE', 'span'),
+    text('pq-demo-label', 'Demo · no funds move', 'span'),
     button(['Details', el('span', { 'aria-hidden': 'true' }, icon('external'))], 'swap-secondary pq-details-button', ev => openDetails(ev.currentTarget),
       { 'aria-haspopup': 'dialog', 'aria-label': 'Swap details & privacy' })),
     steps, el('div', { class: 'pq-flow-title' }, title),
@@ -171,7 +171,7 @@ export function createPostQuantumSwapPreview(onExit) {
     return el('div', { class: 'pq-swap-summary' },
       el('div', {}, token(SWAP_ASSETS[0]), text('swap-caption', 'PAY'), text('', reviewed.amount + ' ZEC', 'strong')),
       el('span', { 'aria-hidden': 'true' }, icon('forward')),
-      el('div', {}, token(to), text('swap-caption', 'EXAMPLE RECEIVE'), text('', swapDecimal(q.amountOut, to) + ' ' + to.symbol, 'strong')));
+      el('div', {}, token(to), text('swap-caption', 'Example receive'), text('', swapDecimal(q.amountOut, to) + ' ' + to.symbol, 'strong')));
   }
   function expire() { approvals = 0; progress = 0; reviewed = null; show('expired'); }
   function drawReview() {
@@ -224,7 +224,7 @@ export function createPostQuantumSwapPreview(onExit) {
     const refund = outcome === 'refund', to = swapAsset(reviewed.to);
     content.append(el('div', { class: 'pq-result', role: 'status' },
       icon(refund ? 'swap' : 'security'),
-      text('swap-caption', refund ? 'EXAMPLE REFUND' : 'EXAMPLE DELIVERY'),
+      text('swap-caption', refund ? 'Example refund' : 'Example delivery'),
       text('', refund ? 'Refund to Zcash' : swapDecimal(reviewed.quote.amountOut, to) + ' ' + to.symbol, 'h3'),
       text('pq-body', refund
         ? 'Demo result. No funds moved and no real quote was used.'

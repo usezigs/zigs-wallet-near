@@ -11,7 +11,7 @@
 .network-privacy-mode { display:grid; gap:10px; padding:18px; border:1px solid var(--line-2);
   border-radius:var(--r-control); background:var(--sunk); }
 .network-privacy-mode-heading { display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; }
-.network-privacy-mode .badge { font-size:11px; white-space:normal; }
+.network-privacy-mode .badge { font-size:13px; white-space:normal; }
 .network-privacy-limits { padding-top:4px; border-top:1px solid var(--line); }
 .network-privacy-limits>summary { cursor:pointer; min-height:48px; padding:12px 0;
   font-size:13px; color:var(--text); }
@@ -20,7 +20,7 @@
 .network-privacy-preview .btn { justify-self:start; min-height:44px; white-space:normal; }
 .home-network-privacy { padding:0 28px; }
 @media(max-width:760px) {
-  .network-connection-control { font-size:11px; padding:8px 12px; }
+  .network-connection-control { font-size:13px; padding:8px 12px; }
   .network-privacy-panel { width:100%; border-radius:var(--r-sheet) var(--r-sheet) 0 0;
     padding:20px 16px calc(20px + env(safe-area-inset-bottom,0px)); gap:16px; max-height:calc(100dvh - 24px); }
   .network-privacy-mode { padding:16px; }

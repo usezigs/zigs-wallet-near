@@ -1,35 +1,40 @@
-// The colour tokens of web/design-system.css: every text colour reads at 4.5:1 or more (WCAG AA
-// for normal text) on every surface, the edge of a field or a tick box at 3:1 or more (WCAG
-// 1.4.11), in the dark and in the light palette, and the two copies of the light palette stay the
-// same. Translucent colours are put over the surface below them.
+// The colour tokens the page uses: web/design-system.css with the tokens of
+// web/site-refinement.css over it, as the page loads them. Every text colour reads at 4.5:1 or
+// more (WCAG AA for normal text) on every surface; the edge of a card, a field or a tick box at
+// 3:1 or more (WCAG 1.4.11), in the dark and in the light palette; and the two copies of each
+// light palette stay the same. Translucent colours are put over the surface below them.
 // Run: node web/test/contrast.mjs   (Node 26)
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const css = readFileSync(new URL("../design-system.css", import.meta.url), "utf8");
+const refined = readFileSync(new URL("../site-refinement.css", import.meta.url), "utf8");
 const appCss = readFileSync(new URL("../app.css", import.meta.url), "utf8");
 const MIN = 4.5, MIN_EDGE = 3;
-const TEXTS = ["text", "muted", "faint", "accent-text", "ok", "bad", "info", "warning"];
+const TEXTS = ["text", "muted", "accent-text", "ok", "bad", "info", "warning"];
 const SURFACES = ["bg", "side", "panel", "raised", "sunk", "sheet"];
 const MARKS = ["text", "ok", "bad", "accent-text", "warning", "info"];
 const SOFT = { ok: "ok-soft", bad: "bad-soft", info: "info-soft", warning: "warning-soft",
   "accent-text": "accent-soft" };
 
-// The declarations of the first rule whose selector is `selector`, as name to value.
-function tokens(selector) {
-  const at = css.indexOf(selector + " {");
-  assert.ok(at >= 0, "design-system.css has a rule " + selector);
-  const body = css.slice(css.indexOf("{", at) + 1, css.indexOf("}", at));
+// The declarations of the first rule that opens with `opening` (its selector and "{") in
+// `sheet`, as name to value. Comments are left out.
+function tokens(sheet, opening) {
+  const at = sheet.indexOf(opening);
+  assert.ok(at >= 0, "the style sheet has a rule " + opening);
+  const body = sheet.slice(at + opening.length, sheet.indexOf("}", at))
+    .replace(/\/\*[\s\S]*?\*\//g, "");
   return Object.fromEntries([...body.matchAll(/([\w-]+):\s*([^;]+);/g)]
     .map((m) => [m[1].replace(/^--/, ""), m[2].trim()]));
 }
 
-// [r, g, b, alpha] of a #rgb, #rrggbb or rgba() value.
+// [r, g, b, alpha] of a #rgb, #rgba, #rrggbb, #rrggbbaa or rgba() value.
 function rgba(value) {
-  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(value);
+  const hex = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.exec(value);
   if (hex) {
-    const h = hex[1].length === 3 ? [...hex[1]].map((c) => c + c).join("") : hex[1];
-    return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)).concat(1);
+    const h = hex[1].length <= 4 ? [...hex[1]].map((c) => c + c).join("") : hex[1];
+    const alpha = h.length === 8 ? parseInt(h.slice(6), 16) / 255 : 1;
+    return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)).concat(alpha);
   }
   const fn = /^rgba?\(([^)]+)\)$/.exec(value);
   assert.ok(fn, "a colour token is #hex or rgba(): " + value);
@@ -71,11 +76,15 @@ function pairs(t) {
   return out;
 }
 
-// The edge of a field or a tick box on the surfaces that hold them.
+// The edge of a field or a tick box on the surfaces that hold them, and the edge of a card or a
+// dialog on the page, the side bar and the card itself.
 function edges(t) {
   const bg = rgba(t.bg).slice(0, 3);
-  return ["sunk", "panel", "raised", "sheet"].map((s) =>
+  const field = ["sunk", "panel", "raised", "sheet"].map((s) =>
     ["line-field on " + s, ratio(rgba(t["line-field"]), over(rgba(t[s]), bg))]);
+  const card = ["bg", "side", "panel", "sheet"].map((s) =>
+    ["line on " + s, ratio(rgba(t.line), over(rgba(t[s]), bg))]);
+  return field.concat(card);
 }
 
 function buttonPairs(t) {
@@ -113,17 +122,23 @@ function transientPairs(t, colors, opacity) {
 
 const contentOpacity = initialOpacity("motion-content-in");
 const markOpacity = initialOpacity("motion-mark-in");
-const dark = tokens(":root");
-const light = tokens(':root[data-theme="light"]');
-assert.deepEqual(tokens(':root:not([data-theme="dark"])'), light,
-  "the light palette of the browser setting is the same as the light palette of the choice");
+const dark = { ...tokens(css, ":root {"), ...tokens(refined, ":root{") };
+const light = { ...tokens(css, ':root[data-theme="light"] {'),
+  ...tokens(refined, ":root[data-theme=light]{") };
+assert.deepEqual(tokens(css, ':root:not([data-theme="dark"]) {'),
+  tokens(css, ':root[data-theme="light"] {'),
+  "design-system.css: the light palette of the browser setting is the light palette of the choice");
+assert.deepEqual(tokens(refined, ":root:not([data-theme=dark]){"),
+  tokens(refined, ":root[data-theme=light]{"),
+  "site-refinement.css: the light palette of the browser setting is the light palette of the "
+    + "choice");
 const below = (list, min) =>
   list.filter(([, r]) => r < min).map(([k, r]) => k + " " + r.toFixed(2));
 for (const [name, palette] of [["dark", dark], ["light", { ...dark, ...light }]]) {
   assert.deepEqual(below(pairs(palette), MIN), [],
     name + ": every text colour reads at " + MIN + ":1 or more");
   assert.deepEqual(below(edges(palette), MIN_EDGE), [],
-    name + ": the edge of a field shows at " + MIN_EDGE + ":1 or more");
+    name + ": the edge of a card or a field shows at " + MIN_EDGE + ":1 or more");
   assert.deepEqual(below(buttonPairs(palette), MIN), [],
     name + ": bevel lighting keeps button labels above " + MIN + ":1 in every state");
   const selected = over(rgba(palette["chrome-hi"]), rgba(palette.side));
@@ -136,7 +151,8 @@ for (const [name, palette] of [["dark", dark], ["light", { ...dark, ...light }]]
     name + ": entering headings retain " + MIN + ":1 at the CSS initial opacity");
   assert.deepEqual(below(marks, MIN_EDGE), [],
     name + ": entering status marks retain " + MIN_EDGE + ":1 at the CSS initial opacity");
-  console.log("ok  " + name + ": " + pairs(palette).length + " text pairs, 4 field edges");
+  console.log("ok  " + name + ": " + pairs(palette).length + " text pairs, "
+    + edges(palette).length + " card and field edges");
   console.log("ok  " + name + ": " + headings.length + " transient heading pairs, "
     + marks.length + " transient status-mark pairs");
 }

@@ -136,9 +136,11 @@ export function accountCard() {
   return el("section", { class: "card card-pad" },
     el("div", { class: "card-head" }, el("h2", {}, "Personal account"),
       netBadge({ network: personal.network })),
-    el("p", { class: "small muted" }, "This account pays the fee of your messages on chain. It is "
-      + "not a wallet, and its payments need no approval. Whoever controls this browser can "
-      + "spend it."),
+    el("p", { class: "small muted" }, "Pays the fee of your on-chain messages. It is not a wallet: "
+      + "anyone who controls this browser can spend it, with no approval."),
+    personal.backedUp ? null : el("div", { class: "callout warn" }, personal.everBackedUp
+      ? "Your last backup file has the seed but not your newest contacts."
+      : "Not backed up. The backup file is the only copy outside this browser."),
     accountBalanceBlock(b),
     b ? balanceWarnings(b.total).map((t) => el("div", { class: "callout warn", role: "status" }, t))
       : null,
@@ -166,9 +168,11 @@ export function addressBlock(c) {
     el("details", { class: "qr-toggle", "data-disclosure-key": messagingAccountScope() + ":public-qr" },
       el("summary", {}, "Show QR code"),
       qrBox(c.address, "Account address")),
-    el("p", { class: "small faint" }, "Anyone who has this address can pay it and write to it. "
-      + "A message that reaches it shows under Other messages, marked not verified. Give each "
-      + "contact their own address instead."));
+    el("p", { class: "small muted" }, "Anyone with this address can pay it and write to it. "
+      + "Give each contact their own address."),
+    el("details", { "data-disclosure-key": messagingAccountScope() + ":address-where" },
+      el("summary", {}, "Where messages to this address show"),
+      el("p", { class: "small muted" }, "Under Other messages, marked not verified.")));
 }
 
 // The request pays 3 notes, so the account can send a message after each block.
@@ -201,9 +205,8 @@ export function fundBlock() {
     // The notes stay out of the label, so that they are no part of the name of the field.
     el("div", { class: "field" },
       el("label", { class: "field" }, el("span", {}, "Amount in ZEC"), amount),
-      el("span", { class: "hint", id: "fund-hint" }, "The request asks for 3 equal notes, so the "
-        + "account can send a message after each block. A wallet pays it, and its devices "
-        + "approve it as they approve any payment."), warn, refusal),
+      el("span", { class: "hint", id: "fund-hint" }, "Asks for 3 equal notes, so the account can "
+        + "send after each block."), warn, refusal),
     el("div", { class: "req-actions" }, pick,
       el("button", {
         class: "btn primary sm", type: "button", disabled: !wallets.length,

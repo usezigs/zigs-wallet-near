@@ -47,9 +47,8 @@
 .swap-chevron { display:inline-flex; }
 .swap-chevron>.symbol { width:16px; height:16px; }
 .swap-asset-button .symbol,.swap-route-link>.symbol { width:18px; height:18px; }
-.chev,.preference-chevron,.wallet-picker-chevron,.security-access-chevron,
-.home-how-arrow { display:inline-flex; align-items:center; justify-content:center; }
-.home-how-arrow>.symbol { width:20px; height:20px; }
+.chev,.preference-chevron,.wallet-picker-chevron,.security-access-chevron {
+  display:inline-flex; align-items:center; justify-content:center; }
 .approval-request-action .symbol,.tx-ico .symbol,.hw-page-button .symbol {
   width:18px; height:18px; vertical-align:middle;
 }
@@ -148,7 +147,7 @@
 @keyframes premium-light-arrive { 0% { opacity:0; } 35% { opacity:1; } 100% { opacity:0; } }
 
 /* Home and saved wallets: quiet metal, fuller controls and an intentional invitation. */
-.wallet-vault-card,.home-how-trigger { transition:border-color var(--premium-settle),
+.wallet-vault-card { transition:border-color var(--premium-settle),
   background-color var(--premium-settle),box-shadow var(--premium-settle); }
 .wallet-vault-card { box-shadow:var(--premium-depth); }
 .lobby-home .home-hero .welcome-actions .btn { min-height:52px; }
@@ -292,11 +291,10 @@
   :is(.btn,.icon-btn):not(:disabled,[aria-disabled=true]):hover .symbol[data-icon=close] {
     color:var(--text);
   }
-  .chev,.home-how-arrow { transition:translate var(--premium-settle) var(--premium-ease); }
+  .chev { transition:translate var(--premium-settle) var(--premium-ease); }
   :is(button,a):not(:disabled,[aria-disabled=true]):hover .chev { translate:2px 0; }
-  .home-how-trigger:hover .home-how-arrow { translate:1px -1px; }
   .side-item:hover .symbol { border-color:var(--line-2); background:var(--raised); }
-  .wallet-vault-card:hover,.home-how-trigger:hover { border-color:var(--control-line);
+  .wallet-vault-card:hover { border-color:var(--control-line);
     box-shadow:inset 0 1px var(--premium-rim),0 12px 28px -22px #0009; }
   .asset-row:hover { background:var(--edge-quiet); }
   .activity-ledger .row-item:hover,.recipient-card:hover,.security-signer:hover {
@@ -324,7 +322,7 @@
   .wallet-context-header:has(>.pp-header-status)>.ph-meta { grid-column:1; grid-row:2; }
   .wallet-context-header:has(>.pp-header-status)>.wallet-home {
     grid-column:2; grid-row:2; max-width:none; white-space:nowrap; padding-inline:8px;
-    gap:6px; font-size:12px;
+    gap:6px; font-size:13px;
   }
   .wallet-context-header>.pp-header-status { grid-column:3; grid-row:2; }
 }
@@ -335,7 +333,7 @@
     rotate:none!important; }
   .symbol-sculpted .relief-part { translate:none!important; rotate:none!important; }
   .symbol { scale:none!important; }
-  .chev,.home-how-arrow { translate:none!important; }
+  .chev { translate:none!important; }
   .wallet-picker-chevron { rotate:none; }
 }
 @media(forced-colors:active) {

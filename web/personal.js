@@ -20,7 +20,7 @@ export const feeFor = (parts) => 5000 * Math.max(2, parts + 1);
 export const feeText = (fee) => "On chain · fee " + zatText(fee) + " ZEC";
 export const LOW_BALANCE = 3 * feeFor(1);   // pays fewer than 3 messages of one part
 const HIGH_BALANCE = 1000000;               // 0.01 ZEC
-export const LOW_TEXT = "The balance pays fewer than 3 messages. Fund the account to keep sending.";
+export const LOW_TEXT = "The balance pays fewer than 3 messages. Fund it to keep sending.";
 export const HIGH_TEXT = "The account holds more than 0.01 ZEC. Whoever controls this browser can "
   + "spend it. Do not add more.";
 

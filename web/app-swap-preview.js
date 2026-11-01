@@ -6,7 +6,7 @@ import { createPostQuantumSwapPreview } from './app-postquantum-swap-preview.js'
 import { SWAP_ASSETS, SWAP_DEMO_STEPS, SWAP_SLIPPAGES, SwapPreviewModel, swapAsset, swapDecimal,
   swapInputError, swapRate, swapTime, swapUsd } from './swap-preview-model.js';
 
-export const LIVE_TAG = 'Live quotes · no funds move';
+export const LIVE_TAG = 'Quotes only';
 const previewTag = () => el('span', { class: 'swap-preview-tag' },
   el('span', { 'aria-hidden': 'true' }, '◌'), LIVE_TAG);
 const token = (asset) => el('img', { class: 'swap-token ' + asset.tone,
@@ -28,6 +28,14 @@ export const NO_RUN = 'Zigs cannot run this swap: the page shows quotes only, an
 const privacy = (zec) => (zec ? ZEC_PRIVACY
   : 'Network visibility varies by route. Input, output and intermediate transfers may be '
     + 'publicly visible.') + ' ' + QUOTE_PRIVACY;
+// The heading and the one line of the privacy box; privacy() gives the full text.
+function privacyNote(from, to) {
+  if (from.symbol === 'ZEC') return ['ZEC leaves the shielded pool',
+    'NEAR Intents takes ZEC only at a public deposit address.'];
+  if (to.symbol === 'ZEC') return ['The shielded payout is untested',
+    'NEAR Intents accepts a shielded address, but no real swap has tested this.'];
+  return ['Route visibility', 'Transfers on the route can be public.'];
+}
 const ASKING = 'Asking NEAR Intents for a quote…';
 const STATUS = { QUOTING: ASKING, INPUT_VALID: ASKING };
 const IDLE = 'Choose a pair and enter an amount to get a live quote.';
@@ -59,7 +67,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     'data-key': 'panel-swap', tabindex: '-1' });
   const pay = el('input', { id: 'swap-amount', class: 'swap-amount', type: 'text',
     inputmode: 'decimal', autocomplete: 'off', spellcheck: 'false', placeholder: '0.00',
-    'aria-label': 'Amount you pay', 'aria-describedby': 'swap-amount-help swap-error',
+    'aria-label': 'Amount you pay', 'aria-describedby': 'swap-error',
     oninput: (ev) => { model.type(ev.target.value); } });
   const receive = el('input', { class: 'swap-amount swap-output', readonly: true,
     'aria-label': 'Amount you receive', value: '—', tabindex: '0' });
@@ -83,7 +91,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     }, { disabled: true, 'data-key': 'swap-review', 'aria-haspopup': 'dialog' });
   const routeFrom = el('div', { class: 'swap-route-end' });
   const routeTo = el('div', { class: 'swap-route-end' });
-  const privacyText = text('', '');
+  const privacyHead = text('', '', 'h2'), privacyLine = text('', ''), privacyText = text('', '');
   const destination = el('select', { id: 'swap-destination', 'aria-label': 'Example destination (demo)',
     onchange: (ev) => { model.chooseDestination(ev.target.value); } },
   el('option', { value: 'example' }, 'Example destination · demo only'),
@@ -109,13 +117,11 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     }, { 'aria-label': 'Continue to post-quantum swap demo' });
   let activeTab = 'private';
   const modes = [
-    { id: 'private', label: 'Swap', status: 'Live quotes', provider: 'Quotes: NEAR Intents (mainnet)' },
-    { id: 'quantum', label: 'Post-quantum swap demo', status: 'Demo',
-      provider: 'Planned provider: NEAR Intents' },
+    { id: 'private', label: 'Swap', status: 'Live quotes' },
+    { id: 'quantum', label: 'Post-quantum swap', status: 'Demo' },
   ];
   const modeTabs = modes.map((mode) => button([
     el('span', { class: 'swap-tab-label' }, mode.label),
-    el('span', { class: 'swap-tab-provider' }, mode.provider),
     el('span', { class: 'swap-tab-status', id: 'swap-tab-' + mode.id + '-status' }, mode.status),
   ], 'swap-mode-tab', () => selectTab(mode.id), {
     role: 'tab', id: 'swap-tab-' + mode.id, 'aria-controls': 'swap-panel-' + mode.id,
@@ -130,8 +136,8 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     },
   }));
   root.append(el('header', { class: 'swap-heading' },
-    el('div', { class: 'swap-topline' }, text('swap-eyebrow', 'EXCHANGE'), previewTag()),
-    el('h1', {}, 'Swap assets', el('span', { 'aria-hidden': 'true' }, '.')),
+    el('div', { class: 'swap-topline' }, previewTag()),
+    el('h1', {}, 'Swap'),
     text('swap-subtitle', 'Live prices from NEAR Intents on mainnet. Zigs cannot run a swap, so no '
       + 'funds move.')),
   el('div', { class: 'swap-mode-tabs', role: 'tablist', 'aria-label': 'Swap pages' }, modeTabs),
@@ -143,16 +149,14 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
         el('div', { class: 'swap-pane-label' }, el('label', { for: 'swap-amount' }, 'You pay')),
         el('div', { class: 'swap-amount-row' }, pay, fromButton),
         el('div', { class: 'swap-network-row' }, fromNetwork,
-          button('Max', 'swap-max', null, { disabled: true, 'aria-describedby': 'swap-amount-help' })),
-        el('p', { class: 'swap-caption', id: 'swap-amount-help' }, 'No wallet balance is used')),
+          button('Max', 'swap-max', null, { disabled: true }))),
       el('div', { class: 'swap-switch-row' }, reverse),
       el('div', { class: 'swap-pane swap-receive' },
         el('div', { class: 'swap-pane-label' }, el('span', {}, 'You receive'),
           text('swap-caption', 'Estimate', 'span')),
         el('div', { class: 'swap-amount-row' }, receive, toButton), toNetwork),
       el('div', { class: 'swap-quote' }, quoteLine, quoteDetails), error,
-      el('div', { class: 'swap-composer-footer' }, review,
-        text('swap-caption swap-footer-note', 'No funds move. This page asks for quotes only.'))),
+      el('div', { class: 'swap-composer-footer' }, review)),
     el('aside', { class: 'swap-support', 'aria-label': 'Swap route and details' },
       el('section', { class: 'swap-detail-card' },
         el('div', { class: 'swap-detail-heading' }, el('h2', {},
@@ -168,12 +172,12 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
         button(['Execution & network context', icon('external')], 'swap-disclosure',
           (ev) => { openModal('Swap details', ev.currentTarget); drawDetails(); }, { 'aria-haspopup': 'dialog' })),
       el('section', { class: 'swap-privacy', 'aria-label': 'Route privacy' },
-        icon('security'), el('div', {}, text('', 'Know the privacy boundary', 'h2'), privacyText)),
-      text('swap-caption swap-support-note', NO_RUN)))),
+        icon('security'), el('div', {}, privacyHead, privacyLine,
+          el('details', {}, el('summary', {}, 'What NEAR Intents sees'), privacyText)))))),
   el('section', { class: 'swap-panel swap-quantum-panel', id: 'swap-panel-quantum', role: 'tabpanel',
     'aria-labelledby': 'swap-tab-quantum', tabindex: '0', hidden: true },
     el('div', { class: 'swap-quantum-intro' },
-      text('swap-eyebrow', 'PLANNED ZCASH PRIVACY'),
+      text('swap-eyebrow', 'Planned Zcash privacy'),
       el('h2', {}, 'Separate swap addresses.', el('br'), 'Same shared wallet.'),
       text('swap-quantum-description', 'A separate viewing key for each ZEC swap, with your existing wallet approvals.'),
       el('div', { class: 'swap-quantum-status' }, icon('security'),
@@ -234,6 +238,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     detailBlock?.replaceChildren(...quoteBlock(s));
     settingValue.textContent = s.slippageBps / 100 + '%';
     presets.forEach((b, i) => b.setAttribute('aria-pressed', String(SWAP_SLIPPAGES[i] === s.slippageBps)));
+    [privacyHead.textContent, privacyLine.textContent] = privacyNote(from, to);
     privacyText.textContent = privacy(from.symbol === 'ZEC' || to.symbol === 'ZEC');
     drawContext();
     drawRetry(s);
@@ -243,8 +248,8 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     fromButton.replaceChildren(token(from), el('span', {}, from.symbol), chevron());
     toButton.replaceChildren(token(to), el('span', {}, to.symbol), chevron());
     fromNetwork.textContent = from.network + ' · mainnet'; toNetwork.textContent = to.network + ' · mainnet';
-    routeFrom.replaceChildren(token(from), text('swap-caption', 'FROM', 'span'), text('', from.network, 'strong'), text('swap-caption', from.symbol));
-    routeTo.replaceChildren(token(to), text('swap-caption', 'TO', 'span'), text('', to.network, 'strong'), text('swap-caption', to.symbol));
+    routeFrom.replaceChildren(token(from), text('swap-caption', 'From', 'span'), text('', from.network, 'strong'), text('swap-caption', from.symbol));
+    routeTo.replaceChildren(token(to), text('swap-caption', 'To', 'span'), text('', to.network, 'strong'), text('swap-caption', to.symbol));
   }
   function drawContext() {
     sourceLine.textContent = 'Source wallet: ' + (source.name || 'no wallet selected') + '. '

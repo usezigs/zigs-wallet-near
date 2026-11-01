@@ -20,7 +20,7 @@
 .security-node-mark>.symbol { width:24px; height:24px; }
 .security-node-copy { display:grid; gap:4px; min-width:0; }
 .security-node-copy>strong { font-size:14px; line-height:1.45; }
-.security-node-copy>.small { font-size:12px; line-height:1.5; }
+.security-node-copy>.small { font-size:13px; line-height:1.5; }
 .security-rule { position:relative; display:flex; flex-wrap:wrap; align-items:center; gap:16px; min-width:0;
   padding:20px 0 0; }
 .security-rule::before { content:""; position:absolute; top:-20px; left:30px;
@@ -37,7 +37,7 @@
 .security-meaning { display:grid; gap:6px; padding-top:18px; border-top:1px solid var(--line); }
 .security-meaning>p { margin:0; font-size:14px; line-height:1.6; }
 .security-meaning>p:first-child { font-weight:600; }
-.distributed-security>.security-footnote { margin:0; font-size:12px; line-height:1.6; text-align:start; }
+.distributed-security>.security-footnote { margin:0; font-size:13px; line-height:1.6; text-align:start; }
 /* Setup retains its existing preview/update hooks; no approval example is selected. */
 .guided-plan .distributed-security { padding:20px; }
 .security-recovery-page>.distributed-security { max-width:none; }
