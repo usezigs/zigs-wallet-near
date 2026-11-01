@@ -39,9 +39,10 @@ export function recipientsView() {
   });
   fillList();
   return el("div", { class: "recipients-page", "data-page": "recipients", id: "panel-recipients",
-    "data-key": "panel-recipients", tabindex: "-1", "aria-label": "Address book" },
+    "data-key": "panel-recipients", tabindex: "-1", role: "region",
+    "aria-labelledby": "recipients-page-title" },
     el("div", { class: "section-heading" }, el("p", { class: "label" }, "Private to this device"),
-      el("h1", {}, "Address book"), el("p", { class: "small muted" },
+      el("h1", { id: "recipients-page-title" }, "Address book"), el("p", { class: "small muted" },
         "Save payment recipients for all wallets on this device. Chat contacts stay in Chats."),
       securityExplanation("recipients")),
     el("section", { class: "card surface-financial" },

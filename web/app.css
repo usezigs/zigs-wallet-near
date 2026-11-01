@@ -112,8 +112,9 @@ button { font: inherit; color: inherit; }
 .dot.busy { background:transparent; border:1.5px solid var(--accent); border-right-color:transparent; }
 /* Menu shows on a phone only (see the 760 px rules). */
 .btn.wallet-menu { display: none; }
-/* A section or the page that takes the focus after a pick needs no frame: it is no control. */
-#app:focus, section[tabindex="-1"]:focus { outline: none; }
+/* A section or the page that takes the focus after a pick needs no frame: it is no control.
+   Error callouts that take the focus keep their ring, so this names page roots only. */
+#app:focus, section[tabindex="-1"]:focus, [data-key^="panel-"]:focus { outline: none; }
 .side-note { font: var(--font-notice); color: var(--muted); }
 .side-note a { color: var(--muted); }
 .app-foot { display: none; font: var(--font-notice); color: var(--muted); }

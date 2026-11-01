@@ -173,8 +173,8 @@ export function messagingWorkspace(teamContent = null) {
     } }, onclick: () => pickTransport(id) }, icon(id === "relay" ? "chat" : "security"), label,
   id === "relay" ? newBadge(count) : null);
   return el("div", { class: "page chat-workspace messages-workspace transport-" + transport
-    + (selected ? " has-conversation" : ""), id: "panel-messages", "data-key": "panel-messages", tabindex: "-1",
-    "aria-labelledby": "messages-page-title" },
+    + (selected ? " has-conversation" : ""), id: "panel-messages", "data-key": "panel-messages",
+    tabindex: "-1", role: "region", "aria-labelledby": "messages-page-title" },
   el("header", { class: "messages-heading" },
     el("div", {}, el("span", { class: "label" }, "Stay connected"), el("h1", { id: "messages-page-title" }, "Messages")),
     el("div", { class: "messages-toolbar" }, messagingLearnButton(),

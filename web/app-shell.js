@@ -443,14 +443,20 @@ export function chatsWorkspace() {
 
 const WORKSPACE_EXPLANATIONS = { Chats: "chats", Activity: "activity", Approvals: "approvals",
   "Security": "recovery", Settings: "settings" };
-const workspaceHeading = (title, eyebrow, text) => el("header", { class: "page-head workspace-heading" },
+const workspaceHeading = (key, title, eyebrow, text) => el("header",
+  { class: "page-head workspace-heading" },
   el("div", { class: "ph-left" }, el("span", { class: "label" }, eyebrow),
-    el("h1", {}, title), el("p", { class: "muted" }, text)),
+    el("h1", { id: key + "-page-title" }, title), el("p", { class: "muted" }, text)),
   WORKSPACE_EXPLANATIONS[title] ? securityExplanation(WORKSPACE_EXPLANATIONS[title]) : null);
+// A page root takes the focus after a pick; its h1 names the region.
+const workspacePage = (key, cls = "page") => ({ class: cls, id: "panel-" + key,
+  "data-key": "panel-" + key, tabindex: "-1", role: "region",
+  "aria-labelledby": key + "-page-title" });
 
 export function activityWorkspace() {
-  return el("div", { class: "page", id: "panel-activity", "data-key": "panel-activity", tabindex: "-1" },
-    workspaceHeading("Activity", "Wallet history", "Choose a wallet to view its transaction history."),
+  return el("div", workspacePage("activity"),
+    workspaceHeading("activity", "Activity", "Wallet history",
+      "Choose a wallet to view its transaction history."),
     state.groups.length ? el("section", { class: "card" }, el("div", { class: "list" },
       state.groups.map((g) => guard(walletRow, g, "activity"))))
       : el("section", { class: "card card-pad empty" }, el("h2", {}, "No wallets yet"),
@@ -458,8 +464,10 @@ export function activityWorkspace() {
 }
 
 export function approvalsWorkspace() {
-  return el("div", { class: "page", id: "panel-approvals", "data-key": "panel-approvals", tabindex: "-1" },
-    workspaceHeading("Approvals", "Payment requests", "Choose a wallet to review its payments. Counts show requests needing this browser’s approval; chat messages have a separate count."),
+  return el("div", workspacePage("approvals"),
+    workspaceHeading("approvals", "Approvals", "Payment requests",
+      "Choose a wallet to review its payments. Counts show requests needing this browser’s "
+        + "approval; chat messages have a separate count."),
     state.groups.length ? el("section", { class: "card" }, el("div", { class: "list" },
       state.groups.map((g) => guard(walletRow, g, "approvals"))))
       : el("section", { class: "card card-pad empty" }, el("h2", {}, "No wallets yet"),
@@ -467,8 +475,10 @@ export function approvalsWorkspace() {
 }
 
 export function recoveryWorkspace() {
-  return el("div", { class: "page", id: "panel-recovery", "data-key": "panel-recovery", tabindex: "-1" },
-    workspaceHeading("Security", "Devices and local access", "Choose a wallet to review its devices and optional recovery files. A passkey unlocks browser data; recovery files restore a device’s share."),
+  return el("div", workspacePage("recovery"),
+    workspaceHeading("recovery", "Security", "Devices and local access",
+      "Choose a wallet to review its devices and optional recovery files. A passkey unlocks "
+        + "browser data; recovery files restore a device’s share."),
     state.groups.length ? el("section", { class: "card" }, el("div", { class: "list" },
       state.groups.map((g) => guard(walletRow, g, "recovery"))))
       : el("section", { class: "card card-pad" }, el("h2", {}, "No wallet selected"),
@@ -521,8 +531,9 @@ export function browserSettings() {
 }
 
 export function settingsWorkspace() {
-  return el("div", { class: "page preferences-page", id: "panel-settings", "data-key": "panel-settings", tabindex: "-1" },
-    el("header", { class: "preferences-heading" }, el("h1", {}, "Settings"),
+  return el("div", workspacePage("settings", "page preferences-page"),
+    el("header", { class: "preferences-heading" },
+      el("h1", { id: "settings-page-title" }, "Settings"),
       el("p", { class: "muted" }, "Manage your wallet and preferences.")),
     generalSettings(),
     networkPrivacySettings(),
