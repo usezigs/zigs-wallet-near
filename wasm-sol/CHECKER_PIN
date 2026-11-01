@@ -301,13 +301,14 @@ rules are byte for byte the files above. A pool wallet stays on Devnet.
   or `Pins::decode`), wasm.rs (the entries `sol_wallet_label`, `sol_wallet_program_label`,
   `plain_rule_list`, `plain_reads`, `plain_compile_message`, `plain_check_message`,
   `sol_plain_digest`, `sol_plain_fee_sign`, `sol_plain_sign_share`) and lib.rs (the modules).
-- tests: plain.rs, plain_rules.rs, plain_sign.rs, plain_wallet.rs and support/plain.rs (new), 87
+- tests: plain.rs, plain_rules.rs, plain_sign.rs, plain_wallet.rs and support/plain.rs (new), 88
   tests; every plain rule has a named test (`python3 -I tools/rule_tests.py`). vectors/plain (new)
   holds 21 smoke vectors from `cargo run --release --example plain_vectors`; tools/smoke.cjs
   replays them in the wasm build. The mutation cases of tools/mutate_sol.py for the plain rules
-  are step P2 and are not written.
-- The wasm of this build: SHA-256 9a0ea1cc804bb2f842f6d386d753474ad2db79fe80e7e77a93194e57e24e0a45,
-  1,141,748 bytes raw, 419,691 gzip. The hash in the section "The wasm of wasm-sol" above is of
+  are step P2 and are not written. A one-time spot check broke 29 lines of the plain code, one at
+  a time, and the plain tests killed each of them; it is not kept.
+- The wasm of this build: SHA-256 7067eafd76d69ee664718c49726c3e0ad3ac420d6604ad4e197d00821d527874,
+  1,141,916 bytes raw, 419,802 gzip. The hash in the section "The wasm of wasm-sol" above is of
   the build before the plain wallet.
 - Measured on the public RPC on 1 November 2026, read only (`simulateTransaction`, `sigVerify`
   false, nothing sent): the messages S1 and S4 run on mainnet and on Devnet, S2 and S3 without
@@ -327,13 +328,13 @@ bce3e196c3a4064026d8b57f8fe3ebcca600ac9de008df44e7b61cc8c6b1bb46  src/address.rs
 0c2c8885a396432c3d84c077cfea3f4f364c57dc6af0e26d169d3b2fc8e34684  src/bytes.rs  verbatim
 34713776c2e344e7319a8b9b55ff17684ac383c055c07d6133fd95878985f2c7  src/check.rs  modified
 ca3b51e9ea30baeb0b082ca9cb19fe248bc86880d60ae90a3ee3e5a7dcb6b371  src/codec.rs  new
-bdbfe3ae5bdad890afc680f27403561322958348f73a9f11214a72aa1f93a585  src/consts.rs  modified
-18dc3dc03e8a7ee30bf3d595b9adb209e73a4087408767b1af6e480085b7ad2d  src/fee.rs  new
+e42ce0671a074fb6e7a4e5e44095a447a949c2a1b6d61ae0a3542ba7ee496017  src/consts.rs  modified
+3dab7a6825b7bfd7ac99c3b63a5172ad6aea0a64c655d0ea95db506f5582a750  src/fee.rs  new
 7580593e6b6b3b9e7deff6ea3ef327abda12ba3d7f369abaf041a01461c9bf28  src/fixed.rs  verbatim
 4789a6ea37c9c768a20c4956969bf44577b7123fe891e2cf56e0a5b0eefa4bbd  src/frost.rs  new
 e69e4ccacb28931921f072919a6ecf9ff3fe6784e3b129a45ff94fa0ccc17d4c  src/hashes.rs  verbatim
 613570475a3d4ec0402a0914063e8df83ddc1df5e78774e2774937fef131dac5  src/intent.rs  modified
-19601bcc5d79601c8c4fe4156cb91c5543f01e17f296a7206a7d3c396e7f8f1d  src/lib.rs  modified
+ccfb6f1edbdeec8313048f83435da6d95b239785a73e110555d3019dd4c797b1  src/lib.rs  modified
 a71a896274e606d3a4e3e801191b4b65461bfd5cb548343f093a250c4d45bb01  src/pay.rs  new
 4f344e745afed204088395c0101761a0332688de88ab6e57dec9e85de34907a1  src/pda.rs  verbatim
 89ca7f01b3b694c1c4e9c656d779a8eb88039aa2ceb8d4e9321f3d1e86d0cb94  src/pins.rs  modified
@@ -360,7 +361,7 @@ fb32fff67235197779cc2b25cc5fe351d57fdb6140d976546b96ddc4484e28d3  src/snapshot.r
 3d7e69437af85c56d9bcf80172af2c7c866140ceb6e3f889d8cbc11dde9cdf05  src/transact.rs  verbatim
 c9d4c2718f755ac5ebeb8a705e036b3ab9183cb7ef95fe1f14da5ffa931c1c9f  src/v1.rs  verbatim
 ddda30596120fcb6731fa8515b0a06c55e2df70070a9082ed64749b022ddb374  src/viewing.rs  verbatim
-687eaf58614e23487b2e90376b51cd53a462ccfb4ed1bb68e2911d967835dca6  src/wasm.rs  modified
+e6c51969bc111d317c666ab26551fa9be2107bac5912a7df9b19e91cd46f8097  src/wasm.rs  modified
 ab14b07d8870f6c201553f0f5bc066fe65b3a0d79144e293a6a3a9ded2e65ad4  tests/asset_pins.rs  verbatim
 532eaab96460db7d21ba2dabe724a9b63299098268610f99c587d7a76c059b6e  tests/common/fixture.rs  modified
 be4feeabff9b735b6d73f7f742151bf76ef64a0488027cf71e04400db9abc7eb  tests/common/mod.rs  modified
@@ -381,7 +382,7 @@ d3b6abc6195a5cae856db2fb7543964dcd8c5222221d5a839a6a2e81d6e4f14d  tests/pay_vect
 95290d8683b751fb47f647d29eb2486fcd3dad545aa35a368d1a5fb0733151b1  tests/pin_bytes.rs  verbatim
 b8d84f642e38e6d980b347c49e97de67b3fa9698e8c5ae535dcb3b096349c5e7  tests/plain.rs  new
 cd6fcc69bbf63c6cced315785d7ae05411837626acc9f5565b199a8c8c0876bb  tests/plain_rules.rs  new
-606375570b526f2f08fa5246f9ed422b3e61af39f6f889006a1cb1e100576ba7  tests/plain_sign.rs  new
+0433a7d0d65c588b77ca9a01dbbdc442ecfb053dce00f34f0210c5e531545145  tests/plain_sign.rs  new
 9661dfb8f60c38a439c8b67dfd524b65aa2eef57a21dcdc14f8928da5c5297f6  tests/plain_wallet.rs  new
 588ffdab940ee0f56e9faac65cad18c1db6468e3dc8ad06f58314c1e07e342dc  tests/program.rs  new
 3037d149887a37309b07c8765f862acf9994f0802138861188bd9ffc1869e829  tests/real.rs  modified

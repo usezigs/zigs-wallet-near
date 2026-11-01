@@ -15,7 +15,7 @@ use crate::fee;
 use crate::frost;
 use crate::pay::{approve_pay, Chain, Payment, Read};
 use crate::pins::Pins;
-use crate::plain::{PlainIntent, PlainPins, Wallet};
+use crate::plain::{Mode, PlainIntent, PlainPins, Wallet};
 use crate::plain_chain::required;
 use crate::plain_check::{self, PlainCheck, PlainSigner};
 use crate::plain_display::base58;
@@ -473,6 +473,9 @@ pub fn plain_rule_list() -> String {
 
 fn plain_reads_of(intent: &[u8], pins: &[u8]) -> Result<String, String> {
     let (intent, pins) = (PlainIntent::decode(intent)?, PlainPins::decode(pins)?);
+    if pins.wallet.mode != Mode::Plain {
+        return Err("this is a pool wallet, not a plain wallet".to_string());
+    }
     let addr = plain_template::addresses(&intent, &pins)?;
     let rows: Vec<String> = required(&intent, &pins, &addr)
         .iter()

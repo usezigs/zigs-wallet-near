@@ -17,6 +17,10 @@
 //! This crate (`wasm-sol`) adds to the checker, which is copied unchanged (CHECKER_PIN): `frost`
 //! (the second DKG), `sign` (split FROST signing), `roles` (the role keys of `solSeed`) and
 //! `codec` (the text forms). `wasm` holds every entry point of the browser.
+//!
+//! `plain` and the `plain_*` modules are the plain Solana wallet: the group key is a System
+//! account, with no pool and no privacy. They share nothing with `check_all`, `approve` and
+//! `beta`, which are not changed (see `plain.rs`).
 
 #![warn(
     clippy::cognitive_complexity,

@@ -313,6 +313,9 @@ pub const MINTS_DEVNET: [Mint; 1] = [Mint {
 /// `getMinimumBalanceForRentExemption` on mainnet and on Devnet on 1 November 2026 (equal on
 /// both). The old figure 890,880 for 0 bytes is out of date. The page reads the three values
 /// again for each check, and the plain checker refuses when they differ from these pins.
+/// ponytail: pinned values. The ceiling is a change of the network rent, which refuses every plain
+/// proposal until the wasm moves. The upgrade path is to compile with the values that the page
+/// read, with a floor at these pins.
 pub const RENT_ZERO: u64 = 650_240;
 pub const RENT_NONCE: u64 = 1_056_640;
 pub const RENT_TOKEN: u64 = 1_488_440;

@@ -93,8 +93,8 @@ pub fn sign(message: &[u8], check: &Check, round: &str) -> Result<String, String
 pub fn sign_plain(message: &[u8], check: &PlainCheck, round: &str) -> Result<String, String> {
     let round: Value = from_json(round, "fee round")?;
     let key = signing_key(text_of(&round, "secret", "the fee round")?)?;
-    let pins = plain_approved(message, check, PlainSigner::Fee)?;
-    if pins.payer != public_bytes(&key) {
+    let payer = plain_approved(message, check, PlainSigner::Fee)?.payer;
+    if public_bytes(&key) != payer {
         return Err("this fee key is not the payer of the proposal".to_string());
     }
     Ok(hex(&key.sign(message).to_bytes()))

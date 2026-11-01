@@ -15,10 +15,11 @@ use ceremony::{map_json, unhex32, Group, WALLET};
 use ed25519_dalek::{Signature, VerifyingKey};
 use p3_check::bytes::hex;
 use p3_check::consts::*;
-use p3_check::plain::{Cluster, PlainIntent};
+use p3_check::plain::{Cluster, PlainIntent, PlainPins};
 use p3_check::plain_chain::{PlainChain, Role};
 use p3_check::plain_check::PlainCheck;
 use p3_check::plain_sign;
+use p3_check::plain_template;
 use p3_check::sign::{self, Check};
 use p3_check::{fee, wasm};
 use serde_json::{json, Value};
@@ -376,17 +377,21 @@ fn a_round_for_another_cluster_or_mode_gets_no_share() {
     let case = wallet.case(Cluster::Mainnet, send_sol(recipient(), LAMPORTS));
     let (message, wire) = (case.bytes(), Wire::of(&case));
     let digest = plain_sign::digest(&case.pins.wallet, &message).unwrap();
-    let package = &wallet.group.done[0].key_package;
-    let made: Value = serde_json::from_str(&sign::nonces(package, &digest).unwrap()).unwrap();
-    let commitments = BTreeMap::from([(1u16, made["commitments"].as_str().unwrap().to_string())]);
-    let nonces = made["nonces"].as_str().unwrap();
-    for label in ["devnet-plain", "devnet", "mainnet", "mainnet-pool", ""] {
-        let round = round(&wallet, 1, label, nonces, &commitments);
-        assert!(
-            plain_sign::sign_share(&message, &wire.check(), &round).is_err(),
-            "{label}"
-        );
+    // Two seats commit, so the threshold holds and only the label can refuse the share.
+    let (mut nonces, mut commitments) = (BTreeMap::new(), BTreeMap::new());
+    for seat in [1u16, 2] {
+        let package = &wallet.group.done[usize::from(seat) - 1].key_package;
+        let made: Value = serde_json::from_str(&sign::nonces(package, &digest).unwrap()).unwrap();
+        nonces.insert(seat, made["nonces"].as_str().unwrap().to_string());
+        commitments.insert(seat, made["commitments"].as_str().unwrap().to_string());
     }
+    for label in ["devnet-plain", "devnet", "mainnet", "mainnet-pool", ""] {
+        let round = round(&wallet, 1, label, &nonces[&1], &commitments);
+        let why = plain_sign::sign_share(&message, &wire.check(), &round).unwrap_err();
+        assert_eq!(why, "the round is for another cluster or mode", "{label}");
+    }
+    let round = round(&wallet, 1, "mainnet-plain", &nonces[&1], &commitments);
+    assert!(plain_sign::sign_share(&message, &wire.check(), &round).is_ok());
     assert!(
         session(&wallet, &[1, 2], &message, &case).is_ok(),
         "the label of the wallet signs"
@@ -628,4 +633,41 @@ fn the_plain_smoke_vectors_are_the_answers_of_the_native_check() {
         accepted >= 10 && refused >= 8 && errors >= 1,
         "{accepted} {refused} {errors}"
     );
+}
+
+#[test]
+fn every_plain_entry_refuses_a_pool_wallet_and_every_pool_entry_refuses_a_plain_one() {
+    let wallet = wallet();
+    let case = wallet.case(Cluster::Devnet, send_sol(recipient(), LAMPORTS));
+    let message = case.bytes();
+    let mut wire = Wire::of(&case);
+    wire.pins[1] = 2; // the mode byte: pool
+    let reads = wasm::plain_reads(&wire.intent, &wire.pins);
+    assert!(reads.starts_with("error\t"), "{reads}");
+    let answer = wasm::plain_check_message(&message, &wire.intent, &wire.pins, &wire.chain);
+    assert!(answer.starts_with("refused\nplain-mode"), "{answer}");
+    let why = fee::sign_plain(&message, &wire.check(), &fee_round(&wallet)).unwrap_err();
+    assert!(why.starts_with("refused\nplain-mode"), "{why}");
+    // The nonces are good (two seats, the plain digest), so the mode rule is the only cause.
+    let digest = plain_sign::digest(&case.pins.wallet, &message).unwrap();
+    let (mut nonces, mut commitments) = (BTreeMap::new(), BTreeMap::new());
+    for seat in [1u16, 2] {
+        let package = &wallet.group.done[usize::from(seat) - 1].key_package;
+        let made: Value = serde_json::from_str(&sign::nonces(package, &digest).unwrap()).unwrap();
+        nonces.insert(seat, made["nonces"].as_str().unwrap().to_string());
+        commitments.insert(seat, made["commitments"].as_str().unwrap().to_string());
+    }
+    let round = round(&wallet, 1, "devnet-plain", &nonces[&1], &commitments);
+    let why = plain_sign::sign_share(&message, &wire.check(), &round).unwrap_err();
+    assert!(why.starts_with("refused\nplain-mode"), "{why}");
+    let pool = PlainPins::decode(&wire.pins).unwrap().wallet;
+    assert!(plain_sign::digest(&pool, &message).is_err());
+    let pool_compile =
+        plain_template::compile(&case.intent, &PlainPins::decode(&wire.pins).unwrap());
+    assert!(pool_compile.is_err());
+    // The pool entries never read the plain inputs.
+    let plain = Wire::of(&case);
+    assert!(wasm::check_message(&message, &plain.intent, &plain.pins, &[], 0).starts_with("error"));
+    assert!(sign::digest(case.pins.wallet.label(), &message).is_err());
+    assert!(wasm::compile_proposal(&plain.intent, &plain.pins, &[]).is_err());
 }
