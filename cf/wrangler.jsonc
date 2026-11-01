@@ -13,7 +13,10 @@
   // off, the files of web/sol/plain. The Helius mainnet URL is the secret HELIUS_MAINNET_URL, set
   // the same way. SOL_MAINNET stays "0" until the owner turns it on.
   // DEV_NO_AUTH "1": app.zigs.app asks no password (src/gate.js). Staging keeps its password.
-  "vars": { "SOL": "1", "SOL_MAINNET": "0", "DEV_NO_AUTH": "1" },
+  // NEAR_LIVE "1" serves the live swap from SOL to ZEC (/near/swap, /near/status in src/near.js).
+  // It is "1" on staging only. The partner key of NEAR Intents is the secret NEAR_API_KEY, set
+  // with `wrangler secret put`; without it the routes work at the higher fee of NEAR Intents.
+  "vars": { "SOL": "1", "SOL_MAINNET": "0", "DEV_NO_AUTH": "1", "NEAR_LIVE": "0" },
   "routes": [{ "pattern": "app.zigs.app", "custom_domain": true }],
   "assets": {
     "directory": "../web",
@@ -25,7 +28,8 @@
   // src/index.js).
   // Light-wallet relay calls (/lwd) per network and minute, the same way. A first sync of a
   // month of blocks peaks at 68 calls a minute (TICKETS.md PRIV-8).
-  // Dry swap quotes (/near/quote) per network and minute, the same way.
+  // Swap quotes and swap states (/near/quote, /near/swap, /near/status) per network and minute,
+  // the same way: the three routes share one counter.
   "ratelimits": [
     { "name": "WS_PER_IP", "namespace_id": "1003", "simple": { "limit": 60, "period": 60 } },
     { "name": "LWD_PER_IP", "namespace_id": "1005", "simple": { "limit": 600, "period": 60 } },
@@ -43,7 +47,7 @@
   "env": {
     "staging": {
       "name": "zec-frost-staging",
-      "vars": { "SOL": "1", "SOL_MAINNET": "0", "DEV_NO_AUTH": "0" },
+      "vars": { "SOL": "1", "SOL_MAINNET": "0", "DEV_NO_AUTH": "0", "NEAR_LIVE": "1" },
       "routes": [{ "pattern": "staging.zigs.app", "custom_domain": true }],
       "ratelimits": [
         { "name": "WS_PER_IP", "namespace_id": "1004", "simple": { "limit": 60, "period": 60 } },

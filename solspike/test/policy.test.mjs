@@ -62,7 +62,7 @@ function loadWorker() {
   const code = readFileSync(join(ROOT, "cf/src/index.js"), "utf8")
     .replace('import { DurableObject } from "cloudflare:workers";', "class DurableObject {}")
     .replace('import { gate, withCookie } from "./gate.js";', gate)
-    .replace('import { nearQuote } from "./near.js";', near)
+    .replace('import { nearQuote, nearStatus, nearSwap } from "./near.js";', near)
     .replace("export default {", "globalThis.worker = {")
     .replace("export class Store", "class Store");
   const context = {

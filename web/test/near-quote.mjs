@@ -1,6 +1,8 @@
-// The /near/quote route of cf/src/index.js and cf/src/near.js. The Worker gets a pair, an amount
-// and a slippage from the page and asks NEAR Intents for a dry quote. A stub replaces fetch and
-// Date.now is fixed, so nothing here reaches a network. Run: node web/test/near-quote.mjs (Node 26)
+// The /near/quote, /near/swap and /near/status routes of cf/src/index.js and cf/src/near.js. The
+// Worker gets a pair, an amount and a slippage from the page and asks NEAR Intents for a dry
+// quote; behind NEAR_LIVE it asks for a live quote from SOL to ZEC and for the state of a swap. A
+// stub replaces fetch and Date.now is fixed, so nothing here reaches a network.
+// Run: node web/test/near-quote.mjs (Node 26)
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
@@ -48,8 +50,9 @@ const calls = [];
 let reply = good;
 // Like the real fetch, the stub fails when the signal of the call fires.
 globalThis.fetch = async (url, init) => {
-  calls.push({ url: String(url), init, sent: JSON.parse(init.body) });
-  const answer = Promise.resolve().then(() => reply(JSON.parse(init.body)));
+  const sent = init.body === undefined ? null : JSON.parse(init.body);
+  calls.push({ url: String(url), init, sent });
+  const answer = Promise.resolve().then(() => reply(sent));
   const stopped = new Promise((_, reject) => {
     init.signal.addEventListener("abort", () => reject(init.signal.reason));
   });
@@ -413,6 +416,359 @@ const noStore = (res, label) => {
   }
   assert.equal(calls.length, 0, "no call upstream for another path");
   step("the gate refuses first; another path is no route");
+}
+
+// ── The partner key NEAR_API_KEY goes upstream as X-API-Key, never to the page ──
+{
+  const KEY = "partner-key-for-this-test";
+  const res = await post("key", ask, {}, { ...env, NEAR_API_KEY: KEY });
+  assert.equal(res.status, 200);
+  assert.ok(!(await res.text()).includes(KEY), "the key never reaches the page");
+  const [call] = taken();
+  const headers = new Headers(call.init.headers);
+  assert.deepEqual([...headers.keys()].sort(), ["accept", "content-type", "x-api-key"],
+    "the key header goes upstream");
+  assert.equal(headers.get("x-api-key"), KEY, "the key goes as X-API-Key");
+  step("the partner key goes upstream as X-API-Key when it is set, and never to the page");
+}
+
+// ── The live swap from SOL to ZEC: /near/swap and /near/status, behind NEAR_LIVE ──
+const LIVE = { ...env, NEAR_LIVE: "1" };
+const UA = "u1ddnjsdcpm36r6aq79n3s68shjweksnmwtdltrh046s8m6xcws9ygyawalxx8n6hg6vegk0wh8zjnafxgh6"
+  + "mspp" + "jsljvyt0ynece3lvm0";
+const REFUND = "CZ8YUVdk7znjrUmnb5n7kgySk9yRAsQDYmyCxzfSky9t"; // 32 bytes of 0xab
+const DEPOSIT = "7DYCAhqwQSKqqL1h8V1XmY1BTcMWxrASQYKNMy87jeg3"; // 32 bytes of 0x5c
+const STATUS_URL = "https://1click.chaindefuser.com/v0/status?depositAddress=" + DEPOSIT;
+const swapAsk = { amount: "17500000", recipient: UA, refundTo: REFUND, slippageBps: 100 };
+const minutes = (n) => new Date(NOW + n * 60_000).toISOString();
+// The answer of NEAR Intents to a live quote: the request comes back, with a deposit address.
+const liveGood = (sent, edit) => {
+  const body = {
+    quote: {
+      depositAddress: DEPOSIT, amountIn: sent.amount, amountInFormatted: "0.0175",
+      amountInUsd: "1.65", minAmountIn: sent.amount, amountOut: "133000", amountOutFormatted:
+        "0.00133", amountOutUsd: "1.63", minAmountOut: "131670", deadline: minutes(30),
+      timeWhenInactive: minutes(20), timeEstimate: 135, refundFee: "105631",
+      withdrawFee: "32000",
+    },
+    quoteRequest: { ...sent, depositMode: "SIMPLE", appFees: [{ recipient: "ab", fee: 20 }] },
+    signature: "ed25519:5wQkS9", timestamp: "2026-10-28T11:59:59.000Z",
+    correlationId: "06c0f7d0-0c4d-4293-9de6-168aa14bd04d",
+  };
+  edit?.(body);
+  return Response.json(body, { status: 201 });
+};
+const swap = (label, body, e = LIVE, init = {}) => post(label, body, init, e, "/near/swap");
+const status = async (label, address = DEPOSIT, e = LIVE, init = {}) => {
+  try {
+    const query = address === null ? "" : "?depositAddress=" + address;
+    return await worker.fetch(new Request("https://app.zigs.app/near/status" + query, init), e);
+  } catch (error) {
+    return assert.fail(`${label}: the Worker threw ${error.message}`);
+  }
+};
+
+// ── NEAR_LIVE: only the string "1" opens the routes; the config has it on staging only ──
+{
+  const counted = [];
+  const limit = async (o) => (counted.push(o), { success: true });
+  for (const NEAR_LIVE of [undefined, "0", "", "true", " 1", "1 ", 1, true]) {
+    const e = { ...env, NEAR_LIVE, NEAR_PER_IP: { limit } };
+    for (const method of ["POST", "GET"]) {
+      const res = await swap(`swap ${method} ${String(NEAR_LIVE)}`, method === "GET" ? undefined
+        : swapAsk, e, { method });
+      assert.equal(res.status, 404, `/near/swap ${method} with NEAR_LIVE=${String(NEAR_LIVE)}`);
+    }
+    assert.equal((await status("status off", DEPOSIT, e)).status, 404, "/near/status is off");
+  }
+  assert.deepEqual([calls.length, counted.length], [0, 0], "no call upstream, no limit counted");
+  const config = JSON.parse(readFileSync(new URL("../../cf/wrangler.jsonc", import.meta.url),
+    "utf8").replace(/^\s*\/\/.*$/gm, ""));
+  assert.equal(config.vars.NEAR_LIVE, "0", "production stays off");
+  assert.equal(config.env.staging.vars.NEAR_LIVE, "1", "staging is on");
+  assert.deepEqual([config.vars.SOL_MAINNET, config.env.staging.vars.SOL_MAINNET], ["0", "0"],
+    "SOL_MAINNET is unchanged");
+  assert.ok(!JSON.stringify(config).includes("NEAR_API_KEY\":"), "the key is no var");
+  step("the live routes answer 404 unless NEAR_LIVE is \"1\"; staging only is on");
+}
+
+// ── The page of a server with NEAR_LIVE gets data-near-live on <html> ──
+{
+  const realRewriter = globalThis.HTMLRewriter;
+  const seen = [];
+  globalThis.HTMLRewriter = class {
+    constructor() { this.handlers = {}; }
+    on(selector, handler) { this.handlers[selector] = handler; return this; }
+    transform(res) {
+      const marks = {};
+      this.handlers.html.element({ setAttribute: (k, v) => { marks[k] = v; } });
+      seen.push(marks);
+      return res;
+    }
+  };
+  const page = { fetch: async () => new Response("<html><title>t</title></html>") };
+  try {
+    for (const NEAR_LIVE of ["1", "0", undefined, "true"]) {
+      const e = { ...env, ASSETS: page, NEAR_LIVE };
+      await worker.fetch(new Request("https://app.zigs.app/"), e);
+    }
+  } finally {
+    globalThis.HTMLRewriter = realRewriter;
+  }
+  assert.deepEqual(seen, [{ "data-near-live": "1" }, {}, {}, {}],
+    "the mark is there for \"1\" only");
+  step("the page carries data-near-live only when NEAR_LIVE is \"1\"");
+}
+
+// ── /near/swap takes POST, four fields, a mainnet unified address and a Solana address ──
+{
+  for (const method of ["GET", "PUT", "DELETE", "HEAD"]) {
+    const res = await worker.fetch(new Request("https://app.zigs.app/near/swap", { method }), LIVE);
+    assert.deepEqual([res.status, res.headers.get("allow")], [405, "POST"], "swap " + method);
+  }
+  const bad = [
+    ["no body", ""], ["no JSON", "x"], ["an array", "[]"],
+    ["a dry quote ask", ask], ["a missing refund", { ...swapAsk, refundTo: undefined }],
+    ["an extra from", { ...swapAsk, from: "sol" }], ["an extra dry", { ...swapAsk, dry: true }],
+    ["a t-address", { ...swapAsk, recipient: "t1Hsc1LR8yKnbbe3twRp88p6vFfC5t7DLbs" }],
+    ["a testnet address", { ...swapAsk, recipient: "utest1" + UA.slice(2) }],
+    ["an upper case address", { ...swapAsk, recipient: UA.toUpperCase() }],
+    ["a short address", { ...swapAsk, recipient: UA.slice(0, 61) }],
+    ["an address with b", { ...swapAsk, recipient: UA.slice(0, -1) + "b" }],
+    ["a number as recipient", { ...swapAsk, recipient: 5 }],
+    ["a refund of 31 bytes", { ...swapAsk,
+      refundTo: "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJziofL" }],
+    ["a refund of 33 bytes", { ...swapAsk,
+      refundTo: "JJEfe6DcPM2ziB2vfUWDV6aHVerXRGkv3TcyvJUNGHZz" }],
+    ["a refund with 0", { ...swapAsk, refundTo: "0" + REFUND.slice(1) }],
+    ["a refund with a space", { ...swapAsk, refundTo: REFUND + " " }],
+    ["an EVM refund", { ...swapAsk, refundTo: "0x76b4c56085ED136a8744D52bE956396624a730E8" }],
+    ["a zero amount", { ...swapAsk, amount: "0" }], ["a number amount", { ...swapAsk, amount: 1 }],
+    ["a slippage of 75", { ...swapAsk, slippageBps: 75 }],
+    ["1025 bytes", JSON.stringify(swapAsk) + " ".repeat(1025 - JSON.stringify(swapAsk).length)],
+  ];
+  for (const [what, body] of bad) {
+    const res = await swap(what, body);
+    assert.equal(res.status, 400, what + " gives 400");
+    assert.match(await res.text(), /^Send JSON with amount, recipient, refundTo/, what);
+  }
+  assert.equal(calls.length, 0, "no call upstream for a refused swap");
+  const edge = JSON.stringify(swapAsk) + " ".repeat(1024 - JSON.stringify(swapAsk).length);
+  reply = liveGood;
+  assert.equal((await swap("1024 bytes", edge)).status, 200, "1024 bytes pass");
+  const max = "JEKNVnkbo3jma5nREBBJCDoXFVeKkD56V3xKrvRmWxFG"; // 32 bytes of 0xff
+  for (const refundTo of [max, "11111111111111111111111111111111"]) {
+    assert.equal((await swap("32 bytes", { ...swapAsk, refundTo })).status, 200, refundTo);
+  }
+  assert.equal(taken().length, 3);
+  reply = good;
+  step("/near/swap refuses a bad method, field, address, amount or slippage, with no call");
+}
+
+// ── The Worker builds the whole live request from the ask, and checks the whole answer ──
+{
+  reply = liveGood;
+  const hostile = { cookie: "zigs_session=secret", "cf-connecting-ip": "203.0.113.9",
+    "x-api-key": "of-the-user", "content-type": "application/json" };
+  const res = await swap("live", swapAsk, LIVE, { headers: hostile });
+  assert.equal(res.status, 200);
+  noStore(res, "live");
+  const [call] = taken();
+  assert.equal(call.url, UPSTREAM, "the quote URL");
+  assert.equal(call.init.method, "POST");
+  assert.equal(call.init.redirect, "manual");
+  assert.deepEqual([...new Headers(call.init.headers).keys()].sort(), ["accept", "content-type"],
+    "no header of the user and no key of the user goes upstream");
+  assert.deepEqual(call.sent, {
+    dry: false, swapType: "EXACT_INPUT", slippageTolerance: 100, originAsset: ID.sol,
+    depositType: "ORIGIN_CHAIN", destinationAsset: ID.zec, amount: "17500000", refundTo: REFUND,
+    refundType: "ORIGIN_CHAIN", recipient: UA, recipientType: "DESTINATION_CHAIN",
+    deadline: minutes(30),
+  }, "the whole live request");
+  assert.deepEqual(await json(res), {
+    amountIn: "17500000", amountOut: "133000", minAmountOut: "131670", amountInUsd: 1.65,
+    amountOutUsd: 1.63, timeEstimate: 135, quotedAt: "2026-10-28T11:59:59.000Z",
+    depositAddress: DEPOSIT, deadline: minutes(30), timeWhenInactive: minutes(20),
+    recipient: UA, refundTo: REFUND, correlationId: "06c0f7d0-0c4d-4293-9de6-168aa14bd04d",
+    signature: "ed25519:5wQkS9",
+  }, "only the allowed fields go to the page");
+  const tampers = {
+    "dry true": (b) => { b.quoteRequest.dry = true; },
+    "no dry": (b) => { delete b.quoteRequest.dry; },
+    "another recipient": (b) => { b.quoteRequest.recipient = UA.slice(0, -1) + "q"; },
+    "another refund": (b) => { b.quoteRequest.refundTo = DEPOSIT; },
+    "another origin": (b) => { b.quoteRequest.originAsset = ID.usdc; },
+    "another destination": (b) => { b.quoteRequest.destinationAsset = ID.sol; },
+    "another amount": (b) => { b.quoteRequest.amount = "17500001"; },
+    "a deposit inside NEAR": (b) => { b.quoteRequest.depositType = "INTENTS"; },
+    "a refund inside NEAR": (b) => { b.quoteRequest.refundType = "INTENTS"; },
+    "a payout inside NEAR": (b) => { b.quoteRequest.recipientType = "INTENTS"; },
+    "an exact output": (b) => { b.quoteRequest.swapType = "EXACT_OUTPUT"; },
+    "a memo": (b) => { b.quote.depositMemo = "1111111"; },
+    "an empty memo": (b) => { b.quote.depositMemo = ""; },
+    "a recipient message": (b) => { b.quoteRequest.customRecipientMsg = "x.near"; },
+    "a virtual recipient": (b) => { b.quote.virtualChainRecipient = "0xb4c2"; },
+    "a virtual refund": (b) => { b.quote.virtualChainRefundRecipient = "0xb4c2"; },
+    "no deposit address": (b) => { delete b.quote.depositAddress; },
+    "an EVM deposit address": (b) => {
+      b.quote.depositAddress = "0x76b4c56085ED136a8744D52bE956396624a730E8"; },
+    "a deposit address of 31 bytes": (b) => {
+      b.quote.depositAddress = "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJziofL"; },
+    "no deadline": (b) => { delete b.quote.deadline; },
+    "a deadline that is no time": (b) => { b.quote.deadline = "soon"; },
+    "a deadline in the past": (b) => { b.quote.deadline = minutes(-1); },
+    "a deadline in 4 minutes": (b) => { b.quote.deadline = minutes(4); },
+    "a deadline in 3 days": (b) => { b.quote.deadline = minutes(3 * 24 * 60); },
+    "another amountIn": (b) => { b.quote.amountIn = "17500001"; },
+    "minAmountOut above amountOut": (b) => { b.quote.minAmountOut = "133001"; },
+    "a text amountOut": (b) => { b.quote.amountOut = "lots"; },
+  };
+  for (const [what, edit] of Object.entries(tampers)) {
+    reply = (sent) => liveGood(sent, edit);
+    const out = await swap(what, swapAsk);
+    assert.equal(out.status, 502, "the live check: " + what);
+    assert.deepEqual(await json(out), { error: "unavailable" }, what);
+  }
+  for (const [what, edit] of Object.entries({
+    "a deadline in 5 minutes": (b) => { b.quote.deadline = minutes(5); },
+    "a deadline in 2 days": (b) => { b.quote.deadline = minutes(2 * 24 * 60); },
+    "no inactive time": (b) => { delete b.quote.timeWhenInactive; },
+    "no correlation id or signature": (b) => { delete b.correlationId; b.signature = "<x>"; },
+  })) {
+    reply = (sent) => liveGood(sent, edit);
+    const out = await swap(what, swapAsk);
+    assert.equal(out.status, 200, what + " passes");
+    const body = await json(out);
+    assert.notEqual(body.signature, "<x>", what + ": a signature of another form stays behind");
+  }
+  reply = (sent) => liveGood(sent, (b) => { b.quote.depositMemo = "1"; });
+  assert.ok(!(await (await swap("memo text", swapAsk)).text()).includes(DEPOSIT),
+    "a refused answer shows no deposit address");
+  const refuse = (code, body) => () => Response.json(body, { status: code });
+  for (const [what, make, code, body] of [
+    ["too low", refuse(400, { message: "Amount is too low for bridge, try at least 17392641" }),
+      400, { error: "too-low", minAmount: "17392641" }],
+    ["a bad address", refuse(400, { message: "Invalid recipient" }), 400, { error: "no-route" }],
+    ["429", refuse(429, {}), 502, { error: "unavailable" }],
+    ["500", refuse(500, {}), 502, { error: "unavailable" }],
+    ["a failure", () => { throw new TypeError("fetch failed"); }, 502, { error: "unavailable" }],
+  ]) {
+    reply = make;
+    const out = await swap(what, swapAsk);
+    assert.deepEqual([out.status, await json(out)], [code, body], what);
+  }
+  const keyed = await swap("key", swapAsk, { ...LIVE, NEAR_API_KEY: "k-live" });
+  assert.equal(new Headers(taken().at(-1).init.headers).get("x-api-key"), "k-live");
+  assert.ok(!(await keyed.text()).includes("k-live"), "the key never reaches the page");
+  reply = good;
+  taken();
+  step("the live request is dry false with the two addresses; the echo, the memo, the deposit "
+    + "address and the deadline are checked; only the allowed fields go to the page");
+}
+
+// ── /near/status: GET with an address; only the state, hashes and amounts go back ──
+{
+  for (const method of ["POST", "PUT", "DELETE"]) {
+    const res = await status("status " + method, DEPOSIT, LIVE, { method });
+    assert.deepEqual([res.status, res.headers.get("allow")], [405, "GET"], "status " + method);
+  }
+  for (const address of [null, "", "0x76b4c56085ED136a8744D52bE956396624a730E8",
+    "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJziofL", DEPOSIT + "%26x%3D1", "x"]) {
+    const res = await status("address " + address, address);
+    assert.equal(res.status, 400, "a bad address gives 400: " + address);
+  }
+  assert.equal(calls.length, 0, "no call upstream for a bad address");
+  const tx = (hash) => ({ hash, explorerUrl: "https://evil.example/tx/" + hash });
+  const SOL_TX = "5wQkS9".padEnd(88, "A"), ZEC_TX = "ab".repeat(32);
+  const state = (edit) => () => {
+    const body = {
+      correlationId: "c", status: "SUCCESS", updatedAt: "2026-10-28T12:05:00Z",
+      quoteResponse: { quote: { depositAddress: DEPOSIT } },
+      swapDetails: { intentHashes: ["i"], nearTxHashes: ["n"], amountIn: "17500000",
+        amountOut: "133100", depositedAmount: "17500000", refundedAmount: "0",
+        refundReason: "PARTIAL_DEPOSIT", slippage: 12,
+        originChainTxHashes: [tx(SOL_TX)], destinationChainTxHashes: [tx(ZEC_TX)] },
+    };
+    edit?.(body);
+    return Response.json(body);
+  };
+  reply = state();
+  const res = await status("success");
+  noStore(res, "status");
+  const [call] = taken();
+  assert.deepEqual([call.url, call.init.method, call.init.body], [STATUS_URL, "GET", undefined]);
+  assert.deepEqual([...new Headers(call.init.headers).keys()], ["accept"], "accept only");
+  const text = await res.text();
+  assert.deepEqual(JSON.parse(text), {
+    status: "SUCCESS", updatedAt: "2026-10-28T12:05:00.000Z", originTxs: [SOL_TX],
+    destinationTxs: [ZEC_TX], refundReason: "PARTIAL_DEPOSIT", amountIn: "17500000",
+    amountOut: "133100", depositedAmount: "17500000", refundedAmount: "0",
+  }, "only the allowed fields");
+  assert.ok(!text.includes("evil.example"), "no explorer link from upstream");
+  for (const [what, edit, check] of [
+    ["a state that is not known", (b) => { b.status = "NEW_STATE"; },
+      (o) => assert.equal(o.status, "unknown")],
+    ["a lower case state", (b) => { b.status = "success"; },
+      (o) => assert.equal(o.status, "unknown")],
+    ["no details", (b) => { delete b.swapDetails; },
+      (o) => assert.deepEqual([o.originTxs, o.destinationTxs, o.amountOut], [[], [], undefined])],
+    ["bad hashes", (b) => { b.swapDetails.originChainTxHashes = [tx("<script>"), tx(5), "x",
+      null, tx("short")]; }, (o) => assert.deepEqual(o.originTxs, [])],
+    ["many hashes", (b) => { b.swapDetails.destinationChainTxHashes = Array(20).fill(tx(ZEC_TX)); },
+      (o) => assert.equal(o.destinationTxs.length, 8)],
+    ["a bad amount and reason", (b) => {
+      Object.assign(b.swapDetails, { amountOut: "1.5", refundReason: "<b>" }); },
+    (o) => assert.deepEqual([o.amountOut, o.refundReason], [undefined, undefined])],
+  ]) {
+    reply = state(edit);
+    check(await json(await status(what)));
+  }
+  for (const [what, make, code, body] of [
+    ["another deposit address", state((b) => { b.quoteResponse.quote.depositAddress = REFUND; }),
+      502, { error: "unavailable" }],
+    ["no quoteResponse", state((b) => { delete b.quoteResponse; }), 502, { error: "unavailable" }],
+    ["an array", () => Response.json([]), 502, { error: "unavailable" }],
+    ["404", () => Response.json({ message: "Deposit address not found" }, { status: 404 }), 404,
+      { error: "unknown" }],
+    ["401", () => Response.json({}, { status: 401 }), 502, { error: "unavailable" }],
+    ["500", () => new Response("x", { status: 500 }), 502, { error: "unavailable" }],
+    ["a redirect", () => new Response(null, { status: 302, headers: { Location: "https://x/" } }),
+      502, { error: "unavailable" }],
+    ["a failure", () => { throw new TypeError("fetch failed"); }, 502, { error: "unavailable" }],
+  ]) {
+    reply = make;
+    const out = await status(what);
+    assert.deepEqual([out.status, await json(out)], [code, body], what);
+  }
+  reply = () => new Promise(() => {});
+  fastDeadline = 20;
+  assert.equal((await status("timeout")).status, 502, "a timeout gives 502");
+  fastDeadline = null;
+  reply = state();
+  await status("key", DEPOSIT, { ...LIVE, NEAR_API_KEY: "k-status" });
+  assert.equal(new Headers(taken().at(-1).init.headers).get("x-api-key"), "k-status");
+  reply = good;
+  taken();
+  step("/near/status asks GET with the address only and gives the state, hashes and amounts");
+}
+
+// ── The limit per network counts the live routes too, before the body and the address ──
+{
+  const keys = [];
+  const limit = async ({ key }) => (keys.push(key), { success: false });
+  const e = { ...LIVE, NEAR_PER_IP: { limit } };
+  const at = { headers: { "cf-connecting-ip": "203.0.113.9" } };
+  const over = await swap("over", "x", e, at);
+  assert.equal(over.status, 429, "/near/swap over the limit");
+  const stat = await status("over", "x", e, at);
+  assert.equal(stat.status, 429, "/near/status over the limit");
+  assert.deepEqual(keys, ["203.0.113.9", "203.0.113.9"], "one counter, the key of the client");
+  assert.equal(calls.length, 0, "no call upstream over the limit");
+  const locked = { ASSETS: assets, APP_PASSWORD: "pw", NEAR_LIVE: "1" };
+  assert.equal((await swap("gate", swapAsk, locked)).status, 401, "the gate runs first");
+  assert.equal((await status("gate", DEPOSIT, locked)).status, 401, "for the state too");
+  assert.equal(calls.length, 0);
+  step("the live routes share the limit per network and stay behind the gate");
 }
 console.log("near-quote tests passed");
 process.exit(0);

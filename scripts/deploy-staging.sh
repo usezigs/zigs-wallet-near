@@ -15,6 +15,9 @@
 # - HELIUS_MAINNET_URL is the Helius mainnet URL of the plain Solana wallet, read from
 #   ~/.config/zigs/helius-mainnet.url when that file exists (mode 600). Its key allows only
 #   staging.zigs.app. The page gets it only when the var SOL_MAINNET is "1" (cf/wrangler.jsonc).
+# - NEAR_API_KEY is the partner key (a JWT) of NEAR Intents, read from ~/.config/zigs/near-api-key
+#   when that file exists (mode 600). The owner gets it at partners.near-intents.org. Without it
+#   the swap routes still work, at the higher fee of NEAR Intents for calls with no key.
 # - LWD_KEY is the secret that the app Worker sends to our testnet node (infra/lwd). Staging uses
 #   the value of production, from ~/.config/zigs/lwd-key (mode 600, 64 hex characters). The script
 #   never makes it: it must match the file .env.lwd-key on the node host.
@@ -26,6 +29,7 @@ PASSWORD=$CONF/staging-password
 HELIUS=$CONF/helius-app.url
 LWD=$CONF/lwd-key
 HELIUS_MAINNET=$CONF/helius-mainnet.url
+NEAR_KEY=$CONF/near-api-key
 URL=https://staging.zigs.app
 REF=${1:-origin/main}
 
@@ -43,6 +47,8 @@ private "$HELIUS" || fail "$HELIUS must hold the Helius Devnet URL, with mode 60
 private "$LWD" || fail "$LWD must hold the LWD_KEY of infra/lwd/.env.lwd-key, with mode 600"
 [ ! -e "$HELIUS_MAINNET" ] || private "$HELIUS_MAINNET" \
   || fail "$HELIUS_MAINNET must hold the Helius mainnet URL, with mode 600"
+[ ! -e "$NEAR_KEY" ] || private "$NEAR_KEY" \
+  || fail "$NEAR_KEY must hold the partner key of NEAR Intents, with mode 600"
 # The bytes that go to wrangler: the bare value, not the line LWD_KEY=<value> of .env.lwd-key.
 tr -d '\n' < "$LWD" | grep -Eq '^[0-9a-f]{64}$' \
   || fail "$LWD must hold the bare 64 hex characters of LWD_KEY, not the line LWD_KEY=<value>"
@@ -75,6 +81,9 @@ tr -d '\n' < "$HELIUS" | npx wrangler secret put HELIUS_DEVNET_URL --env staging
 tr -d '\n' < "$LWD" | npx wrangler secret put LWD_KEY --env staging
 if [ -e "$HELIUS_MAINNET" ]; then
   tr -d '\n' < "$HELIUS_MAINNET" | npx wrangler secret put HELIUS_MAINNET_URL --env staging
+fi
+if [ -e "$NEAR_KEY" ]; then
+  tr -d '\n' < "$NEAR_KEY" | npx wrangler secret put NEAR_API_KEY --env staging
 fi
 
 # status PATH [with]: the HTTP status of PATH, with the password when the second argument is set.

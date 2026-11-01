@@ -2,7 +2,7 @@
 // pushes every change of that group to its connected members over a WebSocket.
 import { DurableObject } from "cloudflare:workers";
 import { gate, withCookie } from "./gate.js";
-import { nearQuote } from "./near.js";
+import { nearQuote, nearStatus, nearSwap } from "./near.js";
 
 const GROUP_ID = /^[0-9a-f]{20}$/;
 // The light-wallet servers in NETWORKS (web/app-chain.js) that the page calls itself. The page may
@@ -513,10 +513,18 @@ async function route(req, env, ctx) {
   if (url.pathname === "/near/quote") {
     return nearQuote(req, env, { key: clientKey(req), readBody: smallBody });
   }
+  if (url.pathname === "/near/swap") {
+    return nearSwap(req, env, { key: clientKey(req), readBody: smallBody });
+  }
+  if (url.pathname === "/near/status") return nearStatus(req, env, url, { key: clientKey(req) });
   if (url.pathname === "/" || url.pathname === "/index.html") {
     const page = await env.ASSETS.fetch(new URL("/index.html", url));
+    // data-near-live tells the Swap page that this server runs live swaps (NEAR_LIVE).
     const res = new HTMLRewriter()
       .on("title", { element: (e) => e.before('<script src="/shim.js"></script>', { html: true }) })
+      .on("html", { element: (e) => {
+        if (env.NEAR_LIVE === "1") e.setAttribute("data-near-live", "1");
+      } })
       .transform(page);
     const out = new Response(res.body, res);
     out.headers.set("Content-Security-Policy", policy(url));
