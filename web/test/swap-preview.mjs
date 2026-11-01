@@ -523,6 +523,16 @@ try {
   assert.match(view(), /Post-quantum swapDemo/, 'the second tab is a demo');
   assert.match(view(), /ZEC leaves the shielded poolNEAR Intents takes ZEC only at a public deposit address\./,
     'the privacy box of a swap from ZEC names the public deposit address in one line');
+  // The privacy box follows the pair: a payout in ZEC, and a route with no ZEC.
+  const paired = createSwapPreview(context, livePro(), fakeClock());
+  const box = () => text(paired.element.querySelector('.swap-privacy'));
+  await paired.model.update({ from: sol.id, to: zec.id });
+  assert.match(box(), /The shielded payout is untestedNEAR Intents accepts a shielded address, but no real swap has tested this\./,
+    'a swap to ZEC calls the shielded payout untested');
+  await paired.model.update({ from: sol.id, to: usdcSol.id });
+  assert.match(box(), /Route visibilityTransfers on the route can be public\./,
+    'a route with no ZEC says that its transfers can be public');
+  assert.match(box(), /What NEAR Intents sees/, 'the full privacy text is behind a toggle');
   assert.deepEqual(walk(root, (n) => /privacy options/i.test(n.attrs['aria-label'] ?? '')), [],
     'the swap tabs are not named as privacy options');
   assert.match(ZEC_PRIVACY, /leaves the shielded pool, because NEAR Intents takes ZEC only at a transparent deposit address, which is public\. NEAR Intents accepts a shielded address as the recipient of a swap to ZEC, but no real swap has tested this\.$/,

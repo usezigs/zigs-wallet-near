@@ -435,9 +435,9 @@
   .messages-conversation-details[open] { max-height:240px; }
   .messages-zcash-thread>.callout { margin:10px 12px 0; }
   .messages-workspace .chat-log { gap:14px; padding-top:8px; padding-bottom:12px; }
-  .messages-workspace .msg { max-width:94%; grid-template-columns:22px minmax(0,1fr); gap:6px; }
-  .messages-workspace .msg.outgoing { max-width:91%; grid-template-columns:minmax(0,1fr) 22px; }
-  .messages-workspace .msg>.av { width:22px; height:22px; min-width:22px; min-height:22px; font-size:13px; }
+  .messages-workspace .msg { max-width:94%; grid-template-columns:28px minmax(0,1fr); gap:6px; }
+  .messages-workspace .msg.outgoing { max-width:91%; grid-template-columns:minmax(0,1fr) 28px; }
+  .messages-workspace .msg>.av { width:28px; height:28px; min-width:28px; min-height:28px; font-size:13px; }
   .messages-workspace .msg-body { padding:10px 12px; gap:5px; }
   .messages-workspace .msg-text { font-size:14px; line-height:1.6; }
   .messages-workspace .msg-head { font-size:13px; gap:2px 7px; }

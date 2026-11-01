@@ -14,7 +14,6 @@
   border:0; border-radius:0; background:none; box-shadow:none;
 }
 .home-masthead { display:flex; align-items:center; justify-content:flex-end; gap:16px; min-width:0; }
-.home-masthead>.label { color:var(--accent-text); font:600 13px/1.5 var(--sans); }
 .home-environment {
   display:inline-flex; align-items:center; gap:8px; padding:7px 11px; color:var(--muted);
   border:1px solid var(--line); border-radius:999px; font:400 13px/1.4 var(--sans); background:var(--panel);
@@ -179,12 +178,6 @@
 .home-principle-number { color:var(--accent-text); font:400 13px/1.5 var(--mono); padding-top:3px; }
 .home-principles h3 { font:500 16px/1.4 var(--sans); letter-spacing:-.025em; }
 .home-principles p { max-width:32ch; color:var(--muted); font:400 13px/1.65 var(--sans); margin-top:6px; }
-.lobby-home .welcome .welcome-details { max-width:none; border:1px solid var(--line); border-radius:var(--home-card-radius); background:var(--panel); box-shadow:inset 0 1px 0 var(--edge); scroll-margin:24px; }
-.lobby-home .welcome .welcome-details>summary { min-height:84px; padding:22px 26px; }
-.lobby-home .welcome .welcome-details>summary>.symbol { color:var(--accent-text); }
-.lobby-home .welcome .welcome-details .welcome-steps { padding:8px 26px 28px; gap:28px; }
-.lobby-home .welcome .welcome-details .welcome-steps h3 { margin-bottom:8px; }
-.lobby-home .welcome .welcome-details .welcome-disclosures { padding:22px 26px 26px; }
 .home-footer-note { color:var(--muted); font:400 13px/1.6 var(--sans); }
 .home-footer-note>span { margin-inline:8px; color:var(--accent-text); }
 .lobby-home .welcome :is(.btn,.wallet-vault-card,summary) { transition-duration:120ms; }
@@ -233,7 +226,6 @@
   .lobby-home { --home-card-radius:18px; }
   .lobby-home>.welcome { gap:22px; }
   .home-masthead { gap:10px; flex-wrap:wrap; }
-  .home-masthead>.label { font-size:13px; }
   .home-environment { font-size:13px; padding:6px 8px; gap:5px; }
   .lobby-home .welcome .welcome-main { min-height:0; padding:0; border-radius:24px; }
   .lobby-home .welcome .welcome-intro { max-width:none; min-height:0; padding:294px 22px 28px; gap:16px; }
@@ -284,9 +276,6 @@
   .home-principles>article+article { border:0; }
   .home-principles h3 { font-size:15px; }
   .home-principles p { max-width:40ch; margin-top:3px; }
-  .lobby-home .welcome .welcome-details>summary { padding:20px; gap:12px; }
-  .lobby-home .welcome .welcome-details .welcome-steps { padding:4px 20px 24px; }
-  .lobby-home .welcome .welcome-details .welcome-disclosures { padding:20px; }
   .home-footer-note { font-size:13px; }
 }
 @media(max-width:360px) {
@@ -317,7 +306,7 @@
   .lobby-home .welcome :is(.btn,.wallet-vault-card,summary) { transform:none!important; transition:none!important; }
 }
 @media(forced-colors:active) {
-  .main:has(.lobby-home),.lobby-home .welcome .welcome-main,.lobby-home .welcome .welcome-details,
+  .main:has(.lobby-home),.lobby-home .welcome .welcome-main,
   .lobby-home .welcome-wallet-list .wallet-vault-card,.lobby-home .welcome-actions>.btn,
   .home-threshold,.home-environment,.lobby-home .home-hero .join {
     color:CanvasText; background:Canvas; border-color:CanvasText; box-shadow:none;

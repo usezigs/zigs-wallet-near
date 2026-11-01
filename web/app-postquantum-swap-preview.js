@@ -169,7 +169,7 @@ export function createPostQuantumSwapPreview(onExit) {
   function summary() {
     const to = swapAsset(reviewed.to), q = reviewed.quote;
     return el('div', { class: 'pq-swap-summary' },
-      el('div', {}, token(SWAP_ASSETS[0]), text('swap-caption', 'PAY'), text('', reviewed.amount + ' ZEC', 'strong')),
+      el('div', {}, token(SWAP_ASSETS[0]), text('swap-caption', 'Pay'), text('', reviewed.amount + ' ZEC', 'strong')),
       el('span', { 'aria-hidden': 'true' }, icon('forward')),
       el('div', {}, token(to), text('swap-caption', 'Example receive'), text('', swapDecimal(q.amountOut, to) + ' ' + to.symbol, 'strong')));
   }

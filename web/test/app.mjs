@@ -6419,7 +6419,20 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
     assert.doesNotMatch(outdated, /money in the account is lost/);
     assert.doesNotMatch(question(true, true), /no backup file|newest contacts/);
     t.ui.personal.drop = false;
+    // The card warns of a missing backup, and of a backup that lacks the newest contacts.
+    const warning = (backedUp, everBackedUp) => {
+      Object.assign(t.personal, { backedUp, everBackedUp });
+      return all(card(), (x) => x.className === "callout warn").map(textOf).join(" ");
+    };
+    assert.match(warning(false, false),
+      /Not backed up\. The backup file is the only copy outside this browser\./);
+    assert.match(warning(false, true), /last backup file has the seed but not your newest contacts/);
+    assert.doesNotMatch(warning(false, true), /only copy outside/);
+    assert.doesNotMatch(warning(true, true), /Not backed up|newest contacts/);
     [t.personal.backedUp, t.personal.everBackedUp] = flagsNow;
+    const where = all(c, (x) => x.tag === "details"
+      && /Where messages to this address show/.test(textOf(x)))[0];
+    assert.ok(where?.attrs["data-disclosure-key"], "the address toggle keeps its state on a redraw");
     // The funding form warns while the person types, before the money is sent.
     const warnOf = (n) => all(n, (x) => x.attrs && x.attrs.id === "fund-warn")[0];
     t.acct.bal = { ...net.bal, spendable: 400000, pending: 0 };

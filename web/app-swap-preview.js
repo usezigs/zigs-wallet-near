@@ -138,8 +138,8 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   root.append(el('header', { class: 'swap-heading' },
     el('div', { class: 'swap-topline' }, previewTag()),
     el('h1', {}, 'Swap'),
-    text('swap-subtitle', 'Live prices from NEAR Intents on mainnet. Zigs cannot run a swap, so no '
-      + 'funds move.')),
+    el('p', { class: 'swap-subtitle', id: 'swap-subtitle' }, 'Live prices from NEAR Intents on '
+      + 'mainnet. Zigs cannot run a swap, so no funds move.')),
   el('div', { class: 'swap-mode-tabs', role: 'tablist', 'aria-label': 'Swap pages' }, modeTabs),
   el('div', { class: 'swap-panel', id: 'swap-panel-private', role: 'tabpanel',
     'aria-labelledby': 'swap-tab-private', tabindex: '0' },
@@ -149,7 +149,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
         el('div', { class: 'swap-pane-label' }, el('label', { for: 'swap-amount' }, 'You pay')),
         el('div', { class: 'swap-amount-row' }, pay, fromButton),
         el('div', { class: 'swap-network-row' }, fromNetwork,
-          button('Max', 'swap-max', null, { disabled: true }))),
+          button('Max', 'swap-max', null, { disabled: true, 'aria-describedby': 'swap-subtitle' }))),
       el('div', { class: 'swap-switch-row' }, reverse),
       el('div', { class: 'swap-pane swap-receive' },
         el('div', { class: 'swap-pane-label' }, el('span', {}, 'You receive'),

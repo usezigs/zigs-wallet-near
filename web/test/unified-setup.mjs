@@ -3083,7 +3083,7 @@ assert.equal(quickCode(null), null);
     assert.equal(findNode(brand, (n) => n.className === "welcome-object-caption"), null,
       "the zebra stands alone without a repeated shared-wallet caption");
     assert.doesNotMatch(textOf(card),
-      /PRIVATE BY DESIGN|SHIELDED SELF-CUSTODY|Distributed ownership/,
+      /ZIGS · PRIVATE BY DESIGN|SHIELDED SELF-CUSTODY|Distributed ownership/i,
       "the first screen has no eyebrow labels and no tag line");
     const opens = findAll(card, (n) => /How Zigs works/.test(textOf(n)) && n.tag === "button");
     assert.equal(opens.length, 1, "one button opens the guide");

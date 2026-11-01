@@ -76,15 +76,18 @@ function pairs(t) {
   return out;
 }
 
-// The edge of a field or a tick box on the surfaces that hold them, and the edge of a card or a
-// dialog on the page, the side bar and the card itself.
+// The edge of a field, a tick box or a button on the surfaces that hold them; the edge of a card
+// (line) or a dialog (line-2) on the page, the side bar and the card itself; and the edge of the
+// graphite hero and portfolio cards on their own fill.
 function edges(t) {
   const bg = rgba(t.bg).slice(0, 3);
-  const field = ["sunk", "panel", "raised", "sheet"].map((s) =>
-    ["line-field on " + s, ratio(rgba(t["line-field"]), over(rgba(t[s]), bg))]);
-  const card = ["bg", "side", "panel", "sheet"].map((s) =>
-    ["line on " + s, ratio(rgba(t.line), over(rgba(t[s]), bg))]);
-  return field.concat(card);
+  const on = (line, surfaces) => surfaces.map((s) =>
+    [line + " on " + s, ratio(rgba(t[line]), over(rgba(t[s]), bg))]);
+  const holders = ["sunk", "panel", "raised", "sheet"];
+  const pages = ["bg", "side", "panel", "sheet"];
+  return [...on("line-field", holders), ...on("control-line", holders),
+    ...on("button-line", holders), ...on("line", pages), ...on("line-2", pages),
+    ...on("hero-edge", ["hero-hi", "hero-lo"]), ...on("portfolio-line", ["portfolio-bg"])];
 }
 
 function buttonPairs(t) {

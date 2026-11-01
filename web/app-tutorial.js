@@ -240,7 +240,7 @@ export function setupArrangement(n, t, kind = "rule", labels = {}) {
     walletName: labels.name || "Your shared wallet",
     devices: Array.from({ length: n }, (_, i) => ({
       label: i === 0 ? labels.label || "This device" : "Device " + (i + 1),
-      detail: "Independent share",
+      detail: "Own share",
     })),
   });
   diagram.className += " setup-arrangement";

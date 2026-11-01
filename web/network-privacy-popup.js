@@ -200,7 +200,7 @@ export function installPrivacyPopup() {
     dialog.setAttribute("data-screen", screen);
     dialog.replaceChildren(
       el("div", { class: "pp-popup-top" },
-        el("div", { class: "pp-kicker" }, el("span", { class: "pp-eyebrow" }, "PRIVACY & NETWORK"),
+        el("div", { class: "pp-kicker" }, el("span", { class: "pp-eyebrow" }, "Privacy & network"),
           el("span", { class: "pp-preview-label" }, "Preview")),
         button(icon("close"), close, false,
           { class: "pp-close", "aria-label": "Close privacy preview" })),
