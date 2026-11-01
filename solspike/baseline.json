@@ -1,5 +1,5 @@
 {
-  "baseCommit": "68c77c0815f2d929d5ae5ec95ef9f49fcb764144",
+  "baseCommit": "10dbb414227839089fa282dc728d719c8bc51529",
   "node": "v26.12.1",
   "tests": {
     "web/test/messaging-presentation.mjs": {
@@ -96,6 +96,9 @@
       "exit": 0
     },
     "web/test/sol-ceremony.mjs": {
+      "exit": 0
+    },
+    "web/test/sol-plain-ceremony.mjs": {
       "exit": 0
     },
     "web/test/sol-app.mjs": {
