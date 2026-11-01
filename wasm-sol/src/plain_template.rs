@@ -29,13 +29,14 @@ use crate::template::{
 };
 use crate::v1::{self, Message};
 
-/// Compute units. The sources are read-only simulations on the public mainnet RPC on 1 November
-/// 2026 (solana-core 4.3.2, `simulateTransaction` with `sigVerify` false): one System
-/// instruction costs 150; `CreateIdempotent` and `TransferChecked` to a new recipient cost 13,623
-/// with no failed bump try, 15,123 with one and 16,623 with two (1,500 for each failed try of the
-/// address that the program derives); `TransferChecked` alone costs 105.
+/// Compute units. The source is `simulateTransaction` with `sigVerify` false on the public mainnet
+/// RPC (solana-core 4.3.2, 1 November 2026) of the messages of this compiler. One System
+/// instruction costs 150. A `CreateIdempotent` that creates the account costs 13,518 with no failed
+/// bump try, and 1,500 more for each failed try of the address that the program derives (15,018
+/// with one, 18,018 with three). `TransferChecked` costs 105, so the pair costs 13,623, 15,123 and
+/// 18,123.
 pub const CU_SYSTEM: u32 = 150;
-pub const CU_CREATE_IDEMPOTENT: u32 = 13_623 - CU_TRANSFER_CHECKED;
+pub const CU_CREATE_IDEMPOTENT: u32 = 13_518;
 pub const CU_TRANSFER_CHECKED: u32 = 105;
 pub const CU_BUMP_TRY: u32 = 1_500;
 /// The margin on the sum: about 15 percent of the cost of a token send. A change of the Token or

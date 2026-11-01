@@ -24,6 +24,23 @@ for (const name of names.sort()) {
   const shown = got.split("\n").slice(0, 2).join(" | ").slice(0, 70);
   console.log(`${ok ? "ok  " : "FAIL"} ${name.padEnd(36)} ${shown}`);
 }
+// The plain wallet: the answer of each vector, and for an accepted one the compiled message.
+const plainDir = path.resolve(__dirname, "..", "vectors", "plain");
+const plainNames = fs
+  .readdirSync(plainDir)
+  .filter((f) => f.endsWith(".msg"))
+  .map((f) => f.slice(0, -4));
+for (const name of plainNames.sort()) {
+  const read = (ext) => fs.readFileSync(path.join(plainDir, `${name}.${ext}`));
+  const want = read("answer").toString("utf8");
+  const [msg, intent, pins, chain] = ["msg", "intent", "pins", "chain"].map(read);
+  const got = lib.plain_check_message(msg, intent, pins, chain);
+  const compiled = want.startsWith("accepted") ? lib.plain_compile_message(intent, pins) : msg;
+  const ok = got === want && Buffer.from(compiled).equals(msg);
+  if (!ok) failed += 1;
+  const shown = got.split("\n").slice(0, 2).join(" | ").slice(0, 70);
+  console.log(`${ok ? "ok  " : "FAIL"} ${name.padEnd(36)} ${shown}`);
+}
 // A malformed input is an error answer, never a throw.
 const three = () => new Uint8Array(3);
 const bad = lib.check_message(three(), three(), new Uint8Array(129), three(), NOW);
@@ -31,6 +48,15 @@ if (!bad.startsWith("error")) {
   failed += 1;
   console.log("FAIL malformed input is not an error answer:", bad);
 }
+const plainBad = lib.plain_check_message(three(), three(), new Uint8Array(66), three());
+if (!plainBad.startsWith("error")) {
+  failed += 1;
+  console.log("FAIL malformed plain input is not an error answer:", plainBad);
+}
 const rules = lib.rule_list().split("\n").length;
-console.log(`${names.length} vectors, ${rules} rules, ${failed} different from native`);
+const plainRules = lib.plain_rule_list().split("\n").length;
+console.log(
+  `${names.length} vectors, ${rules} rules, ${plainNames.length} plain vectors, ` +
+    `${plainRules} plain rules, ${failed} different from native`,
+);
 process.exit(failed === 0 ? 0 : 1);

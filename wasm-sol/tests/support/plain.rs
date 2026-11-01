@@ -158,6 +158,18 @@ impl Case {
         }
     }
 
+    /// The case of a wallet with this group key and this fee key as the payer.
+    pub fn with_keys(cluster: Cluster, intent: PlainIntent, group: Key, payer: Key) -> Self {
+        let mut pins = pins(cluster);
+        (pins.group, pins.payer) = (group, payer);
+        let chain = healthy_chain(&intent, &pins);
+        Self {
+            intent,
+            pins,
+            chain,
+        }
+    }
+
     pub fn devnet(intent: PlainIntent) -> Self {
         Self::new(Cluster::Devnet, intent)
     }

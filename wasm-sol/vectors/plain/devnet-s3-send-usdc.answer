@@ -1,0 +1,12 @@
+accepted
+intent send-token
+cluster devnet
+recipient J2xccRtuG43drESLYznHhLhQkLTdfepcKYbiQ9BsJVaf
+amount 2.500000
+units 2500000
+symbol USDC
+mint 4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU
+fee 10000
+rent 1488440
+payer 3JF3sEqM796hk5WFqA6EtmEwJQ9quALszsfJyvXNQKy3
+group AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9

@@ -10,12 +10,12 @@ mod support;
 use p3_check::consts::*;
 use p3_check::plain::{Cluster, Mode, PlainIntent, Wallet};
 use p3_check::plain_chain::{Account, Role};
-use p3_check::rule::PlainRule as R;
+use p3_check::rule::PlainRule;
 use support::*;
 
 const MIN: u64 = RENT_ZERO;
 
-fn only(case: &Case, rule: R) {
+fn only(case: &Case, rule: PlainRule) {
     assert_eq!(case.refused_rules(), vec![rule]);
 }
 
@@ -41,7 +41,11 @@ fn a_pool_wallet_is_refused_by_the_mode_rule_and_a_plain_wallet_is_not() {
             mode: Mode::Pool,
         };
         case.chain.genesis = case.pins.wallet.genesis();
-        assert_eq!(case.rules(&bytes), vec![R::PlainMode], "{cluster:?}");
+        assert_eq!(
+            case.rules(&bytes),
+            vec![PlainRule::PlainMode],
+            "{cluster:?}"
+        );
     }
     assert!(
         Wallet::new(Cluster::Mainnet, Mode::Pool).is_err(),
@@ -70,7 +74,7 @@ fn a_genesis_hash_that_is_not_the_pin_of_the_cluster_is_refused_by_the_genesis_r
             let want = if genesis == own {
                 vec![]
             } else {
-                vec![R::PlainGenesis]
+                vec![PlainRule::PlainGenesis]
             };
             assert_eq!(case.refused_rules(), want, "{cluster:?} with {name}");
         }
@@ -105,7 +109,11 @@ fn a_token_that_is_not_in_the_table_of_the_cluster_is_refused_by_the_token_rule(
                 }
                 other => other,
             };
-            assert_eq!(case.rules(&bytes), vec![R::PlainToken], "token {token}");
+            assert_eq!(
+                case.rules(&bytes),
+                vec![PlainRule::PlainToken],
+                "token {token}"
+            );
         }
     }
 }
@@ -124,7 +132,11 @@ fn a_recipient_that_is_off_the_curve_is_refused_by_the_curve_rule() {
     for to in [pda, token_account.address] {
         for intent in [send_sol(to, LAMPORTS), send_token(to, UNITS)] {
             let case = Case::devnet(intent);
-            assert!(case.refuses(R::PlainRecipientCurve), "{}", base58(&to));
+            assert!(
+                case.refuses(PlainRule::PlainRecipientCurve),
+                "{}",
+                base58(&to)
+            );
         }
     }
     assert!(Case::devnet(send_sol(recipient(), LAMPORTS)).accepts());
@@ -159,7 +171,11 @@ fn the_group_the_payer_the_nonce_a_program_a_sysvar_and_a_mint_are_no_recipients
         for cluster in CLUSTERS {
             for intent in [send_sol(to, LAMPORTS), send_token(to, UNITS)] {
                 let case = Case::new(cluster, intent);
-                assert!(case.refuses(R::PlainRecipientReserved), "{}", base58(&to));
+                assert!(
+                    case.refuses(PlainRule::PlainRecipientReserved),
+                    "{}",
+                    base58(&to)
+                );
             }
         }
     }
@@ -181,7 +197,7 @@ fn a_recipient_owned_by_a_program_that_is_not_the_system_program_is_refused() {
             send_token(recipient(), UNITS),
         ] {
             let case = Case::devnet(intent).read(Role::Recipient, Some(owned_by(owner)));
-            only(&case, R::PlainRecipientOwner);
+            only(&case, PlainRule::PlainRecipientOwner);
         }
     }
     let executable = Account {
@@ -194,7 +210,7 @@ fn a_recipient_owned_by_a_program_that_is_not_the_system_program_is_refused() {
     };
     for bad in [executable, with_data] {
         let case = Case::devnet(send_sol(recipient(), LAMPORTS)).read(Role::Recipient, Some(bad));
-        only(&case, R::PlainRecipientOwner);
+        only(&case, PlainRule::PlainRecipientOwner);
     }
     for good in [None, Some(system_account(0)), Some(system_account(5 * MIN))] {
         let case = Case::devnet(send_token(recipient(), UNITS)).read(Role::Recipient, good);
@@ -208,24 +224,27 @@ fn a_recipient_owned_by_a_program_that_is_not_the_system_program_is_refused() {
 fn an_amount_of_zero_or_over_the_balance_is_refused_by_the_amount_rule() {
     let sol = |amount| Case::devnet(send_sol(recipient(), amount));
     assert!(
-        sol(1).refuses(R::PlainRentRecipient),
+        sol(1).refuses(PlainRule::PlainRentRecipient),
         "1 lamport is under the minimum"
     );
     assert_eq!(
         sol(0).refused_rules(),
-        vec![R::PlainAmount, R::PlainRentRecipient]
+        vec![PlainRule::PlainAmount, PlainRule::PlainRentRecipient]
     );
     let balance = 5_000_000_000;
     assert!(
         sol(balance).accepts(),
         "the whole balance leaves the group at 0"
     );
-    assert_eq!(sol(balance + 1).refused_rules(), vec![R::PlainAmount]);
+    assert_eq!(
+        sol(balance + 1).refused_rules(),
+        vec![PlainRule::PlainAmount]
+    );
     let token = |amount| Case::devnet(send_token(recipient(), amount));
     assert!(token(1).accepts());
-    only(&token(0), R::PlainAmount);
+    only(&token(0), PlainRule::PlainAmount);
     assert!(token(10_000_000).accepts(), "the whole token balance");
-    only(&token(10_000_001), R::PlainAmount);
+    only(&token(10_000_001), PlainRule::PlainAmount);
 }
 
 // ---- what the page read ---------------------------------------------------------------------
@@ -242,7 +261,7 @@ fn rent_minimums_that_differ_from_the_pins_are_refused_by_the_rent_pin_rule() {
     ] {
         let mut bad = case.clone();
         change(&mut bad);
-        only(&bad, R::PlainRentPin);
+        only(&bad, PlainRule::PlainRentPin);
     }
 }
 
@@ -255,7 +274,7 @@ fn a_read_of_another_address_is_refused_by_the_chain_key_rule() {
             other[0] ^= 1;
             let bad = case.clone().read_key(role, other);
             assert!(
-                bad.refuses(R::PlainChainKey),
+                bad.refuses(PlainRule::PlainChainKey),
                 "{name}: the {} read",
                 role.name()
             );
@@ -337,7 +356,7 @@ fn the_nonce_account_must_be_initialised_for_the_group_with_the_lifetime_as_its_
         assert!(Case::devnet(intent.clone()).accepts());
         for (name, account) in bad.clone() {
             let case = Case::devnet(intent.clone()).read(Role::Nonce, account);
-            only(&case, R::PlainNonceAccount);
+            only(&case, PlainRule::PlainNonceAccount);
             let _ = name;
         }
     }
@@ -347,7 +366,7 @@ fn the_nonce_account_must_be_initialised_for_the_group_with_the_lifetime_as_its_
 fn a_new_nonce_account_must_be_absent() {
     assert!(Case::devnet(create_nonce()).accepts());
     let case = Case::devnet(create_nonce()).read(Role::Nonce, Some(nonce_with(|_| {})));
-    only(&case, R::PlainNonceAccount);
+    only(&case, PlainRule::PlainNonceAccount);
 }
 
 fn source_with(change: impl FnOnce(&mut Account)) -> Account {
@@ -387,7 +406,7 @@ fn a_token_account_of_the_group_must_be_initialised_with_the_pinned_mint_and_the
     ];
     for (name, account) in bad.clone() {
         let case = Case::devnet(send_token(recipient(), UNITS)).read(Role::Source, account);
-        assert!(case.refuses(R::PlainSourceAccount), "send, {name}");
+        assert!(case.refuses(PlainRule::PlainSourceAccount), "send, {name}");
     }
     // Enable accepts a missing account, and an existing one only if it is valid.
     assert!(Case::devnet(enable_token()).accepts());
@@ -395,7 +414,10 @@ fn a_token_account_of_the_group_must_be_initialised_with_the_pinned_mint_and_the
     assert!(valid.accepts());
     for (name, account) in bad.into_iter().filter(|(name, _)| *name != "absent") {
         let case = Case::devnet(enable_token()).read(Role::Source, account);
-        assert!(case.refuses(R::PlainSourceAccount), "enable, {name}");
+        assert!(
+            case.refuses(PlainRule::PlainSourceAccount),
+            "enable, {name}"
+        );
     }
 }
 
@@ -433,7 +455,7 @@ fn a_token_account_of_the_recipient_that_exists_must_be_the_recipients_and_not_f
     ];
     for (name, account) in bad {
         let case = Case::devnet(send_token(to, UNITS)).read(Role::Dest, Some(account));
-        only(&case, R::PlainDestAccount);
+        only(&case, PlainRule::PlainDestAccount);
         let _ = name;
     }
 }
@@ -458,12 +480,12 @@ fn the_payer_ends_with_0_or_at_least_650240_lamports_after_the_fee_and_the_rent(
         assert_eq!(holds(cost).refused_rules(), vec![], "{name}: ends at 0");
         assert!(holds(cost + MIN).accepts(), "{name}: ends at 650,240");
         assert!(holds(cost + MIN + 1).accepts(), "{name}: ends at 650,241");
-        only(&holds(cost + MIN - 1), R::PlainRentPayer);
-        only(&holds(cost + 1), R::PlainRentPayer);
-        only(&holds(cost - 1), R::PlainRentPayer);
-        only(&holds(0), R::PlainRentPayer);
+        only(&holds(cost + MIN - 1), PlainRule::PlainRentPayer);
+        only(&holds(cost + 1), PlainRule::PlainRentPayer);
+        only(&holds(cost - 1), PlainRule::PlainRentPayer);
+        only(&holds(0), PlainRule::PlainRentPayer);
         let absent = Case::devnet(intent.clone()).read(Role::Payer, None);
-        only(&absent, R::PlainRentPayer);
+        only(&absent, PlainRule::PlainRentPayer);
     }
 }
 
@@ -481,7 +503,7 @@ fn a_token_account_that_exists_costs_the_payer_no_rent() {
     };
     assert!(case(10_000).accepts(), "only the fee");
     assert!(case(10_000 + MIN).accepts());
-    only(&case(10_000 + 1), R::PlainRentPayer);
+    only(&case(10_000 + 1), PlainRule::PlainRentPayer);
     let enabled = Case::devnet(enable_token()).read(Role::Source, Some(source_with(|_| {})));
     assert!(enabled.clone().lamports(Role::Payer, 5_000).accepts());
 }
@@ -493,10 +515,10 @@ fn after_a_sol_send_the_group_holds_0_or_at_least_the_rent_minimum() {
         |lamports: u64| Case::devnet(send_sol(recipient(), amount)).lamports(Role::Group, lamports);
     assert!(holds(amount).accepts(), "ends at 0");
     assert!(holds(amount + MIN).accepts(), "ends at 650,240");
-    only(&holds(amount + MIN - 1), R::PlainRentGroup);
-    only(&holds(amount + 1), R::PlainRentGroup);
-    only(&holds(amount - 1), R::PlainAmount);
-    only(&holds(0), R::PlainAmount);
+    only(&holds(amount + MIN - 1), PlainRule::PlainRentGroup);
+    only(&holds(amount + 1), PlainRule::PlainRentGroup);
+    only(&holds(amount - 1), PlainRule::PlainAmount);
+    only(&holds(0), PlainRule::PlainAmount);
 }
 
 #[test]
@@ -506,17 +528,17 @@ fn a_recipient_of_a_sol_send_ends_with_at_least_the_rent_minimum() {
         to(MIN).accepts(),
         "a new account receives exactly the minimum"
     );
-    only(&to(MIN - 1), R::PlainRentRecipient);
+    only(&to(MIN - 1), PlainRule::PlainRentRecipient);
     let held = |before: u64, amount: u64| to(amount).lamports(Role::Recipient, before);
     assert!(
         held(1, MIN - 1).accepts(),
         "1 lamport and the rest make the minimum"
     );
-    only(&held(10, MIN - 11), R::PlainRentRecipient);
+    only(&held(10, MIN - 11), PlainRule::PlainRentRecipient);
     assert!(
         held(5 * MIN, 1).accepts(),
         "an account over the minimum may receive 1 lamport"
     );
     assert!(held(0, MIN).accepts());
-    only(&held(0, MIN - 1), R::PlainRentRecipient);
+    only(&held(0, MIN - 1), PlainRule::PlainRentRecipient);
 }

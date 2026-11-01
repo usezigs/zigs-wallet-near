@@ -1,0 +1,11 @@
+accepted
+intent send-sol
+cluster devnet
+recipient J2xccRtuG43drESLYznHhLhQkLTdfepcKYbiQ9BsJVaf
+amount 1.500000000
+units 1500000000
+symbol SOL
+fee 10000
+rent 0
+payer 3JF3sEqM796hk5WFqA6EtmEwJQ9quALszsfJyvXNQKy3
+group AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9
