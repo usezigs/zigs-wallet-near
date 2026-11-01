@@ -91,7 +91,8 @@ for (const ack of [false, true]) {
   assert.equal(ticks(pick).length, 1, "one tick for Mainnet");
   assert.equal("checked" in ticks(pick)[0].attrs, ack, "the tick shows the choice");
   assert.equal(ticks(pick)[0].attrs.id, "p-ack");
-  assert.match(textOf(pick), /I understand that Zigs is not audited and that I can lose the funds in this account\./);
+  assert.ok(textOf(pick).includes("I understand that Zigs is not audited and that I can lose "
+    + "the funds in this account."));
   ticks(pick)[0].on.change({ target: { checked: !ack } });
   assert.equal(sel.ack, !ack, "the tick writes the choice");
 }
@@ -155,7 +156,8 @@ const next = (fields = DEVICE) => withFields(fields, () => dialog().on.submit(EV
   assert.equal(t.ui.createStep, 2, "no tick: the dialog stays on the device step");
   assert.equal(t.ui.createError, null, "the dialog shows no second error");
   const tree = dialog(), error = byId(tree, "g-ack-error");
-  assert.match(textOf(error), /Confirm that you understand Zigs is not audited before you create a mainnet wallet\./);
+  assert.equal(textOf(error), "Confirm that you understand Zigs is not audited before you "
+    + "create a mainnet wallet.");
   assert.equal(error.attrs.role, "alert");
   const tick = byId(tree, "g-ack");
   assert.equal(tick.attrs["aria-invalid"], "true");
@@ -166,7 +168,8 @@ const next = (fields = DEVICE) => withFields(fields, () => dialog().on.submit(EV
   await next();
   assert.equal(t.ui.createStep, 3, "with the tick, the dialog goes to the review");
   const review = reviewOf();
-  assert.match(review, /Real ZEC\. Beta, not audited: you can lose the funds\. At 0\.5 ZEC the app warns and hides the address\. It cannot block deposits\./);
+  assert.equal(mainnetRisk(), "Real ZEC. Beta, not audited: you can lose the funds. At 0.5 ZEC "
+    + "the app warns and hides the address. It cannot block deposits.");
   assert.match(review, /Zcash mainnet/);
   assert.equal(review.includes(mainnetRisk()), true);
   assert.match(review, /Zcash mainnetZcash only/, "Solana Devnet is for testnet wallets only");
@@ -331,7 +334,8 @@ assert.equal(wallet.network, "mainnet");
   t.balCache[gid] = { total: 49999999, at: 0 };
   assert.equal(capUnknown(), false, "a saved balance under the cap is known");
   assert.equal(shows(), true, "the saved balance under the cap shows the address");
-  assert.match(textOf(drawn(() => receiveDialog())), /The address stays valid after you share it\./);
+  assert.match(textOf(drawn(() => receiveDialog())),
+    /The address stays valid after you share it\./);
   t.balCache[gid] = { total: 50000000, at: 0 };
   assert.equal(shows(), false, "a saved balance at the cap hides it");
   assert.match(textOf(drawn(() => receiveDialog())), /stays valid after it is shared/);

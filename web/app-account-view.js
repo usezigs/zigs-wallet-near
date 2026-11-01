@@ -11,8 +11,8 @@ import { initials, short, when } from "./app-kit.js";
 import { Z } from "./app-engine.js";
 import { explorerText, netOf, NETWORKS } from "./app-chain.js";
 import {
-  act, copyBtn, el, guard, logBox, money, netBadge, networkPick, noteFor, qrBox, requireAck, setNote,
-  skeleton,
+  act, copyBtn, el, guard, logBox, money, netBadge, networkPick, noteFor, qrBox, requireAck,
+  setNote, skeleton,
 } from "./app-dom.js";
 import { proposeWallets, requestCard, requestOf } from "./app-payreq.js";
 import {

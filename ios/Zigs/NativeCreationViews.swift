@@ -39,7 +39,8 @@ struct NativeCreationStepContent: View {
                     Text("The replacement stays on the old wallet's network. Funds cannot move between networks.")
                         .font(.nativeSubheadline).foregroundStyle(Color.mist)
                     if from.isMainnet {
-                        Text(ZcashNetwork.nativeLater).font(.nativeSubheadline).foregroundStyle(Color.bad)
+                        Text(ZcashNetwork.nativeLater)
+                            .font(.nativeSubheadline).foregroundStyle(Color.bad)
                     }
                 } else {
                     Badge(text: ZcashNetwork.testnet.label)
