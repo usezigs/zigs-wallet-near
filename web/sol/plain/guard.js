@@ -77,7 +77,7 @@ const isTx = (v) => {
 };
 const int = (min, max) => (v) => Number.isSafeInteger(v) && v >= min && v <= max;
 const list = (item, max) => (v) =>
-  Array.isArray(v) && v.length >= 1 && v.length <= max && v.every(item);
+  Array.isArray(v) && v.length >= 1 && v.length <= max && Array.from(v).every(item);
 const optional = (item) => (v) => v === undefined || item(v);
 
 /** Per command: the allowed fields, each with its check. A field must be present and valid. */

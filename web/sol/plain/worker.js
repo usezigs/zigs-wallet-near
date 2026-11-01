@@ -106,7 +106,7 @@ async function resultOf(method, id, res) {
   const body = await bodyOf(method, res);
   if (body?.id !== id) throw new Error(`${method}: the answer is for another call`);
   if (body.error) {
-    const text = String(body.error.message ?? "").slice(0, 300);
+    const text = redact(String(body.error.message ?? "")).slice(0, 300);
     throw new Error(`${method}: RPC error ${body.error.code}: ${text}`);
   }
   if (!("result" in body)) throw new Error(`${method}: the answer has no result`);
@@ -373,7 +373,9 @@ async function answer({ id, cmd, args }) {
   try {
     const input = args ?? {};
     admit(cmd, input);
-    scope.postMessage({ id, ok: true, result: await HANDLERS[cmd](input) });
+    // Chain data can echo any text, so an answer goes through the redactor as an error does.
+    const result = await HANDLERS[cmd](input);
+    scope.postMessage({ id, ok: true, result: JSON.parse(redact(JSON.stringify(result))) });
   } catch (err) {
     scope.postMessage({ id, ok: false, error: redact(`${err?.name}: ${err?.message}`) });
   }

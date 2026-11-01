@@ -199,7 +199,7 @@ second. The server gives `/sol/plain/*` its own policy (`PLAIN_WORKER_POLICY` in
 `SOL_MAINNET` is `"1"` (it is `"0"` at the top level and in staging). It answers 503 without the
 secret `HELIUS_MAINNET_URL`, and else `{ rpcUrl }` with `Cache-Control: no-store`. A Helius Secure
 URL (paid plan) has another host, so it needs a change of the pin in both files. A new module in
-`web/sol/plain` needs a name of letters, digits and hyphens: no other name answers when `SOL` is
+`web/sol/plain` needs a name of lowercase letters, digits and hyphens: no other name answers when `SOL` is
 off.
 
 ## 4. The second DKG, key roles and backups

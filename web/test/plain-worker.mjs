@@ -146,6 +146,11 @@ function lastCall(method, params) {
   for (const text of [k31, k33, sig(63), sig(64, 1)]) assert.ok(shaped(text), "the shape passes");
   assert.doesNotThrow(() => checkCommand("balance", { address: k32 }));
   const big = (n) => randomBytes(n).toString("base64");
+  const holed = (n) => {
+    const list = [];
+    list.length = n;
+    return list;
+  };
   const bad = [
     ["balance", { address: k31 }, "a 31 byte key"],
     ["balance", { address: k33 }, "a 33 byte key"],
@@ -170,6 +175,8 @@ function lastCall(method, params) {
     ["rent", { space: 1.5 }, "a fraction"],
     ["rent", { space: "5" }, "a text number"],
     ["rent", { space: 2 ** 53 }, "an unsafe integer"],
+    ["accounts", { addresses: holed(3) }, "a sparse list of addresses"],
+    ["status", { signatures: Object.assign(holed(2), { 0: SIG }) }, "a list with a hole"],
     ["history", { address: ME, limit: 101 }, "limit 101"],
     ["history", { address: ME, limit: 0 }, "limit 0"],
     ["history", { address: ME }, "no limit"],
@@ -290,6 +297,9 @@ function lastCall(method, params) {
   results.getTransaction = () => landed({ err: { InstructionError: [1, { Custom: 13 }] } });
   assert.equal((await ok(w, "transaction", { signature: SIG })).err,
     '{"InstructionError":[1,{"Custom":13}]}');
+  results.getTransaction = () => landed({ err: { Custom: MAIN_URL } });
+  const echoed = await ok(w, "transaction", { signature: SIG });
+  assert.equal(JSON.stringify(echoed).includes(KEY), false, "an answer that echoes the key is cut");
   results.getTransaction = () => null;
   assert.deepEqual(await ok(w, "transaction", { signature: SIG }), { found: false });
   results.getTransaction = () => landed({ preBalances: "no" });
@@ -337,6 +347,14 @@ function lastCall(method, params) {
   assert.ok(calls.every((c) => c.init.redirect === "error"), "no call follows a redirect");
 
   await refused(w, "send", { tx: txOf() }, /did not pass a simulation/);
+  const flipped = (at) => {
+    const raw = Buffer.from(tx, "base64");
+    raw[at] ^= 1;
+    return raw.toString("base64");
+  };
+  for (const at of [0, 100, 199]) {
+    await refused(w, "send", { tx: flipped(at) }, /did not pass a simulation/);
+  }
   const other = txOf();
   await ok(w, "simulate", { tx: other });
   await refused(w, "send", { tx: txOf() }, /did not pass a simulation/);
@@ -548,11 +566,15 @@ function lastCall(method, params) {
   const d = await w.ask("balance", { address: ME });
   network = (body) => Response.json({ jsonrpc: "2.0", id: body.id, result: { value: echo } });
   const e = await w.ask("balance", { address: ME });
-  for (const reply of [a, b, c, d, e]) {
+  network = (body) => Response.json({ jsonrpc: "2.0", id: body.id,
+    error: { code: -32602, message: "x".repeat(290) + KEY } });
+  const f = await w.ask("balance", { address: ME });
+  for (const reply of [a, b, c, d, e, f]) {
     assert.equal(reply.ok, false);
     assert.equal(JSON.stringify(reply).includes(KEY), false, JSON.stringify(reply));
   }
   assert.match(b.error, /RPC error -32602: Invalid param at \[redacted\]/);
+  assert.equal(f.error.includes(KEY.slice(0, 6)), false, "no part of the key survives the cut");
   assert.match(d.error, /refused this website/);
   network = defaultNetwork;
   step("the API key is in no error, even when the server or the network repeats the URL");

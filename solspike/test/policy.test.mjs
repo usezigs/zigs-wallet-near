@@ -1,10 +1,10 @@
 // Policy tests (P8c). Usage: node solspike/test/policy.test.mjs
 // 1. policy() of the clone gives the same string as policy() of the base commit, for three URLs.
 // 2. The page policy names no Helius host, also with SOL=1.
-// 3. With SOL=1 every response under /sol, in every spelling of the path, carries the Worker
-//    policy, and no other path does.
-// 4. With SOL unset or any value but the string 1, every /sol path answers 404 and the asset
-//    server is never asked. Other paths still reach it.
+// 3. With SOL=1 every response under /sol but /sol/plain, in every spelling of the path,
+//    carries the Worker policy, and no other path does. /sol/plain has its own policy.
+// 4. With SOL and SOL_MAINNET unset or any value but the string 1, every /sol path answers 404
+//    and the asset server is never asked. Other paths still reach it.
 // 5. The password gate stays in front of the /sol route.
 // 6. /sol/config.json gives the secret HELIUS_DEVNET_URL as JSON (503 when it is unset), with
 //    no-store and the Worker policy, to GET only, behind the gate, and only with SOL=1. No other
