@@ -2225,8 +2225,17 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
       Object.defineProperty(globalThis, "navigator", navBefore);
       t.ui.receive = false;
     }
-    fundBal({ spendable: 0, pending: 0, sending: 0 });
-    assert.ok(fundCardOf(), "a balance with no sending part still counts as empty");
+    // A sent payment that no block holds yet: its notes leave, and nothing comes back.
+    const leaving = { id: "fs", pczt: "EXP1", broadcastTxid: "realtx",
+      final: { txid: "realtx" }, amount: 40000, fee: 10000, noteValue: 50000 };
+    t.state.sessions.push(leaving);
+    fundBal({ spendable: 0, pending: 0 });
+    try {
+      assert.ok(t.inFlight().includes(leaving));
+      assert.equal(fundCardOf(), undefined, "coins on their way out end the card");
+    } finally {
+      t.state.sessions.splice(t.state.sessions.indexOf(leaving), 1);
+    }
     fundBal({ spendable: 0, pending: 5 });
     assert.equal(fundCardOf(), undefined, "incoming coins end the card");
     fundBal({ spendable: 1e8, pending: 0 });
@@ -2236,6 +2245,16 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
     fundBal({ spendable: 0, pending: 0 });
     assert.equal(fundCardOf(), undefined, "no card before the address is ready");
     t.state.wallet = wallet;
+    const secretsWere = t.secrets;
+    t.secrets = Object.fromEntries(Object.entries(secretsWere).map(([k, v]) =>
+      [k, k.startsWith(t.state.gid + ":") ? { ...v, checkedWallet: "another" } : v]));
+    try {
+      assert.equal(fundCardOf(), undefined, "no card before a seat here checked the address");
+      assert.match(detailsText(), /This wallet is empty\. .* from a faucet\. That site is not/,
+        "the empty note shows again, with the faucet text");
+    } finally {
+      t.secrets = secretsWere;
+    }
     const testnet = t.state.g;
     t.state.g = { ...testnet, network: "mainnet" };
     assert.equal(fundCardOf(), undefined, "a network with no faucet has no card");

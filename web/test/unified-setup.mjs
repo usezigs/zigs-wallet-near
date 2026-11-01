@@ -778,7 +778,7 @@ function explorerTexts(chain) {
   assert.ok(pageText().includes(EXPLORER_NOTE), "the Activity list says what the explorer sees");
   t.ui.tab = "overview";
   assert.ok(!pageText().includes(EXPLORER_NOTE), "Overview has no received-history list");
-  assert.match(pageText(), /faucet\. That site is not Zigs: it sees the address that you paste/,
+  assert.match(pageText(), /Open the faucet.*That site is not Zigs: it sees the address that you/,
     "the empty ZEC card says what the faucet sees");
   // The dedicated Activity page keeps the explorer disclosure beyond the former six-row preview.
   const sessions = t.state.sessions;
