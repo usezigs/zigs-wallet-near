@@ -37,6 +37,7 @@ use zcash_primitives::block::BlockHash;
 use zcash_protocol::{
     consensus::{BlockHeight, Network},
     memo::MemoBytes,
+    value::MAX_MONEY,
     TxId,
 };
 
@@ -62,10 +63,14 @@ const REORG_DEPTH: usize = 100;
 const KEPT: usize = REORG_DEPTH + 1;
 /// Transactions that one call of `memo_needs` lists.
 const MEMO_BATCH: usize = 25;
-/// The most mempool transactions that `mempool` reads. ponytail: a payment after them does not
-/// show until the mempool shrinks. Upgrade path: send the ids of the transactions that the
-/// earlier calls saw as `exclude_txid_suffixes`.
+/// The most mempool transactions, and the most Ironwood actions in them, that `mempool` reads.
+/// The read stops at the first cap that it reaches, and a payment after it does not show until
+/// the mempool shrinks. ponytail: the opening of 20,000 actions is one call that blocks the page
+/// for about 4 s (measured at 0.2 ms for each action) when the server sends them without a
+/// pause. Upgrade paths: send the ids that the earlier calls saw as `exclude_txid_suffixes`, and
+/// open the actions in a worker or in batches with a pause between them.
 const MEMPOOL_MAX: usize = 1000;
+const MEMPOOL_ACTIONS_MAX: usize = 20_000;
 /// The largest transaction that `attach_transaction` reads: the consensus limit on the size of a
 /// block, which no transaction can exceed. A larger answer comes from a faulty server.
 const MAX_TX_BYTES: usize = 2_000_000;
@@ -495,35 +500,79 @@ impl Inner {
         Ok(settled)
     }
 
-    /// The notes that the mempool transactions `txs` pay to the external addresses of this wallet
-    /// and that no block of this wallet holds: `[{"txid", "value", "index"}, …]`, one entry for
-    /// each note. `txid` is written as in `received`, `index` is the address that got the note
-    /// (null when it does not fit in a u32). Change (internal scope) is not listed. The server
-    /// chooses `txs` and cannot sign them, so a transaction counts only through a note that opens
-    /// with our key. It changes nothing in the wallet.
-    fn mempool_notes(&self, txs: &[CompactTx]) -> R<String> {
+    /// An empty read of the mempool for this wallet: it holds the external viewing key, which the
+    /// read needs while no borrow of the wallet lasts (`mempool`).
+    fn mempool_scan(&self) -> R<MempoolScan> {
         let fvk = self.ufvk.orchard().ok_or("the viewing key has no Orchard component")?;
         let ivk = fvk.to_ivk(Scope::External);
         let prepared = ivk.prepare();
-        let keys = (&ivk, &prepared);
+        Ok(MempoolScan { ivk, prepared, seen: HashSet::new(), found: vec![], txs: 0, actions: 0 })
+    }
+
+    /// The notes of `scan` that no block of this wallet holds: `[{"txid", "value", "index"}, …]`,
+    /// one entry for each note. `txid` is written as in `received`, `index` is the address that
+    /// got the note (null when it does not fit in a u32). Change (internal scope) is not listed.
+    /// The server chooses the transactions and cannot sign them, so a transaction counts only
+    /// through a note that opens with our key. That key opens a note that anyone makes with an
+    /// address of the wallet, so the list is no proof of a payment. It changes nothing in the
+    /// wallet.
+    fn mempool_list(&self, scan: &MempoolScan) -> String {
+        let mined: HashSet<&str> = self.notes.iter().map(|n| n.txid.as_str()).collect();
         let held: HashSet<[u8; 32]> =
             self.notes.iter().map(|n| commitment_bytes(&n.note)).collect();
-        let mut seen = HashSet::new();
-        let mut found = vec![];
-        for tx in txs {
-            let txid = txid_text(&tx.txid);
-            let mined = self.notes.iter().any(|n| n.txid == txid);
-            if txid.is_empty() || mined || !seen.insert(txid.clone()) {
-                continue;
-            }
-            for (note, index) in tx.ironwood_actions.iter().filter_map(|a| open_action(keys, a)) {
-                if !held.contains(&commitment_bytes(&note)) {
-                    let value = note.value().inner();
-                    found.push(json!({"txid": txid, "value": value, "index": index}));
-                }
+        let waiting = scan.found.iter().filter(|n| !mined.contains(n.txid.as_str()));
+        let list: Vec<Value> = waiting
+            .filter(|n| !held.contains(&n.cmx))
+            .map(|n| json!({"txid": n.txid, "value": n.value, "index": n.index}))
+            .collect();
+        json!(list).to_string()
+    }
+}
+
+/// A note of a mempool transaction that opens with the external viewing key of the wallet.
+struct Waiting {
+    txid: String,
+    value: u64,
+    index: Option<u32>,
+    cmx: [u8; 32],
+}
+
+/// The read of the mempool: it opens each transaction when it arrives and keeps only the notes
+/// that open with the key, so the transactions are not kept in memory. It stops at
+/// `MEMPOOL_MAX` transactions or `MEMPOOL_ACTIONS_MAX` actions.
+struct MempoolScan {
+    ivk: IncomingViewingKey,
+    prepared: PreparedIncomingViewingKey,
+    seen: HashSet<String>,
+    found: Vec<Waiting>,
+    txs: usize,
+    actions: usize,
+}
+
+impl MempoolScan {
+    fn wants_more(&self) -> bool {
+        self.txs < MEMPOOL_MAX && self.actions < MEMPOOL_ACTIONS_MAX
+    }
+
+    /// Opens the actions of `tx` that fit in the cap of actions, and keeps the notes of the
+    /// wallet. A note above `MAX_MONEY` is no payment, and nor is a repeated or empty id.
+    fn add(&mut self, tx: &CompactTx) {
+        let room = MEMPOOL_ACTIONS_MAX.saturating_sub(self.actions);
+        self.txs += 1;
+        self.actions += tx.ironwood_actions.len();
+        let txid = txid_text(&tx.txid);
+        if txid.is_empty() || !self.seen.insert(txid.clone()) {
+            return;
+        }
+        let keys = (&self.ivk, &self.prepared);
+        let opened = tx.ironwood_actions.iter().take(room).filter_map(|a| open_action(keys, a));
+        for (note, index) in opened {
+            let value = note.value().inner();
+            if value <= MAX_MONEY {
+                let cmx = commitment_bytes(&note);
+                self.found.push(Waiting { txid: txid.clone(), value, index, cmx });
             }
         }
-        Ok(json!(found).to_string())
     }
 }
 
@@ -539,16 +588,19 @@ fn open_action(
     Some((note, keys.0.diversifier_index(&to).and_then(|j| u32::try_from(j).ok())))
 }
 
-/// Reads transactions from `next` until it gives `None` or `MEMPOOL_MAX` are read.
-async fn read_capped(mut next: impl AsyncFnMut() -> R<Option<CompactTx>>) -> R<Vec<CompactTx>> {
-    let mut txs = vec![];
-    while txs.len() < MEMPOOL_MAX {
+/// Gives the transactions from `next` to `scan` until `next` gives `None` or `scan` has read
+/// enough. A transaction is dropped as soon as `scan` has opened it.
+async fn read_mempool(
+    scan: &mut MempoolScan,
+    mut next: impl AsyncFnMut() -> R<Option<CompactTx>>,
+) -> R<()> {
+    while scan.wants_more() {
         match next().await? {
-            Some(tx) => txs.push(tx),
+            Some(tx) => scan.add(&tx),
             None => break,
         }
     }
-    Ok(txs)
+    Ok(())
 }
 
 fn txid_text(raw: &[u8]) -> String {
@@ -960,16 +1012,19 @@ async fn fetch_transaction(endpoint: &str, hash: &str) -> R<String> {
 }
 
 /// Asks the server for the Ironwood transactions in its mempool and lists the notes of `state`
-/// among them (`Inner::mempool_notes`). No borrow of `state` lasts over a call to the server.
+/// among them (`Inner::mempool_list`). No borrow of `state` lasts over a call to the server.
 async fn mempool(state: &RefCell<Inner>) -> R<String> {
-    let endpoint = state.borrow().endpoint.clone();
+    let (endpoint, mut scan) = {
+        let w = state.borrow();
+        (w.endpoint.clone(), w.mempool_scan()?)
+    };
     let request = GetMempoolTxRequest {
         exclude_txid_suffixes: vec![],
         pool_types: vec![PoolType::Ironwood as i32],
     };
     let mut stream = client(&endpoint).get_mempool_tx(request).await.map_err(rpc)?.into_inner();
-    let txs = read_capped(async || stream.message().await.map_err(rpc)).await?;
-    state.borrow().mempool_notes(&txs)
+    read_mempool(&mut scan, async || stream.message().await.map_err(rpc)).await?;
+    Ok(state.borrow().mempool_list(&scan))
 }
 
 #[wasm_bindgen(js_name = latestHeight)]
@@ -1038,10 +1093,10 @@ impl ChainWallet {
     /// Payments to this wallet that sit in the mempool of the server and that no block of this
     /// wallet holds yet: `[{"txid", "value", "index"}, …]` (zatoshis; `index` is the address that
     /// got the note, null if it does not fit in a u32). It asks the server for its whole Ironwood
-    /// mempool, reads at most 1,000 transactions, and opens their notes with the external
-    /// viewing key, so change is never listed. It changes nothing in the wallet: balance,
-    /// snapshot and notes stay as they are. The server learns the time of the call, not which
-    /// payment is ours.
+    /// mempool, reads at most 1,000 transactions and 20,000 actions, and opens their notes with
+    /// the external viewing key, so change is never listed. A note above 21,000,000 ZEC is left
+    /// out. It changes nothing in the wallet: balance, snapshot and notes stay as they are. The
+    /// server learns the time of the call, not which payment is ours.
     pub async fn mempool(&self) -> Result<String, JsError> {
         super::js(mempool(&self.0).await)
     }
@@ -1817,9 +1872,21 @@ mod tests {
         }
     }
 
+    /// The notes of the stream `next` in the mempool of `w`, as the page gets them, and the read
+    /// that `mempool` makes of it.
+    fn read_list(
+        w: &Inner,
+        next: impl AsyncFnMut() -> R<Option<CompactTx>>,
+    ) -> R<(Vec<Value>, MempoolScan)> {
+        let mut scan = w.mempool_scan()?;
+        ready(read_mempool(&mut scan, next))?;
+        Ok((v(&w.mempool_list(&scan)).as_array().unwrap().clone(), scan))
+    }
+
     /// The notes of `txs` in the mempool of `w`, as the page gets them.
     fn listed(w: &Inner, txs: &[CompactTx]) -> Vec<Value> {
-        v(&w.mempool_notes(txs).unwrap()).as_array().unwrap().clone()
+        let mut rest = txs.iter();
+        read_list(w, async || Ok(rest.next().cloned())).unwrap().0
     }
 
     #[test]
@@ -1908,27 +1975,106 @@ mod tests {
             asked += 1;
             Ok(Some(pays(external(&key), 1_000, no_memo(), None).0))
         };
-        let txs = ready(read_capped(endless)).unwrap();
-        assert_eq!((txs.len(), asked), (MEMPOOL_MAX, MEMPOOL_MAX), "no read after the cap");
-        assert_eq!(listed(&w, &txs).len(), MEMPOOL_MAX);
+        let (list, _) = read_list(&w, endless).unwrap();
+        assert_eq!((list.len(), asked), (MEMPOOL_MAX, MEMPOOL_MAX), "no read after the cap");
         let mut left = 3;
         let short = async || {
             left -= 1;
             Ok((left >= 0).then(CompactTx::default))
         };
-        assert_eq!(ready(read_capped(short)).unwrap().len(), 3, "a short mempool is read whole");
+        assert_eq!(read_list(&w, short).unwrap().1.txs, 3, "a short mempool is read whole");
         let failing = async || Err("lightwalletd: unavailable".to_string());
-        assert!(ready(read_capped(failing)).unwrap_err().contains("unavailable"));
+        assert!(read_list(&w, failing).err().unwrap().contains("unavailable"));
+    }
+
+    /// A transaction of `n` actions that do not parse, so that reading them costs nothing.
+    fn junk(n: usize, id: usize) -> CompactTx {
+        let mut action = CompactOrchardAction::default();
+        action.nullifier.push(1);
+        let txid = (id as u32).to_be_bytes().repeat(8);
+        CompactTx { txid, ironwood_actions: vec![action; n], ..Default::default() }
+    }
+
+    #[test]
+    fn the_mempool_read_stops_at_its_cap_of_actions() {
+        let (w, _) = started(7, 500);
+        let (mut asked, per_tx) = (0, 650);
+        let endless = async || {
+            asked += 1;
+            Ok(Some(junk(per_tx, asked)))
+        };
+        let (_, scan) = read_list(&w, endless).unwrap();
+        let want = MEMPOOL_ACTIONS_MAX.div_ceil(per_tx);
+        assert_eq!((scan.txs, asked), (want, want), "no read after the cap of actions");
+        assert!(scan.actions >= MEMPOOL_ACTIONS_MAX && asked < MEMPOOL_MAX);
+    }
+
+    #[test]
+    fn a_mempool_payment_after_many_other_transactions_is_found_within_the_caps() {
+        let (w, key) = started(7, 500);
+        let other = pays(external(&fvk(8)), 1_000, no_memo(), None).0;
+        let mut asked = 0;
+        let stream = async || {
+            asked += 1;
+            Ok(Some(match asked {
+                MEMPOOL_MAX => pays(external(&key), 7_000, no_memo(), None).0,
+                _ => CompactTx { txid: junk(1, asked).txid, ..other.clone() },
+            }))
+        };
+        let (list, scan) = read_list(&w, stream).unwrap();
+        let values: Vec<Value> = list.iter().map(|n| n["value"].clone()).collect();
+        assert_eq!(values, [json!(7_000)], "the last transaction of the cap is opened");
+        assert_eq!((scan.txs, scan.found.len()), (MEMPOOL_MAX, 1), "only the match is kept");
+    }
+
+    #[test]
+    fn a_mempool_payment_after_the_cap_of_actions_is_not_opened() {
+        let (w, key) = started(7, 500);
+        let ours = pays(external(&key), 5_000, no_memo(), None).0.ironwood_actions;
+        let one_tx = |before: usize| {
+            let mut tx = junk(before, 1);
+            tx.ironwood_actions.extend(ours.clone());
+            tx
+        };
+        let last = listed(&w, &[one_tx(MEMPOOL_ACTIONS_MAX - 1)]);
+        assert_eq!(last.len(), 1, "the last action that fits is opened");
+        assert!(listed(&w, &[one_tx(MEMPOOL_ACTIONS_MAX)]).is_empty(), "one more is not");
+        let ours = pays(external(&key), 5_000, no_memo(), None).0;
+        let mut rest = vec![junk(MEMPOOL_ACTIONS_MAX, 1), ours].into_iter();
+        let (list, scan) = read_list(&w, async || Ok(rest.next())).unwrap();
+        assert_eq!((list.len(), scan.txs), (0, 1), "a transaction after the cap is not read");
+    }
+
+    #[test]
+    fn a_mempool_note_above_the_total_of_all_coins_is_not_listed() {
+        let (w, key) = started(7, 500);
+        let at = |value: u64| pays(external(&key), value, no_memo(), None).0;
+        let (top, over) = (at(MAX_MONEY), at(MAX_MONEY + 1));
+        assert_eq!(MAX_MONEY, 2_100_000_000_000_000, "21,000,000 ZEC");
+        let values = |txs: &[CompactTx]| -> Vec<Value> {
+            listed(&w, txs).iter().map(|n| n["value"].clone()).collect()
+        };
+        assert_eq!(values(&[top]), [json!(MAX_MONEY)], "the most that can exist is listed");
+        assert!(values(std::slice::from_ref(&over)).is_empty(), "one zatoshi more cannot exist");
+        assert!(values(&[at(u64::MAX)]).is_empty());
+        assert_eq!(values(&[over, at(1_000)]), [json!(1_000)], "a good note stays");
+    }
+
+    #[test]
+    fn a_mempool_txid_is_written_in_the_order_that_explorers_use() {
+        // A mainnet mempool answer of 1 November 2026: Blockchair knows the shown form.
+        let raw = hex::decode("a9517428f0ecaa1e4a49b78c66452c787dd066d71ce8d0d4d3f1866402cc687c");
+        let shown = "7c68cc026486f1d3d4d0e81cd766d07d782c45668cb7494a1eaaecf0287451a9";
+        assert_eq!(txid_text(&raw.unwrap()), shown);
     }
 
     #[test]
     fn an_empty_mempool_lists_nothing() {
         let (w, _) = started(7, 500);
-        assert_eq!(w.mempool_notes(&[]).unwrap(), "[]");
-        assert!(ready(read_capped(async || Ok(None))).unwrap().is_empty());
+        assert!(listed(&w, &[]).is_empty());
+        assert!(read_list(&w, async || Ok(None)).unwrap().0.is_empty());
         let empty = CompactTx { txid: vec![1; 32], ..Default::default() };
-        let none = w.mempool_notes(&[empty]).unwrap();
-        assert_eq!(none, "[]", "a transaction with no Ironwood action");
+        assert!(listed(&w, &[empty]).is_empty(), "a transaction with no Ironwood action");
     }
 
     #[test]
