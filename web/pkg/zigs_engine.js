@@ -132,6 +132,20 @@ export class ChainWallet {
         }
     }
     /**
+     * Payments to this wallet that sit in the mempool of the server and that no block of this
+     * wallet holds yet: `[{"txid", "value", "index"}, …]` (zatoshis; `index` is the address that
+     * got the note, null if it does not fit in a u32). It asks the server for its whole Ironwood
+     * mempool, reads at most 1,000 transactions, and opens their notes with the external
+     * viewing key, so change is never listed. It changes nothing in the wallet: balance,
+     * snapshot and notes stay as they are. The server learns the time of the call, not which
+     * payment is ours.
+     * @returns {Promise<string>}
+     */
+    mempool() {
+        const ret = wasm.chainwallet_mempool(this.__wbg_ptr);
+        return ret;
+    }
+    /**
      * @param {string} ufvk
      * @param {number} birthday
      * @param {string} endpoint
@@ -1854,17 +1868,17 @@ function __wbg_get_imports() {
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
         __wbindgen_generic_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1832, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1841, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_731503a097e03799___convert__closures_____invoke___wasm_bindgen_731503a097e03799___JsValue__core_f0fd674eaa06beef___result__Result_____wasm_bindgen_731503a097e03799___JsError___true_);
             return ret;
         },
         __wbindgen_generic_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 803, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 812, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_731503a097e03799___convert__closures_____invoke___wasm_bindgen_731503a097e03799___JsValue______true_);
             return ret;
         },
         __wbindgen_generic_0000000000000003: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 771, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 780, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_731503a097e03799___convert__closures_____invoke_______true_);
             return ret;
         },

@@ -39,6 +39,16 @@ export class ChainWallet {
      * to `fetchTransaction`, then the result to `attachTransaction`.
      */
     memoNeeds(): string;
+    /**
+     * Payments to this wallet that sit in the mempool of the server and that no block of this
+     * wallet holds yet: `[{"txid", "value", "index"}, …]` (zatoshis; `index` is the address that
+     * got the note, null if it does not fit in a u32). It asks the server for its whole Ironwood
+     * mempool, reads at most 1,000 transactions, and opens their notes with the external
+     * viewing key, so change is never listed. It changes nothing in the wallet: balance,
+     * snapshot and notes stay as they are. The server learns the time of the call, not which
+     * payment is ours.
+     */
+    mempool(): Promise<string>;
     constructor(ufvk: string, birthday: number, endpoint: string);
     received(): string;
     /**
@@ -221,6 +231,7 @@ export interface InitOutput {
     readonly chainwallet_createMessage: (a: number, b: number, c: number, d: number, e: number) => any;
     readonly chainwallet_createSpend: (a: number, b: number, c: number, d: number, e: number, f: number) => any;
     readonly chainwallet_memoNeeds: (a: number) => [number, number, number, number];
+    readonly chainwallet_mempool: (a: number) => any;
     readonly chainwallet_new: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
     readonly chainwallet_received: (a: number) => [number, number];
     readonly chainwallet_restore: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
