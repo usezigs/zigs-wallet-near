@@ -20,7 +20,7 @@ FAST="optional-passkey demo-check chain-fallback chat backup-check graph persona
   payees vault lwd zns near-quote
   requests shim shim-status
   signed util account qr
-  sol-docs sol-transfer sol-wasm mainnet-off
+  sol-docs sol-transfer sol-wasm mainnet-on
   smoke help contrast overview setup-stage approvals recovery security-dashboard
   payment-model
   cf/test/gate sol-nonce-tabs no-storage"

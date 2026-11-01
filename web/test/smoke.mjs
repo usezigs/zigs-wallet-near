@@ -72,26 +72,26 @@ const ORIGIN = "https://staging.zigs.app";
   console.log("ok  the password goes to the origin only");
 }
 
-// ── M1: every picker shows Testnet only, no tick ──
+// ── M1: every picker offers Testnet and Mainnet, Testnet chosen, no tick ──
 {
   const radio = (value, checked) => ({ value, checked });
-  const picker = (where, radios, more = {}) =>
-    ({ where, radios, ticks: 0, mainnet: false, ...more });
-  const dialog = picker("create dialog", [radio("testnet", true)]);
-  const account = picker("personal account", [radio("testnet", true)]);
-  assert.deepEqual(pickerVerdict([dialog, account]),
-    [true, "create dialog: testnet (chosen); personal account: testnet (chosen)"]);
+  const picker = (where, radios, more = {}) => ({ where, radios, ticks: 0, ...more });
+  const both = [radio("testnet", true), radio("mainnet", false)];
+  const dialog = picker("create dialog", both);
+  const account = picker("personal account", both);
+  assert.deepEqual(pickerVerdict([dialog, account]), [true,
+    "create dialog: testnet (chosen), mainnet; personal account: testnet (chosen), mainnet"]);
   for (const shown of [
     [account],
     [],
-    [picker("create dialog", [radio("testnet", true), radio("mainnet", false)]), account],
-    [picker("create dialog", [radio("testnet", true)], { ticks: 1 }), account],
-    [picker("create dialog", [radio("testnet", false)])],
-    [picker("create dialog", [radio("mainnet", true)])],
-    [dialog, picker("personal account", [radio("mainnet", true)])],
-    [dialog, picker("personal account", [radio("testnet", true)], { mainnet: true })],
+    [picker("create dialog", [radio("testnet", true)]), account],
+    [picker("create dialog", both, { ticks: 1 }), account],
+    [picker("create dialog", [radio("testnet", false), radio("mainnet", false)])],
+    [picker("create dialog", [radio("testnet", false), radio("mainnet", true)])],
+    [picker("create dialog", [radio("mainnet", false), radio("testnet", true)])],
+    [dialog, picker("personal account", [radio("testnet", true), radio("mainnet", true)])],
   ]) assert.equal(pickerVerdict(shown)[0], false, JSON.stringify(shown));
-  console.log("ok  M1: each picker passes with Testnet only, no tick and no mainnet text");
+  console.log("ok  M1: each picker passes with Testnet chosen, Mainnet offered and no tick");
 }
 
 // ── S1: connecting with the line shown, then open with the line hidden ──

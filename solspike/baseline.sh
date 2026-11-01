@@ -92,7 +92,7 @@ TESTS=(messaging-presentation messaging-cost-review messaging-account-view premi
   sol-config sol-docs sol-ceremony sol-app sol-wasm sol-sessions sol-limits sol-pay sol-pay-exec
   sol-pay-seats sol-pay-lease sol-pay-look sol-pay-end sol-transfer
   unified-setup help
-  graph sol-fee sol-rent sol-errors sol-prove demo-check mainnet-off chain-fallback smoke
+  graph sol-fee sol-rent sol-errors sol-prove demo-check mainnet-on chain-fallback smoke
   contrast overview setup-stage approvals recovery security-dashboard payment-model
   sol-nonce-tabs no-storage)
 HELPERS=(passkey-fixture sol-rig sol-setup sol-chain sol-vector sol-fixture sol-pay-rig page)

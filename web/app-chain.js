@@ -16,10 +16,9 @@ import { acct } from "./app-account.js";
 import { render } from "./app-loop.js";
 import { registry } from "./zns.js";
 
-// This release is for Zcash testnet and Solana Devnet only (M1 of docs/hackathon-release.md): a new
-// wallet or account cannot pick mainnet, and a chat reads testnet requests only. A mainnet wallet
-// made before still opens.
-export const MAINNET_ON = false;
+// Mainnet is on (M1 of docs/hackathon-release.md). With false, a new wallet or account cannot pick
+// mainnet and a chat reads testnet requests only; a mainnet wallet made before still opens (D3).
+export const MAINNET_ON = true;
 // Light-wallet servers in order of preference. Mainnet uses a third-party server, so the group
 // server and the chain server have different operators (see PRIVACY.md). The first testnet server
 // is /lwd of this origin: the Worker relays it to our node (cf/src/index.js). The faucet pays

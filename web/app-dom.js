@@ -193,7 +193,7 @@ export function nameField(id, to = "", initial = undefined) {
 
 // The choice lives in `sel` (`ui`, or `ui.personal`), so a redraw keeps it. `what` names the thing
 // that holds the funds, and `idp` prefixes the ids.
-// While MAINNET_ON is false, the picker shows Testnet only and no tick (M1).
+// While MAINNET_ON is false, the picker shows Testnet only and no tick (M1). Mainnet needs the tick.
 export function networkPick(sel = ui, what = "wallet", idp = "g") {
   if (!MAINNET_ON) sel.net = "testnet";
   const on = (value) => (sel.net === value ? " on" : "");

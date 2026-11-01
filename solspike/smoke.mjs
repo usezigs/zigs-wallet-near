@@ -79,15 +79,15 @@ export function authAnswer(params, origin, password, tried = 0) {
 }
 
 /**
- * M1: each network picker on the screen ({ where, radios, ticks, mainnet }) has one radio, Testnet,
- * chosen, no tick and no mainnet text. The create dialog must be one of them.
+ * M1: each network picker on the screen ({ where, radios, ticks }) has two radios, Testnet and
+ * Mainnet, with Testnet chosen and no tick. The create dialog must be one of them.
  */
 export function pickerVerdict(pickers) {
-  const fine = (p) => p.radios.length === 1 && p.radios[0].value === "testnet"
-    && p.radios[0].checked && p.ticks === 0 && !p.mainnet;
+  const fine = (p) => p.radios.map((r) => r.value).join() === "testnet,mainnet"
+    && p.radios[0].checked && !p.radios[1].checked && p.ticks === 0;
   const options = (p) => p.radios.map((r) => r.value + (r.checked ? " (chosen)" : "")).join(", ");
   const say = (p) => `${p.where}: ${options(p) || "no option"}`
-    + (p.ticks ? `, ${p.ticks} tick` : "") + (p.mainnet ? ", mainnet text" : "");
+    + (p.ticks ? `, ${p.ticks} tick` : "");
   const ok = pickers.some((p) => p.where === "create dialog") && pickers.every(fine);
   return [ok, pickers.map(say).join("; ") || "no network picker"];
 }
@@ -148,7 +148,6 @@ const READ_PICKERS = () => [...document.querySelectorAll("fieldset.net-pick")].m
   radios: [...f.querySelectorAll('input[type="radio"]')]
     .map((e) => ({ value: e.value, checked: e.checked })),
   ticks: f.querySelectorAll('input[type="checkbox"]').length,
-  mainnet: /mainnet/i.test(f.textContent) || !!f.querySelector('option[value="mainnet"]'),
 }));
 const READ_SOL = async () => {
   const res = await fetch("/sol/config.json", { cache: "no-store" });
@@ -218,7 +217,7 @@ async function checks(page, origin, h) {
     await h.closePrivacyPopup(page);
     return [true, READY];
   });
-  await step("every network picker shows Testnet only (M1)", async () => {
+  await step("every network picker offers Testnet and Mainnet, Testnet chosen (M1)", async () => {
     await h.waitFor(() => h.run(page, OPEN_CREATE), 15000, () => "the New wallet button");
     await h.waitForText(page, "Set up your wallet");
     const verdict = pickerVerdict(await h.run(page, READ_PICKERS));

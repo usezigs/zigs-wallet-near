@@ -368,12 +368,13 @@ async function createIdentity(p) {
   await matrix(p, "04-device");
   if (phase === "after") await preferences(p, "04-device");
   if (phase === "after") {
-    const testnet = await p.locator(".setup-network-choice label.net-opt").boundingBox();
-    const mainnet = await p.locator(".setup-network-unavailable").boundingBox();
+    const tiles = p.locator(".setup-network-choice label.net-opt");
+    const testnet = await tiles.nth(0).boundingBox();
+    const mainnet = await tiles.nth(1).boundingBox();
     check(Math.abs(testnet.width - mainnet.width) <= 1 && Math.abs(testnet.height -
       mainnet.height) <= 1
       && Math.abs(testnet.y - mainnet.y) <= 1,
-        "Testnet and unavailable Mainnet tiles have equal dimensions and alignment");
+        "Testnet and Mainnet tiles have equal dimensions and alignment");
   }
 }
 
