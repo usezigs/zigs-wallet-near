@@ -313,7 +313,8 @@ export function setMemoReading(gid, on) {
 // wallet and the personal account ask apart). A call that takes 20 s or fails shows nothing, and
 // the last good list stays for 2 minutes.
 // ponytail: the engine call of a timeout runs on until the server ends its stream, and its wallet
-// object stays held until then. Upgrade path: drop the future of the engine with an abort.
+// object stays held until then. A server that never ends the stream gets one more open call every
+// 30 s and one after each sync. Upgrade path: drop the future of the engine with an abort.
 const MEMPOOL_EVERY_MS = 30000, MEMPOOL_KEEP_MS = 120000, MEMPOOL_WAIT_MS = 20000;
 // A synced wallet on a server that answered, in a visible tab, with no call to the engine open.
 const canAsk = (c) => document.visibilityState === "visible" && current(c) && !!c.cw && !!c.url
