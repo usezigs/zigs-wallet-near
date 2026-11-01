@@ -161,12 +161,13 @@ const labelled = (node, label) =>
   node.attrs?.["aria-label"] === label ||
   (node.kids ?? []).some((kid) => labelled(kid, label));
 const shellParts = { ".main": {}, ".skip-link": {}, ".logo": {} };
-function sideTree() {
+// `dataset` is the one of <html>: the Worker marks a server with live swaps (data-near-live).
+function sideTree(dataset = {}) {
   const real = globalThis.document;
   const nav = new Rec();
   nav.replaceChildren = (...nodes) => void (nav.kids = nodes);
   const fake = { createElement: () => new Rec(), createElementNS: () => new Rec(),
-    createTextNode: (text) => ({ text }) };
+    createTextNode: (text) => ({ text }), documentElement: { dataset } };
   const side = { classList: { toggle() {} } };
   globalThis.document = { ...fake, getElementById: () => nav,
     querySelector: (sel) => shellParts[sel] ?? side };
@@ -194,9 +195,12 @@ function sideTree() {
     }
     const note = findNode(sideTree(), (n) => n.attrs?.["data-key"] === "release-note");
     assert.equal(note, null, "the side list omits the recurring release warning");
-    const swap = findNode(sideTree(), (n) => n.attrs?.["data-key"] === "tab-swap");
-    assert.equal(swap && textOf(swap), "Swap, Live",
-      "the Swap item of the side list says Live");
+    const swapItem = (dataset) => textOf(findNode(sideTree(dataset),
+      (n) => n.attrs?.["data-key"] === "tab-swap"));
+    assert.equal(swapItem(), "Swap, Quotes",
+      "the Swap item of the side list says Quotes on a server with no live swap");
+    assert.equal(swapItem({ nearLive: "1" }), "Swap, Live",
+      "the Swap item of the side list says Live on a server with the live swap");
     for (const origin of ["https://wallet.example:8792/", "http://localhost:8794/",
       "http://localhost:8795/", "https://localhost/", "not a URL"]) {
       location.href = origin;

@@ -35,10 +35,12 @@ is a bug: please report it.
   device, in a copy of the whole name registry that the app Worker downloads. No
   server learns which name you pay. The registry itself is public: anyone can see which address a
   name gives. Read [ZNS names](#zns-names-testnet).
-- The Swap page shows live prices from NEAR Intents on mainnet (dry quotes, web app only). Zigs
-  cannot run a swap: no funds move. The app Worker asks for each quote. It sends the pair, the
-  amount and the slippage, with sample addresses and no address of yours. NEAR Intents sees the
-  Worker and not your IP address. Read [Swap quotes](#swap-quotes-near-intents).
+- The Swap page shows live prices from NEAR Intents on mainnet (dry quotes, web app only). The app
+  Worker asks for each quote. It sends the pair, the amount and the slippage, with sample addresses
+  and no address of yours. NEAR Intents sees the Worker and not your IP address. A server with
+  live swaps (staging only) also runs a real swap from SOL to ZEC: it sends the amount, the ZEC
+  address of the wallet and your refund address. Read [Swap quotes](#swap-quotes-near-intents)
+  and [Live swap from SOL to ZEC](#live-swap-from-sol-to-zec-staging-only).
 - The Overview of a mainnet wallet (web app only) shows a USD total. It asks for the price of a
   fixed 1 ZEC from NEAR Intents, through the same route, about every 5 minutes while it shows, and
   at most once a minute after a failed call. The call holds no balance and no address. NEAR
@@ -277,10 +279,11 @@ What the app trusts, and what it checks:
 
 ## Swap quotes (NEAR Intents)
 
-**Status:** live quotes only. The Swap page of the web app shows prices from NEAR Intents (the
-1Click API). The Overview of a mainnet wallet also uses one such quote, of a fixed 1 ZEC, to show
-a USD total. Zigs cannot run a swap: the page shows quotes only. No funds move, no API key is
-used, and no deposit address is made.
+**Status:** live quotes. The Swap page of the web app shows prices from NEAR Intents (the 1Click
+API). The Overview of a mainnet wallet also uses one such quote, of a fixed 1 ZEC, to show a USD
+total. A quote moves no funds and makes no deposit address. A server with live swaps (the var
+`NEAR_LIVE`, on staging only) also runs a real swap from SOL to ZEC: read
+[Live swap from SOL to ZEC](#live-swap-from-sol-to-zec-staging-only).
 
 How a quote works:
 
@@ -289,9 +292,10 @@ How a quote works:
 - The Worker builds a dry quote request (`"dry": true`) for NEAR Intents. A dry quote makes no
   deposit address and no state. The request holds two fixed sample addresses: a public Zcash test
   vector and a public Solana program id. They are not addresses of yours.
-- The Worker sends a content type and an accept header only. It sends no cookie, no IP address and
-  no user agent of yours. It checks the answer, keeps seven fields, and answers with
-  `Cache-Control: no-store`. It stores nothing and writes no log.
+- The Worker sends a content type and an accept header only, and the partner key of Zigs
+  (`X-API-Key`) when the server has one. It sends no cookie, no IP address and no user agent of
+  yours. It checks the answer, keeps seven fields, and answers with `Cache-Control: no-store`. It
+  stores nothing and writes no log.
 - The Worker limits `/near/quote` to 60 calls a minute for each IPv4 address or IPv6 /64
   (`NEAR_PER_IP`, counted per Cloudflare location). It uses the IP address in memory only.
 - The Overview of a mainnet wallet asks for the price of 1 ZEC through the same route. It posts
@@ -335,6 +339,49 @@ What stays visible:
   swap can give another amount. The page shows the age of the price. Only ZEC counts in the total.
 - NEAR Intents is a third party with its own terms. The prices are mainnet prices, and they can
   change within seconds.
+
+## Live swap from SOL to ZEC (staging only)
+
+**Status:** live on staging.zigs.app only (`NEAR_LIVE` is "1" there and "0" in production). You
+pay SOL from a Solana wallet outside Zigs to a deposit address of NEAR Intents. NEAR Intents pays
+ZEC to the address of the open mainnet wallet. Zigs signs nothing and holds no SOL. **The payout
+to a shielded address is untested:** no real swap has paid one yet. The page says this next to
+the deposit address.
+
+How a live swap works:
+
+- The review asks for your refund address: the Solana address that you pay from. The page posts
+  the amount, the slippage, the ZEC address of the wallet and the refund address to `/near/swap`
+  of the app Worker.
+- The Worker builds a live quote request (`"dry": false`) from SOL to ZEC with these two addresses
+  and a deadline 30 minutes later. It never puts a sample address in a live request. It checks
+  that the answer repeats both addresses, the amount and the assets, that the deposit address is
+  a Solana address with no memo, and that its deadline is at least 5 minutes away. It answers
+  with the deposit address, the amounts, the deadline, the two addresses, the quote id and the
+  quote signature.
+- The deposit screen shows the deposit address, the exact amount, the deadline, the refund
+  address, the payout address and the quote id. It stays in memory only: after a reload the page
+  cannot show the swap again, but the swap goes on.
+- While the screen shows, the page reads `/near/status` every 10 seconds (up to 60 seconds after
+  errors and after the deadline) until the state is final. The Worker passes only the state, the
+  transaction hashes and the amounts. It drops the explorer links of NEAR Intents.
+- The page refuses a payout that would take the wallet over the warning level of unaudited
+  mainnet wallets (0.5 ZEC).
+
+| Party | What it learns |
+|---|---|
+| NEAR Intents (`1click.chaindefuser.com`) | The amount, the ZEC address of the wallet and your refund address, linked to the deposit address. It screens the addresses (its terms) and can keep them. It sees the Worker, not your IP address |
+| App Worker | Your IP address, the amount and both addresses. It keeps no log |
+| Solana observers | Your payment: the refund address, the deposit address, the amount and the time |
+| Zcash observers | A shielded payment to the wallet, as for any other shielded payment |
+| Group server, light-wallet server | Nothing |
+
+What stays visible:
+
+- NEAR Intents links your Solana address to the ZEC address of the wallet. Use a fresh address of
+  the wallet if you do not want this link on that address.
+- A failed swap sends the SOL back to the refund address after the deadline. NEAR Intents has no
+  duty to refund a deposit that it cannot process (its terms).
 
 ## Solana beta (Helius Devnet)
 

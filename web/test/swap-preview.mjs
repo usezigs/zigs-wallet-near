@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { MockSwapProvider, SwapPreviewModel, SWAP_ASSETS, SWAP_DEMO_STEPS, SWAP_QUOTE_TTL_MS,
-  SWAP_TYPING_MS, swapAtomic, swapDecimal, swapRate, swapTime, swapUsd } from '../swap-preview-model.js';
+  SWAP_STATUS_MAX_MS, SWAP_STATUS_MS, SWAP_TYPING_MS, swapAtomic, swapDecimal, swapRate,
+  swapSolAddress, swapTime, swapUsd } from '../swap-preview-model.js';
 import { readFileSync } from 'node:fs';
 import { NearIntentsSwapProvider, NearQuoteError } from '../near-intents-swap-provider.js';
 import { loadRig, storage } from './sol-rig.mjs';
@@ -270,6 +271,205 @@ const livePro = (extra = {}) => ({ async supportedAssets() { return SWAP_ASSETS;
   await gone.update({ amount: '1' });
   assert.match(gone.value.error, /no route for this pair/);
   console.log('ok  the provider asks /near/quote and maps its answers and errors');
+}
+
+// ── The live swap from SOL to ZEC: the data of a swap that the tests below share ──
+const UA = 'u1ddnjsdcpm36r6aq79n3s68shjweksnmwtdltrh046s8m6xcws9ygyawalxx8n6hg6vegk0wh8zjnafxgh6'
+  + 'mspp' + 'jsljvyt0ynece3lvm0';
+const REFUND = 'CZ8YUVdk7znjrUmnb5n7kgySk9yRAsQDYmyCxzfSky9t'; // 32 bytes
+const SHORT_REFUND = '4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJziofL'; // 31 bytes
+const DEPOSIT = '7DYCAhqwQSKqqL1h8V1XmY1BTcMWxrASQYKNMy87jeg3';
+const DEADLINE_MS = 1_800_000; // the fake clocks start at 0
+const solQuote = Object.freeze({ amountIn: '17500000', amountOut: '133000',
+  minAmountOut: '131670', quotedAt: '1970-01-01T00:00:00.000Z' });
+const opened = Object.freeze({ ...solQuote, depositAddress: DEPOSIT,
+  deadline: new Date(DEADLINE_MS).toISOString(), recipient: UA, refundTo: REFUND,
+  correlationId: 'c-1', signature: 'ed25519:5wQ' });
+const where = { recipient: UA, refundTo: REFUND, room: '50000000', wallet: 'Savings' };
+const stateOf = (status, more = {}) => ({ status, originTxs: [], destinationTxs: [], ...more });
+// A provider of live swaps. `over.open(input)` and `over.status(n)` change its answers; n counts
+// the reads of the state from 1.
+function swapPro(over = {}) {
+  const log = { open: [], reads: [] };
+  return { log, async supportedAssets() { return SWAP_ASSETS; },
+    async previewQuote() { return solQuote; },
+    async openSwap(input) { log.open.push(input); return over.open ? over.open(input) : opened; },
+    async swapStatus(address) {
+      log.reads.push(address);
+      return over.status ? over.status(log.reads.length) : stateOf('PENDING_DEPOSIT');
+    } };
+}
+// A model with an open review of 0.0175 SOL to ZEC.
+async function reviewed(pro, clock = fakeClock()) {
+  const m = new SwapPreviewModel(pro, () => {}, clock);
+  await m.update({ from: sol.id, to: zec.id, amount: '0.0175' });
+  m.review();
+  return m;
+}
+
+// ── The provider: /near/swap and /near/status of the Zigs server ──
+{
+  assert.equal(swapSolAddress(REFUND), true);
+  assert.equal(swapSolAddress(SHORT_REFUND), false, 'base58 of 31 bytes is no Solana address');
+  assert.equal(swapSolAddress('0' + REFUND.slice(1)), false);
+  const calls = [];
+  let answer = () => Response.json({ ...opened, extra: 'must-not-pass' });
+  const provider = new NearIntentsSwapProvider(async (url, init) => {
+    calls.push({ url, init });
+    return answer();
+  });
+  const input = { amountAtomic: '17500000', slippageBps: 100, recipient: UA, refundTo: REFUND };
+  const swap = await provider.openSwap(input);
+  assert.deepEqual([calls[0].url, calls[0].init.method, calls[0].init.cache],
+    ['/near/swap', 'POST', 'no-store']);
+  assert.deepEqual(JSON.parse(calls[0].init.body),
+    { amount: '17500000', recipient: UA, refundTo: REFUND, slippageBps: 100 });
+  assert.equal(Object.isFrozen(swap), true);
+  assert.deepEqual({ ...swap }, { ...opened, amountInUsd: undefined, amountOutUsd: undefined,
+    timeEstimate: undefined, timeWhenInactive: undefined }, 'the fields of the live swap');
+  for (const [what, edit] of [['another recipient', { recipient: UA.slice(0, -1) + 'q' }],
+    ['another refund', { refundTo: DEPOSIT }], ['another amount', { amountIn: '17500001' }],
+    ['no deposit address', { depositAddress: undefined }],
+    ['an EVM deposit address', { depositAddress: '0x76b4c56085ED136a8744D52bE956396624a730E8' }],
+    ['no deadline', { deadline: 'soon' }]]) {
+    answer = () => Response.json({ ...opened, ...edit });
+    await assert.rejects(provider.openSwap(input), (e) => e.code === 'unavailable', what);
+  }
+  for (const [what, make, check] of [
+    ['404', () => new Response('Not found', { status: 404 }),
+      (e) => e.code === 'off' && /off on this server/.test(e.message)],
+    ['no-route', () => Response.json({ error: 'no-route' }, { status: 400 }),
+      (e) => e.code === 'no-route' && /refused this swap\. Check the amount and the refund/
+        .test(e.message)],
+    ['too-low', () => Response.json({ error: 'too-low', minAmount: '17392641' }, { status: 400 }),
+      (e) => e.code === 'too-low' && e.minAmount === '17392641'],
+    ['429', () => new Response('x', { status: 429 }), (e) => e.code === 'busy'],
+    ['502', () => Response.json({ error: 'unavailable' }, { status: 502 }),
+      (e) => e.code === 'unavailable'],
+    ['a throw', () => { throw new TypeError('offline'); }, (e) => e.code === 'unavailable'],
+  ]) {
+    answer = make;
+    await assert.rejects(provider.openSwap(input), check, what);
+  }
+  calls.length = 0;
+  answer = () => Response.json({ status: 'SUCCESS', originTxs: ['s1', 5], destinationTxs: ['z1'],
+    amountOut: '133100', refundedAmount: 'x', extra: 1 });
+  assert.deepEqual({ ...(await provider.swapStatus(DEPOSIT)) }, { status: 'SUCCESS',
+    originTxs: ['s1'], destinationTxs: ['z1'], refundReason: undefined, amountOut: '133100' });
+  assert.deepEqual([calls[0].url, calls[0].init.method, calls[0].init.cache],
+    ['/near/status?depositAddress=' + DEPOSIT, undefined, 'no-store'], 'a GET of the state');
+  answer = () => Response.json({ error: 'unknown' }, { status: 404 });
+  assert.equal((await provider.swapStatus(DEPOSIT)).status, 'unknown', 'a swap not listed yet');
+  for (const [what, make, code] of [['a 404 of a server with no live swap',
+    () => new Response('Not found', { status: 404 }), 'unavailable'],
+  ['a state that is not known', () => Response.json({ status: 'NEW' }), 'unavailable'],
+  ['429', () => new Response('x', { status: 429 }), 'busy']]) {
+    answer = make;
+    await assert.rejects(provider.swapStatus(DEPOSIT), (e) => e.code === code, what);
+  }
+  console.log('ok  the provider asks /near/swap and /near/status and checks their answers');
+}
+
+// ── The model: one live swap, apart from the quote, read until its state is final ──
+{
+  const clock = fakeClock(), pro = swapPro();
+  const m = new SwapPreviewModel(pro, () => {}, clock);
+  await m.update({ from: sol.id, to: zec.id, amount: '0.0175' });
+  assert.equal(await m.openSwap(where), false, 'no live swap without an open review');
+  m.review();
+  assert.equal(await m.openSwap({ ...where, room: '132999' }), false);
+  assert.match(m.value.swapError, /over the warning level for unaudited mainnet wallets/,
+    'a payout over the room is refused before the ask');
+  assert.equal(pro.log.open.length, 0, 'and NEAR Intents is not asked');
+  assert.equal(await m.openSwap(where), true);
+  assert.deepEqual(pro.log.open, [{ amountAtomic: '17500000', slippageBps: 50, recipient: UA,
+    refundTo: REFUND }], 'the amount, the slippage and the two addresses');
+  assert.deepEqual([m.value.live.swap, m.value.live.wallet, m.value.phase, m.value.swapError],
+    [opened, 'Savings', 'QUOTE_READY', '']);
+  await settle();
+  assert.deepEqual(pro.log.reads, [DEPOSIT], 'the state is read at once');
+  assert.equal(m.value.live.status.status, 'PENDING_DEPOSIT');
+  await clock.tick(SWAP_STATUS_MS - 1);
+  assert.equal(pro.log.reads.length, 1);
+  await clock.tick(1);
+  assert.equal(pro.log.reads.length, 2, 'then every 10 s');
+  await clock.tick(SWAP_QUOTE_TTL_MS);
+  assert.equal(m.value.phase, 'QUOTE_STALE', 'the quote ages');
+  assert.equal(m.value.live.swap, opened, 'an old quote keeps the swap');
+  m.stale(); await m.update({ amount: '1' }); m.type('2');
+  assert.equal(m.value.live.swap, opened, 'stale(), new input and typing keep the swap');
+  await clock.tick(SWAP_TYPING_MS);
+  m.review();
+  assert.equal(await m.openSwap(where), false, 'one live swap at a time');
+  assert.equal(pro.log.open.length, 1);
+  assert.equal(m.swapExpired(), false, 'not expired before the deadline');
+  await clock.tick(DEADLINE_MS - clock.now());
+  assert.equal(m.swapExpired(), true, 'expired at the deadline with no deposit');
+  const reads = pro.log.reads.length;
+  await clock.tick(SWAP_STATUS_MAX_MS);
+  assert.ok(pro.log.reads.length - reads <= 2, 'after the deadline it reads every 60 s');
+  m.closeSwap();
+  assert.equal(m.value.live, null);
+  const closed = pro.log.reads.length;
+  await clock.tick(10 * SWAP_STATUS_MAX_MS);
+  assert.equal(pro.log.reads.length, closed, 'a closed swap reads nothing');
+  // A deposit after the deadline is no expiry: the swap goes on.
+  const late = await reviewed(swapPro({ status: () => stateOf('KNOWN_DEPOSIT_TX') }));
+  await late.openSwap(where); await settle();
+  await late.clock.tick(DEADLINE_MS);
+  assert.equal(late.swapExpired(), false, 'a seen deposit never expires');
+  console.log('ok  the live swap opens once, keeps its life apart from the quote, and closes');
+}
+{
+  // An error doubles the wait up to 60 s; a final state ends the reads.
+  const clock = fakeClock(), down = swapPro({ status: () => { throw new Error('down'); } });
+  const m = await reviewed(down, clock);
+  await m.openSwap(where); await settle();
+  assert.equal(down.log.reads.length, 1);
+  assert.match(m.value.live.statusError, /not available now\. Zigs asks again/);
+  for (const [wait, total] of [[20_000, 2], [40_000, 3], [60_000, 4], [60_000, 5]]) {
+    await clock.tick(wait - 1);
+    assert.equal(down.log.reads.length, total - 1, 'no read before ' + wait + ' ms');
+    await clock.tick(1);
+    assert.equal(down.log.reads.length, total, 'a read after ' + wait + ' ms');
+  }
+  const steps = ['PENDING_DEPOSIT', 'PROCESSING', 'SUCCESS'];
+  const done = swapPro({ status: (n) => stateOf(steps[Math.min(n, 3) - 1]) });
+  const doneClock = fakeClock(), d = await reviewed(done, doneClock);
+  await d.openSwap(where); await settle();
+  await doneClock.tick(2 * SWAP_STATUS_MS);
+  assert.equal(d.value.live.status.status, 'SUCCESS');
+  await doneClock.tick(100 * SWAP_STATUS_MAX_MS);
+  assert.equal(done.log.reads.length, 3, 'no read after a final state');
+  assert.equal(doneClock.pending, 0, 'no timer is left');
+  // The errors of the ask: the message of the provider, and the minimum in SOL.
+  for (const [what, fail, message] of [
+    ['too low', new NearQuoteError('too-low', '17392641'),
+      'NEAR Intents needs at least 0.017392641 SOL for this route.'],
+    ['off', new NearQuoteError('off'), 'Live swaps are off on this server.']]) {
+    const m2 = await reviewed(swapPro({ open: () => { throw fail; } }));
+    assert.equal(await m2.openSwap(where), false, what);
+    assert.deepEqual([m2.value.live, m2.value.swapError, m2.value.phase],
+      [null, message, 'REVIEW_OPEN'], what + ': the review stays open with the message');
+  }
+  const big = await reviewed(swapPro({ open: () => ({ ...opened, amountOut: '50000001' }) }));
+  assert.equal(await big.openSwap(where), false,
+    'a live payout over the room shows no deposit address');
+  assert.deepEqual([big.value.live, /warning level/.test(big.value.swapError)], [null, true],
+    'a live payout over the room shows no deposit address');
+  // A swap closed while it is asked for, or while its state is read, ends there.
+  let release;
+  const slow = await reviewed(swapPro({ open: () => new Promise((r) => { release = r; }) }));
+  const asked = slow.openSwap(where);
+  slow.closeSwap(); release(opened);
+  assert.deepEqual([await asked, slow.value.live], [false, null], 'a closed ask stays closed');
+  let answer;
+  const reading = swapPro({ status: () => new Promise((r) => { answer = r; }) });
+  const readClock = fakeClock(), r = await reviewed(reading, readClock);
+  await r.openSwap(where);
+  r.closeSwap(); answer(stateOf('SUCCESS')); await settle();
+  assert.deepEqual([r.value.live, readClock.pending], [null, 1], 'a late state is dropped');
+  console.log('ok  errors slow the reads, a final state ends them, and late answers are dropped');
 }
 
 // ── The demos say what they are: the Tor demo, the funding checkout and the swap pages ──
@@ -653,6 +853,136 @@ try {
   assert.doesNotMatch(quantum, /1Click handles ZEC only at transparent addresses/);
 } finally {
   globalThis.fetch = realFetch;
+  globalThis.document = realDocument;
+}
+// The live swap page: a server with NEAR_LIVE and a mainnet wallet that shows its address.
+globalThis.document = fakeDocument;
+try {
+  const { createSwapPreview, LIVE_SUBTITLE, LIVE_TAG, NO_RUN, SWAP_AGREE, SWAP_EXPIRED,
+    SWAP_PRIVACY, SWAP_TAG, UNTESTED } = await import('../app-swap-preview.js');
+  assert.match(UNTESTED,
+    /^The payout to a shielded address is untested: no real swap has paid one yet/,
+    'the shielded payout is called untested');
+  const payout = { address: UA, room: '50000000' };
+  const context = { id: 'g1', name: 'Savings', threshold: 'Any 2 of 3 devices',
+    networks: 'Zcash Mainnet', live: true, payout };
+  let state = stateOf('PENDING_DEPOSIT');
+  const pro = swapPro({ status: () => state });
+  const clock = fakeClock();
+  const swap = createSwapPreview(context, pro, clock);
+  const root = swap.element, view = () => text(root);
+  const tag = () => text(root.querySelector('.swap-tag-text'));
+  assert.ok(view().includes(LIVE_SUBTITLE), 'the subtitle names the live swap from SOL to ZEC');
+  assert.equal(tag(), 'Quotes only', 'a pair with no live swap says Quotes only');
+  await swap.model.update({ from: sol.id, to: zec.id, amount: '0.0175' });
+  assert.equal(tag(), 'Live swap · real funds', 'SOL to ZEC says Live swap · real funds');
+  assert.match(text(root.querySelector('.swap-payout')), /Receive toSavings · u1ddnjsdcp…ece3lvm0/,
+    'the payout is the address of the wallet');
+  assert.equal(root.querySelector('.swap-payout').hidden, false);
+  assert.ok(view().includes(SWAP_PRIVACY), 'the page says what the live swap sends');
+  press(root, 'Review quote');
+  const modal = walk(body, (n) => n.tag === 'dialog').at(-1);
+  const review = text(modal);
+  for (const part of [SWAP_TAG, UNTESTED, SWAP_PRIVACY, SWAP_AGREE,
+    'Receive toSavings · u1ddnjsdcp…ece3lvm0', 'Pay fromA Solana wallet outside Zigs',
+    'Refund address: the Solana address that you pay from']) {
+    assert.ok(review.includes(part), 'the live review shows ' + part.slice(0, 40));
+  }
+  assert.doesNotMatch(review, /Simulate swap flow|Demo/, 'the live review is no demo');
+  assert.ok(!review.includes(NO_RUN));
+  const go = named(modal, 'Get deposit address');
+  const refund = modal.querySelector('#swap-refund'), agree = modal.querySelector('#swap-agree');
+  assert.equal(go.disabled, true, 'no deposit address before the refund address and the tick');
+  fire(refund, 'input', { target: { value: SHORT_REFUND } });
+  fire(agree, 'change', { target: { checked: true } });
+  assert.equal(go.disabled, true, 'a refund address of 31 bytes keeps the button off');
+  fire(refund, 'input', { target: { value: ' ' + REFUND + ' ' } });
+  assert.equal(go.disabled, false, 'a Solana address and the tick turn it on');
+  fire(agree, 'change', { target: { checked: false } });
+  assert.equal(go.disabled, true, 'the tick is needed');
+  fire(agree, 'change', { target: { checked: true } });
+  fire(go, 'click'); await settle(); await settle();
+  assert.deepEqual(pro.log.open, [{ amountAtomic: '17500000', slippageBps: 50, recipient: UA,
+    refundTo: REFUND }], 'the review asks with the payout and the trimmed refund address');
+  assert.equal(modal.open, false, 'the review closes');
+  const deposit = root.querySelector('#swap-deposit');
+  assert.equal(deposit.hidden, false, 'the deposit screen shows');
+  for (const row of [UNTESTED, 'Send exactly0.0175 SOL (17,500,000 lamports)',
+    'To this address' + DEPOSIT, 'Pay before1970-01-01 00:30:00 UTC. A deposit after this time can '
+      + 'be lost.', 'Refund address' + REFUND, 'PayoutAbout 0.00133 ZEC, at least 0.0013167 ZEC',
+    'Paid toSavings · ' + UA, 'Quote IDc-1', 'Status: Waiting for your deposit.', SWAP_TAG]) {
+    assert.ok(text(deposit).includes(row), 'the deposit screen shows ' + row.slice(0, 40));
+  }
+  const copy = named(deposit, 'Copy address');
+  assert.equal(copy.hidden, false, 'the address can be copied while NEAR Intents waits');
+  // A wallet switch closes the dialogs, but the deposit screen stays with its address.
+  swap.setContext({ ...context, id: 'g2', payout: { reason: 'This wallet uses Zcash testnet.' } });
+  assert.equal(deposit.hidden, false, 'a wallet switch keeps the swap');
+  assert.ok(text(deposit).includes(DEPOSIT));
+  state = stateOf('PROCESSING', { originTxs: ['5wQkS9AAAA'] });
+  await clock.tick(SWAP_STATUS_MS);
+  assert.match(text(deposit), /Status: Swapping\..*Solana transaction5wQkS9AAAA/);
+  assert.equal(copy.hidden, true, 'no copy once the deposit is seen');
+  state = stateOf('SUCCESS', { destinationTxs: ['ab'.repeat(32)] });
+  await clock.tick(SWAP_STATUS_MS);
+  assert.match(text(deposit), /Status: Done\. NEAR Intents sent the ZEC to the wallet\./);
+  assert.ok(text(deposit).includes('Zcash transaction' + 'ab'.repeat(32)));
+  press(deposit, 'Close');
+  assert.equal(deposit.hidden, true, 'Close ends the deposit screen');
+  assert.equal(swap.model.value.live, null);
+  // The deadline: with no deposit, the address goes and the page says not to pay.
+  state = stateOf('PENDING_DEPOSIT');
+  swap.setContext(context);
+  await swap.model.update({ amount: '0.0175' });
+  press(root, 'Review quote');
+  const again = walk(body, (n) => n.tag === 'dialog').at(-1);
+  fire(again.querySelector('#swap-refund'), 'input', { target: { value: REFUND } });
+  fire(again.querySelector('#swap-agree'), 'change', { target: { checked: true } });
+  fire(named(again, 'Get deposit address'), 'click'); await settle(); await settle();
+  await clock.tick(DEADLINE_MS - clock.now());
+  assert.ok(text(deposit).includes(SWAP_EXPIRED), 'after the deadline: do not send');
+  assert.equal(named(deposit, 'Copy address').hidden, true, 'and no copy button');
+  press(deposit, 'Close');
+  // An error of NEAR Intents stays in the review, which stays open.
+  const failing = createSwapPreview(context, swapPro({ open: () => {
+    throw new NearQuoteError('too-low', '17392641'); } }), fakeClock());
+  await failing.model.update({ from: sol.id, to: zec.id, amount: '0.0175' });
+  press(failing.element, 'Review quote');
+  const refused = walk(body, (n) => n.tag === 'dialog').at(-1);
+  fire(refused.querySelector('#swap-refund'), 'input', { target: { value: REFUND } });
+  fire(refused.querySelector('#swap-agree'), 'change', { target: { checked: true } });
+  fire(named(refused, 'Get deposit address'), 'click'); await settle(); await settle();
+  assert.equal(refused.open, true, 'the review stays open');
+  assert.match(text(refused), /NEAR Intents needs at least 0\.017392641 SOL for this route\./);
+  assert.equal(failing.element.querySelector('#swap-deposit').hidden, true);
+  press(refused, 'Back to swap');
+  // A wallet with no payout address: the reason, and no deposit address.
+  const testnet = createSwapPreview({ ...context, payout: { reason: 'This wallet uses Zcash '
+    + 'testnet. NEAR Intents pays mainnet ZEC only.' } }, swapPro(), fakeClock());
+  await testnet.model.update({ from: sol.id, to: zec.id, amount: '0.0175' });
+  assert.match(text(testnet.element.querySelector('.swap-payout')), /pays mainnet ZEC only/);
+  press(testnet.element, 'Review quote');
+  const none = walk(body, (n) => n.tag === 'dialog').at(-1);
+  assert.match(text(none), /Receive toThis wallet uses Zcash testnet/);
+  fire(none.querySelector('#swap-refund'), 'input', { target: { value: REFUND } });
+  fire(none.querySelector('#swap-agree'), 'change', { target: { checked: true } });
+  assert.equal(named(none, 'Get deposit address').disabled, true, 'no payout, no deposit address');
+  press(none, 'Back to swap');
+  // A server with no live swap: SOL to ZEC is the demo review, with the quotes-only text.
+  const off = createSwapPreview({ ...context, live: false }, swapPro(), fakeClock());
+  await off.model.update({ from: sol.id, to: zec.id, amount: '0.0175' });
+  assert.equal(text(off.element.querySelector('.swap-tag-text')), LIVE_TAG,
+    'a server with no live swap says Quotes only');
+  assert.match(text(off.element), /Zigs cannot run a swap, so no funds move\./);
+  assert.ok(!text(off.element).includes(SWAP_PRIVACY));
+  assert.equal(off.element.querySelector('.swap-payout').hidden, true, 'no payout line');
+  press(off.element, 'Review quote');
+  const demo = walk(body, (n) => n.tag === 'dialog').at(-1);
+  assert.ok(text(demo).includes(NO_RUN), 'the review says that Zigs cannot run the swap');
+  assert.equal(named(demo, 'Get deposit address'), undefined, 'and has no deposit address');
+  press(demo, 'Back to swap');
+  console.log('ok  the live swap page: review, deposit screen, states, deadline, off server');
+} finally {
   globalThis.document = realDocument;
 }
 // The page shell: the saved theme applies before the first paint, and the demo entry cannot stop

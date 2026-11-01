@@ -1,25 +1,35 @@
-// Live NEAR Intents quotes through /near/quote of the Zigs Worker (cf/src/near.js). Every quote
-// is a dry quote of mainnet prices: no funds move and there is no execution. The page never calls
-// NEAR Intents itself, and it sends no address.
+// NEAR Intents through the Zigs Worker (cf/src/near.js). /near/quote gives dry quotes of mainnet
+// prices: no funds move. /near/swap opens a live swap from SOL to ZEC with a deposit address, and
+// /near/status gives its state. The page never calls NEAR Intents itself.
 import { SWAP_ASSETS } from './swap-preview-model.js';
 
 const INTEGER = /^\d{1,40}$/;
+const SOL_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const MESSAGES = Object.freeze({
   'no-route': 'NEAR Intents has no route for this pair and amount. Try another pair or amount.',
   'busy': 'Too many quote requests from this network. Wait a minute, then refresh the quote.',
   'unavailable': 'NEAR Intents did not give a quote. Refresh the quote to try again.',
+  'off': 'Live swaps are off on this server.',
 });
+// A live quote holds the two addresses, so a refusal can come from one of them.
+const SWAP_REFUSED = 'NEAR Intents refused this swap. Check the amount and the refund address.';
+const STATES = new Set(['KNOWN_DEPOSIT_TX', 'PENDING_DEPOSIT', 'INCOMPLETE_DEPOSIT',
+  'PROCESSING', 'SUCCESS', 'REFUNDED', 'FAILED', 'unknown']);
 
-/** An error with a `code`: 'too-low' (with `minAmount`), 'no-route', 'busy' or 'unavailable'. */
+/**
+ * An error with a `code`: 'too-low' (with `minAmount`), 'no-route', 'busy', 'unavailable' or
+ * 'off'.
+ */
 export class NearQuoteError extends Error {
-  constructor(code, minAmount = '') {
-    super(MESSAGES[code] ?? code);
+  constructor(code, minAmount = '', message = MESSAGES[code] ?? code) {
+    super(message);
     this.code = code; this.minAmount = minAmount;
   }
 }
 
 const optionalNumber = (value) => (typeof value === 'number' && Number.isFinite(value)
   ? value : undefined);
+const optionalText = (value) => (typeof value === 'string' ? value : undefined);
 
 // The quote of an answer of the Worker, or null when the answer is not a quote.
 function quoteOf(body) {
@@ -32,6 +42,30 @@ function quoteOf(body) {
     quotedAt: typeof body.quotedAt === 'string' ? body.quotedAt : undefined });
 }
 
+// The live swap of an answer of the Worker, or null when it is not the swap that was asked for.
+function swapOf(body, ask) {
+  const quote = quoteOf(body);
+  const sound = [quote?.amountIn === ask.amount, SOL_ADDRESS.test(body?.depositAddress),
+    !Number.isNaN(Date.parse(body?.deadline)), body?.recipient === ask.recipient,
+    body?.refundTo === ask.refundTo];
+  if (!sound.every(Boolean)) return null;
+  return Object.freeze({ ...quote, depositAddress: body.depositAddress, deadline: body.deadline,
+    timeWhenInactive: optionalText(body.timeWhenInactive), recipient: body.recipient,
+    refundTo: body.refundTo, correlationId: optionalText(body.correlationId),
+    signature: optionalText(body.signature) });
+}
+
+const hashes = (list) => (Array.isArray(list) ? list.filter((h) => typeof h === 'string') : []);
+// The state of a swap of an answer of the Worker, or null when the answer is not a state.
+function statusOf(body) {
+  if (!STATES.has(body?.status)) return null;
+  const amounts = Object.fromEntries(['amountOut', 'refundedAmount']
+    .filter((k) => INTEGER.test(body[k] ?? '')).map((k) => [k, body[k]]));
+  return Object.freeze({ status: body.status, originTxs: hashes(body.originTxs),
+    destinationTxs: hashes(body.destinationTxs), refundReason: optionalText(body.refundReason),
+    ...amounts });
+}
+
 // The error of a refusal. The Worker answers 400 with a JSON code, 429 and 502 for the rest.
 function refusal(res, body) {
   const code = res.status === 400 ? body?.error : null;
@@ -42,24 +76,53 @@ function refusal(res, body) {
   return new NearQuoteError(res.status === 429 ? 'busy' : 'unavailable');
 }
 
+// The error of a refused live swap: 404 says that the server runs no live swaps.
+function swapRefusal(res, body) {
+  if (res.status === 404) return new NearQuoteError('off');
+  const error = refusal(res, body);
+  return error.code === 'no-route' ? new NearQuoteError('no-route', '', SWAP_REFUSED) : error;
+}
+
 export class NearIntentsSwapProvider {
   /** `fetchFn` is for tests; the default is the fetch of the page. */
   constructor(fetchFn = (...args) => globalThis.fetch(...args)) { this.fetchFn = fetchFn; }
   async supportedAssets() { return SWAP_ASSETS; }
+  // { res, body } of a call to the Worker (body is null when it is no JSON).
+  async call(url, ask) {
+    const init = ask ? { method: 'POST', cache: 'no-store',
+      headers: { 'content-type': 'application/json' }, body: JSON.stringify(ask) }
+      : { cache: 'no-store' };
+    try {
+      const res = await this.fetchFn(url, init);
+      return { res, body: await res.json().catch(() => null) };
+    } catch {
+      throw new NearQuoteError('unavailable');
+    }
+  }
   async previewQuote(input) {
     const key = (id) => SWAP_ASSETS.find((a) => a.id === id)?.key;
     const ask = { from: key(input.originAssetId), to: key(input.destinationAssetId),
       amount: input.amountAtomic, slippageBps: input.slippageBps };
-    let res, body = null;
-    try {
-      res = await this.fetchFn('/near/quote', { method: 'POST', cache: 'no-store',
-        headers: { 'content-type': 'application/json' }, body: JSON.stringify(ask) });
-      body = await res.json().catch(() => null);
-    } catch {
-      throw new NearQuoteError('unavailable');
-    }
+    const { res, body } = await this.call('/near/quote', ask);
     const quote = res.status === 200 ? quoteOf(body) : null;
     if (quote) return quote;
     throw res.status === 200 ? new NearQuoteError('unavailable') : refusal(res, body);
+  }
+  /** A live swap from SOL to ZEC: the quote with its deposit address, deadline and addresses. */
+  async openSwap({ amountAtomic, slippageBps, recipient, refundTo }) {
+    const ask = { amount: amountAtomic, recipient, refundTo, slippageBps };
+    const { res, body } = await this.call('/near/swap', ask);
+    const swap = res.status === 200 ? swapOf(body, ask) : null;
+    if (swap) return swap;
+    throw res.status === 200 ? new NearQuoteError('unavailable') : swapRefusal(res, body);
+  }
+  /** The state of a live swap. A swap that NEAR Intents does not list yet is 'unknown'. */
+  async swapStatus(depositAddress) {
+    const { res, body } = await this.call('/near/status?depositAddress='
+      + encodeURIComponent(depositAddress));
+    if (res.status === 404 && body?.error === 'unknown') return statusOf({ status: 'unknown' });
+    const status = res.status === 200 ? statusOf(body) : null;
+    if (status) return status;
+    throw new NearQuoteError(res.status === 429 ? 'busy' : 'unavailable');
   }
 }

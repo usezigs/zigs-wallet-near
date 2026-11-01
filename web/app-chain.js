@@ -414,7 +414,7 @@ export function atCap() {
 
 // The balance that the cap is checked against: the open wallet's, else the one that the last sync
 // of this browser saved, else undefined.
-const knownTotal = () => openTotal() ?? balOf(state.gid)?.total;
+export const knownTotal = () => openTotal() ?? balOf(state.gid)?.total;
 // A network with a cap and no known balance (before the first sync): the app treats it as at the
 // cap, so the address stays hidden.
 export const capUnknown = () => !!curNet().cap && knownTotal() === undefined;

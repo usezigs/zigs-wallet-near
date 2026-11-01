@@ -11,7 +11,7 @@ import {
   setupProtectionReady, storageOk, unlockVault, vault,
 } from "./app-keystore.js";
 import { joinWalletLink, openChat } from "./app-links.js";
-import { balOf, MAINNET_ON, netOf } from "./app-chain.js";
+import { addrHidden, atCap, balOf, knownTotal, MAINNET_ON, netName, netOf } from "./app-chain.js";
 import { canWrite, closeSession, db, dbReady, openGroup, toApprove } from "./app-groups.js";
 import {
   act, countBadge, el, guard, mainnetRisk, money, nameField, networkPick, newBadge, requireAck,
@@ -65,7 +65,7 @@ export function renderSide() {
     ["approvals", "Approvals", countBadge(pending, "to approve across wallets", "attn")],
     ["activity", "Activity"], ["recipients", "Address book"],
     ["swap", "Swap", el("span", { class: "badge plain" },
-      el("span", { class: "sr-only" }, ", "), "Live")],
+      el("span", { class: "sr-only" }, ", "), nearLive() ? "Live" : "Quotes")],
     ["chats", "Messages", newBadge(state.groups.reduce((n, g) => n + unreadIn(g.id), 0)
       + Object.keys(chats.list).reduce((n, cid) => n + unreadIn(cid), 0))],
     ["recovery", "Security"],
@@ -480,9 +480,31 @@ export function recoveryWorkspace() {
       } }, "Manage browser access in Settings")));
 }
 
+// The Worker marks the page when it runs the live swap from SOL to ZEC (NEAR_LIVE in
+// cf/src/index.js).
+const nearLive = () => document.documentElement?.dataset?.nearLive === "1";
+// The ZEC address that a live swap pays to: the one of the open mainnet wallet, under the rules of
+// its Receive card, with the room under the cap in zatoshi. Else the reason why there is none.
+function swapPayout() {
+  const g = state.g;
+  if (!g) return { reason: "Choose a mainnet wallet to receive the ZEC." };
+  if (netName(g) !== "mainnet") {
+    return { reason: "This wallet uses Zcash testnet. NEAR Intents pays mainnet ZEC only." };
+  }
+  if (g.movedTo) return { reason: "This wallet was replaced. Open the new wallet to receive." };
+  if (atCap()) {
+    return { reason: "This wallet is at the warning level for unaudited mainnet wallets." };
+  }
+  if (addrHidden() || !state.wallet?.address) {
+    return { reason: "This wallet shows its address after its first sync and after this device "
+      + "checks the address." };
+  }
+  return { address: state.wallet.address, room: String(netOf(g).cap - knownTotal()) };
+}
+
 let swapPreview;
 export function swapWorkspace() {
-  const context = { id: state.g?.id, name: state.g?.name,
+  const context = { id: state.g?.id, name: state.g?.name, live: nearLive(), payout: swapPayout(),
     networks: state.g && netOf(state.g).cap ? 'Zcash ' + netOf(state.g).label
       : 'Zcash Testnet · Solana Devnet',
     threshold: state.g ? state.g.t + " of " + state.g.n + " device approvals per payment." : "" };

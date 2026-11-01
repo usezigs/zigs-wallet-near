@@ -1,5 +1,6 @@
 // The state of the swap page. It keeps data in memory only: no wallet, storage or signer. A
-// provider gives the quotes: NEAR Intents for the swap page, MockSwapProvider for the demos.
+// provider gives the quotes: NEAR Intents for the swap page, MockSwapProvider for the demos. The
+// live swap from SOL to ZEC (openSwap) is paid from a wallet outside Zigs, so Zigs signs nothing.
 /**
  * @typedef {'IDLE'|'INPUT_VALID'|'QUOTING'|'QUOTE_READY'|'QUOTE_ERROR'|'QUOTE_STALE'|'REVIEW_OPEN'
  *   |'REVIEW_CANCELLED'|'DEMO_PROGRESS'|'DEMO_COMPLETE'} SwapUiState
@@ -29,6 +30,23 @@ export const SWAP_TYPING_MS = 400; // the wait after the last key before a quote
 const OLD_QUOTE = 'The quote is older than 60 seconds. Refresh the quote to continue.';
 const CLEARED_QUOTE = 'The quote was cleared. Refresh the quote to continue.';
 const DEMO_PHASES = ['DEMO_PROGRESS', 'DEMO_COMPLETE'];
+export const SWAP_STATUS_MS = 10_000; // the wait between two reads of the state of a live swap
+export const SWAP_STATUS_MAX_MS = 60_000; // the longest wait: after errors and after the deadline
+export const SWAP_FINAL = Object.freeze(['SUCCESS', 'REFUNDED', 'FAILED']);
+const SWAP_WAITING = ['unknown', 'PENDING_DEPOSIT'];
+const OVER_CAP = 'The payout would take the wallet over the warning level for unaudited mainnet '
+  + 'wallets. Choose a smaller amount.';
+const STATUS_DOWN = 'The state of the swap is not available now. Zigs asks again.';
+const BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+
+/** True when `text` is base58 of exactly 32 bytes: the form of a Solana address. */
+export function swapSolAddress(text) {
+  if (typeof text !== 'string' || !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(text)) return false;
+  let value = 0n;
+  for (const c of text) value = value * 58n + BigInt(BASE58.indexOf(c));
+  const zeros = /^1*/.exec(text)[0].length;
+  return zeros + (value ? Math.ceil(value.toString(16).length / 2) : 0) === 32;
+}
 
 // Integer arithmetic keeps precision validation and tiny outputs honest.
 export function swapAtomic(text, asset) {
@@ -126,7 +144,7 @@ export class SwapPreviewModel {
     this.timers = { typing: null, expiry: null }; this.quotedAt = 0;
     this.value = { from: SWAP_ASSETS[0].id, to: SWAP_ASSETS[1].id, amount: '',
       slippageBps: 50, destination: 'example', quote: null, error: '', step: 0,
-      phase: 'IDLE' };
+      phase: 'IDLE', live: null, swapError: '' };
   }
   emit() { this.changed(this.value); }
   applyInput(patch = {}) {
@@ -198,7 +216,7 @@ export class SwapPreviewModel {
   }
   review() {
     if (!this.value.quote || this.value.phase !== 'QUOTE_READY') return false;
-    this.value.phase = 'REVIEW_OPEN'; this.emit(); return true;
+    this.value.phase = 'REVIEW_OPEN'; this.value.swapError = ''; this.emit(); return true;
   }
   cancelReview() {
     if (this.value.phase === 'REVIEW_OPEN') { this.value.phase = 'REVIEW_CANCELLED'; this.emit(); }
@@ -222,5 +240,61 @@ export class SwapPreviewModel {
     const old = this.clock.now() - this.quotedAt >= SWAP_QUOTE_TTL_MS;
     if (old && this.value.quote.source !== 'demo') { this.stale(OLD_QUOTE); return; }
     this.value.phase = 'QUOTE_READY'; this.emit();
+  }
+  // The live swap: one at a time, in memory only. It lives apart from the quote: the expiry of
+  // the quote, typing and stale() keep it. Only closeSwap() ends it. `where` holds the ZEC address
+  // of the wallet (recipient), its name, its room under the cap in zatoshi, and the refund address.
+  async openSwap(where) {
+    const s = this.value;
+    if (s.live || s.phase !== 'REVIEW_OPEN') return false;
+    if (BigInt(s.quote.amountOut) > BigInt(where.room)) return this.swapFailed(OVER_CAP);
+    const asking = { asking: true };
+    s.live = asking; s.swapError = ''; this.emit();
+    const swap = await this.provider.openSwap({ amountAtomic: s.quote.amountIn,
+      slippageBps: s.slippageBps, recipient: where.recipient, refundTo: where.refundTo })
+      .catch((error) => error);
+    if (s.live !== asking) return false;
+    if (swap instanceof Error) return this.swapFailed(this.failure(swap));
+    if (BigInt(swap.amountOut) > BigInt(where.room)) return this.swapFailed(OVER_CAP);
+    s.live = { swap, wallet: where.wallet, status: null, statusError: '', wait: SWAP_STATUS_MS,
+      timer: null };
+    if (s.phase === 'REVIEW_OPEN') s.phase = 'QUOTE_READY';
+    this.emit();
+    void this.readSwap(s.live);
+    return true;
+  }
+  swapFailed(message) {
+    Object.assign(this.value, { live: null, swapError: message });
+    this.emit();
+    return false;
+  }
+  // Reads the state until it is final. An error doubles the wait, up to SWAP_STATUS_MAX_MS.
+  async readSwap(live) {
+    try {
+      const status = await this.provider.swapStatus(live.swap.depositAddress);
+      if (this.value.live !== live) return;
+      Object.assign(live, { status, statusError: '', wait: SWAP_STATUS_MS });
+    } catch {
+      if (this.value.live !== live) return;
+      Object.assign(live, { statusError: STATUS_DOWN,
+        wait: Math.min(live.wait * 2, SWAP_STATUS_MAX_MS) });
+    }
+    if (!SWAP_FINAL.includes(live.status?.status)) {
+      const late = this.clock.now() >= Date.parse(live.swap.deadline);
+      live.timer = this.clock.set(() => { void this.readSwap(live); },
+        late ? SWAP_STATUS_MAX_MS : live.wait);
+    }
+    this.emit();
+  }
+  /** True when the deadline of the open swap has passed and NEAR Intents saw no deposit. */
+  swapExpired() {
+    const live = this.value.live;
+    if (!live?.swap || this.clock.now() < Date.parse(live.swap.deadline)) return false;
+    return SWAP_WAITING.includes(live.status?.status ?? 'unknown');
+  }
+  closeSwap() {
+    this.clock.clear(this.value.live?.timer);
+    Object.assign(this.value, { live: null, swapError: '' });
+    this.emit();
   }
 }

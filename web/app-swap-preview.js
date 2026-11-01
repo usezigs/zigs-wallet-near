@@ -1,14 +1,53 @@
-// Live NEAR Intents quotes and local demo interactions. No signing or payment APIs are imported.
-import { el } from './app-dom.js';
+// Live NEAR Intents quotes, the live swap from SOL to ZEC (paid from a wallet outside Zigs) and
+// local demo interactions. No signing or payment APIs are imported.
+import { copyBtn, el } from './app-dom.js';
 import { icon } from './app-icons.js';
 import { NearIntentsSwapProvider } from './near-intents-swap-provider.js';
 import { createPostQuantumSwapPreview } from './app-postquantum-swap-preview.js';
-import { SWAP_ASSETS, SWAP_DEMO_STEPS, SWAP_SLIPPAGES, SwapPreviewModel, swapAsset, swapDecimal,
-  swapInputError, swapRate, swapTime, swapUsd } from './swap-preview-model.js';
+import { SWAP_ASSETS, SWAP_DEMO_STEPS, SWAP_FINAL, SWAP_SLIPPAGES, SwapPreviewModel, swapAsset,
+  swapDecimal, swapInputError, swapRate, swapSolAddress, swapTime, swapUsd }
+  from './swap-preview-model.js';
 
 export const LIVE_TAG = 'Quotes only';
-const previewTag = () => el('span', { class: 'swap-preview-tag' },
-  el('span', { 'aria-hidden': 'true' }, '◌'), LIVE_TAG);
+// The tag of the live route (SOL to ZEC on a server with NEAR_LIVE): the funds are real.
+export const SWAP_TAG = 'Live swap · real funds';
+const previewTag = (live = false) => el('span', { class: 'swap-preview-tag' },
+  el('span', { 'aria-hidden': 'true' }, '◌'),
+  el('span', { class: 'swap-tag-text' }, live ? SWAP_TAG : LIVE_TAG));
+const [ZEC_ID, SOL_ID] = [SWAP_ASSETS[0].id, SWAP_ASSETS[1].id];
+const QUOTE_SUBTITLE = 'Live prices from NEAR Intents on mainnet. Zigs cannot run a swap, so no '
+  + 'funds move.';
+export const LIVE_SUBTITLE = 'Live prices from NEAR Intents on mainnet. Zigs runs a real swap '
+  + 'from SOL to ZEC only, paid from a Solana wallet outside Zigs. Other pairs show quotes only.';
+export const UNTESTED = 'The payout to a shielded address is untested: no real swap has paid one '
+  + 'yet, and NEAR Intents could fail to pay it. Start with a small amount.';
+export const SWAP_PRIVACY = 'To open the swap, Zigs sends the amount, the ZEC address of the '
+  + 'wallet and your refund address to NEAR Intents through the Zigs server. NEAR Intents checks '
+  + 'both addresses and links them to the deposit. Your Solana payment, its amount and its time '
+  + 'are public on Solana.';
+export const SWAP_AGREE = 'I understand that this swap moves real funds and that the payout to a '
+  + 'shielded address is untested.';
+export const SWAP_EXPIRED = 'The deposit address is no longer active. Do not send SOL to it.';
+const SWAP_KEEP = 'The swap goes on without this page. Copy the deposit address and the quote ID: '
+  + 'after a reload, this page cannot show this swap again.';
+const NO_PAYOUT = 'Choose a mainnet wallet to receive the ZEC.';
+const SWAP_STATES = Object.freeze({
+  unknown: 'NEAR Intents does not list this swap yet.',
+  PENDING_DEPOSIT: 'Waiting for your deposit.',
+  KNOWN_DEPOSIT_TX: 'Deposit seen. Waiting for its confirmation.',
+  INCOMPLETE_DEPOSIT: 'The deposit is less than the amount. NEAR Intents sends it back to the '
+    + 'refund address.',
+  PROCESSING: 'Swapping.',
+  SUCCESS: 'Done. NEAR Intents sent the ZEC to the wallet. The wallet shows it after its next '
+    + 'sync.',
+  REFUNDED: 'Refunded. NEAR Intents sent the SOL back to the refund address.',
+  FAILED: 'The swap failed. Contact NEAR Intents support with the quote ID.',
+});
+const swapState = (live) => (live.status ? SWAP_STATES[live.status.status]
+  : 'Asking NEAR Intents for the state of the swap…');
+const short = (address) => address.slice(0, 10) + '…' + address.slice(-8);
+const utc = (iso) => iso.slice(0, 10) + ' ' + iso.slice(11, 19) + ' UTC';
+const addressText = (value) => el('span', { class: 'swap-deposit-address' }, value);
 const token = (asset) => el('img', { class: 'swap-token ' + asset.tone,
   src: asset.icon, alt: '', width: 32, height: 32, 'aria-hidden': 'true' });
 const text = (cls, value, tag = 'p') => el(tag, { class: cls }, value);
@@ -62,7 +101,9 @@ const quoteBlock = (s) => [text('swap-caption', statusText(s)),
 export function createSwapPreview(context = {}, provider = new NearIntentsSwapProvider(), clock) {
   let source = context, modal = null, observer = null, trigger = null, detailBlock = null;
   let pickerSide = null, searchText = '', rotation = 0;
+  let liveReview = null, shown = null, depositCopy = null, depositState = null;
   const model = new SwapPreviewModel(provider, update, clock);
+  const liveRoute = () => !!source.live && model.value.from === SOL_ID && model.value.to === ZEC_ID;
   const root = el('div', { class: 'page swap-page', id: 'panel-swap',
     'data-key': 'panel-swap', tabindex: '-1' });
   const pay = el('input', { id: 'swap-amount', class: 'swap-amount', type: 'text',
@@ -96,6 +137,13 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     onchange: (ev) => { model.chooseDestination(ev.target.value); } },
   el('option', { value: 'example' }, 'Example destination · demo only'),
   el('option', { value: '' }, 'Choose a destination'));
+  const demoTarget = el('div', { class: 'swap-destination' },
+    el('label', { for: 'swap-destination' }, 'Receive to · Demo'), destination);
+  const payoutBox = el('div', { class: 'swap-destination swap-payout', hidden: true });
+  const headTag = previewTag();
+  const subtitle = el('p', { class: 'swap-subtitle', id: 'swap-subtitle' }, QUOTE_SUBTITLE);
+  const deposit = el('section', { class: 'swap-deposit', id: 'swap-deposit', tabindex: '-1',
+    'aria-labelledby': 'swap-deposit-title', 'data-key': 'swap-deposit', hidden: true });
   const settings = el('details', { class: 'swap-settings' });
   const settingValue = el('span', {}, '0.5%');
   const presets = [50, 100, 200].map((bps) => button(bps / 100 + '%', 'swap-preset', () => {
@@ -136,13 +184,12 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     },
   }));
   root.append(el('header', { class: 'swap-heading' },
-    el('div', { class: 'swap-topline' }, previewTag()),
-    el('h1', {}, 'Swap'),
-    el('p', { class: 'swap-subtitle', id: 'swap-subtitle' }, 'Live prices from NEAR Intents on '
-      + 'mainnet. Zigs cannot run a swap, so no funds move.')),
+    el('div', { class: 'swap-topline' }, headTag),
+    el('h1', {}, 'Swap'), subtitle),
   el('div', { class: 'swap-mode-tabs', role: 'tablist', 'aria-label': 'Swap pages' }, modeTabs),
   el('div', { class: 'swap-panel', id: 'swap-panel-private', role: 'tabpanel',
     'aria-labelledby': 'swap-tab-private', tabindex: '0' },
+  deposit,
   el('div', { class: 'swap-grid' },
     el('section', { class: 'swap-composer', 'aria-label': 'Swap composer' },
       el('div', { class: 'swap-pane' },
@@ -168,7 +215,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
           el('span', { class: 'swap-route-link', 'aria-hidden': 'true' }, icon('forward')), routeTo),
         el('div', { class: 'swap-provider' }, el('span', { class: 'swap-provider-mark', 'aria-hidden': 'true' }, 'N'),
           el('div', {}, text('', 'NEAR Intents', 'strong'), text('swap-caption', 'Live quotes · mainnet only'))),
-        el('div', { class: 'swap-destination' }, el('label', { for: 'swap-destination' }, 'Receive to · Demo'), destination),
+        demoTarget, payoutBox,
         button(['Execution & network context', icon('external')], 'swap-disclosure',
           (ev) => { openModal('Swap details', ev.currentTarget); drawDetails(); }, { 'aria-haspopup': 'dialog' })),
       el('section', { class: 'swap-privacy', 'aria-label': 'Route privacy' },
@@ -239,7 +286,13 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     settingValue.textContent = s.slippageBps / 100 + '%';
     presets.forEach((b, i) => b.setAttribute('aria-pressed', String(SWAP_SLIPPAGES[i] === s.slippageBps)));
     [privacyHead.textContent, privacyLine.textContent] = privacyNote(from, to);
-    privacyText.textContent = privacy(from.symbol === 'ZEC' || to.symbol === 'ZEC');
+    privacyText.textContent = privacy(from.symbol === 'ZEC' || to.symbol === 'ZEC')
+      + (liveRoute() ? ' ' + SWAP_PRIVACY : '');
+    headTag.querySelector('.swap-tag-text').textContent = liveRoute() ? SWAP_TAG : LIVE_TAG;
+    subtitle.textContent = source.live ? LIVE_SUBTITLE : QUOTE_SUBTITLE;
+    drawPayout();
+    drawDeposit(s);
+    liveReview?.update(s);
     drawContext();
     drawRetry(s);
     syncModal(s);
@@ -255,7 +308,8 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     sourceLine.textContent = 'Source wallet: ' + (source.name || 'no wallet selected') + '. '
       + (source.threshold || 'Approval requirements will be shown with a selected wallet.');
     networkLine.textContent = (source.networks || 'Zcash Testnet · Solana Devnet')
-      + '. NEAR Intents quotes are mainnet prices. Zigs cannot run a swap here.';
+      + '. NEAR Intents quotes are mainnet prices. ' + (source.live
+        ? 'Zigs runs a real swap from SOL to ZEC only.' : 'Zigs cannot run a swap here.');
   }
   function drawRetry(s) {
     root.querySelectorAll('.swap-retry').forEach((n) => n.remove());
@@ -274,7 +328,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
 
   function closeModal(cancel = true) {
     observer?.disconnect(); observer = null;
-    const old = modal; modal = null; pickerSide = null; detailBlock = null;
+    const old = modal; modal = null; pickerSide = null; detailBlock = null; liveReview = null;
     old?.close(); old?.remove();
     if (cancel) { model.cancelReview(); model.resume(); model.exitSimulation(); }
     if (trigger?.isConnected) trigger.focus({ preventScroll: true });
@@ -300,7 +354,8 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
       if (ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom) closeModal();
     } });
     modal.append(el('div', { class: 'swap-modal-heading' },
-      el('div', {}, previewTag(), el('h2', { id: 'swap-modal-title', tabindex: '-1' }, title)),
+      el('div', {}, previewTag(liveRoute()),
+        el('h2', { id: 'swap-modal-title', tabindex: '-1' }, title)),
       button(icon('close'), 'swap-close', () => closeModal(), { 'aria-label': 'Close dialog' })),
     el('div', { class: 'swap-modal-content' }));
     document.body.append(modal); modal.showModal();
@@ -362,6 +417,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
       button('Back to swap', 'swap-secondary', () => closeModal()));
   }
   function drawReview() {
+    if (liveRoute()) { drawLiveReview(); return; }
     const s = model.value, from = swapAsset(s.from), to = swapAsset(s.to);
     modal.querySelector('.swap-modal-content').replaceChildren(
       el('div', { class: 'swap-review-amount' }, text('swap-caption', 'Estimated receive amount'),
@@ -392,8 +448,116 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
         model.advance(); modal.querySelector('.swap-primary').focus({ preventScroll: true });
       }));
   }
+  // The ZEC address that a live swap pays to (from app-shell.js), or the reason why there is none.
+  function payoutText(payout) {
+    if (!payout.address) return payout.reason || NO_PAYOUT;
+    return (source.name || 'Wallet') + ' · ' + short(payout.address);
+  }
+  function drawPayout() {
+    const payout = source.payout ?? {};
+    payoutBox.hidden = !liveRoute(); demoTarget.hidden = liveRoute();
+    payoutBox.replaceChildren(text('', 'Receive to', 'span'),
+      text(payout.address ? 'swap-payout-address' : 'swap-caption', payoutText(payout), 'strong'));
+  }
+  // The review of the live route: the real payout address, the refund address that the person
+  // types, the untested payout and the button that asks NEAR Intents for a deposit address.
+  function drawLiveReview() {
+    const s = model.value, from = swapAsset(s.from), to = swapAsset(s.to);
+    const payout = source.payout ?? {};
+    let refundTo = '', agreed = false;
+    const errorLine = text('swap-error', ''); errorLine.setAttribute('role', 'alert');
+    const refundNote = text('swap-caption',
+      'NEAR Intents sends the SOL back to this address if the swap fails.');
+    refundNote.id = 'swap-refund-note';
+    const go = button('Get deposit address', 'swap-primary', async () => {
+      go.disabled = true;
+      const opened = await model.openSwap({ recipient: payout.address, refundTo,
+        room: payout.room, wallet: source.name || 'Wallet' });
+      if (opened) deposit.focus();
+    }, { disabled: true, 'data-key': 'swap-open' });
+    const refund = el('input', { id: 'swap-refund', class: 'swap-search', type: 'text',
+      autocomplete: 'off', spellcheck: 'false', placeholder: 'Solana address',
+      'aria-describedby': 'swap-refund-note', oninput: (ev) => {
+        refundTo = ev.target.value.trim(); review.update(model.value);
+      } });
+    const agree = el('input', { id: 'swap-agree', type: 'checkbox', onchange: (ev) => {
+      agreed = ev.target.checked; review.update(model.value);
+    } });
+    const review = { update(now) {
+      const busy = !!now.live;
+      go.disabled = busy || !payout.address || !swapSolAddress(refundTo) || !agreed;
+      errorLine.textContent = now.live?.swap ? 'Close the open live swap first.' : now.swapError;
+      errorLine.hidden = !errorLine.textContent;
+    } };
+    liveReview = review;
+    modal.querySelector('.swap-modal-content').replaceChildren(
+      el('div', { class: 'swap-review-amount' }, text('swap-caption', 'Estimated receive amount'),
+        text('', swapDecimal(s.quote.amountOut, to), 'strong'),
+        text('swap-caption', to.symbol + ' · ' + to.network)),
+      el('dl', { class: 'swap-review-details' },
+        detail('You pay', s.amount + ' ' + from.symbol + ' · ' + from.network),
+        ...quoteRows(s.quote, from, to),
+        detail('Maximum slippage', s.slippageBps / 100 + '%'),
+        detail('Quote', quoteLabel(s.quote)
+          + (s.quote.quotedAt ? ' · ' + s.quote.quotedAt.slice(11, 19) + ' UTC' : '')),
+        detail('Receive to', payoutText(payout)),
+        detail('Pay from', 'A Solana wallet outside Zigs'),
+        detail('Route', from.network + ' → NEAR Intents → ' + to.network)),
+      el('label', { for: 'swap-refund', class: 'swap-field-label' },
+        'Refund address: the Solana address that you pay from'),
+      refund, refundNote,
+      el('div', { class: 'swap-review-warning' }, text('', 'Real funds', 'strong'),
+        text('', UNTESTED), text('', SWAP_PRIVACY)),
+      el('label', { class: 'swap-agree' }, agree, el('span', {}, SWAP_AGREE)),
+      errorLine, go, button('Back to swap', 'swap-secondary', () => closeModal()));
+    review.update(s);
+  }
+  // The deposit screen of the open live swap. It stays on the page, apart from any dialog, until
+  // the person closes it: a wallet switch or an old quote does not remove an address in use.
+  function drawDeposit(s) {
+    const live = s.live?.swap ? s.live : null;
+    deposit.hidden = !live;
+    if (!live) { shown = null; deposit.replaceChildren(); return; }
+    if (shown !== live) { shown = live; buildDeposit(live); }
+    const waiting = !live.status || ['unknown', 'PENDING_DEPOSIT'].includes(live.status.status);
+    const expired = model.swapExpired();
+    depositCopy.hidden = expired || !waiting;
+    const tx = (name, list) => (list?.length ? [detail(name, list.map(addressText))] : []);
+    depositState.replaceChildren(
+      el('p', { class: 'swap-deposit-status', role: 'status' }, 'Status: ' + swapState(live)),
+      ...(expired ? [text('swap-error', SWAP_EXPIRED)] : []),
+      ...(live.statusError && !SWAP_FINAL.includes(live.status?.status)
+        ? [text('swap-caption', live.statusError)] : []),
+      el('dl', { class: 'swap-review-details' }, tx('Solana transaction', live.status?.originTxs),
+        tx('Zcash transaction', live.status?.destinationTxs)));
+  }
+  function buildDeposit(live) {
+    const w = live.swap, sol = swapAsset(SOL_ID), zec = swapAsset(ZEC_ID);
+    depositCopy = copyBtn(w.depositAddress, 'Copy address', 'swap-secondary');
+    depositState = el('div', { class: 'swap-deposit-state' });
+    deposit.replaceChildren(
+      el('div', { class: 'swap-deposit-heading' },
+        el('h2', { id: 'swap-deposit-title' }, 'Live swap: SOL to ZEC'), previewTag(true)),
+      el('div', { class: 'swap-review-warning' }, text('', 'Untested payout', 'strong'),
+        text('', UNTESTED)),
+      el('dl', { class: 'swap-review-details' },
+        detail('Send exactly', swapDecimal(w.amountIn, sol) + ' SOL ('
+          + BigInt(w.amountIn).toLocaleString('en-US') + ' lamports)'),
+        detail('To this address', addressText(w.depositAddress)),
+        detail('Pay before', utc(w.deadline) + '. A deposit after this time can be lost.'),
+        detail('Refund address', addressText(w.refundTo)),
+        detail('Payout', 'About ' + swapDecimal(w.amountOut, zec) + ' ZEC, at least '
+          + swapDecimal(w.minAmountOut, zec) + ' ZEC'),
+        detail('Paid to', [live.wallet + ' · ', addressText(w.recipient)]),
+        detail('Quote ID', w.correlationId || '—')),
+      depositCopy, depositState, text('swap-caption', SWAP_KEEP),
+      button('Close', 'swap-secondary', () => model.closeSwap(),
+        { 'data-key': 'swap-close-deposit' }));
+  }
   return { element: root, model, setContext(next) {
-    if (source.id !== next.id || source.threshold !== next.threshold || source.networks !== next.networks) {
+    const moved = source.id !== next.id || source.threshold !== next.threshold
+      || source.networks !== next.networks || source.payout?.address !== next.payout?.address;
+    if (moved) {
       closeModal(); resetQuantumFlow(); model.stale();
     }
     source = next; update();
