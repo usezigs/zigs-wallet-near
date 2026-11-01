@@ -715,12 +715,12 @@ the passkey guards the key share instead. The lock is opt-in.
   hide payments.
 - The "Not in a block yet" line and row come from the mempool list of the light-wallet server,
   which signs nothing. A false server can hide a payment that waits for its block. A false server
-  that knows an address of the wallet can show a made-up waiting payment with any value up to
-  21,000,000 ZEC, because a note needs only the address to be made, and the viewing key of the
-  wallet opens it. The engine drops a note above that value. A false server can also show a note
-  of a block that the wallet has not synced yet, or of a branch that the chain left. The page
-  shows such a payment only as "Not in a block yet". It never counts it as Available or Incoming,
-  and it does not change the 0.5 ZEC warning level.
+  that knows an address of the wallet can show a made-up waiting payment of any amount, because a
+  note needs only the address to be made, and the viewing key of the wallet opens it. The engine
+  drops a single note above 21,000,000 ZEC, but the notes of one transaction add up in one row. A
+  false server can also show a note of a block that the wallet has not synced yet, or of a branch
+  that the chain left. The page shows such a payment only as "Not in a block yet". It never counts
+  it as Available or Incoming, and it does not change the 0.5 ZEC warning level.
 - A payment request names a wallet address, and may name an amount and a memo. Everyone who reads
   the message reads them. In a wallet room, these are the signers and anyone who has the invite
   link. In a direct chat, they are the contact and anyone who has the contact link. A request to
