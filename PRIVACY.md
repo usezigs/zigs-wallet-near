@@ -19,6 +19,8 @@ is a bug: please report it.
   sees the Worker and not your IP address. It never receives a key. If a person turns on memo
   reading in a browser, the app also fetches the full transaction of each payment to the wallet.
   The server then learns which transactions that browser reads. Memo reading is off by default.
+  While a wallet is open in a visible tab, the app also asks the server for its whole Ironwood
+  mempool every 30 seconds. The server sees the time of each call, not which payment is yours.
 - A memo on a payment is readable by its recipient and by every signer of the sending wallet.
   Every signer of the receiving wallet reads the memos that arrive there.
 - A testnet wallet that uses the Solana beta (web app only) also talks to the Helius Devnet host.
@@ -129,6 +131,14 @@ The app downloads compact blocks and finds the wallet's notes on the device. The
   fetches them only where memo reading is on. It is off by default, for each wallet and each
   browser, until a signer turns it on.
 
+- the whole Ironwood mempool (`GetMempoolTx`), with your IP address (on testnet, our server sees
+  the app Worker), while a wallet or the personal account is open in a visible tab. The page asks
+  after each finished sync and every 30 seconds, and stops when the wallet closes or the tab
+  hides. Each call asks for every transaction in the mempool, the same for every wallet, and the
+  page reads at most 1,000 of them. The page opens the notes on the device. So the server sees the
+  time of each call and that this IP address has a wallet open, not which payment is yours. The
+  page shows a payment that it finds this way as "Not in a block yet" and never counts it in the
+  balance;
 - for the personal account, the full transaction of every payment to it, always. A message to
   the account is a memo, and a memo is only in the full transaction. The memo switch of wallets
   does not apply. The server also sees the transaction that carries each message that the account
@@ -159,7 +169,8 @@ This links a wallet id to a transaction id, but not to its amount or recipient.
   tailnet can also call the node directly: it then sees their tailnet address. The Worker also
   limits `/lwd` to 600 calls a minute for each IPv4 address or IPv6 /64 (`LWD_PER_IP`, counted per
   Cloudflare location), which uses the IP address in memory only. A first sync runs at about 70 to
-  90 calls a minute on a fast computer (measured), and an open wallet then makes about 3 a minute.
+  90 calls a minute on a fast computer (measured), and an open wallet then makes about 6 a minute,
+  3 of them for the mempool.
   So the limit slows a stranger who uses our node through `/lwd`, but it does not stop one: a
   stranger can sync a wallet under it. Since 27 October 2026 app.zigs.app asks no password, so
   this limit is the only guard against a stranger there. Staging keeps its password.
@@ -699,6 +710,12 @@ the passkey guards the key share instead. The lock is opt-in.
   the wallet's birthday, stops the sync with an error. The web, iPhone and Mac apps then delete the saved state and scan the wallet again
   from its birthday. A false light-wallet server can still show a chain that does not exist, or
   hide payments.
+- The "Not in a block yet" line and row come from the mempool list of the light-wallet server,
+  which signs nothing. A false server can hide a payment that waits for its block. It cannot make
+  a note for the wallet, because the page opens each note with the viewing key, but it can show a
+  note of a block that the wallet has not synced yet, or of a branch that the chain left. The page
+  never counts such a payment as Available or Incoming, and it does not change the 0.5 ZEC warning
+  level.
 - A payment request names a wallet address, and may name an amount and a memo. Everyone who reads
   the message reads them. In a wallet room, these are the signers and anyone who has the invite
   link. In a direct chat, they are the contact and anyone who has the contact link. A request to

@@ -17,7 +17,7 @@ app also has a Solana beta for testnet wallets (section 16).
 | **Engine** (Rust) | Runs FROST, builds and checks transactions, makes Halo2 proofs, syncs the chain. Runs as WebAssembly in the browser and as a native library on iPhone and Mac. | Nothing permanent; the app gives it data |
 | **Signer device** | Runs the web, iPhone or Mac app around the engine | Its key share, the wallet secret, the viewing key, nonces, payment history |
 | **Group server** | A Cloudflare Worker with one Durable Object (SQLite) per wallet. Relays and stores sealed documents over a WebSocket. | Only ciphertext, plus wallet ids, document paths, timing and IP addresses |
-| **Light-wallet server** | lightwalletd over grpc-web. Serves compact blocks and full transactions, and accepts finished transactions. The public side of the Zigs testnet server answers the app Worker only (section 10.1). | Your IP address (on testnet, our server sees the app Worker), the blocks you download and the transactions you fetch |
+| **Light-wallet server** | lightwalletd over grpc-web. Serves compact blocks, full transactions and its mempool, and accepts finished transactions. The public side of the Zigs testnet server answers the app Worker only (section 10.1). | Your IP address (on testnet, our server sees the app Worker), the blocks you download, the transactions you fetch and the time of your mempool calls |
 | **Zcash network** | NU7, Ironwood shielded pool | One shielded transaction per payment, with the shape of a shielded payment from a standard wallet, except for its one-day expiry (section 7.1; a standard wallet sets about 50 minutes) and an optional priority fee, which can mark it as a Zigs payment |
 
 ```mermaid
@@ -335,6 +335,19 @@ wallet, the creator also cannot choose `nk` or `rivk`.
   words. Server errors start with "lightwalletd: ", so a server cannot send that error. The web, iPhone and Mac apps
   then delete their saved state, and the next sync scans the wallet again from the birthday. A
   false light-wallet server can still show a chain that does not exist.
+- **Payments not in a block yet.** While a wallet is open in a visible tab, the page asks the
+  engine (`mempool`) for the notes of the wallet that sit in the mempool of the light-wallet server.
+  - The engine calls `GetMempoolTx` with the pool type Ironwood and an empty exclude list. It reads
+    at most 1,000 transactions and opens each Ironwood action with the external incoming viewing
+    key, so change is never listed. It returns `[{"txid", "value", "index"}, …]`, one entry for
+    each note, and leaves out a transaction or a note that a block of the wallet holds. It changes
+    nothing in the wallet: not the notes, the snapshot, the balance or the 0.5 ZEC level.
+  - The page asks after each finished sync and every 30 seconds, one call at a time. A failed call
+    shows nothing, and the last good list stays for 2 minutes.
+  - The page shows the list as the line "Not in a block yet" in the balance and as the row
+    "Receiving · not in a block yet" in the activity. It is never Available or Incoming. The line
+    and the row go away when a synced block holds the payment or the mempool drops it.
+  - The list is not authenticated: a false server can hide a payment (section 13).
 - On mainnet, at 0.5 ZEC the app warns and hides the address. It cannot block deposits.
 
 ## 7. Making a payment
@@ -732,11 +745,14 @@ the web, on iPhone and on Mac at the same time.
   | Mainnet | `zcash-mainnet.chainsafe.dev` | `u1` | Real ZEC. Warning and hidden address at 0.5 ZEC |
 
 - **Light-wallet relay.** `/lwd` is behind the password gate. It accepts POST only, and only the
-  five methods of `cash.z.wallet.sdk.rpc.CompactTxStreamer` that the engine calls (`GetLatestBlock`,
-  `GetTreeState`, `GetBlockRange`, `GetTransaction`, `SendTransaction`), so it is no open proxy and
-  the long streams of the service stay closed. A `GetBlockRange` body must be one uncompressed
+  six methods of `cash.z.wallet.sdk.rpc.CompactTxStreamer` that the engine calls (`GetLatestBlock`,
+  `GetTreeState`, `GetBlockRange`, `GetTransaction`, `SendTransaction`, `GetMempoolTx`), so it is
+  no open proxy. `GetMempoolTx` ends with the mempool; `GetMempoolStream`, which stays open, is
+  closed. A `GetBlockRange` body must be one uncompressed
   gRPC-web frame of 256 bytes at most, for at most 2,000 blocks (`LWD_MAX_BLOCKS`; the engine
-  asks for 1,000), so no call asks for the whole chain; any other body gets 400. The Worker adds the
+  asks for 1,000), so no call asks for the whole chain; any other body gets 400. A `GetMempoolTx`
+  body has 64 bytes at most (the engine sends 8: no exclude list, one pool type); a larger body
+  gets 400. The Worker adds the
   secret header `x-zigs-lwd-key` (secret `LWD_KEY`) and sends no header of the user, so neither the
   password nor a cookie reaches the node. Envoy on the node host (`infra/lwd`) serves the tunnel
   listener only with that key. A second listener, for the devices of the owner's tailnet, has no
@@ -837,7 +853,7 @@ the web, on iPhone and on Mac at the same time.
 |---|---|---|
 | Chain observer | One shielded transaction, its fee and its number of actions | That a group signed it, the signers, the approval rule, recipients, amounts |
 | Group server | Wallet ids, message room ids, document paths, timing, message counts and sizes, IP addresses | Names, addresses, keys, amounts, recipients, transactions, message text and senders |
-| Light-wallet server | IP address (on testnet, our node sees the app Worker instead), birthday height, blocks downloaded, transactions sent, and which full transactions a device fetches to read memos (only where memo reading is on) | Which notes belong to the wallet (the fetches are the exception: they point to payments to the wallet), the memo text (the transaction is encrypted), keys |
+| Light-wallet server | IP address (on testnet, our node sees the app Worker instead), birthday height, blocks downloaded, transactions sent, the time of each mempool call (a wallet that is open in a visible tab asks every 30 s for the whole Ironwood mempool), and which full transactions a device fetches to read memos (only where memo reading is on) | Which notes belong to the wallet (the fetches are the exception: they point to payments to the wallet), the memo text (the transaction is encrypted), keys |
 | Other signers | Everything about the shared wallet, memos included | Your key share and your nonces |
 
 ## 13. Guarantees and limits
@@ -881,7 +897,8 @@ the web, on iPhone and on Mac at the same time.
   wallet with Change devices.
 - Malicious light-wallet servers are not handled. A false server can show a chain that does not
   exist, or hide transactions. The wallet follows real reorganisations of up to 100 blocks
-  (section 6).
+  (section 6). The mempool list is the same: it can hide a payment that waits for its block. It
+  cannot make a note for the wallet, and the page never counts it as a balance.
 - A memo on chain comes from the payer and is not authenticated. Every signer can read it, and a
   signer who kept the viewing key can read it after "Change devices".
 - A full session in Tor Browser is not tested yet.

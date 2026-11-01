@@ -762,9 +762,16 @@ folder path.
 - `node web/test/qr.mjs`: the QR encoder against libqrencode (needs the `qrencode` command).
 - `node web/test/shim.mjs`: the notice of `web/shim.js` when a module of the page does not load
   or link before the first paint, and no notice for an image or style, or after the first paint.
-- `node web/test/lwd.mjs`: the `/lwd` route of `cf/src/index.js` with a stub for `fetch`: the five
-  methods that pass and the 404 for the others, the bound of a `GetBlockRange` body (400 for a range
-  over 2,000 blocks or a bad body), the method rule, the password gate, the limit for each network
+- `node web/test/mempool.mjs`: the payments that wait in the mempool, with a fake engine and the
+  real page modules: the line "Not in a block yet" and the row "Receiving · not in a block yet" for
+  a listed note, and no change of the balance numbers or the 0.5 ZEC level; the row goes away when
+  a block holds the payment or the mempool drops it; no call for a hidden tab or a closed wallet;
+  one call at a time; a failed call shows no error and the list stays for 2 minutes; the personal
+  account; the call after a finished sync.
+- `node web/test/lwd.mjs`: the `/lwd` route of `cf/src/index.js` with a stub for `fetch`: the six
+  methods that pass and the 404 for the others (`GetMempoolStream` stays closed), the bound of a
+  `GetBlockRange` body (400 for a range over 2,000 blocks or a bad body), the bound of a
+  `GetMempoolTx` body (400 over 64 bytes), the method rule, the password gate, the limit for each network
   (429 before the call to the node), the key of a network at the three limits (an IPv4 address, or
   the /64 of IPv6), the headers to the node (the allowed ones and the key only), the answer, the 503
   and 502 cases, and a response that streams.
