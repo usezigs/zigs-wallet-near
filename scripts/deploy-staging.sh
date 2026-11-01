@@ -12,6 +12,9 @@
 #   (mode 600), which the first run makes, and it is never printed.
 # - HELIUS_DEVNET_URL is the secret of production, read from ~/.config/zigs/helius-app.url. The
 #   Helius key answers only the origins on its Allowed Domains list (SOL-48).
+# - HELIUS_MAINNET_URL is the Helius mainnet URL of the plain Solana wallet, read from
+#   ~/.config/zigs/helius-mainnet.url when that file exists (mode 600). Its key allows only
+#   staging.zigs.app. The page gets it only when the var SOL_MAINNET is "1" (cf/wrangler.jsonc).
 # - LWD_KEY is the secret that the app Worker sends to our testnet node (infra/lwd). Staging uses
 #   the value of production, from ~/.config/zigs/lwd-key (mode 600, 64 hex characters). The script
 #   never makes it: it must match the file .env.lwd-key on the node host.
@@ -22,6 +25,7 @@ CONF=$HOME/.config/zigs
 PASSWORD=$CONF/staging-password
 HELIUS=$CONF/helius-app.url
 LWD=$CONF/lwd-key
+HELIUS_MAINNET=$CONF/helius-mainnet.url
 URL=https://staging.zigs.app
 REF=${1:-origin/main}
 
@@ -37,6 +41,8 @@ private() {
 
 private "$HELIUS" || fail "$HELIUS must hold the Helius Devnet URL, with mode 600"
 private "$LWD" || fail "$LWD must hold the LWD_KEY of infra/lwd/.env.lwd-key, with mode 600"
+[ ! -e "$HELIUS_MAINNET" ] || private "$HELIUS_MAINNET" \
+  || fail "$HELIUS_MAINNET must hold the Helius mainnet URL, with mode 600"
 # The bytes that go to wrangler: the bare value, not the line LWD_KEY=<value> of .env.lwd-key.
 tr -d '\n' < "$LWD" | grep -Eq '^[0-9a-f]{64}$' \
   || fail "$LWD must hold the bare 64 hex characters of LWD_KEY, not the line LWD_KEY=<value>"
@@ -67,6 +73,9 @@ npx wrangler deploy --env staging --message "$COMMIT"
 tr -d '\n' < "$PASSWORD" | npx wrangler secret put APP_PASSWORD --env staging
 tr -d '\n' < "$HELIUS" | npx wrangler secret put HELIUS_DEVNET_URL --env staging
 tr -d '\n' < "$LWD" | npx wrangler secret put LWD_KEY --env staging
+if [ -e "$HELIUS_MAINNET" ]; then
+  tr -d '\n' < "$HELIUS_MAINNET" | npx wrangler secret put HELIUS_MAINNET_URL --env staging
+fi
 
 # status PATH [with]: the HTTP status of PATH, with the password when the second argument is set.
 # The password goes to curl on stdin, so it never shows in a process list.
