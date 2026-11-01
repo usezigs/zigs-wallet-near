@@ -563,7 +563,7 @@ folder path.
   clock (`web/test/page.mjs`) that leaves out a stall such as a sleep of the computer, so a
   lifetime that the page measures with `Date.now()` cannot run out in the middle of a test. Timers
   still count a stall.
-- `cargo test --release` in `wasm/` (136 tests, and 1 ignored test that prints the vectors below):
+- `cargo test --release` in `wasm/` (149 tests, and 1 ignored test that prints the vectors below):
   - Signing: full 2-of-3 flows for Ironwood (paying 4 recipients in one transaction) and Orchard.
     The sighash and the id of 4 saved payments (`wasm/src/testdata/sighash-vectors.json`) stay the
     same when the Zcash crates change.
