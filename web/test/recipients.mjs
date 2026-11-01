@@ -170,17 +170,17 @@ await assert.rejects(ks.saveRecipient({ ...ks.recipients.entries[0], name: "Not 
 assert.deepEqual(ks.recipients, savedSealedBook, "failed encrypted save leaves the last saved book in memory");
 assert.equal(storage.get("zf-vault"), encrypted, "failed encrypted save leaves the stored key shares and book intact");
 blockedWrites = false;
-await ks.persistSealed();
+await ks.persistSealed(undefined, false);
 // A current or older page's ordinary save must preserve the book and unknown future fields.
 storage.set("zf-vault", JSON.stringify(await seal(key, rec, { ...held, future: { keep: true } })));
-await ks.persistSealed();
+await ks.persistSealed(undefined, false);
 assert.deepEqual((await open(key, JSON.parse(storage.get("zf-vault")))).future, { keep: true });
 const sealedBefore = await open(key, JSON.parse(storage.get("zf-vault")));
 sealedBefore.recipients = { version: 3, entries: ["future format"] };
 storage.set("zf-vault", JSON.stringify(await seal(key, rec, sealedBefore)));
 await ks.takeFromTab("zf-vault");
 await assert.rejects(ks.saveRecipient(zec), /cannot be read/);
-await ks.persistSealed();
+await ks.persistSealed(undefined, false);
 assert.deepEqual((await open(key, JSON.parse(storage.get("zf-vault")))).recipients,
   sealedBefore.recipients, "unrelated vault saves preserve an unreadable book whole");
 storage.set("zf-vault", JSON.stringify(await seal(key, rec, held)));

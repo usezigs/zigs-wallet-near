@@ -262,7 +262,7 @@ const hashes = [1, 2, 3].map((i) => sha(solOf(gid, i).solSeed));
 {
   const key = await aesKey(new Uint8Array(32).fill(9));
   t.setVault({ rec: { cred: "c", salt: "s" }, key });
-  await t.persistSealed();
+  await t.persistSealed(undefined, false);
   const stored = parseVault(storage.get("zf-vault"));
   const got = await openVault(key, stored);
   assert.deepEqual(got.secrets[gid + ":1"].sol, solOf(gid, 1), "the sealed record has sol");

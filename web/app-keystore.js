@@ -116,7 +116,9 @@ const VAULT_FIELDS = ["secrets", "keys", "chats", "personal"];
 const foreignFields = (got) => Object.fromEntries(
   Object.entries(got).filter(([k]) => !VAULT_FIELDS.includes(k)));
 
-export async function persistSealed(recipientOverride, fresh = false) {
+/** `fresh` is required: true takes the once-only fields from storage first, false does not. */
+export async function persistSealed(recipientOverride, fresh) {
+  if (typeof fresh !== "boolean") throw new Error("persistSealed needs the argument fresh.");
   try {
     const got = await storedRecord(fresh), foreign = foreignFields(got);
     if (fresh) takeOnceOnly(got.secrets);
@@ -143,14 +145,17 @@ export async function persistSealed(recipientOverride, fresh = false) {
  * step that holds the lock already and saves with persistHeld: the lock is not reentrant.
  * Resolves true once saved. Sealed writes are queued, so the last one always holds the newest
  * state. A save also saves the changes that came before it.
- * ponytail: the save waits for the lock, so a seat, wallet key or chat that this tab removed
- * comes back when a locked step of this tab takes the record before that save gets the lock. The
- * person removes it again. Upgrade path: a set of removals that takeStored skips.
+ * A save waits for the lock, and a locked step that runs first would read storage over the changes
+ * of this tab. So such a step first writes them (flushOnce): see takeStored, takeFromTab and
+ * finishProtection.
+ * ponytail: a stale whole-record save can still drop an item that another tab added, or bring
+ * back one that this tab removed. Upgrade path: merge by item, with marks for removals.
  */
 export function persist(recipientOverride) {
   if (lockedVault) return Promise.resolve(false);
   // These need no lock: nothing is read or written.
   if (!vault && (memoryOnly() || lockedElsewhere())) return saveNow(recipientOverride, false);
+  asked++;
   return exclusive("secrets", () => saveNow(recipientOverride, true)).catch((e) => {
     log("could not save: " + said(e));
     return wrote(false);
@@ -168,12 +173,26 @@ export function persistHeld(recipientOverride) {
   return lockedVault ? Promise.resolve(false) : saveNow(recipientOverride, false);
 }
 
+// Saves that asked for the lock, and the last of them that a write holds. A write saves the whole
+// memory, so it holds every ask made before it began. While they differ, a save waits for the lock
+// with a change of this tab that storage lacks.
+let asked = 0, written = 0;
+const pending = () => asked !== written;
+// Writes the changes of this tab that wait for the lock. Only a step that holds the lock calls it.
+async function flushOnce() {
+  if (!await saveNow(undefined, true)) {
+    throw new Error("This tab could not save its own changes first, so the step stopped.");
+  }
+}
+
 // Never wait for the lock here: a step that holds it waits for this write. `fresh`: take the
 // once-only fields from storage first.
 function saveNow(recipientOverride, fresh) {
-  const upTo = changes;
+  const upTo = changes, upToAsk = asked;
   const done = (ok) => {
-    if (ok) for (const [k, n] of unsaved) if (n <= upTo) unsaved.delete(k);
+    if (!ok) return ok;
+    written = Math.max(written, upToAsk);
+    for (const [k, n] of unsaved) if (n <= upTo) unsaved.delete(k);
     return ok;
   };
   if (!vault) return Promise.resolve(done(persistPlain(fresh)));
@@ -292,10 +311,13 @@ function rollbackLock(made, saved) {
   } catch { /* the plain copies remain, and setup stays blocked */ }
 }
 async function finishProtection(made) {
-  const next = lockSources();
-  const bookToLock = recipientsRaw;
   await takeDeviceAccount();
   canEnableProtection();
+  // Saves of this tab wait for the lock, which the passkey prompt held. Write them first, so the
+  // plain copies below hold them. No await from here to the new memory.
+  while (pending()) await flushOnce();
+  const next = lockSources();
+  const bookToLock = recipientsRaw;
   secrets = next.secrets; gkeys = next.keys; chats = next.chats;
   vault = made;
   let saved;
@@ -431,14 +453,17 @@ export function forgetVault() {
 /**
  * Takes what storage holds now into this tab, after this tab's own queued writes: another tab
  * may have saved a change that this tab has not taken yet (takeSecrets, takeKeys, takeChats and,
- * from a sealed record, takeAccount). A missing or unreadable plain record leaves this tab as it
- * is: it may be the last copy. A sealed record that does not open stops the step. Resolves to the
- * opened sealed record, else null.
+ * from a sealed record, takeAccount). A save of this tab that waits for the lock is written first
+ * (flushOnce), so the take never undoes its change. A missing or unreadable plain record leaves
+ * this tab as it is: it may be the last copy. A sealed record that does not open stops the step,
+ * and so does a write that fails. Resolves to the opened sealed record, else null. Only a step
+ * that holds the lock calls it.
  */
 export async function takeStored() {
   if (lockedVault) return null;
   if (vault) return takeSealed();
   if (secrets === mem) return null;
+  while (pending()) await flushOnce();
   try {
     if (localStorage.getItem("zf-vault")) return null;
     takeSecrets(plainRecord("zf-secrets", {}));
@@ -596,22 +621,29 @@ export async function loadKept(gid, sid) {
 // Another tab saved. Under the lock of the secrets this tab takes what storage holds now, as a
 // locked step does, so a step of this tab is never undone and a late event changes nothing. Then
 // the chats, and the account of a sealed record, come in as the other tab saved them: a chat or an
-// account that it removed goes here too.
+// account that it removed goes here too. Those replace the chats and the account of this tab, so
+// no save of this tab may wait with a change: the loop reads again until none does.
 const TAB_KEYS = new Set(["zf-secrets", "zf-keys", "zf-chats", "zf-vault", RECIPIENTS_KEY]);
 export function takeFromTab(key) {
   if (vault ? key !== "zf-vault" : key === "zf-vault") return Promise.resolve();
   return exclusive("secrets", async () => {
-    const got = await takeStored();
-    if (got) await takeVaultRest(got);
-    else if (key === "zf-chats") chats = normChats(plainRecord(key, null));
-    else if (key === RECIPIENTS_KEY) readPlainRecipients();
+    for (;;) {
+      const got = await takeStored();
+      if (pending()) continue;
+      if (got) await takeVaultRest(got);
+      else if (key === "zf-chats") chats = normChats(plainRecord(key, null));
+      else if (key === RECIPIENTS_KEY) readPlainRecipients();
+      return;
+    }
   });
 }
 
 // Reads the sealed record again until no write of this tab came in during the decrypt, so such a
-// write (a removed seat too) is never undone. Resolves to the opened record.
+// write (a removed seat too) is never undone. A save that asked for the lock during the decrypt
+// counts as a write. Resolves to the opened record.
 async function takeSealed() {
   for (;;) {
+    while (pending()) await flushOnce();
     const queued = vaultWrite;
     await queued;
     const text = localStorage.getItem("zf-vault");
@@ -619,7 +651,7 @@ async function takeSealed() {
     const got = await openVault(vault.key, parseVault(text)).catch(() => {
       throw new Error("The locked keys in this browser cannot be read again. Reload the page.");
     });
-    if (queued !== vaultWrite) continue;
+    if (queued !== vaultWrite || pending()) continue;
     if (got.secrets) takeSecrets(got.secrets);
     if (got.keys) takeKeys(got.keys);
     takeChats(normChats(got.chats));

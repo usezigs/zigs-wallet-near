@@ -6147,7 +6147,7 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
     [seed, ["Ana", "Ben", "Eve"]]);
   // A field that this page does not know stays in the record when the page saves.
   storage.set("zf-vault", JSON.stringify(await seal(vkey, vrec, { ...opened, future: { x: 1 } })));
-  await t.persistSealed();
+  await t.persistSealed(undefined, false);
   const resaved = await openVault(vkey, JSON.parse(storage.get("zf-vault")));
   assert.deepEqual([resaved.future, resaved.personal.seed], [{ x: 1 }, seed]);
   // With the lock on, the save of another tab can reach this tab late. A change reads the sealed
@@ -6200,7 +6200,7 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
   assert.equal(t.personal.seed, seed, "the account comes back from the sealed record");
   t.adoptPersonal({ ...opened.personal, seed: "00" });
   assert.deepEqual([t.personal, /cannot be read/.test(t.personalError)], [null, true]);
-  await t.persistSealed();
+  await t.persistSealed(undefined, false);
   const kept = await openVault(vkey, JSON.parse(storage.get("zf-vault")));
   assert.equal(kept.personal.seed, "00", "a record that does not read is kept, not erased");
   t.adoptPersonal(opened.personal);

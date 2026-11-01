@@ -479,7 +479,10 @@ A proposer also cannot make an output, the change included, that its recipient c
   the record (a backup, a restore, a room, a ceremony step, a chat, a wallet key, the account)
   takes that lock too, and copies the nonces, the marks, the kept shares and the Solana records
   from storage before it writes. So a tab that is behind never writes back a nonce that another
-  tab burned (ZEC-12). A browser without Web Locks queues the steps of one tab only.
+  tab burned (ZEC-12). A step that holds the lock and reads storage first writes the changes of
+  its own tab that still wait for the lock, in the same way. So the read never undoes a change,
+  and never brings back an item that the tab removed. A browser without Web Locks queues the
+  steps of one tab only.
 - After the start, a browser that approved takes "Sent", "Expired" and "Propose again" only from
   the engine's `sessionState` (TICKETS.md ZEC-9, ZEC-13). It passes the kept PCZT and the
   approved sighash, so a proposal that one seat rewrote does not count, and a cancel or failure
