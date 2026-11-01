@@ -2280,6 +2280,8 @@ h1,h2,h3 { letter-spacing:-.025em; }
 .guided-plan .setup-arrangement .tutorial-node>.symbol { width:32px; height:32px; padding:6px; }
 .setup-arrangement .example-selected { box-shadow:inset 0 0 0 2px var(--accent-text); }
 .setup-arrangement .tutorial-wallet-rule { margin:0; padding-top:8px; }
+/* The connector is placed for a gap of 20px; at 6px it reaches neither the group nor the ring. */
+.setup-arrangement .security-rule::before { display:none; }
 /* Proposed rule only: interactive counters beside an explicitly illustrative signer group. */
 .threshold-layout { display:grid; grid-template-columns:minmax(0,1.45fr) minmax(280px,1fr);
   gap:24px; align-items:start; min-width:0; }
