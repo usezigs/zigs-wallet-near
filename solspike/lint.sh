@@ -28,7 +28,7 @@ JS=(solspike/harness/*.mjs solspike/tools/*.mjs solspike/build.mjs solspike/buil
   web/help-model.js web/test/help.mjs
   web/test/unified-setup.mjs web/sol/owned.js web/sol/rent.js web/test/sol-rent.mjs
   web/test/sol-nonce-tabs.mjs web/test/mempool.mjs web/test/nonce-locks.mjs
-  web/sol/plain/*.js web/test/plain-worker.mjs
+  web/sol/plain/*.js web/test/plain-worker.mjs web/app-sol.js
   web/guided-setup-model.js web/backup-check.js
   web/wallet-description.js web/test/wallet-description.mjs
   web/test/guided-create.mjs web/test/passkey-setup.mjs web/test/optional-passkey.mjs

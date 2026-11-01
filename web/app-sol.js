@@ -327,13 +327,14 @@ export const solTab = () => sol ? guard(sol.view)
   : (solLoad(), el("p", { class: "small" }, "Loading Solana…"));
 const NET_UNCONFIRMED = "This browser does not know yet which network the people of this wallet "
   + "confirmed. Open the wallet, wait until your device shows Address checked, then try again.";
+async function plainRestore(b, encrypted) {
+  await plainLoad();
+  if (!plainSol) throw new Error("Solana did not load.");
+  const { restoreSolana } = await import("./sol/backup.js");
+  return restoreSolana(plainSol.ctl, b, encrypted);
+}
 export async function solRestore(b, encrypted) {
-  if (plainOn(b.group) && ui.plainServed === true) {
-    await plainLoad();
-    if (!plainSol) throw new Error("Solana did not load.");
-    const { restoreSolana } = await import("./sol/backup.js");
-    return restoreSolana(plainSol.ctl, b, encrypted);
-  }
+  if (plainOn(b.group) && ui.plainServed === true) return plainRestore(b, encrypted);
   if (solGroup(b.group) && !solOn(b.group)) {
     throw new Error(netConfirmed(b.group) ? "Solana runs on version 3 testnet wallets only."
       : NET_UNCONFIRMED);
