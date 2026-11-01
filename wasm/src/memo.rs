@@ -127,16 +127,17 @@ pub(crate) fn commitment_bytes(note: &orchard::Note) -> [u8; 32] {
     ExtractedNoteCommitment::from(note.commitment()).to_bytes()
 }
 
+/// A transaction id and its opened notes, as `received` returns them.
+type Opened = (String, Vec<([u8; 32], MemoView)>);
+
 /// The Ironwood notes of `ivk` in the transaction `raw`: its id (as text) and, for each note, the
 /// bytes of its commitment and what its memo holds. Only the ciphertext authenticates a memo, so
 /// the result is right even when the server that sent `raw` is not.
-pub(crate) fn received(
-    raw: &[u8],
-    ivk: &IncomingViewingKey,
-) -> R<(String, Vec<([u8; 32], MemoView)>)> {
+pub(crate) fn received(raw: &[u8], ivk: &IncomingViewingKey) -> R<Opened> {
     // The branch id matters for version 4 transactions only; Ironwood needs version 6.
     let tx = Transaction::read(raw, BranchId::Nu6_3).map_err(e("transaction"))?;
-    let found = tx.ironwood_bundle().map(|b| b.decrypt_outputs_with_keys(&[ivk.clone()]));
+    let keys = std::slice::from_ref(ivk);
+    let found = tx.ironwood_bundle().map(|b| b.decrypt_outputs_with_keys(keys));
     let notes = found
         .unwrap_or_default()
         .iter()
