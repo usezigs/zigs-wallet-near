@@ -37,6 +37,10 @@ is a bug: please report it.
   cannot run a swap: no funds move. The app Worker asks for each quote. It sends the pair, the
   amount and the slippage, with sample addresses and no address of yours. NEAR Intents sees the
   Worker and not your IP address. Read [Swap quotes](#swap-quotes-near-intents).
+- The Overview of a mainnet wallet (web app only) shows a USD total. It asks for the price of a
+  fixed 1 ZEC from NEAR Intents, through the same route, at most every 5 minutes while it shows.
+  The call holds no balance and no address. NEAR Intents and the Worker see the time of the call,
+  not the balance. A testnet wallet asks nothing. Read [Swap quotes](#swap-quotes-near-intents).
 
 ## On chain
 
@@ -258,7 +262,8 @@ What the app trusts, and what it checks:
 ## Swap quotes (NEAR Intents)
 
 **Status:** live quotes only. The Swap page of the web app shows prices from NEAR Intents (the
-1Click API). Zigs cannot run a swap: the page shows quotes only. No funds move, no API key is
+1Click API). The Overview of a mainnet wallet also uses one such quote, of a fixed 1 ZEC, to show
+a USD total. Zigs cannot run a swap: the page shows quotes only. No funds move, no API key is
 used, and no deposit address is made.
 
 How a quote works:
@@ -273,11 +278,18 @@ How a quote works:
   `Cache-Control: no-store`. It stores nothing and writes no log.
 - The Worker limits `/near/quote` to 60 calls a minute for each IPv4 address or IPv6 /64
   (`NEAR_PER_IP`, counted per Cloudflare location). It uses the IP address in memory only.
+- The Overview of a mainnet wallet asks for the price of 1 ZEC through the same route. It posts
+  exactly 1 ZEC (100,000,000 zatoshi) to USDC with the slippage 50. The amount is fixed: it never
+  depends on your balance. The page multiplies the price by the ZEC total of the wallet, on the
+  device, and counts 1 USDC as 1 USD. It asks when the Overview shows and no price on the page is
+  younger than 5 minutes. It runs one call at a time and waits at least 60 seconds after a failed
+  call. A hidden tab asks nothing, and a testnet wallet asks nothing. The price stays in memory for
+  the page session: the page stores it nowhere.
 
 | Party | What it learns |
 |---|---|
-| NEAR Intents (`1click.chaindefuser.com`) | The pair, the amount, the slippage and the time of each quote, and the sample addresses. It sees the Worker, not your IP address. It cannot link a quote to a wallet or to you |
-| App Worker | Your IP address, and the pair, the amount and the slippage of each quote. It keeps no log |
+| NEAR Intents (`1click.chaindefuser.com`) | The pair, the amount, the slippage and the time of each quote, and the sample addresses. It sees the Worker, not your IP address. It cannot link a quote to a wallet or to you. For the Overview, the pair and the amount are always 1 ZEC to USDC: it learns only the time |
+| App Worker | Your IP address, and the pair, the amount and the slippage of each quote. It keeps no log. For the Overview, it learns your IP address and the time, and the fixed 1 ZEC to USDC ask |
 | Cloudflare | Connection data, as for every request to the app |
 | Group server, light-wallet server | Nothing |
 | Chain observers | Nothing: no transaction exists |
@@ -297,6 +309,12 @@ What stays visible:
   address, so no payout was made. The chain-support page of NEAR Intents still lists Zcash as
   "Partially supported - Transparent addresses only". Treat the shielded claim as unproven until
   a real swap pays to such an address.
+- An open Overview of a mainnet wallet asks about once every 5 minutes. So the Worker and NEAR
+  Intents see the times at which someone has a mainnet wallet open in the web app. They do not see
+  the balance, the wallet or the address.
+- The USD total of the Overview is the price of a NEAR Intents quote for 1 ZEC, times your ZEC
+  total. The quote includes the fees and the spread of NEAR Intents. It is not a market rate, and a
+  swap can give another amount. The page shows the age of the price. Only ZEC counts in the total.
 - NEAR Intents is a third party with its own terms. The prices are mainnet prices, and they can
   change within seconds.
 
@@ -474,10 +492,10 @@ What makes this safe to rely on:
 - The page sends a Content-Security-Policy header. The browser lets it connect only to the group
   server and the light-wallet servers in `NETWORKS` (our testnet server through `/lwd` of its own
   host, and two ChainSafe servers), and to nothing else. The name registry also comes from its
-  own host, through `/zns`, and the Swap quotes come through `/near/quote`. The Solana Worker
-  (`/sol/worker.js`, testnet wallets only) has a policy of its own, which also names the Helius
-  Devnet host and the one folder of proving keys of the local prover. The policy of the page
-  names neither.
+  own host, through `/zns`, and the Swap quotes and the Overview price come through `/near/quote`.
+  The Solana Worker (`/sol/worker.js`, testnet wallets only) has a policy of its own, which also
+  names the Helius Devnet host and the one folder of proving keys of the local prover. The policy
+  of the page names neither.
 - A restored seat works in a new session. The app checks the restored key data against what the
   wallet published for that seat. A proposal records the identity of the seat, not of the session.
 - Backups leave out signing nonces, and a restore drops the nonces in older backup files, so a
