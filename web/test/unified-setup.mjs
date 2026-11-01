@@ -883,6 +883,11 @@ function moveWords() {
     t.inbox[gid] = sent(old.movedTo);
     t.balCache[gid] = { total: 5, at: 200 };
     assert.match(row(), /Moving/, "a wallet with Zcash left is still moving");
+    t.balCache[gid] = { total: 5, movable: 5, at: 200 };
+    assert.match(row(), /Moving/, "Zcash that a payment can move keeps it moving");
+    t.balCache[gid] = { total: 5, movable: 0, at: 200 };
+    assert.match(row(), /ZEC moved/, "a rest that cannot pay the fee does not");
+    t.balCache[gid] = { total: 5, at: 200 };
     // An open wallet whose document still loads gets the word of a listed wallet.
     Object.assign(t.state, { gid, g: null });
     let word;
@@ -2123,7 +2128,7 @@ async function walkSteps(fields, times, fresh = true) {
   assert.ok(walletReady(), "the Zcash part is still ready");
   assert.ok(solOn(), "this wallet has a Solana part");
   assert.match(dialogText(t.state.g),
-    /all its Zcash funds.*If this wallet has a Solana part, it does not /s,
+    /sends its Zcash funds to the new one.*If this wallet has a Solana part, it does not /s,
     "Change devices says that the Solana part does not move");
   ui.tab = "solana";
   assert.match(pageText(), new RegExp(aborted.replace(/\./g, "\\.") + " " + NEXT.source));

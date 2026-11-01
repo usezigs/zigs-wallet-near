@@ -754,8 +754,8 @@ const moveParts = (from, nameParts, ruleParts) => [el("ol", { class: "small mute
 ...nameParts, ...ruleParts];
 // The funds that move: Change devices moves the Zcash funds only, so a wallet with a Solana part
 // is told to check that part on its own.
-const moveFundsText = (from) => "This wallet sends all its Zcash funds to the new one. Like any "
-  + "payment, this needs " + from.t + " approvals." + solStays();
+const moveFundsText = (from) => "This wallet sends its Zcash funds to the new one, in one payment "
+  + "or more. Like any payment, each one needs " + from.t + " approvals." + solStays();
 // What a rule means when devices are lost: how many can be missing, and how many can spend. With
 // every device needed, one lost device stops the wallet.
 export const marginText = (t, n) => (t === n ? "Each payment needs every device. When one "

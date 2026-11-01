@@ -138,7 +138,7 @@ To see device changes, open **Devices**, then **Change devices**. To see the pri
 |---|---|
 | **Privacy** | On chain, the transaction shape matches the standard wallet library: same builder, padding, standard fee and anchor depth. A group payment expires after one day instead of 40 blocks, because its approvals take hours, so the expiry marks it, and so does a priority fee ([comparison](PRIVACY.md#on-chain)). The server stores only encrypted values, padded so that even their length hides amounts. On the device, key shares can be locked with a passkey ([how](PRIVACY.md#lock-with-a-passkey-or-face-id)). Key share backups are encrypted with a passphrase (Argon2id and XChaCha20-Poly1305) ([how](PRIVACY.md#key-share-backups)). The page can connect only to its own host (the group server and the testnet light-wallet relay) and two ChainSafe light-wallet servers (Content-Security-Policy). For testnet wallets, the Solana Worker of the page also connects to the Helius Devnet host ([how](PRIVACY.md#solana-beta-helius-devnet)). With local proving on, it also fetches the proving keys from one CloudFront folder (`d3gbdb0egjwcw9.cloudfront.net/proving-keys/3a1c88f90f609eb1/`, `SOL_KEYS` in `cf/src/index.js`). It is prepared for Tor Browser, but not yet tested end to end ([how](PRIVACY.md#use-zigs-over-tor)). The Zigs server code keeps no logs; its host, Cloudflare, can see connection data. Every remaining leak is listed in [PRIVACY.md](PRIVACY.md). |
 | **Usefulness** | Designed for team treasuries, DAOs and families. Usable today in the web app, on Zcash testnet and Solana Devnet: invite links and QR codes; batch payments for payroll and grants (up to 8 recipients, one approval round, pasted from a spreadsheet); device changes; encrypted key share backups. |
-| **Execution** | The live app works end to end. The testnet and Devnet transactions that the apps made, a payment to a ZNS name among them, are [listed below](#proof-on-testnet-and-devnet). The engine has 128 tests, and a command-line suite runs adversarial cases. |
+| **Execution** | The live app works end to end. The testnet and Devnet transactions that the apps made, a payment to a ZNS name among them, are [listed below](#proof-on-testnet-and-devnet). The engine has 131 tests, and a command-line suite runs adversarial cases. |
 | **Originality** | An end-user app for re-randomized FROST: no command line, no trusted dealer, and no server that can read the wallet. Each device decodes the PCZT and checks every output before it approves, and binds its approval to the transaction's sighash. Device changes and batch payments are included. The iPhone and Mac code in `ios/` is not part of this release. Built during the Zecathon window: the first commit is from October 15, 2026. |
 
 ## Architecture
@@ -278,15 +278,15 @@ a bad share names its sender.
 ## Changing devices
 
 The devices and the approval rule are part of the wallet key, so they cannot change in place.
-Zigs creates a replacement wallet and moves the Zcash funds with one normal, approved payment, or
-more than one when the wallet holds more than 6 notes. A Solana part of the wallet does not move
+Zigs creates a replacement wallet and moves the Zcash funds with normal, approved payments: one
+payment, or more when the wallet holds more than 6 notes. A Solana part of the wallet does not move
 this way.
 
 ```mermaid
 flowchart TD
   OLD["Old wallet<br/>devices A, B, C, any 2 of 3"] -->|Change devices| NEW["New wallet<br/>devices A, B, D, any 2 of 3<br/>new key ceremony, new address"]
   OLD -.->|stores the new wallet id, never its secret| NEW
-  NEW --> PAY["The old wallet proposes one payment of its spendable Zcash balance to the new address"]
+  NEW --> PAY["The old wallet proposes a payment of its Zcash funds to the new address<br/>(more payments when it holds more than 6 notes)"]
   PAY --> OK["2 of 3 old devices approve.<br/>The approving devices that are in the new wallet check its address"]
   OK --> STAY["The old wallet stays, with its address and history.<br/>Device C can still read the old wallet, but not the new one.<br/>The move payment gives device C the new address, the amount,<br/>the note and the id of the new wallet. With the id, device C can get<br/>the sealed documents of the new wallet and each later write from the group server,<br/>which also accepts writes from it, so device C can stop the new wallet with false documents"]
 ```
@@ -555,7 +555,7 @@ folder path.
   clock (`web/test/page.mjs`) that leaves out a stall such as a sleep of the computer, so a
   lifetime that the page measures with `Date.now()` cannot run out in the middle of a test. Timers
   still count a stall.
-- `cargo test --release` in `wasm/` (128 tests, and 1 ignored test for ZEC-1):
+- `cargo test --release` in `wasm/` (131 tests, and 1 ignored test for ZEC-1):
   - Signing: full 2-of-3 flows for Ironwood (paying 4 recipients in one transaction) and Orchard.
   - Expiry and fees: a group payment expires after one day of blocks (75 or 25 seconds each), at
     most up to the next upgrade. The approver refuses an expired payment and one that stays valid
@@ -591,7 +591,7 @@ folder path.
     blocks and rewind through the native interface. The words of the error for a reorganisation
     that is too deep.
   - Payment request tests: a round trip, one and several payees, a request without an amount, and
-    memos. The wrong network, 21 payees, a zero amount and a repeated parameter.
+    memos. The wrong network, 9 payees, a zero amount and a repeated parameter.
   - A memo for a transparent address, and a memo that is not base64 or not text. A payee index
     that ZIP 321 does not allow, and text that is not a request. Each error names the payee.
   - The native interface has both calls.

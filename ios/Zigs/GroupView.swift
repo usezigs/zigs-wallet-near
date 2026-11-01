@@ -624,8 +624,11 @@ struct MoveCard: View {
         if let ss, model.inFlight.contains(where: { $0.id == ss.id }) {
             return ("The funds are on their way to \(name). They arrive with the next block.", to, nil, false, false)
         }
-        if ss != nil, let b, b.spendable + b.pending == 0 { return ("All funds moved to \(name). This wallet is closed.", to, nil, false, true) }
-        return ("\(name) is ready. Move all funds to it. Like any payment, this needs \(model.state.t) approvals.", nil, nil, true, false)
+        // A rest that no payment can move (maxSend 0) stays, and the move is done without it.
+        if ss != nil, let b, b.pending == 0, b.spendable == 0 || model.maxSend == 0 {
+            return ("The funds moved to \(name). This wallet is closed.", to, nil, false, true)
+        }
+        return ("\(name) is ready. Move the funds to it. Like any payment, this needs \(model.state.t) approvals.", nil, nil, true, false)
     }
 }
 

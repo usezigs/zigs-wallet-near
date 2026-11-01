@@ -734,7 +734,7 @@ the passkey guards the key share instead. The lock is opt-in.
   memos of the dropped blocks, and stops at 100 blocks.
 - Engine tests for payment requests check these points:
   - A request round trips through `makeRequest` and `parseRequest`.
-  - The engine refuses a wrong network, more than 20 payees, a zero amount and a malformed URI.
+  - The engine refuses a wrong network, more than 8 payees, a zero amount and a malformed URI.
   - The engine refuses a memo for a transparent address and a memo that is not text.
   - Each error names the payee. A payee index that ZIP 321 does not allow, and text from the
     sender, stay out of the error.

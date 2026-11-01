@@ -574,19 +574,27 @@ fn pick_notes_after(
         if !picked.is_empty() && total >= amount.saturating_add(fee) {
             return Ok(Pick { picked, fee, change: total - amount - fee, total });
         }
-        if picked.len() == MAX_SPENDS {
-            let most = total.saturating_sub(fee);
-            return Err(format!(
-                "one payment can spend at most {MAX_SPENDS} notes, so it can send at most {most} \
-                 zat with these recipients and this fee. Send less, and the rest in another \
-                 payment"));
-        }
         let Some(i) = rest.next() else { break };
+        if picked.len() == MAX_SPENDS {
+            return Err(over_cap(total.saturating_sub(fee), !first.is_empty()));
+        }
         picked.push(i);
         total += notes[i].0;
     }
     let need = amount.saturating_add(zip317_fee(picked.len(), outputs) * factor);
     Err(format!("not enough funds: {total} zat spendable, {need} zat needed (amount + fee)"))
+}
+
+/// The refusal of a payment that needs more than `MAX_SPENDS` notes. `most` is what the notes
+/// that it can spend send. `again`: the payment replaces an expired one and spends its notes.
+fn over_cap(most: u64, again: bool) -> String {
+    let what = if again {
+        "The funds changed after the expired payment. Propose a new payment instead"
+    } else {
+        "Send less. Send the rest in another payment"
+    };
+    format!("one payment can spend at most {MAX_SPENDS} notes, so it can send at most {most} zat \
+         with these recipients and this fee. {what}")
 }
 
 /// The unspent notes that `after` spends, as indices in the order of `build_spend`. A payment
@@ -607,25 +615,30 @@ fn notes_of(s: &Inner, after: &Pczt) -> R<Vec<usize>> {
     Ok(unspent.filter(|(_, n)| spends.contains(&n.nf.to_bytes())).map(|(i, _)| i).collect())
 }
 
-/// The largest amount one payment to one recipient can send, and its fee: the `MAX_SPENDS` largest
-/// confirmed notes, less the fee for spending them.
+/// The largest amount one payment to one recipient can send, and its fee. It spends the largest
+/// confirmed notes, at most `MAX_SPENDS`, and leaves out the smaller ones that add less than the
+/// fee of spending them. 0 means that no confirmed note can pay its own fee.
 fn max_send(notes: &[(u64, u32)], synced: u32) -> (u64, u64) {
     let mut confirmed: Vec<u64> =
         notes.iter().filter(|n| is_confirmed(n.1, synced) && n.0 > 0).map(|n| n.0).collect();
     confirmed.sort_unstable_by(|a, b| b.cmp(a));
-    confirmed.truncate(MAX_SPENDS);
-    if confirmed.is_empty() {
-        return (0, 0);
+    let (mut best, mut sum) = ((0, 0), 0);
+    for (k, value) in confirmed.iter().take(MAX_SPENDS).enumerate() {
+        sum += value;
+        let fee = zip317_fee(k + 1, 2);
+        if k == 0 || sum.saturating_sub(fee) > best.0 {
+            best = (sum.saturating_sub(fee), fee);
+        }
     }
-    let fee = zip317_fee(confirmed.len(), 2);
-    (confirmed.iter().sum::<u64>().saturating_sub(fee), fee)
+    best
 }
 
 /// Most notes that one payment spends, and most outputs, the change included. ponytail: the group
-/// server refuses a session document over `MAX_DOC` (256,000 bytes, cf/src/index.js). It holds the
-/// PCZT, the signing package, the signed PCZT and the final transaction, and their padded sizes
-/// grow in steps. At these limits with 7 signers the document stays near 227,000 bytes. To raise
-/// them, move `final` to its own document.
+/// server refuses a session document over `MAX_DOC` (256,000 characters, cf/src/index.js). The
+/// document holds the recipients, the PCZT, the signing package, the signed PCZT and the final
+/// transaction, and their padded sizes grow in steps. At these limits with 7 signers it measures
+/// about 227,000 characters, and about 248,000 when every memo is full of control characters. One
+/// more note doubles the package. To raise the limits, move `final` to its own document.
 const MAX_SPENDS: usize = 6;
 const MAX_OUTPUTS: usize = 9;
 /// Most recipients in one payment: the change is one more output.
@@ -974,7 +987,7 @@ impl ChainWallet {
     /// …]`. The memo is optional: at most 512 UTF-8 bytes. `priority` pays 10 times the ZIP 317
     /// fee. The payment expires one day after it is built (see `expiry`). `after` (optional) is
     /// the PCZT of an expired payment that this one replaces: this one also spends every note of
-    /// it, and fails if one of them is spent now.
+    /// it, and fails if one of them is spent now, or if it spends more than `MAX_SPENDS` notes.
     #[wasm_bindgen(js_name = createSpend)]
     pub async fn create_spend(
         &self,
@@ -1183,11 +1196,33 @@ mod tests {
         assert!(err.contains(&format!("at most {max} zat")), "{err}");
         let priority = select_notes(&notes, max, 2, SYNCED, PRIORITY_FACTOR).unwrap_err();
         assert!(priority.contains(&format!("at most {} zat", max - 9 * fee)), "{priority}");
+        let at_priority = select_notes(&notes, max - 9 * fee, 2, SYNCED, PRIORITY_FACTOR).unwrap();
+        assert_eq!((at_priority.picked.len(), at_priority.change), (MAX_SPENDS, 0));
         let first: Vec<usize> = (0..=MAX_SPENDS).collect();
         let old = pick_notes_after(&notes, &first, (1, 2), SYNCED, 1).unwrap_err();
         assert!(old.contains("Propose a new payment"), "{old}");
         let again = pick_notes_after(&notes, &first[1..], (1, 2), SYNCED, 1).unwrap();
         assert_eq!(again.picked, first[1..]);
+        // The small notes of an expired payment, and larger notes that came later.
+        let changed = pick_notes_after(&notes, &first[..MAX_SPENDS], (max, 2), SYNCED, 1);
+        assert!(changed.unwrap_err().contains("The funds changed"));
+    }
+
+    #[test]
+    fn six_notes_that_cannot_pay_are_not_enough_funds() {
+        let err = select_notes(&[(20_000, 10); MAX_SPENDS], 100_000, 2, SYNCED, 1).unwrap_err();
+        assert!(err.contains("not enough funds: 120000 zat spendable"), "{err}");
+    }
+
+    #[test]
+    fn max_send_leaves_out_notes_that_cost_more_than_they_add() {
+        let mut notes = vec![(20_000, 10)];
+        notes.extend([(1_000, 10); 5]);
+        // The fee of 2 notes is that of 1, so the first small note is free; the next ones cost.
+        assert_eq!(max_send(&notes, SYNCED), (11_000, 10_000));
+        let p = select_notes(&notes, 11_000, 2, SYNCED, 1).unwrap();
+        assert_eq!((p.picked, p.change), (vec![0, 1], 0));
+        assert_eq!(max_send(&[(4_000, 10); 3], SYNCED), (0, 10_000), "dust that cannot move");
     }
 
     #[test]
@@ -1255,6 +1290,7 @@ mod tests {
         assert_eq!(parse_payees(&[ok.clone(), ok.clone()], net).unwrap().len(), 2);
         let err = |rows: &[Value]| parse_payees(rows, net).unwrap_err();
         assert!(err(&[]).contains("at least one"));
+        assert_eq!(parse_payees(&vec![ok.clone(); MAX_PAYEES], net).unwrap().len(), MAX_PAYEES);
         assert!(err(&vec![ok.clone(); MAX_PAYEES + 1]).contains("at most 8 recipients"));
         let zero = json!({"to": ua, "amount": 0});
         assert!(err(&[ok.clone(), zero]).contains("recipient 2: amount must be greater"));

@@ -2219,10 +2219,20 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
       incoming.bal.pending = 5;
       assert.match(t.moveState(incoming).text, /Move the Zcash funds to it\./,
         "incoming funds keep the move open");
-      const more = () => tipAt(4500000, new Set(["realtx"]));
+      const more = () => {
+        const c = tipAt(4500000, new Set(["realtx"]));
+        c.bal.max_send = 50000;
+        return c;
+      };
       assert.match(t.moveState(more()).text, /Move the Zcash funds to it\. Like any/,
         "more funds came in: move them too");
       assert.equal(t.moveWord(t.state.g), "Moving", "and the open wallet is still moving");
+      const dust = emptied();
+      Object.assign(dust.bal, { spendable: 4000, max_send: 0 });
+      const left = t.moveState(dust);
+      assert.ok(left.text.endsWith(" " + fmtZec(4000) + " stays here: it cannot pay the network "
+        + "fee."), left.text);
+      assert.equal(left.done, true, "a rest that no payment can move does not keep the move open");
       const devicesText = () => {
         t.ui.tab = "members";
         try { return textOf(t.walletView(null, null)); } finally { t.ui.tab = "overview"; }
@@ -3445,11 +3455,13 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
       assert.ok(moveTexts.includes(MOVE_LATER_NOTE), "and what a device that is left out keeps");
       assert.doesNotMatch(moveTexts.join(" "), /priority|memo/i,
         "a move has no priority fee and no memo");
-      assert.doesNotMatch(textOf(confirm), /one more payment/, "a move of every note leaves none");
       const balKept = mc.bal;
-      mc.bal = { ...balKept, spendable: 900000, max_fee: 30000 };
-      assert.match(textOf(t.sendDialog()), /so the rest stays here\. Move it with one more payment/,
-        "a move that leaves notes says that the rest needs one more payment");
+      mc.bal = { ...balKept, spendable: 65000, max_fee: 15000 };
+      assert.doesNotMatch(textOf(t.sendDialog()), /next payments/,
+        "a move of every note leaves none");
+      mc.bal = { ...balKept, spendable: 65001, max_fee: 15000 };
+      assert.match(textOf(t.sendDialog()), /the rest stays here for now\. Move it with the next/,
+        "a move that leaves notes says that the rest needs more payments");
       mc.bal = balKept;
       // The button is off with its reason while a proposal runs.
       t.ui.proposing = true;
@@ -4683,6 +4695,17 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
         t.ui.priority = false;
         assert.equal(t.ui.sendError, FUNDS(300000, 310000),
           "the engine text of the same refusal reads as the check of the form");
+        form = rowsOf([OTHER, "0.0016"]);
+        reset();
+        engine.createSpend = async () => {
+          throw new Error("one payment can spend at most 6 notes, so it can send at most 150000 "
+            + "zat with these recipients and this fee. Send less.");
+        };
+        await fire(form);
+        engine.createSpend = engineCreate;
+        assert.equal(t.ui.sendError, "one payment can spend at most 6 notes, so it can send at "
+          + "most " + fmtZec(150000) + " with these recipients and this fee. Send less.",
+          "the limit of notes says its amount in ZEC");
         t.setChain(fundsKept);
 
         // The error of a submit shows in a notice of the dialog (role alert), and the person keeps

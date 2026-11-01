@@ -409,12 +409,12 @@ export function moveWord(g) {
 }
 
 // A move of a listed wallet is done: a move payment to its current new wallet was sent, and the
-// balance saved after that send holds no Zcash. A wallet that was empty before its move has no
-// move payment, and a balance saved before the send says nothing of the move.
+// balance saved after that send holds no Zcash that can move. A wallet that was empty before its
+// move has no move payment, and a balance saved before the send says nothing of the move.
 function movedHere(g, list) {
   const sent = list.find((ss) => ss.move === g.movedTo && !!ss.broadcastTxid && !ss.error);
   const bal = balOf(g.id);
-  return !!sent && !!bal && bal.total === 0 && bal.at > sent.broadcastAt;
+  return !!sent && !!bal && (bal.total === 0 || bal.movable === 0) && bal.at > sent.broadcastAt;
 }
 
 // The steps of a move, read from the old wallet: new wallet ready, payment proposed, funds gone.
@@ -449,10 +449,16 @@ function paymentStep(c, ss, to) {
   }
   const b = c && c.bal ? balanceNow(c.bal) : null;
   if (!b) return sentStep(to);
-  if (b.spendable + b.pending !== 0) return proposeStep(to);
-  return { text: "The Zcash funds moved to " + groupName(to) + ", as of the last sync.", open: to,
-    done: true };
+  return canMove(b, c.bal) ? proposeStep(to) : movedStep(to, b.spendable);
 }
+
+// Funds that a next move payment can take. A rest that no payment can move (max_send 0) stays,
+// and the move is done without it.
+const canMove = (b, bal) => b.pending > 0 || (b.spendable > 0 && bal.max_send > 0);
+
+const movedStep = (to, rest) => ({ text: "The Zcash funds moved to " + groupName(to) + ", as of "
+  + "the last sync." + (rest ? " " + fmtZec(rest) + " stays here: it cannot pay the network fee."
+  : ""), open: to, done: true });
 
 const sentStep = (to) => ({ text: "A device sent the Zcash funds to " + groupName(to) + ". This "
   + "browser has not synced yet, so it cannot show if they arrived.", open: to });

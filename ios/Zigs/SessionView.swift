@@ -296,8 +296,8 @@ struct MoveNote: View {
 
     var body: some View {
         Text(intoNew == false ? "This is not the address of \(model.groupName(move)). Do not approve it."
-             : intoNew == true ? "This moves all funds to \(model.groupName(move)), the wallet that replaces this one. This device checked its address."
-             : "This moves all funds to a new wallet that replaces this one. This device has no checked copy of its address, so it cannot check it.")
+             : intoNew == true ? "This payment moves funds to \(model.groupName(move)), the wallet that replaces this one. This device checked its address."
+             : "This payment moves funds to a new wallet that replaces this one. This device has no checked copy of its address, so it cannot check it.")
             .font(.nativeSubheadline).foregroundStyle(intoNew == false ? Color.bad : Color.mist)
     }
 }

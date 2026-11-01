@@ -623,13 +623,15 @@ const dialogKind = () => (ui.sendMove ? "move" : ui.sendReview ? "review" : "for
 const focusKey = () => document.activeElement?.dataset?.key ?? "";
 
 // The engine says "not enough funds: N zat spendable, M zat needed". The dialog says it as the
-// check of the form does, in ZEC.
+// check of the form does, in ZEC. The limit of notes in one payment also says its amount in ZEC.
 const fundsText = (have, need) => "Not enough funds: " + fmtZec(have) + " available, "
   + fmtZec(need) + " needed (amounts + fee).";
 const ENGINE_FUNDS = /not enough funds: (\d+) zat spendable, (\d+) zat needed/;
+const ENGINE_CAP = /(can send at most )(\d+) zat/;
 function dialogText(e) {
   const text = e?.message || String(e), m = ENGINE_FUNDS.exec(text);
-  return m ? fundsText(Number(m[1]), Number(m[2])) : text;
+  if (m) return fundsText(Number(m[1]), Number(m[2]));
+  return text.replace(ENGINE_CAP, (_, head, zat) => head + fmtZec(Number(zat)));
 }
 
 // The error of an action goes into the dialog. It goes to the banner when the dialog closed, or
@@ -797,8 +799,8 @@ function reviewDialog() {
 }
 
 const moveAmount = () => curChain()?.bal?.max_send ?? 0;
-const MOVE_REST = "One payment cannot spend every note of this wallet, so the rest stays here. "
-  + "Move it with one more payment after this one.";
+const MOVE_REST = "One payment cannot spend every note of this wallet, so the rest stays here for "
+  + "now. Move it with the next payments. A rest that cannot pay the network fee stays here.";
 const moveLeaves = (bal) => !!bal && bal.spendable > bal.max_send + bal.max_fee;
 
 // The move: max_send goes to the wallet that replaces this one. The dialog shows who

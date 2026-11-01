@@ -355,7 +355,7 @@ mod tests {
     }
 
     #[test]
-    fn at_most_twenty_payees() {
+    fn at_most_max_payees() {
         let uri = |n: u8| {
             let payments = (1..=n)
                 .map(|i| make_payment(1, &json!({"to": ua(i, TEST), "amount": 1}), TEST).unwrap())

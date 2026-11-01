@@ -31,7 +31,7 @@ export class ChainWallet {
      * …]`. The memo is optional: at most 512 UTF-8 bytes. `priority` pays 10 times the ZIP 317
      * fee. The payment expires one day after it is built (see `expiry`). `after` (optional) is
      * the PCZT of an expired payment that this one replaces: this one also spends every note of
-     * it, and fails if one of them is spent now.
+     * it, and fails if one of them is spent now, or if it spends more than `MAX_SPENDS` notes.
      */
     createSpend(payees: string, priority: boolean, after?: string | null): Promise<string>;
     /**

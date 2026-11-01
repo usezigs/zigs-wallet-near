@@ -368,11 +368,14 @@ sequenceDiagram
 - Any signer picks confirmed notes and builds the unsigned transaction (PCZT).
 - A payment has 1 to 8 recipients and one change output. One payroll is one approval round and
   one transaction.
-- A payment spends at most 6 notes. The session document of a payment holds the PCZT, the signing
-  package, the signed PCZT and the final transaction, and the group server refuses a document
-  over 256,000 characters (section 2). These limits keep the document under it with 7 signers.
-  The largest amount of one payment (`max_send`) is that of the 6 largest confirmed notes, less
-  the fee. A wallet with more notes moves in more than one payment (section 8).
+- A payment spends at most 6 notes. The session document of a payment holds the recipients, the
+  PCZT, the signing package, the signed PCZT and the final transaction. The group server refuses
+  a document over 256,000 characters (section 3). With 7 signers, 6 notes and 8 recipients, the
+  document measures about 227,000 characters. When every memo is full of control characters, it
+  measures about 248,000 characters.
+- `max_send` is the largest amount of one payment to one recipient. It spends the largest
+  confirmed notes, at most 6, and leaves out a small note that adds less than its fee. A wallet
+  with more notes moves in more than one payment (section 8).
 - The fee follows ZIP 317: 5,000 zatoshis × max(2, spends, outputs). In the web app, the
   proposer can choose a priority fee of 10 times that amount, for a faster block when the
   network is busy.
@@ -464,8 +467,9 @@ A proposer also cannot make an output, the change included, that its recipient c
   approved sighash. One seat writes the rows of the document, so the form takes them only when
   they match what the approved transaction pays, and its fee from that transaction. Otherwise
   it refuses. The new proposal spends every note of the expired transaction
-  (`createSpend` with `after`), so at most one of them can land. Another transaction of the
-  same session over other notes can still land. The drawer lists the transactions of the wallet
+  (`createSpend` with `after`), so at most one of them can land. When the payment needs more
+  than 6 notes for that (section 7.1), the engine refuses, and the person proposes a new payment.
+  Another transaction of the same session over other notes can still land. The drawer lists the transactions of the wallet
   that went on chain from two days of blocks before the expiry, from the engine
   (`snapshot().sent`, each `{txid, h}`), with explorer links.
 - A browser that did not approve keeps no tie to the session: one seat chooses the proposal
@@ -557,15 +561,15 @@ Each chosen device signs automatically, after these checks:
 ## 8. Changing signers
 
 The signers and the threshold are part of the wallet key, so they cannot change in place. Zigs
-creates a replacement wallet and moves the Zcash funds with one normal, approved payment, or more
-than one when the wallet holds more than 6 notes. A Solana part of the wallet does not move this
-way.
+creates a replacement wallet and moves the Zcash funds with normal, approved payments: one
+payment, or more when the wallet holds more than 6 notes. A Solana part of the wallet does not move
+this way.
 
 ```mermaid
 flowchart TD
   OLD["Old wallet<br/>signers A, B, C, any 2 of 3"] -->|Change devices| NEW["New wallet<br/>signers A, B, D, any 2 of 3<br/>new key ceremony, new address"]
   OLD -.->|stores the new wallet id, never its secret| NEW
-  NEW --> PAY["The old wallet proposes one payment of its spendable Zcash balance to the new address"]
+  NEW --> PAY["The old wallet proposes a payment of its Zcash funds to the new address<br/>(more payments when it holds more than 6 notes)"]
   PAY --> OK["2 of 3 old signers approve.<br/>Approvers who are in the new wallet check its address"]
   OK --> STAY["The old wallet stays, with its address and history.<br/>Signer C can still read the old wallet, but not the new one.<br/>The move payment gives signer C the new address, the amount,<br/>the note and the id of the new wallet. With the id, signer C can get<br/>the sealed documents of the new wallet and each later write from the group server,<br/>which also accepts writes from it, so signer C can stop the new wallet with false documents"]
 ```
@@ -955,7 +959,8 @@ received payments yet. The engine has the calls for them.
     bytes long; the limit is 512`. `priority` pays 10 times the ZIP 317 fee. `walletSpend`
     always pays the standard fee (ZEC-8). `after` (web only, optional) is the PCZT of an expired
     payment that this one replaces: the payment also spends every note of it, and fails when
-    one of them is spent now or when this wallet knows none of them (ZEC-13).
+    one of them is spent now, when this wallet knows none of them (ZEC-13), or when the payment
+    needs more than 6 notes.
   - `inspect(pczt, fvk)`: each `output` line has `memo_status` and, for text, `memo`. The result
     also has `fee`, `standard_fee` (ZIP 317), `expiry_height` and `txid` (ZIP 244, the id that
     the transaction gets on chain).

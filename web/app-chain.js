@@ -63,7 +63,8 @@ export function balOf(gid) {
   return balCache[gid];
 }
 function saveBal(gid, bal) {
-  balCache[gid] = { total: bal.spendable + bal.pending, at: Date.now() };
+  balCache[gid] = { total: bal.spendable + bal.pending, movable: bal.pending + bal.max_send,
+    at: Date.now() };
   try { balSealed[gid] = Z.secretSeal(gkeys[gid], "bal\n" + gid, S(balCache[gid])); localStorage.setItem("zf-bal", JSON.stringify(balSealed)); } catch {}
 }
 
