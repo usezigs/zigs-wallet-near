@@ -433,6 +433,25 @@ async function removeBehindStep(mode, [what, remove, gone]) {
 for (const r of removals) await removeBehindStep("plain", r);
 for (const r of removals) await removeBehindStep("sealed", r);
 
+// ── The account reread (rereadVault) takes no lock: it keeps an account save that waits ──
+async function rereadBehindSave(name, act, during, kept) {
+  const locks = laterLocks();
+  setNavigator({ locks });
+  await fullTabs("sealed");
+  const open = await gateLock(locks);
+  const acting = act();
+  await until(() => locks.queued("zigs-secrets") >= 1);   // the account save waits behind the gate
+  await within(name, during());   // a step that waits for the save would hang here
+  open();
+  await acting;
+  await bothCopies("sealed", kept, name);
+}
+const backUp = () => t.changePersonal((p) => { p.backedUp = true; });
+await rereadBehindSave("an account change kept over a reread", backUp, () => t.rereadPersonal(),
+  (p) => p.personal?.backedUp === true);
+await rereadBehindSave("an account removal kept over a change", () => t.removeAccount(),
+  () => assert.rejects(backUp(), /There is no personal account/), (p) => p.personal === null);
+
 // ── H1: saves during the passkey prompt are in the sealed record ──
 async function protectionWindow() {
   const locks = laterLocks(), pk = fakePasskey(locks), create = pk.credentials.create;

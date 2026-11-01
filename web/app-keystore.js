@@ -177,12 +177,16 @@ export function persistHeld(recipientOverride) {
 // memory, so it holds every ask made before it began. While they differ, a save waits for the lock
 // with a change of this tab that storage lacks.
 let asked = 0, written = 0;
-const pending = () => asked !== written;
+/** True while a save of this tab waits for the lock of the secrets with a change storage lacks. */
+export const savesWaiting = () => asked !== written;
 // Writes the changes of this tab that wait for the lock. Only a step that holds the lock calls it.
 async function flushOnce() {
   if (!await saveNow(undefined, true)) {
     throw new Error("This tab could not save its own changes first, so the step stopped.");
   }
+}
+async function flushWaiting() {
+  while (savesWaiting()) await flushOnce();
 }
 
 // Never wait for the lock here: a step that holds it waits for this write. `fresh`: take the
@@ -315,7 +319,7 @@ async function finishProtection(made) {
   canEnableProtection();
   // Saves of this tab wait for the lock, which the passkey prompt held. Write them first, so the
   // plain copies below hold them. No await from here to the new memory.
-  while (pending()) await flushOnce();
+  await flushWaiting();
   const next = lockSources();
   const bookToLock = recipientsRaw;
   secrets = next.secrets; gkeys = next.keys; chats = next.chats;
@@ -463,7 +467,7 @@ export async function takeStored() {
   if (lockedVault) return null;
   if (vault) return takeSealed();
   if (secrets === mem) return null;
-  while (pending()) await flushOnce();
+  await flushWaiting();
   try {
     if (localStorage.getItem("zf-vault")) return null;
     takeSecrets(plainRecord("zf-secrets", {}));
@@ -629,7 +633,7 @@ export function takeFromTab(key) {
   return exclusive("secrets", async () => {
     for (;;) {
       const got = await takeStored();
-      if (pending()) continue;
+      if (savesWaiting()) continue;
       if (got) await takeVaultRest(got);
       else if (key === "zf-chats") chats = normChats(plainRecord(key, null));
       else if (key === RECIPIENTS_KEY) readPlainRecipients();
@@ -643,7 +647,7 @@ export function takeFromTab(key) {
 // counts as a write. Resolves to the opened record.
 async function takeSealed() {
   for (;;) {
-    while (pending()) await flushOnce();
+    await flushWaiting();
     const queued = vaultWrite;
     await queued;
     const text = localStorage.getItem("zf-vault");
@@ -651,7 +655,7 @@ async function takeSealed() {
     const got = await openVault(vault.key, parseVault(text)).catch(() => {
       throw new Error("The locked keys in this browser cannot be read again. Reload the page.");
     });
-    if (queued !== vaultWrite || pending()) continue;
+    if (queued !== vaultWrite || savesWaiting()) continue;
     if (got.secrets) takeSecrets(got.secrets);
     if (got.keys) takeKeys(got.keys);
     takeChats(normChats(got.chats));

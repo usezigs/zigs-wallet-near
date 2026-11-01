@@ -12,7 +12,9 @@ import { REQUEST_NET, requestProblem } from "./requests.js";
 import { log, resetPersonalPick, showBanner, state, ui } from "./app-state.js";
 import { exclusive, J, release, S, said, track } from "./app-kit.js";
 import { engineOffThread, Z } from "./app-engine.js";
-import { idb, LOCKED_ELSEWHERE, lockedVault, persist, vault } from "./app-keystore.js";
+import {
+  idb, LOCKED_ELSEWHERE, lockedVault, persist, savesWaiting, vault,
+} from "./app-keystore.js";
 import {
   capText, dropStalled, NETWORKS, runSync, serverHeight, spanMs, syncAgain,
 } from "./app-chain.js";
@@ -132,6 +134,9 @@ async function rereadVault() {
   try {
     const got = await openVault(vault.key, parseVault(value));
     if (!("personal" in got)) return;   // a page from before the accounts; see takeVault
+    // A save of this tab waits for the lock: memory holds a change or a removal that the record
+    // lacks yet, so keep memory.
+    if (savesWaiting()) return;
     adoptPersonal(got.personal);
     followAccount();
   } catch (e) { log("sealed record not read: " + said(e)); }
