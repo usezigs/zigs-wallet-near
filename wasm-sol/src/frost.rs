@@ -32,6 +32,7 @@ use crate::codec::{
     blake2b_256, from_json, from_value, full_seat_map, push_len_prefixed, seat_map, text_of,
     to_value, unhex_array,
 };
+use crate::plain::{Mode, Wallet};
 
 const COMMIT_PERSONAL: &[u8; 16] = b"Zigs_SolCmt___v1";
 const ECHO_PERSONAL: &[u8; 16] = b"Zigs_SolEcho__v1";
@@ -59,6 +60,17 @@ pub fn check_cluster(cluster: &str) -> Result<(), String> {
     } else {
         Err(format!("the cluster must be {CLUSTER}"))
     }
+}
+
+/// The ceremony takes the label of any wallet: the label of a plain wallet (`Wallet::label`), or
+/// else the pool label through `check_cluster`, so the pool stays on Devnet. The signing paths of
+/// the pool call `check_cluster` and refuse the plain labels. The label enters the commitments,
+/// the echo and the seed, so the ceremony of one wallet kind never equals another.
+pub fn check_label(label: &str) -> Result<(), String> {
+    if Wallet::from_label(label).is_ok_and(|wallet| wallet.mode == Mode::Plain) {
+        return Ok(());
+    }
+    check_cluster(label)
 }
 
 fn ident(seat: u16) -> Result<Identifier, String> {
@@ -150,7 +162,7 @@ pub fn commit(
     cluster: &str,
     r_sol: &str,
 ) -> Result<String, String> {
-    check_cluster(cluster)?;
+    check_label(cluster)?;
     if seat < 1 {
         return Err("the seat must be 1 or more".to_string());
     }
@@ -204,7 +216,7 @@ fn echo_of(
 /// What every seat saw in round 1, as hex: `round1 = {"1": {"package": ..., "commit": hex}, ...}`.
 /// Seats that hold other data, another safety number or another wallet get another echo.
 pub fn echo(wallet_id: &str, safety: &str, cluster: &str, round1: &str) -> Result<String, String> {
-    check_cluster(cluster)?;
+    check_label(cluster)?;
     let docs = parse_docs(round1)?;
     Ok(hex(&echo_of(wallet_id, safety, cluster, &docs)?))
 }
@@ -240,7 +252,7 @@ impl Ceremony {
             .and_then(|seat| u16::try_from(seat).ok())
             .ok_or("round-3 context has no seat number")?;
         let cluster = text("cluster")?.to_string();
-        check_cluster(&cluster)?;
+        check_label(&cluster)?;
         Ok(Self {
             wallet_id: text("walletId")?.to_string(),
             safety: text("safety")?.to_string(),

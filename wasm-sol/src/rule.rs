@@ -22,12 +22,26 @@ pub enum Group {
     Ciphertexts,
     Program,
     Policy,
+    PlainWallet,
+    PlainMessage,
+    PlainIntent,
+    PlainChain,
+    PlainRent,
 }
 
 /// The identifier, the guarded group and a one-line statement of a rule.
 #[derive(Clone, Copy, Debug)]
 pub struct Info {
     pub rule: Rule,
+    pub id: &'static str,
+    pub group: Group,
+    pub text: &'static str,
+}
+
+/// The identifier, the guarded group and a one-line statement of a plain rule.
+#[derive(Clone, Copy, Debug)]
+pub struct PlainInfo {
+    pub rule: PlainRule,
     pub id: &'static str,
     pub group: Group,
     pub text: &'static str,
@@ -42,6 +56,20 @@ macro_rules! rules {
         /// Every rule, in evaluation order. The position equals `Rule as usize`.
         pub const INFO: &[Info] = &[
             $(Info { rule: Rule::$name, id: $id, group: Group::$group, text: $text }),*
+        ];
+    };
+}
+
+macro_rules! plain_rules {
+    ($($name:ident, $id:literal, $group:ident, $text:literal;)*) => {
+        /// A rule of the plain wallet check (`plain_check.rs`). The plain rules have a table of
+        /// their own, so the pool rule list and its count stay as they are.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+        pub enum PlainRule { $($name),* }
+
+        /// Every plain rule, in evaluation order. The position equals `PlainRule as usize`.
+        pub const PLAIN_INFO: &[PlainInfo] = &[
+            $(PlainInfo { rule: PlainRule::$name, id: $id, group: Group::$group, text: $text }),*
         ];
     };
 }
@@ -238,6 +266,100 @@ pub struct Violation {
 
 impl Violation {
     pub fn new(rule: Rule, detail: impl Into<String>) -> Self {
+        Self {
+            rule,
+            detail: detail.into(),
+        }
+    }
+}
+
+// The rules of the plain wallet (ZOLANA.md, the plain wallet). The table is separate from the pool
+// table above, so `rule_list` and the count of the pool rules do not change.
+plain_rules! {
+    PlainMode, "plain-mode", PlainWallet,
+        "the wallet is a plain wallet, and the pair of cluster and mode is allowed: mainnet has \
+         plain mode only";
+    PlainGenesis, "plain-genesis", PlainWallet,
+        "the genesis hash that the page read from its RPC equals the pin of the wallet cluster";
+    PlainSigner, "plain-signer", PlainWallet,
+        "the group key signs only a send or a cancel; the fee key signs the payer part of every \
+         plain message";
+    PlainParse, "plain-parse", PlainMessage,
+        "the bytes are a canonical v1 message, not an off-chain message and not a derive payload";
+    PlainToken, "plain-token", PlainIntent,
+        "the token of a send is in the pinned table of the cluster";
+    PlainRecipientCurve, "plain-recipient-curve", PlainIntent,
+        "the recipient is an on-curve Ed25519 key";
+    PlainRecipientReserved, "plain-recipient-reserved", PlainIntent,
+        "the recipient is not the group key, the payer, the nonce account, a program, a sysvar or \
+         a mint";
+    PlainRecipientOwner, "plain-recipient-owner", PlainChain,
+        "the recipient wallet is absent, or is owned by the System program, with no data and not \
+         executable";
+    PlainAmount, "plain-amount", PlainIntent,
+        "the amount is above 0 and at most the balance of the source";
+    PlainRentPin, "plain-rent-pin", PlainChain,
+        "the rent minimums that the page read equal the pinned values";
+    PlainChainKey, "plain-chain-key", PlainChain,
+        "each account that the page read is the address that the wasm derives for its role";
+    PlainNonceAccount, "plain-nonce-account", PlainChain,
+        "the nonce account is absent for a new one; else it is owned by the System program, has 80 \
+         bytes, is initialised, names the group key as authority and holds the lifetime";
+    PlainSourceAccount, "plain-source-account", PlainChain,
+        "a token account of the group is owned by the Token program, holds the pinned mint, names \
+         the group key as owner, is initialised and is not frozen";
+    PlainDestAccount, "plain-dest-account", PlainChain,
+        "a token account of the recipient that exists is owned by the Token program, holds the \
+         pinned mint, names the recipient as owner, is initialised and is not frozen";
+    PlainRentPayer, "plain-rent-payer", PlainRent,
+        "after the fee and the rent the payer holds 0 or at least the rent minimum of 0 bytes";
+    PlainRentGroup, "plain-rent-group", PlainRent,
+        "after a SOL send the group holds 0 or at least the rent minimum of 0 bytes";
+    PlainRentRecipient, "plain-rent-recipient", PlainRent,
+        "after a SOL send the recipient holds at least the rent minimum of 0 bytes";
+    PlainConfig, "plain-config", PlainMessage,
+        "the config is the compiled one: no priority fee, and the exact compute units and loaded \
+         accounts limit";
+    PlainPayer, "plain-payer", PlainMessage,
+        "the first account is the payer of the proposal, and the payer is not the group key";
+    PlainSigners, "plain-signers", PlainMessage,
+        "the required signatures are 2 for a send and a cancel, and 1 for a new nonce account \
+         and for Enable";
+    PlainKeyTable, "plain-key-table", PlainMessage,
+        "the account table, its order and its flags equal the compiled table";
+    PlainLifetime, "plain-lifetime", PlainMessage,
+        "the lifetime is the nonce value (or the blockhash) of the intent";
+    PlainInstructionCount, "plain-instruction-count", PlainMessage,
+        "the instruction count equals the template of the intent";
+    PlainProgram, "plain-program", PlainMessage,
+        "each instruction runs the program of the template: System, ATA or the legacy Token \
+         program";
+    PlainAccounts, "plain-accounts", PlainMessage,
+        "each instruction lists the accounts of the template, in order";
+    PlainData, "plain-data", PlainMessage,
+        "the data of each instruction equals the template, byte for byte";
+}
+
+impl PlainRule {
+    #[allow(clippy::indexing_slicing)] // `plain_rule_table_matches_enum` pins the alignment
+    pub fn info(self) -> &'static PlainInfo {
+        &PLAIN_INFO[self as usize]
+    }
+
+    pub fn id(self) -> &'static str {
+        self.info().id
+    }
+}
+
+/// One failed plain rule with the facts that failed it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PlainViolation {
+    pub rule: PlainRule,
+    pub detail: String,
+}
+
+impl PlainViolation {
+    pub fn new(rule: PlainRule, detail: impl Into<String>) -> Self {
         Self {
             rule,
             detail: detail.into(),
