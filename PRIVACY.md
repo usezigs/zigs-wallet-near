@@ -134,11 +134,13 @@ The app downloads compact blocks and finds the wallet's notes on the device. The
 - the whole Ironwood mempool (`GetMempoolTx`), with your IP address (on testnet, our server sees
   the app Worker), while a wallet or the personal account is open in a visible tab. The page asks
   after each finished sync and every 30 seconds, and stops when the wallet closes or the tab
-  hides. Each call asks for every transaction in the mempool, the same for every wallet, and the
-  page reads at most 1,000 of them. The page opens the notes on the device. So the server sees the
-  time of each call and that this IP address has a wallet open, not which payment is yours. The
-  page shows a payment that it finds this way as "Not in a block yet" and never counts it in the
-  balance;
+  hides. Each call asks for every transaction in the mempool, the same for every wallet. The page
+  reads at most 1,000 transactions and 20,000 Ironwood actions of the answer and stops at the
+  first limit. It opens the notes on the device, one transaction at a time, and keeps only the
+  notes that open with your viewing key. A call that takes 20 seconds counts as failed. So the
+  server sees the time of each call and that this IP address has a wallet open, not which payment
+  is yours. The page shows a payment that it finds this way as "Not in a block yet" and never
+  counts it in the balance;
 - for the personal account, the full transaction of every payment to it, always. A message to
   the account is a memo, and a memo is only in the full transaction. The memo switch of wallets
   does not apply. The server also sees the transaction that carries each message that the account
@@ -170,7 +172,8 @@ This links a wallet id to a transaction id, but not to its amount or recipient.
   limits `/lwd` to 600 calls a minute for each IPv4 address or IPv6 /64 (`LWD_PER_IP`, counted per
   Cloudflare location), which uses the IP address in memory only. A first sync runs at about 70 to
   90 calls a minute on a fast computer (measured), and an open wallet then makes about 6 a minute,
-  3 of them for the mempool.
+  3 of them for the mempool. Each open wallet makes these calls on its own: the group wallet and
+  the personal account can call at the same time, so both together make about twice as many.
   So the limit slows a stranger who uses our node through `/lwd`, but it does not stop one: a
   stranger can sync a wallet under it. Since 27 October 2026 app.zigs.app asks no password, so
   this limit is the only guard against a stranger there. Staging keeps its password.
@@ -711,11 +714,13 @@ the passkey guards the key share instead. The lock is opt-in.
   from its birthday. A false light-wallet server can still show a chain that does not exist, or
   hide payments.
 - The "Not in a block yet" line and row come from the mempool list of the light-wallet server,
-  which signs nothing. A false server can hide a payment that waits for its block. It cannot make
-  a note for the wallet, because the page opens each note with the viewing key, but it can show a
-  note of a block that the wallet has not synced yet, or of a branch that the chain left. The page
-  never counts such a payment as Available or Incoming, and it does not change the 0.5 ZEC warning
-  level.
+  which signs nothing. A false server can hide a payment that waits for its block. A false server
+  that knows an address of the wallet can show a made-up waiting payment with any value up to
+  21,000,000 ZEC, because a note needs only the address to be made, and the viewing key of the
+  wallet opens it. The engine drops a note above that value. A false server can also show a note
+  of a block that the wallet has not synced yet, or of a branch that the chain left. The page
+  shows such a payment only as "Not in a block yet". It never counts it as Available or Incoming,
+  and it does not change the 0.5 ZEC warning level.
 - A payment request names a wallet address, and may name an amount and a memo. Everyone who reads
   the message reads them. In a wallet room, these are the signers and anyone who has the invite
   link. In a direct chat, they are the contact and anyone who has the contact link. A request to

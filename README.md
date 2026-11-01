@@ -765,16 +765,20 @@ folder path.
 - `node web/test/mempool.mjs`: the payments that wait in the mempool, with a fake engine and the
   real page modules: the line "Not in a block yet" and the row "Receiving · not in a block yet" for
   a listed note, and no change of the balance numbers or the 0.5 ZEC level; the row goes away when
-  a block holds the payment or the mempool drops it; no call for a hidden tab or a closed wallet;
-  one call at a time; a failed call shows no error and the list stays for 2 minutes; the personal
-  account; the call after a finished sync.
+  a block holds the payment or the mempool drops it; one redraw when a good answer changes the
+  list, and none when it does not; no call for a hidden tab or a closed wallet; one call at a time
+  for each wallet; a failed call, or one that takes 20 seconds, shows no error and the list stays
+  for 2 minutes; the drop timer redraws, and an older timer drops no newer list; the explorer
+  note below a list with only a waiting row; the empty-wallet texts; the personal account; the
+  call after a finished sync.
 - `node web/test/lwd.mjs`: the `/lwd` route of `cf/src/index.js` with a stub for `fetch`: the six
   methods that pass and the 404 for the others (`GetMempoolStream` stays closed), the bound of a
   `GetBlockRange` body (400 for a range over 2,000 blocks or a bad body), the bound of a
-  `GetMempoolTx` body (400 over 64 bytes), the method rule, the password gate, the limit for each network
-  (429 before the call to the node), the key of a network at the three limits (an IPv4 address, or
-  the /64 of IPv6), the headers to the node (the allowed ones and the key only), the answer, the 503
-  and 502 cases, and a response that streams.
+  `GetMempoolTx` body (400 over 64 bytes), the request that the real engine sends for
+  `ChainWallet.mempool` (the body `ENGINE_MEMPOOL`), the method rule, the password gate, the limit
+  for each network (429 before the call to the node), the key of a network at the three limits (an
+  IPv4 address, or the /64 of IPv6), the headers to the node (the allowed ones and the key only),
+  the answer, the 503 and 502 cases, and a response that streams.
 - `node web/test/zns.mjs`: the `/zns` route with a fake resolver: a full load over pages on each
   refresh after 60 s, a page size that the resolver states, the page cap, a bad record or a name
   with two addresses left out, the 502 cases (another registry key, a cut page, a failed or hung

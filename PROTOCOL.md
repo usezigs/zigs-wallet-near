@@ -338,16 +338,21 @@ wallet, the creator also cannot choose `nk` or `rivk`.
 - **Payments not in a block yet.** While a wallet is open in a visible tab, the page asks the
   engine (`mempool`) for the notes of the wallet that sit in the mempool of the light-wallet server.
   - The engine calls `GetMempoolTx` with the pool type Ironwood and an empty exclude list. It reads
-    at most 1,000 transactions and opens each Ironwood action with the external incoming viewing
-    key, so change is never listed. It returns `[{"txid", "value", "index"}, …]`, one entry for
-    each note, and leaves out a transaction or a note that a block of the wallet holds. It changes
-    nothing in the wallet: not the notes, the snapshot, the balance or the 0.5 ZEC level.
-  - The page asks after each finished sync and every 30 seconds, one call at a time. A failed call
-    shows nothing, and the last good list stays for 2 minutes.
+    at most 1,000 transactions and 20,000 Ironwood actions, and stops at the first limit. It opens
+    each action with the external incoming viewing key when the transaction arrives and keeps only
+    the notes that open, so change is never listed and the transactions are not kept in memory. It
+    leaves out a note above 21,000,000 ZEC (`MAX_MONEY`). It returns `[{"txid", "value",
+    "index"}, …]`, one entry for each note, and leaves out a transaction or a note that a block of
+    the wallet holds. It changes nothing in the wallet: not the notes, the snapshot, the balance
+    or the 0.5 ZEC level.
+  - The page asks after each finished sync and every 30 seconds, one call at a time for each
+    wallet (the group wallet and the personal account ask apart). A call that fails or takes 20
+    seconds shows nothing, and the last good list stays for 2 minutes.
   - The page shows the list as the line "Not in a block yet" in the balance and as the row
     "Receiving · not in a block yet" in the activity. It is never Available or Incoming. The line
     and the row go away when a synced block holds the payment or the mempool drops it.
-  - The list is not authenticated: a false server can hide a payment (section 13).
+  - The list is not authenticated: a false server can hide a payment, or show a made-up one
+    (section 13).
 - On mainnet, at 0.5 ZEC the app warns and hides the address. It cannot block deposits.
 
 ## 7. Making a payment
@@ -897,8 +902,10 @@ the web, on iPhone and on Mac at the same time.
   wallet with Change devices.
 - Malicious light-wallet servers are not handled. A false server can show a chain that does not
   exist, or hide transactions. The wallet follows real reorganisations of up to 100 blocks
-  (section 6). The mempool list is the same: it can hide a payment that waits for its block. It
-  cannot make a note for the wallet, and the page never counts it as a balance.
+  (section 6). The mempool list is the same: it can hide a payment that waits for its block. A
+  false server that knows an address of the wallet can also show a made-up one, because a note
+  needs only the address to be made and the viewing key opens it. The page shows it only as "Not
+  in a block yet" and never counts it as a balance.
 - A memo on chain comes from the payer and is not authenticated. Every signer can read it, and a
   signer who kept the viewing key can read it after "Change devices".
 - A full session in Tor Browser is not tested yet.
