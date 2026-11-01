@@ -1,5 +1,5 @@
 {
-  "baseCommit": "099f19f9d75579b782079d4a3ea5ebd47d43a31d",
+  "baseCommit": "271fdfdf8904d06feeb5c07e1525aea438abcce7",
   "node": "v26.12.1",
   "tests": {
     "web/test/messaging-presentation.mjs": {
@@ -158,6 +158,9 @@
     "web/test/mainnet-on.mjs": {
       "exit": 0
     },
+    "web/test/mempool.mjs": {
+      "exit": 0
+    },
     "web/test/chain-fallback.mjs": {
       "exit": 0
     },
@@ -185,7 +188,13 @@
     "web/test/payment-model.mjs": {
       "exit": 0
     },
+    "web/test/plain-worker.mjs": {
+      "exit": 0
+    },
     "web/test/sol-nonce-tabs.mjs": {
+      "exit": 0
+    },
+    "web/test/nonce-locks.mjs": {
       "exit": 0
     },
     "web/test/no-storage.mjs": {
@@ -204,21 +213,21 @@
     "wasm/src/account.rs": "fe2d7194d60423bd7873d8ac7109626ba823cac4a68cfa5be43d09f5bd040bc7",
     "wasm/src/backup.rs": "e4e646d5fa284cb0181bef7bb53a80b0ab41176209ba16f07e3eed624c1abbb2",
     "wasm/src/ceremony.rs": "1bc3554c3fe65351c92a85fabfdb076b8fca696290408cf1959fca726e15e2b4",
-    "wasm/src/chain.rs": "c77e28bc840ad0bcee52718be31fbf520eac110481de113b868a0a405cec19f7",
+    "wasm/src/chain.rs": "cb2e5ac7051890c38ebea2cf4a1e4c5e1ef4a723fbceac984d93a8bd6e2389e1",
     "wasm/src/expiry.rs": "7b660240faa47aa8d28e7642772b6e0cc88f4eba3be49a0ff3fbaa362d05a1c5",
     "wasm/src/ffi.rs": "da2ad331c905ec89a87d19565034111f762f230d6a6f7971fe5d38452f7fe3a6",
     "wasm/src/lib.rs": "0a390ee7fef4aff784863ea241ddc9384902b3f4d7d3450f0b94f80f172692f9",
-    "wasm/src/memo.rs": "d91971ad626a4148cb4420a6ae127110556fe1437a5f3a4a9b0bb54ea64683bd",
+    "wasm/src/memo.rs": "49f6f13dafa2a2fc114cbcd5aa394e839c8ca6b297e7c65a2a68dfed28fe4a40",
     "wasm/src/request.rs": "1e75726a2ab038bf1fd4c68e407472748879881fb983bbc2da5bf3a40e135723",
     "wasm/src/session.rs": "567e450b0922df5f70daff77a5b1dca84135777d288e29e46173be2071caae35",
     "wasm/src/snapshot.rs": "619654365bbce58bf95105e4e8b14554d522aa0f86fc4ac43c13933b27e41f7e",
     "wasm/src/testchain.rs": "9b5e71c5e00c980ee33b93f79aaff9c03af4a38c559a60a2365c58c716c26863",
     "wasm/src/testdata/sighash-vectors.json": "01b1431c7c3ae3fee207f1be5ce605dca0fd1cc6014309d7c167cb45466e4cbd",
     "wasm/test-vectors/zip2005_use_qsk.json": "fb59e6269fc96463bc02c7ec17b7f64d470b8b1009732b8a04579cab8dd8f016",
-    "web/pkg/zigs_engine.d.ts": "d16457a2069394d600866f828c84a488a3fa3e48eb7307dc5b39045e83871b0f",
-    "web/pkg/zigs_engine.js": "7f411e3d553534a248013ff99c5acef4be05b6280f28ecac10fb04256b461f24",
-    "web/pkg/zigs_engine_bg.wasm": "a9c79afecad3aca658c0b703c9561720ef578c49743142ecd6b93d4d213d646e",
-    "web/pkg/zigs_engine_bg.wasm.d.ts": "6e3a3844e487471c7db4da8877493c140648a522d6331f834f6303afbe2644df",
+    "web/pkg/zigs_engine.d.ts": "ef5280d5c2f5dfd60f73480ca868b7c0128efa939fd404df435b43f32fd4cf0a",
+    "web/pkg/zigs_engine.js": "848dee2f41efaad7493e2101f1e211b8ccba0c370d6f83e7819ca8116f904e54",
+    "web/pkg/zigs_engine_bg.wasm": "d6d8349c01ca4e793f87e28b9ab2b8a3a6ecdac06b66ff23442d563bb763a4d9",
+    "web/pkg/zigs_engine_bg.wasm.d.ts": "f5497e5164f9ac8aec9734672c98f375f94e91287d846427746f5a612c608345",
     "web/signed.js": "4c0e86199aa87ec619f399f1ccfe995afcfe662781b0fd804af685c97f0dd3bb"
   },
   "policy": {
