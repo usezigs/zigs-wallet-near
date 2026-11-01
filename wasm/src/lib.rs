@@ -1620,15 +1620,20 @@ mod tests {
     /// One note of 1,000,000 zat pays 100,000 zat to one payee with `factor` times the ZIP 317
     /// fee. `expiry` replaces the window of a group payment.
     fn one_payment(fvk: &FullViewingKey, factor: u64, expiry: Option<u32>) -> R<String> {
-        let (spends, anchor) = incoming_notes(fvk, &[1_000_000], true)?;
-        let payee = FullViewingKey::from(&random_sk()).address_at(0u32, Scope::External);
-        let fee = chain::zip317_fee(1, 2) * factor;
-        let outs = (&[(payee, 100_000, MemoBytes::empty())][..], 1_000_000 - 100_000 - fee);
         let mut terms = group_terms(factor);
         if let Some(h) = expiry {
             terms.expiry = Some(h.into());
         }
-        pczt_to_b64(build_ironwood_pczt(regtest(true), &terms, fvk, (spends, anchor), outs)?)
+        payment_under(regtest(true), &terms, fvk)
+    }
+
+    /// `one_payment` built under `net` with `terms`.
+    fn payment_under<P: Parameters>(net: P, terms: &Terms, fvk: &FullViewingKey) -> R<String> {
+        let (spends, anchor) = incoming_notes(fvk, &[1_000_000], true)?;
+        let payee = FullViewingKey::from(&random_sk()).address_at(0u32, Scope::External);
+        let fee = chain::zip317_fee(1, 2) * terms.fee_factor;
+        let outs = (&[(payee, 100_000, MemoBytes::empty())][..], 1_000_000 - 100_000 - fee);
+        pczt_to_b64(build_ironwood_pczt(net, terms, fvk, (spends, anchor), outs)?)
     }
 
     #[test]
@@ -1847,6 +1852,73 @@ mod tests {
         let branch = BranchId::for_height(&Network::MainNetwork, BlockHeight::from_u32(3_514_200));
         assert_eq!(branch, BranchId::Nu6_3);
         assert_eq!(TxVersion::suggested_for_branch(branch), TxVersion::V6);
+    }
+
+    /// The payments of `testdata/sighash-vectors.json`, as `(name, fvk, PCZT)`: an Ironwood payment
+    /// to 4 recipients and an Orchard payment on the test chain, and Ironwood payments to one
+    /// recipient on mainnet before NU7 and on the test network after NU7.
+    fn vector_payments() -> Vec<(&'static str, String, String)> {
+        let key = || FullViewingKey::from(&random_sk());
+        let hex_of = |k: &FullViewingKey| hex::encode(k.to_bytes());
+        let demo = |k: &FullViewingKey, pool: &str| {
+            let tx = v(&tx_demo_create(&hex_of(k), 100_000, 1_000_000, pool).unwrap());
+            tx["pczt"].as_str().unwrap().to_string()
+        };
+        let under = |net: Network, target: u32, k: &FullViewingKey| {
+            let target = BlockHeight::from_u32(target);
+            let expiry = Some(expiry::expiry_for(&net, target));
+            payment_under(net, &Terms { target, expiry, fee_factor: 1 }, k).unwrap()
+        };
+        let (a, b, c, d) = (key(), key(), key(), key());
+        vec![
+            ("ironwood v6, 4 recipients, test chain", hex_of(&a), demo(&a, "ironwood")),
+            ("orchard v5, test chain", hex_of(&b), demo(&b, "orchard")),
+            ("ironwood v6, mainnet before NU7", hex_of(&c), under(Network::MainNetwork, 3_540_000, &c)),
+            ("ironwood v6, test network after NU7", hex_of(&d), under(Network::TestNetwork, 4_500_001, &d)),
+        ]
+    }
+
+    /// Prints `testdata/sighash-vectors.json`. Run it once, with Zcash crates that are known good,
+    /// and never to make a failing `the_digests_of_old_payments_stay` pass:
+    /// `cargo test --release --locked print_sighash_vectors -- --ignored --nocapture`
+    #[test]
+    #[ignore = "prints the file that the_digests_of_old_payments_stay reads"]
+    fn print_sighash_vectors() {
+        let cases: Vec<Value> = vector_payments().into_iter().map(|(name, fvk, pczt)| {
+            let p = pczt_from_b64(&pczt).unwrap();
+            let ins = v(&inspect(&pczt, &fvk).unwrap());
+            json!({
+                "name": name, "fvk": fvk, "pczt": pczt,
+                "branch": format!("{:08x}", p.global().consensus_branch_id()),
+                "tx_version": ins["tx_version"], "expiry_height": ins["expiry_height"],
+                "sighash": ins["sighash"], "txid": ins["txid"],
+            })
+        }).collect();
+        println!("{}", serde_json::to_string_pretty(&cases).unwrap());
+    }
+
+    /// The sighash is what the signers sign and the id is what the chain shows. The PCZTs of
+    /// `testdata/sighash-vectors.json` come from the engine on the pre-release Zcash crates (see
+    /// `print_sighash_vectors`): a newer crate must give the same digests.
+    #[test]
+    fn the_digests_of_old_payments_stay() {
+        let cases: Vec<Value> =
+            serde_json::from_str(include_str!("testdata/sighash-vectors.json")).unwrap();
+        assert_eq!(cases.len(), 4);
+        for c in cases {
+            let (name, b64) = (c["name"].as_str().unwrap(), c["pczt"].as_str().unwrap());
+            let p = pczt_from_b64(b64).unwrap();
+            let (version, h) = sighash(&p).unwrap();
+            let branch = format!("{:08x}", p.global().consensus_branch_id());
+            assert_eq!(json!(branch), c["branch"], "{name}");
+            assert_eq!(json!(format!("{version:?}")), c["tx_version"], "{name}");
+            assert_eq!(json!(hex::encode(h)), c["sighash"], "{name}");
+            assert_eq!(json!(txid_of(&p).unwrap()), c["txid"], "{name}");
+            let ins = v(&inspect(b64, c["fvk"].as_str().unwrap()).unwrap());
+            for field in ["tx_version", "expiry_height", "sighash", "txid"] {
+                assert_eq!(ins[field], c[field], "{name}: {field}");
+            }
+        }
     }
 
     #[test]
