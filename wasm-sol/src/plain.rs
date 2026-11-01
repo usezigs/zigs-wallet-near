@@ -15,7 +15,9 @@
 //! read as the other.
 
 use crate::bytes::Reader;
-use crate::consts::{Key, Mint, DEVNET_GENESIS, MAINNET_GENESIS, MINTS_DEVNET, MINTS_MAINNET};
+use crate::consts::{
+    Key, Mint, DEVNET_GENESIS, LAMPORTS_PER_SIGNATURE, MAINNET_GENESIS, MINTS_DEVNET, MINTS_MAINNET,
+};
 use crate::frost::PROGRAM_LABEL;
 
 /// The Solana cluster of a wallet.
@@ -262,6 +264,11 @@ impl PlainIntent {
         } else {
             1
         }
+    }
+
+    /// The fee in lamports: one fee for each signature, and no priority fee.
+    pub fn fee(&self) -> u64 {
+        LAMPORTS_PER_SIGNATURE * u64::from(self.signer_count())
     }
 
     pub fn name(&self) -> &'static str {

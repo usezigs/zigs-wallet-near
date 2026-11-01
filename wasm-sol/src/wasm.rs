@@ -15,10 +15,16 @@ use crate::fee;
 use crate::frost;
 use crate::pay::{approve_pay, Chain, Payment, Read};
 use crate::pins::Pins;
+use crate::plain::{PlainIntent, PlainPins, Wallet};
+use crate::plain_chain::required;
+use crate::plain_check::{self, PlainCheck, PlainSigner};
+use crate::plain_display::base58;
+use crate::plain_sign;
+use crate::plain_template;
 use crate::plan::Proposal;
 use crate::program::{approval_digest, Body};
 use crate::roles;
-use crate::rule::INFO;
+use crate::rule::{INFO, PLAIN_INFO};
 use crate::sign::{self, ApprovalCheck, Check};
 use crate::snapshot::Snapshot;
 use crate::spend::{Amount, Summary};
@@ -432,4 +438,134 @@ pub fn sol_aggregate(
         commitments,
         shares,
     ))
+}
+
+// ---- the plain wallet: custody of SOL and USDC with the group key as an account ---------------
+// The entries below never call the pool rules, and the pool entries above never read a plain
+// wallet. `PlainCheck` holds the wire forms: the intent (`PlainIntent::encode`), the 66 bytes of
+// the pins (`PlainPins::wire`), and the chain bundle (`PlainChain::encode`), which carries the
+// genesis hash that the page read from its RPC, the three rent minimums and the accounts that
+// `plain_reads` names.
+
+/// The label of a wallet (`devnet` or `mainnet`, `plain` or `pool`), which the ceremony hashes and
+/// the signing round carries. A pool wallet exists on Devnet only.
+#[wasm_bindgen]
+pub fn sol_wallet_label(cluster: &str, mode: &str) -> Result<String, JsError> {
+    js(Wallet::from_names(cluster, mode).map(|wallet| wallet.label().to_string()))
+}
+
+/// The version label of the program ids of a wallet: one for each cluster and mode. A `soldone`
+/// document carries it, and a seat whose label differs ends.
+#[wasm_bindgen]
+pub fn sol_wallet_program_label(cluster: &str, mode: &str) -> Result<String, JsError> {
+    js(Wallet::from_names(cluster, mode).map(|wallet| wallet.program_label().to_string()))
+}
+
+/// Every plain rule as `id<TAB>statement`, one per line.
+#[wasm_bindgen]
+pub fn plain_rule_list() -> String {
+    PLAIN_INFO
+        .iter()
+        .map(|info| format!("{}\t{}", info.id, info.text))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn plain_reads_of(intent: &[u8], pins: &[u8]) -> Result<String, String> {
+    let (intent, pins) = (PlainIntent::decode(intent)?, PlainPins::decode(pins)?);
+    let addr = plain_template::addresses(&intent, &pins)?;
+    let rows: Vec<String> = required(&intent, &pins, &addr)
+        .iter()
+        .map(|(role, key)| format!("{}\t{}\t{}", role.name(), hex(key), base58(key)))
+        .collect();
+    Ok(rows.join("\n"))
+}
+
+/// The accounts that the page must read for a proposal, derived here and never taken from the
+/// proposal: one `role<TAB>hex<TAB>base58` line for each. The answer starts with `error<TAB>` if
+/// the inputs do not parse.
+#[wasm_bindgen]
+pub fn plain_reads(intent: &[u8], pins: &[u8]) -> String {
+    plain_reads_of(intent, pins).unwrap_or_else(|why| format!("error\t{why}"))
+}
+
+fn plain_compile(intent: &[u8], pins: &[u8]) -> Result<Vec<u8>, String> {
+    let (intent, pins) = (PlainIntent::decode(intent)?, PlainPins::decode(pins)?);
+    plain_template::message_bytes(&plain_template::compile(&intent, &pins)?.message)
+}
+
+/// The message bytes of a plain proposal, compiled from the template. A refusal to compile (a
+/// pool wallet, a payer that is the group key, a token that is not pinned) is an error.
+#[wasm_bindgen]
+pub fn plain_compile_message(intent: &[u8], pins: &[u8]) -> Result<Vec<u8>, JsError> {
+    js(plain_compile(intent, pins))
+}
+
+fn plain_answer(message: &[u8], check: &PlainCheck) -> Result<String, String> {
+    let report = plain_check::run(message, check, PlainSigner::Fee)?;
+    Ok(match report.screen {
+        Some(screen) if report.violations.is_empty() => format!("accepted\n{screen}"),
+        _ => plain_check::refused_text(&report.violations),
+    })
+}
+
+/// Checks a message with every rule of the plain wallet. The answer starts with `accepted`,
+/// `refused` or `error`. `accepted` lists the lines of the approval screen: the intent, the
+/// cluster, the full base58 recipient, the amount with its decimals, the base units, the symbol,
+/// the pinned mint, the fee, the rent that the payer funds, the payer and the group key.
+/// `refused` lists every violated rule as `id<TAB>detail`. `error` gives the reason that an input
+/// did not parse or a read is missing.
+#[wasm_bindgen]
+pub fn plain_check_message(message: &[u8], intent: &[u8], pins: &[u8], chain: &[u8]) -> String {
+    let check = PlainCheck {
+        intent,
+        pins,
+        chain,
+    };
+    plain_answer(message, &check).unwrap_or_else(|why| format!("error\t{why}"))
+}
+
+/// The digest (hex) of the exact message bytes of a plain wallet, which includes the label of its
+/// cluster and mode. The page stores the nonces of a seat under it (`sol_nonces`).
+#[wasm_bindgen]
+pub fn sol_plain_digest(pins: &[u8], message: &[u8]) -> Result<String, JsError> {
+    js(PlainPins::decode(pins).and_then(|pins| plain_sign::digest(&pins.wallet, message)))
+}
+
+/// The signature (hex) of the fee key for the payer part of a plain message. It runs
+/// `plain_check_message` on the exact bytes first and throws the refusal. `round` is
+/// `{"secret"}`.
+#[wasm_bindgen]
+pub fn sol_plain_fee_sign(
+    message: &[u8],
+    intent: &[u8],
+    pins: &[u8],
+    chain: &[u8],
+    round: &str,
+) -> Result<String, JsError> {
+    let check = PlainCheck {
+        intent,
+        pins,
+        chain,
+    };
+    js(fee::sign_plain(message, &check, round))
+}
+
+/// The share of a seat for a plain message. It runs the plain checker for the group key first and
+/// throws the refusal. `round` is `{"now", "cluster", "keyPackage", "nonces", "commitments"}`,
+/// where `cluster` is the wallet label and the nonces are those of `sol_plain_digest`.
+#[wasm_bindgen]
+pub fn sol_plain_sign_share(
+    message: &[u8],
+    intent: &[u8],
+    pins: &[u8],
+    chain: &[u8],
+    round: &str,
+) -> Result<String, JsError> {
+    let check = PlainCheck {
+        intent,
+        pins,
+        chain,
+    };
+    js(plain_sign::sign_share(message, &check, round))
 }

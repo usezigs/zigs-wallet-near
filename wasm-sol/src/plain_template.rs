@@ -34,13 +34,13 @@ use crate::v1::{self, Message};
 /// instruction costs 150; `CreateIdempotent` and `TransferChecked` to a new recipient cost 13,623
 /// with no failed bump try, 15,123 with one and 16,623 with two (1,500 for each failed try of the
 /// address that the program derives); `TransferChecked` alone costs 105.
-const CU_SYSTEM: u32 = 150;
-const CU_CREATE_IDEMPOTENT: u32 = 13_623 - CU_TRANSFER_CHECKED;
-const CU_TRANSFER_CHECKED: u32 = 105;
-const CU_BUMP_TRY: u32 = 1_500;
+pub const CU_SYSTEM: u32 = 150;
+pub const CU_CREATE_IDEMPOTENT: u32 = 13_623 - CU_TRANSFER_CHECKED;
+pub const CU_TRANSFER_CHECKED: u32 = 105;
+pub const CU_BUMP_TRY: u32 = 1_500;
 /// The margin on the sum: about 15 percent of the cost of a token send. A change of the Token or
 /// ATA program must stay under it. With no priority fee the limit costs nothing.
-const CU_MARGIN: u32 = 2_000;
+pub const CU_MARGIN: u32 = 2_000;
 
 /// An associated token account address and the bump that the ATA program finds for it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -73,6 +73,7 @@ pub struct Addresses {
 pub struct Compiled {
     pub addr: Addresses,
     pub units: u32,
+    pub ixs: Vec<ExpectedIx>,
     pub message: Message,
 }
 
@@ -325,10 +326,11 @@ pub fn compile(intent: &PlainIntent, pins: &PlainPins) -> Result<Compiled, Strin
     let addr = addresses(intent, pins)?;
     let (ixs, body) = parts(intent, pins, &addr)?;
     let units = body + CU_MARGIN;
-    let message = encode(ixs, &pins.payer, intent.lifetime(), units)?;
+    let message = encode(ixs.clone(), &pins.payer, intent.lifetime(), units)?;
     Ok(Compiled {
         addr,
         units,
+        ixs,
         message,
     })
 }

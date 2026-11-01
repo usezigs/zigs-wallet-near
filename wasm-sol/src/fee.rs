@@ -26,6 +26,7 @@ use crate::bytes::hex;
 use crate::codec::{from_json, text_of, unhex_array};
 use crate::consts::Key;
 use crate::frost::{key_bytes, seat_of, share_fits};
+use crate::plain_check::{approved as plain_approved, PlainCheck, PlainSigner};
 use crate::sign::{approved, verify_strict, Check};
 
 const INFO_FEE: &[u8] = b"zigs-sol/fee-key/v1";
@@ -79,6 +80,20 @@ pub fn sign(message: &[u8], check: &Check, round: &str) -> Result<String, String
     let key = signing_key(text_of(&round, "secret", "the fee round")?)?;
     let now = now.ok_or("the fee round has no clock")?;
     let pins = approved(message, check, now, beta::Signer::Fee)?;
+    if pins.payer != public_bytes(&key) {
+        return Err("this fee key is not the payer of the proposal".to_string());
+    }
+    Ok(hex(&key.sign(message).to_bytes()))
+}
+
+/// The signature (hex) of the fee key for the payer part of a plain message (S1 to S5),
+/// `{"secret"}`. It runs the plain checker on the exact bytes and signs only if every rule holds
+/// and this key is the payer of the pins. It does not call `approved`, `Pins::decode` or the pool
+/// `approve_message`.
+pub fn sign_plain(message: &[u8], check: &PlainCheck, round: &str) -> Result<String, String> {
+    let round: Value = from_json(round, "fee round")?;
+    let key = signing_key(text_of(&round, "secret", "the fee round")?)?;
+    let pins = plain_approved(message, check, PlainSigner::Fee)?;
     if pins.payer != public_bytes(&key) {
         return Err("this fee key is not the payer of the proposal".to_string());
     }

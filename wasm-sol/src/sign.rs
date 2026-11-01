@@ -70,18 +70,18 @@ pub fn nonces(key_package: &str, digest_hex: &str) -> Result<String, String> {
 
 /// What `sign_share` reads from the page: the clock, the cluster, the key package of the seat,
 /// the saved nonces and the commitments of the signers.
-struct Round {
-    now: u64,
-    cluster: String,
-    key_package: KeyPackage,
-    digest: [u8; 32],
-    nonces: SigningNonces,
-    commitments: BTreeMap<Identifier, SigningCommitments>,
+pub(crate) struct Round {
+    pub(crate) now: u64,
+    pub(crate) cluster: String,
+    pub(crate) key_package: KeyPackage,
+    pub(crate) digest: [u8; 32],
+    pub(crate) nonces: SigningNonces,
+    pub(crate) commitments: BTreeMap<Identifier, SigningCommitments>,
 }
 
 impl Round {
     /// `{"now", "cluster", "keyPackage", "nonces", "commitments": {"1": hex, ...}}`.
-    fn parse(json: &str) -> Result<Self, String> {
+    pub(crate) fn parse(json: &str) -> Result<Self, String> {
         let round: Value = from_json(json, "signing round")?;
         let field = |key: &str| {
             round
