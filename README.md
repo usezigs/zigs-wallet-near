@@ -94,7 +94,7 @@ coin. The runbook of a demo with three devices is in [docs/demo.md](docs/demo.md
 5. Click **Send**, paste any testnet unified address (`utest1…`), enter an amount, and click
    **Review payment**. The review shows what your browser decoded from the transaction that it
    built. Click **Propose payment**. For a payroll, click **Add recipient** or **Paste a list**: up
-   to 20 recipients go into one transaction with one approval round. A payment request (`zcash:…`)
+   to 8 recipients go into one transaction with one approval round. A payment request (`zcash:…`)
    pasted in the recipient field fills the rows. The form keeps what you typed as a draft in this
    browser for 24 hours.
 6. In the payment panel, click **Approve as device 1** and **Approve as device 2**. Read **What this
@@ -137,7 +137,7 @@ To see device changes, open **Devices**, then **Change devices**. To see the pri
 | Criterion | Evidence |
 |---|---|
 | **Privacy** | On chain, the transaction shape matches the standard wallet library: same builder, padding, standard fee and anchor depth. A group payment expires after one day instead of 40 blocks, because its approvals take hours, so the expiry marks it, and so does a priority fee ([comparison](PRIVACY.md#on-chain)). The server stores only encrypted values, padded so that even their length hides amounts. On the device, key shares can be locked with a passkey ([how](PRIVACY.md#lock-with-a-passkey-or-face-id)). Key share backups are encrypted with a passphrase (Argon2id and XChaCha20-Poly1305) ([how](PRIVACY.md#key-share-backups)). The page can connect only to its own host (the group server and the testnet light-wallet relay) and two ChainSafe light-wallet servers (Content-Security-Policy). For testnet wallets, the Solana Worker of the page also connects to the Helius Devnet host ([how](PRIVACY.md#solana-beta-helius-devnet)). With local proving on, it also fetches the proving keys from one CloudFront folder (`d3gbdb0egjwcw9.cloudfront.net/proving-keys/3a1c88f90f609eb1/`, `SOL_KEYS` in `cf/src/index.js`). It is prepared for Tor Browser, but not yet tested end to end ([how](PRIVACY.md#use-zigs-over-tor)). The Zigs server code keeps no logs; its host, Cloudflare, can see connection data. Every remaining leak is listed in [PRIVACY.md](PRIVACY.md). |
-| **Usefulness** | Designed for team treasuries, DAOs and families. Usable today in the web app, on Zcash testnet and Solana Devnet: invite links and QR codes; batch payments for payroll and grants (up to 20 recipients, one approval round, pasted from a spreadsheet); device changes; encrypted key share backups. |
+| **Usefulness** | Designed for team treasuries, DAOs and families. Usable today in the web app, on Zcash testnet and Solana Devnet: invite links and QR codes; batch payments for payroll and grants (up to 8 recipients, one approval round, pasted from a spreadsheet); device changes; encrypted key share backups. |
 | **Execution** | The live app works end to end. The testnet and Devnet transactions that the apps made, a payment to a ZNS name among them, are [listed below](#proof-on-testnet-and-devnet). The engine has 128 tests, and a command-line suite runs adversarial cases. |
 | **Originality** | An end-user app for re-randomized FROST: no command line, no trusted dealer, and no server that can read the wallet. Each device decodes the PCZT and checks every output before it approves, and binds its approval to the transaction's sighash. Device changes and batch payments are included. The iPhone and Mac code in `ios/` is not part of this release. Built during the Zecathon window: the first commit is from October 15, 2026. |
 
@@ -240,7 +240,7 @@ creator's device picks `nk` and `rivk`, and the wallet has no `qsk`.
 
 ## Making a payment
 
-Any signer proposes; the others approve on their own devices. A payment can have up to 20
+Any signer proposes; the others approve on their own devices. A payment can have up to 8
 recipients. Each approving device decodes the unsigned transaction (PCZT) itself and checks that
 its outputs are exactly the listed recipients and amounts, and that nothing beyond the standard
 fee leaves the shielded pool. A proposer cannot hide a different recipient, amount or extra output
@@ -278,8 +278,9 @@ a bad share names its sender.
 ## Changing devices
 
 The devices and the approval rule are part of the wallet key, so they cannot change in place.
-Zigs creates a replacement wallet and moves the Zcash funds with one normal, approved payment. A
-Solana part of the wallet does not move this way.
+Zigs creates a replacement wallet and moves the Zcash funds with one normal, approved payment, or
+more than one when the wallet holds more than 6 notes. A Solana part of the wallet does not move
+this way.
 
 ```mermaid
 flowchart TD

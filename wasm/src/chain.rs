@@ -372,8 +372,9 @@ impl Inner {
                 pending += n.value();
             }
         }
+        let (max, fee) = max_send(&values, self.synced);
         json!({"height": self.synced, "tip": self.tip, "spendable": spendable,
-            "pending": pending, "notes": count, "max_send": max_send(&values, self.synced)})
+            "pending": pending, "notes": count, "max_send": max, "max_fee": fee})
         .to_string()
     }
 }
@@ -559,6 +560,9 @@ fn pick_notes_after(
     notes: &[(u64, u32)], first: &[usize], want: (u64, usize), synced: u32, factor: u64,
 ) -> R<Pick> {
     let (amount, outputs) = want;
+    ensure(first.len() <= MAX_SPENDS, &format!(
+        "the expired payment spends more than {MAX_SPENDS} notes, the most that one payment can \
+         spend now. Propose a new payment instead"))?;
     let mut rest: Vec<usize> = (0..notes.len())
         .filter(|i| !first.contains(i) && is_confirmed(notes[*i].1, synced) && notes[*i].0 > 0)
         .collect();
@@ -569,6 +573,13 @@ fn pick_notes_after(
         let fee = zip317_fee(picked.len(), outputs) * factor;
         if !picked.is_empty() && total >= amount.saturating_add(fee) {
             return Ok(Pick { picked, fee, change: total - amount - fee, total });
+        }
+        if picked.len() == MAX_SPENDS {
+            let most = total.saturating_sub(fee);
+            return Err(format!(
+                "one payment can spend at most {MAX_SPENDS} notes, so it can send at most {most} \
+                 zat with these recipients and this fee. Send less, and the rest in another \
+                 payment"));
         }
         let Some(i) = rest.next() else { break };
         picked.push(i);
@@ -596,17 +607,29 @@ fn notes_of(s: &Inner, after: &Pczt) -> R<Vec<usize>> {
     Ok(unspent.filter(|(_, n)| spends.contains(&n.nf.to_bytes())).map(|(i, _)| i).collect())
 }
 
-/// The largest amount one payment can send: every confirmed note, less the fee for spending them.
-fn max_send(notes: &[(u64, u32)], synced: u32) -> u64 {
-    let confirmed: Vec<u64> =
+/// The largest amount one payment to one recipient can send, and its fee: the `MAX_SPENDS` largest
+/// confirmed notes, less the fee for spending them.
+fn max_send(notes: &[(u64, u32)], synced: u32) -> (u64, u64) {
+    let mut confirmed: Vec<u64> =
         notes.iter().filter(|n| is_confirmed(n.1, synced) && n.0 > 0).map(|n| n.0).collect();
-    let total: u64 = confirmed.iter().sum();
-    if confirmed.is_empty() { 0 } else { total.saturating_sub(zip317_fee(confirmed.len(), 2)) }
+    confirmed.sort_unstable_by(|a, b| b.cmp(a));
+    confirmed.truncate(MAX_SPENDS);
+    if confirmed.is_empty() {
+        return (0, 0);
+    }
+    let fee = zip317_fee(confirmed.len(), 2);
+    (confirmed.iter().sum::<u64>().saturating_sub(fee), fee)
 }
 
-/// Most recipients in one payment. ponytail: proof time grows with each action; raise this after
-/// a timing test on a phone.
-pub(crate) const MAX_PAYEES: usize = 20;
+/// Most notes that one payment spends, and most outputs, the change included. ponytail: the group
+/// server refuses a session document over `MAX_DOC` (256,000 bytes, cf/src/index.js). It holds the
+/// PCZT, the signing package, the signed PCZT and the final transaction, and their padded sizes
+/// grow in steps. At these limits with 7 signers the document stays near 227,000 bytes. To raise
+/// them, move `final` to its own document.
+const MAX_SPENDS: usize = 6;
+const MAX_OUTPUTS: usize = 9;
+/// Most recipients in one payment: the change is one more output.
+pub(crate) const MAX_PAYEES: usize = MAX_OUTPUTS - 1;
 
 /// Parses `[{"to": "<unified address>", "amount": <zat>, "memo": "<text, optional>"}, …]`.
 /// Errors name the row, from 1.
@@ -1138,13 +1161,33 @@ mod tests {
     #[test]
     fn max_send_empties_the_confirmed_notes() {
         let notes = [(40_000, 10), (90_000, 11), (50_000, 12), (7_000_000, SYNCED)];
-        let max = max_send(&notes, SYNCED);
-        assert_eq!(max, 165_000);
+        let (max, fee) = max_send(&notes, SYNCED);
+        assert_eq!((max, fee), (165_000, 15_000));
         let p = select_notes(&notes, max, 2, SYNCED, 1).unwrap();
         assert_eq!((p.picked.len(), p.change), (3, 0));
         assert!(select_notes(&notes, max + 1, 2, SYNCED, 1).is_err());
-        assert_eq!(max_send(&[(9_000, 10)], SYNCED), 0);
-        assert_eq!(max_send(&[], SYNCED), 0);
+        assert_eq!(max_send(&[(9_000, 10)], SYNCED), (0, 10_000));
+        assert_eq!(max_send(&[], SYNCED), (0, 0));
+    }
+
+    #[test]
+    fn one_payment_spends_at_most_max_spends_notes() {
+        let notes: Vec<(u64, u32)> = (1..=12).map(|k| (k * 100_000, 10)).collect();
+        let top: u64 = (7..=12).map(|k| k * 100_000).sum();
+        let (max, fee) = max_send(&notes, SYNCED);
+        assert_eq!((max, fee), (top - zip317_fee(MAX_SPENDS, 2), zip317_fee(MAX_SPENDS, 2)));
+        let p = select_notes(&notes, max, 2, SYNCED, 1).unwrap();
+        assert_eq!((p.picked, p.change), (vec![11, 10, 9, 8, 7, 6], 0));
+        let err = select_notes(&notes, max + 1, 2, SYNCED, 1).unwrap_err();
+        assert!(err.contains(&format!("at most {MAX_SPENDS} notes")), "{err}");
+        assert!(err.contains(&format!("at most {max} zat")), "{err}");
+        let priority = select_notes(&notes, max, 2, SYNCED, PRIORITY_FACTOR).unwrap_err();
+        assert!(priority.contains(&format!("at most {} zat", max - 9 * fee)), "{priority}");
+        let first: Vec<usize> = (0..=MAX_SPENDS).collect();
+        let old = pick_notes_after(&notes, &first, (1, 2), SYNCED, 1).unwrap_err();
+        assert!(old.contains("Propose a new payment"), "{old}");
+        let again = pick_notes_after(&notes, &first[1..], (1, 2), SYNCED, 1).unwrap();
+        assert_eq!(again.picked, first[1..]);
     }
 
     #[test]
@@ -1212,7 +1255,7 @@ mod tests {
         assert_eq!(parse_payees(&[ok.clone(), ok.clone()], net).unwrap().len(), 2);
         let err = |rows: &[Value]| parse_payees(rows, net).unwrap_err();
         assert!(err(&[]).contains("at least one"));
-        assert!(err(&vec![ok.clone(); MAX_PAYEES + 1]).contains("at most 20"));
+        assert!(err(&vec![ok.clone(); MAX_PAYEES + 1]).contains("at most 8 recipients"));
         let zero = json!({"to": ua, "amount": 0});
         assert!(err(&[ok.clone(), zero]).contains("recipient 2: amount must be greater"));
         let half = json!({"to": ua, "amount": 1.5});
@@ -1646,7 +1689,7 @@ mod tests {
         let small = pick_notes(&[(9_999, 10)], 0, 2, SYNCED, 1).unwrap_err();
         assert!(small.contains("9999 zat spendable, 10000 zat needed"), "{small}");
         assert_eq!(pick_notes(&[(10_000, 10)], 0, 2, SYNCED, 1).unwrap().change, 0);
-        assert_eq!(max_send(&[(0, 10), (0, 11), (60_000, 12)], SYNCED), 50_000);
+        assert_eq!(max_send(&[(0, 10), (0, 11), (60_000, 12)], SYNCED).0, 50_000);
     }
 
     /// The first block of the test chains that build transactions. The builder needs the height of

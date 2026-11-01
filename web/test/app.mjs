@@ -1319,10 +1319,10 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
   assert.equal(hint.textContent,
     "This request cannot be used. This is not a valid ZIP 321 request.");
   assert.deepEqual([hint.className, rows.length, rows[0].to], ["hint bad", 1, "zcash:garbage"]);
-  rows = Array.from({ length: 20 }, (_, k) => ({ k: k + 1, to: k ? "" : two, amt: "", memo: "" }));
+  rows = Array.from({ length: 8 }, (_, k) => ({ k: k + 1, to: k ? "" : two, amt: "", memo: "" }));
   assert.equal(t.fillFromRequest(rows[0], rows, hint), true);
-  assert.equal(hint.textContent, "A payment can have at most 20 recipients.");
-  assert.equal(rows.length, 20, "the rows stay as they were");
+  assert.equal(hint.textContent, "A payment can have at most 8 recipients.");
+  assert.equal(rows.length, 8, "the rows stay as they were");
 
   // The cards and the forms draw in every state. The page is a stub, so this finds only errors.
   const okReq = t.requestOf(`zcash:${other}?amount=1`, false);
@@ -3445,6 +3445,12 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
       assert.ok(moveTexts.includes(MOVE_LATER_NOTE), "and what a device that is left out keeps");
       assert.doesNotMatch(moveTexts.join(" "), /priority|memo/i,
         "a move has no priority fee and no memo");
+      assert.doesNotMatch(textOf(confirm), /one more payment/, "a move of every note leaves none");
+      const balKept = mc.bal;
+      mc.bal = { ...balKept, spendable: 900000, max_fee: 30000 };
+      assert.match(textOf(t.sendDialog()), /so the rest stays here\. Move it with one more payment/,
+        "a move that leaves notes says that the rest needs one more payment");
+      mc.bal = balKept;
       // The button is off with its reason while a proposal runs.
       t.ui.proposing = true;
       const offMove = t.sendDialog(), offButton = named(offMove, "button", "Request move approvals");
@@ -4559,7 +4565,7 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
         const fundsKept = t.chain;
         const withFunds = (extra) => t.setChain({ ...fundsKept,
           bal: { ...fundsKept.bal, spendable: 300000, pending: 0, notes: 3, max_send: 285000,
-            ...extra } });
+            max_fee: 15000, ...extra } });
         const maxOf = (d) => named(d, "button", "Max");
         const amountOf = (d) => idOf(/^s-amt-\d/)(d);
         const noteOf = (d) => idOf(/^s-amt-hint-/)(d);
@@ -4578,6 +4584,12 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
           "with the priority box: less 10 times the standard fee of all three notes");
         assert.deepEqual(await submit(form), [[{ to: OTHER, amount: 150000 }]],
           "that Max amount passes the check of Send");
+        // More notes than one payment can spend: max_send leaves them out, and so does the fee.
+        withFunds({ spendable: 900000, notes: 12 });
+        form = rowsOf([OTHER, ""]);
+        maxOf(form).on.click();
+        assert.equal(amountOf(form).value, "0.0015", "the notes left out add no priority fee");
+        withFunds({});
         // The box moves an amount that is the maximum, in both directions, and only that one.
         t.ui.priority = false;
         form = rowsOf([OTHER, ""]);
@@ -4598,7 +4610,7 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
           "with 2 recipients the box moves no amount");
         // The box on with a Max that the fee takes: the amount stays, and the note says why.
         t.ui.priority = false;
-        withFunds({ spendable: 100000, max_send: 90000, notes: 1 });
+        withFunds({ spendable: 100000, max_send: 90000, max_fee: 10000, notes: 1 });
         form = rowsOf([OTHER, "0.0009"]);
         priorityOf(form).on.change({ target: { checked: true } });
         assert.deepEqual([t.ui.pay[0].amt, noteOf(form).textContent, noteOf(form).className,

@@ -677,7 +677,7 @@ func payTitle(_ ss: Session) -> String {
 }
 
 /// Most recipients in one payment; the engine enforces the same limit.
-let maxPayees = 20
+let maxPayees = 8
 
 /// ZIP 317 estimate for a payment to `payees` recipients: one action per output, change included.
 func feeEstimate(_ payees: Int) -> Int { 5_000 * max(2, payees + 1) }

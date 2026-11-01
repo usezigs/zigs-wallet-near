@@ -86,9 +86,9 @@ assert.equal(err(`zcash:${A}?label=a&label=b`), "payee 1: the parameter label ap
 for (const suffix of ["0", "01", "10000", "4294967295", "18446744073709551615"]) {
   assert.equal(err(`zcash:${A}?memo.${suffix}=!!!`), FIXED, `memo.${suffix}`);
 }
-const many = Array.from({ length: 21 }, (_, i) => `address${i ? "." + i : ""}=${A}`)
+const many = Array.from({ length: 9 }, (_, i) => `address${i ? "." + i : ""}=${A}`)
   .join("&");
-assert.equal(err(`zcash:?${many}`), "a request can have at most 20 payees; this one has 21");
+assert.equal(err(`zcash:?${many}`), "a request can have at most 8 payees; this one has 9");
 assert.equal(readRequest("zcash:garbage", room).payees, undefined);
 
 // ── In a chat, each network is tried ──

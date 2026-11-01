@@ -1,5 +1,5 @@
 //! Payment requests (ZIP 321): a `zcash:` URI that asks for one or more payments. The `zip321`
-//! crate reads and writes the text. This module adds the rules of Zigs: the network, at most 20
+//! crate reads and writes the text. This module adds the rules of Zigs: the network, at most 8
 //! payees, and memos that are ZIP 302 text. A request that passes can fill the Send form.
 //!
 //! A payee is named by its index in the URI plus one: the payee with no suffix is 1, the one with
@@ -362,11 +362,11 @@ mod tests {
                 .collect();
             TransactionRequest::new(payments).unwrap().to_uri()
         };
-        assert_eq!(parse(&uri(20), "test").len(), 20);
-        let err = refused(&uri(21), "test");
-        assert_eq!(err, "a request can have at most 20 payees; this one has 21");
-        let rows: Vec<Value> = (0..21).map(|_| json!({"to": ua(1, TEST)})).collect();
-        assert_eq!(make_err(json!(rows)), "a request can have at most 20 payees");
+        assert_eq!(parse(&uri(8), "test").len(), 8);
+        let err = refused(&uri(9), "test");
+        assert_eq!(err, "a request can have at most 8 payees; this one has 9");
+        let rows: Vec<Value> = (0..9).map(|_| json!({"to": ua(1, TEST)})).collect();
+        assert_eq!(make_err(json!(rows)), "a request can have at most 8 payees");
     }
 
     #[test]

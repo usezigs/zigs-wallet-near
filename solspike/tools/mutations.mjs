@@ -53,8 +53,7 @@ const MOVE_HINT = "      + (from ? ' To undo the link with the old wallet, open 
 const CHAT_TEST = ["node", "web/test/chat.mjs"];
 const PAYMENTS = "web/app-payments.js";
 const SEND = "web/app-send.js";
-const SF_EXTRA =
-  "  const extra = priority ? (PRIORITY_FACTOR - 1) * (bal.spendable - bal.max_send) : 0;";
+const SF_EXTRA = "  const extra = priority ? (PRIORITY_FACTOR - 1) * bal.max_fee : 0;";
 const SF_MAX = /with the priority box: less 10 times the standard fee of all three notes/;
 const SF_LABEL = /has a label around it/;
 const SF_WRONG = /a wrong amount marks its field as invalid/;
@@ -2702,6 +2701,10 @@ export const MUTATIONS = [
   program("SF-max-fixed", "Max leaves the priority extra of a payment with two notes",
     [SEND, SF_EXTRA, "  const extra = priority ? feeEstimate(1, true) - feeEstimate(1) : 0;"],
     APP_TEST, SF_MAX),
+  program("SF-max-spendable", "Max reads the fee from the spendable balance, notes left out too",
+    [SEND, SF_EXTRA,
+      "  const extra = priority ? (PRIORITY_FACTOR - 1) * (bal.spendable - bal.max_send) : 0;"],
+    APP_TEST, /the notes left out add no priority fee/),
   program("SF-max-follow", "the priority box does not move the Max amount",
     [SEND, "ui.priority = ev.target.checked; followMax(rows); sumUp();",
       "ui.priority = ev.target.checked; sumUp();"], APP_TEST, /the box on: Max follows/),

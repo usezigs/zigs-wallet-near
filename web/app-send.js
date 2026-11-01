@@ -30,7 +30,7 @@ import { securityExplanation } from "./app-tutorial.js";
 import { privacyNotice, ZEC_EXPOSURE } from "./privacy-language.js";
 import { walletAvatarFor } from "./app-wallet-identity.js";
 
-const MAX_PAYEES = 20;
+const MAX_PAYEES = 8;
 const TOO_MANY = "A payment can have at most " + MAX_PAYEES + " recipients.";
 
 // The title of a dialog, with the network of the open wallet under it. The name comes from the
@@ -201,11 +201,11 @@ function amountHint(hint, text, done = false) {
 }
 
 // The most that one payment can send, or a number of 0 or less when the fee takes it all.
-// max_send leaves only the standard fee of spending every note. A priority fee is
+// max_send leaves only max_fee, the standard fee of spending its notes. A priority fee is
 // PRIORITY_FACTOR times that fee, so Max leaves the extra as well.
 function maxSend(bal, priority) {
   if (!bal || !(bal.max_send > 0)) return 0;
-  const extra = priority ? (PRIORITY_FACTOR - 1) * (bal.spendable - bal.max_send) : 0;
+  const extra = priority ? (PRIORITY_FACTOR - 1) * bal.max_fee : 0;
   return bal.max_send - extra;
 }
 const noRoom = () => "The balance does not cover the " + (ui.priority ? "priority" : "network")
@@ -797,8 +797,11 @@ function reviewDialog() {
 }
 
 const moveAmount = () => curChain()?.bal?.max_send ?? 0;
+const MOVE_REST = "One payment cannot spend every note of this wallet, so the rest stays here. "
+  + "Move it with one more payment after this one.";
+const moveLeaves = (bal) => !!bal && bal.spendable > bal.max_send + bal.max_fee;
 
-// The move: every confirmed note goes to the wallet that replaces this one. The dialog shows who
+// The move: max_send goes to the wallet that replaces this one. The dialog shows who
 // can read the payment, as the review does, and proposes it with the button. The button proposes
 // what the dialog shows: when the amount or the wallet changed, it says so and the dialog draws
 // again.
@@ -815,6 +818,7 @@ function moveDialog() {
       "to " + groupName(to) + ", the wallet that replaces this one")),
   el("p", { class: "small muted" }, "This requests " + state.g.t
     + " approvals; it does not move funds yet."
+    + (moveLeaves(curChain()?.bal) ? " " + MOVE_REST : "")
     + (solOn() ? " " + SOL_STAYS : "")),
   securityExplanation("payment-review"),
   ...privacyNotes(true),

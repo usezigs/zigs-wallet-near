@@ -366,8 +366,13 @@ sequenceDiagram
 ### 7.1 Propose
 
 - Any signer picks confirmed notes and builds the unsigned transaction (PCZT).
-- A payment has 1 to 20 recipients and one change output. One payroll is one approval round and
+- A payment has 1 to 8 recipients and one change output. One payroll is one approval round and
   one transaction.
+- A payment spends at most 6 notes. The session document of a payment holds the PCZT, the signing
+  package, the signed PCZT and the final transaction, and the group server refuses a document
+  over 256,000 characters (section 2). These limits keep the document under it with 7 signers.
+  The largest amount of one payment (`max_send`) is that of the 6 largest confirmed notes, less
+  the fee. A wallet with more notes moves in more than one payment (section 8).
 - The fee follows ZIP 317: 5,000 zatoshis × max(2, spends, outputs). In the web app, the
   proposer can choose a priority fee of 10 times that amount, for a faster block when the
   network is busy.
@@ -552,8 +557,9 @@ Each chosen device signs automatically, after these checks:
 ## 8. Changing signers
 
 The signers and the threshold are part of the wallet key, so they cannot change in place. Zigs
-creates a replacement wallet and moves the Zcash funds with one normal, approved payment. A Solana
-part of the wallet does not move this way.
+creates a replacement wallet and moves the Zcash funds with one normal, approved payment, or more
+than one when the wallet holds more than 6 notes. A Solana part of the wallet does not move this
+way.
 
 ```mermaid
 flowchart TD
@@ -1071,7 +1077,7 @@ The engine has the calls, in the native table too, so a native app can add the s
     is the text, or `null`. `label` and `message` are text or `null`. Other parameters are dropped.
   - The engine refuses these requests:
     - a malformed URI, and a URI with a parameter `req-…`
-    - a request with no payee, and a request with more than 20 payees
+    - a request with no payee, and a request with more than 8 payees
     - an address that is not on `network`
     - an amount of zero
     - a memo for a transparent address

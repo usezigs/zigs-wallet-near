@@ -1450,7 +1450,8 @@ final class GroupModel {
         notice = "Payment proposed. It needs \(state.t) approvals."
     }
 
-    /// Sends every confirmed note to the wallet that replaces this one.
+    /// Sends `maxSend` to the wallet that replaces this one. A wallet with more notes than one
+    /// payment can spend moves in more than one payment.
     func proposeMove() async throws {
         guard let to = state.movedTo, let address = wallets[to]?.str("address") else {
             throw ZigsError("The new wallet has no address yet.")

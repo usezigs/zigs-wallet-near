@@ -363,7 +363,8 @@ function spendOrStall(c, payees, priority, after) {
     .finally(() => clearTimeout(timer));
 }
 
-// The move payment: every confirmed note to the wallet that replaces this one.
+// The move payment: max_send to the wallet that replaces this one. A wallet with more notes
+// than one payment can spend moves in more than one payment.
 function moveSpend() {
   const to = state.g.movedTo, tw = ready[to], c = curChain();
   if (!tw) throw new Error("The new wallet has no address yet.");
@@ -379,7 +380,7 @@ export async function proposeMove(after = null) {
 }
 
 /**
- * Proposes every confirmed note to the wallet that replaces this one. `shown` is the wallet and
+ * Proposes max_send to the wallet that replaces this one. `shown` is the wallet and
  * the amount that the dialog of the move showed: a move of other funds is not proposed.
  */
 export async function proposeMoveNow(after = null, shown = null) {
