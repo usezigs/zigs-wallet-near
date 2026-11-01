@@ -295,7 +295,7 @@ fn pczt_to_b64(p: Pczt) -> R<String> {
 pub(crate) type Payee = (orchard::Address, u64, MemoBytes);
 
 /// The block that a payment is built for, its expiry height (None keeps the builder's default of
-/// target + 40) and its fee: `fee_factor` times the ZIP 317 fee.
+/// target + 40, and target + 120 from NU7) and its fee: `fee_factor` times the ZIP 317 fee.
 pub(crate) struct Terms {
     pub(crate) target: BlockHeight,
     pub(crate) expiry: Option<BlockHeight>,
