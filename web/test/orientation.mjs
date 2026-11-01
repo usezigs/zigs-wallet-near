@@ -68,4 +68,21 @@ for (const list of [".premium-overview-grid .asset-choices",
     "the list spans the action row: " + list);
 }
 
+// The phone header: the logo takes its own width, so at 320 px the header keeps one row once
+// the engine is ready (133 px before, 75 px now).
+assert.ok(has(app, ".logo", /flex:1 1 auto/) && !has(app, ".logo", /flex:1 1 10em/),
+  "the logo does not ask for 10em");
+// Fields of 16 px or more, so that iOS Safari does not zoom in on focus.
+assert.ok(has(app, ".input", /font-size:16px/), "a field is 16 px");
+for (const [file, sel] of [["settings-experience.css", ".preference-control .input"],
+  ["messaging.css", ".messages-search input"]]) {
+  assert.doesNotMatch(bodyOf(rules(read(file)), sel), /font-size/, sel + " keeps the 16 px");
+}
+// The About Zigs link of a phone is a 48 px target. The desktop link sits inside a sentence.
+assert.ok(has(app, ".app-foot a", /min-height: 48px/), "About Zigs is 48 px high");
+// No markup builds the threshold figure of the old home page, so its rules are gone.
+for (const file of ["homepage.css", "site-refinement.css"]) {
+  assert.ok(!read(file).includes("home-threshold"), file + " has no .home-threshold rule");
+}
+
 console.log("orientation: ok");
