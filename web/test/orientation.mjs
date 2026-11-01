@@ -56,4 +56,16 @@ assert.ok(has(app, ".logo-word", /display:\s*none/), "a narrow phone shows the l
 assert.ok(read("app.css").includes("@media(max-width:360px) { .logo-word { display:none; } }"),
   "from 360 px down");
 
+// On a phone the Send and Receive lists open under the whole action row, inside the screen,
+// not under their own button (the Receive list started 80 px left of the screen at 390 px).
+const rows = rules(read("overview-rows.css"));
+assert.ok(has(rows, ".premium-overview-grid .overview-actions", /position:relative/)
+  && has(rows, ".premium-overview-grid .overview-action-picker", /position:static/),
+"the action row anchors the lists");
+for (const list of [".premium-overview-grid .asset-choices",
+  ".premium-overview-grid .overview-action-picker:nth-child(2) .asset-choices"]) {
+  assert.ok(has(rows, list, /left:0; right:0; width:auto; max-width:none;/),
+    "the list spans the action row: " + list);
+}
+
 console.log("orientation: ok");

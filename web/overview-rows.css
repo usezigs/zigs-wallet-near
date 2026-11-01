@@ -42,6 +42,14 @@
 .premium-overview-grid .overview-action-picker[open]>summary { margin-bottom:0; }
 .premium-overview-grid .asset-choices { position:absolute; top:calc(100% + 10px); left:0; z-index:20; width:340px; max-width:calc(100vw - 64px); padding:12px; border-radius:18px; background:var(--glass-fallback); box-shadow:var(--shadow-floating); }
 .premium-overview-grid .overview-action-picker:nth-child(2) .asset-choices { left:auto; right:0; }
+/* On a phone the list opens under the whole action row, so it stays inside the screen. */
+@media(max-width:760px) {
+  .premium-overview-grid .overview-actions { position:relative; }
+  .premium-overview-grid .overview-action-picker { position:static; }
+  .premium-overview-grid .asset-choices,
+  .premium-overview-grid .overview-action-picker:nth-child(2) .asset-choices {
+    left:0; right:0; width:auto; max-width:none; }
+}
 .premium-overview-grid .asset-choice { background:var(--panel); color:var(--text); }
 .premium-overview-grid .asset-choice:disabled { opacity:1; color:var(--muted); }
 .premium-overview-grid .asset-choice .small { font-size:13px; line-height:18px; }
