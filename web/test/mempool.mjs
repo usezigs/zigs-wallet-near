@@ -3,7 +3,8 @@
 // block holds: after each finished sync and every 30 s, one call at a time. It shows them as a line
 // in the balance ("Not in a block yet") and as a row in the activity ("Receiving · not in a block
 // yet"). They never count as Available or Incoming, and never touch the balance or the cap. A
-// failed call shows nothing, and the last good list stays for 2 minutes. The engine is a fake.
+// call that fails or takes 20 s shows nothing, and the last good list stays for 2 minutes. The page
+// redraws when what it shows changes. The engine is a fake.
 // Run: node web/test/mempool.mjs   (Node 26)
 import assert from "node:assert/strict";
 import { loadRig, sleep } from "./sol-rig.mjs";
@@ -25,6 +26,7 @@ const { atCap, addrHidden, balanceNow, capUnknown, mempoolNow, NETWORKS, openTot
   runSync } = chainMod;
 const { receiveDialog } = await import("../app-send.js");
 const view = await import("../app-account-view.js");
+const { release } = await import("../app-kit.js");
 const tick = () => every30[0]();   // the call every 30 s
 
 // ── The page: a recorder for the document, and a tab that can hide ──
@@ -75,7 +77,7 @@ class FakeWallet {
   sent() { return "[]"; }
   memoNeeds() { return "[]"; }
   snapshot() { return "{}"; }
-  free() {}
+  free() { this.freed = true; }
 }
 const note = (txid, value, index = 0) => ({ txid, value, index });
 const T1 = "a1".repeat(32), T2 = "b2".repeat(32);
@@ -98,6 +100,11 @@ const fast = () => {
   globalThis.setTimeout = (fn, ms, ...a) => realTimeout(fn, ms >= 1000 ? ms / 100 : ms, ...a);
 };
 const slow = () => { globalThis.setTimeout = realTimeout; Date.now = realNow; };
+// render() asks for one frame for all changes of the next 120 ms: count those frames. A step waits
+// for the draw of the step before it, so a second render of a step does not hide in that window.
+let frames = 0;
+globalThis.requestAnimationFrame = () => { frames += 1; return 0; };
+const redraws = async (act) => { await real(200); frames = 0; await act(); return frames; };
 
 // ── A listed note shows as a line in the balance and as a row, and changes no number ──
 const cw = new FakeWallet();
@@ -157,6 +164,19 @@ cw.reply = [];
 await runMempool(c);
 assert.equal(balanceText(), before.balance, "an empty answer clears the line");
 console.log("ok  the row goes away when a block holds the payment or the mempool drops it");
+
+// ── The page redraws when the list changes, and only then ──
+{
+  const answer = (reply) => redraws(async () => { cw.reply = reply; await runMempool(c); });
+  c.mempool = null;
+  assert.equal(await answer([note(T1, 1000000)]), 1, "a good answer that changes the list");
+  assert.equal(await answer([note(T1, 1000000)]), 0, "the same list: no redraw");
+  assert.equal(await answer([note(T1, 1000000), note(T2, 5)]), 1, "a longer list");
+  assert.equal(await answer([]), 1, "an empty answer that clears the list");
+  assert.equal(await answer([]), 0, "an empty list again: no redraw");
+  assert.equal(await answer([note(T2, 0)]), 0, "a note of no value shows nothing: no redraw");
+  console.log("ok  the page redraws when a good answer changes the list, and only then");
+}
 
 // ── No call for a hidden tab or a closed wallet; the 30 s call asks the open wallets ──
 cw.calls = 0;
@@ -263,6 +283,89 @@ console.log("ok  no call for a hidden tab or a closed wallet; the 30 s call asks
   console.log("ok  a failed call shows no error and the last good list stays for 2 minutes");
 }
 
+// ── The 2-minute timer redraws on time, and an older timer drops no newer list ──
+{
+  fast();
+  cw.reply = [note(T1, 1000000)];
+  await runMempool(c);
+  later(121000);   // the clock moves with the timer, as it does in a browser
+  assert.deepEqual(mempoolNow(c), [], "121 s: the age check hides the list");
+  assert.equal(await redraws(() => real(1300)), 1, "the timer that fires on time redraws");
+  assert.equal(c.mempool, null);
+  slow();
+  fast();
+  cw.reply = [note(T1, 1000000)];
+  await runMempool(c);                // answer A: its timer would fire at 1.2 s
+  await real(600);
+  cw.reply = [note(T2, 250000)];
+  await runMempool(c);                // answer B: its timer fires at 1.8 s
+  await real(800);                    // 1.4 s after A
+  assert.deepEqual(mempoolNow(c), [{ txid: T2, value: 250000 }], "the timer of A dropped nothing");
+  await real(600);                    // 2.0 s after A
+  assert.deepEqual(mempoolNow(c), [], "the timer of B drops its list");
+  slow();
+  console.log("ok  the 2-minute timer redraws on time, and an older timer drops no newer list");
+}
+
+// ── A call that never ends times out like any failure, and the next call runs ──
+{
+  fast();
+  cw.calls = 0;
+  cw.hold = new Promise(() => {});
+  c.mempool = null;
+  c.mempoolFailed = false;
+  const hung = await Promise.race([runMempool(c).then(() => false), real(1500).then(() => true)]);
+  assert.equal(hung, false, "the call ends after 20 s (scaled)");
+  assert.deepEqual([c.error, c.mempoolBusy, mempoolNow(c)], [null, null, []], "a silent failure");
+  release(cw);   // the engine call goes on, so the object stays until it ends (ZEC-16)
+  assert.notEqual(cw.freed, true, "a timeout does not free an object that the engine holds");
+  const line = /could not read the mempool: localhost did not answer in 20 s/;
+  assert.equal(t.state.log.filter((text) => line.test(text)).length, 1, "one log line");
+  cw.hold = null;
+  cw.reply = [note(T1, 5)];
+  await runMempool(c);
+  assert.deepEqual([cw.calls, mempoolNow(c).length], [2, 1], "the next call asks again");
+  slow();
+  c.mempool = null;
+  console.log("ok  a call that never ends times out like a failure and the next call runs");
+}
+
+// ── The explorer note shows below a list that has only a waiting row ──
+{
+  const explorerNote = () => textOf(page("activity")).match(/opens [\w.]+ in a new tab/)?.[0];
+  c.mempool = null;
+  assert.equal(explorerNote(), undefined, "no row, no note");
+  cw.reply = [note(T1, 1000000)];
+  await runMempool(c);
+  const list = rows();
+  assert.deepEqual(list.map((r) => WAITING.test(r.text)), [true], "the only row is a waiting row");
+  const host = new URL(NETWORKS.testnet.explorer).host;
+  assert.equal(explorerNote(), "opens " + host + " in a new tab");
+  c.mempool = null;
+  console.log("ok  the explorer note shows below a list with only a waiting row");
+}
+
+// ── An empty wallet does not say "no coins" while its first payment waits for a block ──
+{
+  const none = { height: 100, tip: 100, spendable: 0, pending: 0 };
+  const empty = openChain(new FakeWallet(), { bal: { ...none } });
+  const fundCard = () => findAll(page("overview"),
+    (n) => n.attrs?.["aria-labelledby"] === "fund-title")[0];
+  const WAY = /A payment to this wallet is on its way: no block holds it yet\. Copy its address/;
+  assert.match(textOf(fundCard()), /^Fund this wallet.*This wallet has no coins\. Copy its/);
+  empty.cw.reply = [note(T1, 1000000)];
+  await runMempool(empty);
+  assert.match(textOf(fundCard()), WAY, "the Fund card says that the payment is on its way");
+  assert.doesNotMatch(textOf(fundCard()), /no coins/);
+  assert.match(balanceText(), /Not in a block yet: 0\.01ZEC/);
+  assert.deepEqual(empty.bal, none, "no balance");
+  empty.cw.reply = [];
+  await runMempool(empty);
+  assert.match(textOf(fundCard()), /This wallet has no coins\./, "an empty answer: the old text");
+  t.setChain(c);
+  console.log("ok  the Fund card says that a waiting payment is on its way");
+}
+
 // ── The cap and the address hiding of a mainnet wallet do not change ──
 {
   const main = await rig.wallet({ name: "Main", network: "mainnet" });
@@ -282,6 +385,18 @@ console.log("ok  no call for a hidden tab or a closed wallet; the 30 s call asks
     assert.equal(mempoolNow(mc).length, 1);
     assert.deepEqual(states(), none, "cap, hidden address and total do not change");
   }
+  // An empty mainnet wallet has no faucet: its empty note changes the same way.
+  mc.bal = { height: 100, tip: 100, spendable: 0, pending: 0 };
+  mc.mempool = null;
+  t.setChain(mc);
+  const details = () => textOf(findAll(page("overview"),
+    (n) => n.attrs?.id === "zec-asset-details")[0]);
+  assert.match(details(), /This wallet is empty\. Share its address to receive ZEC\. Keep/);
+  mainCw.reply = [note(T1, 4e6)];
+  await runMempool(mc);
+  assert.match(details(), /A payment to this wallet is on its way: no block holds it yet\. Share/);
+  assert.doesNotMatch(details(), /is empty/);
+  console.log("ok  the empty note of a mainnet wallet says that a waiting payment is on its way");
   console.log("ok  the 0.5 ZEC cap and the hidden address do not change");
 }
 
