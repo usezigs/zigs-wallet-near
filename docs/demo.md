@@ -39,7 +39,7 @@ Decided by the owner on 18 October 2026:
 - **D2 Send hold.** When t = n and this seat made no share, the hold ends. Otherwise the hold
   stays, and the page says why and offers "I checked, release". In the demo: never Cancel after
   Approve.
-- **D3 Mainnet.** Mainnet wallets made before stay readable. The web app makes no new ones (M1).
+- **D3 Mainnet.** Mainnet wallets made before stay readable. The web app makes new ones with a tick (M1).
 - **D4 Helius.** The owner adds app.zigs.app and staging.zigs.app to the Allowed Domains of the
   Helius key, reads the plan limits and sets a usage alert. Anyone can read the key at
   `/sol/config.json` of app.zigs.app, so the alert matters (SOL-24).
@@ -208,7 +208,7 @@ says Sent (Zcash) or Executed (Solana).
 | Time | Who | Step | Expected result | Needs |
 |---|---|---|---|---|
 | 0:00 | L1 | Open app.zigs.app. Say: Zcash testnet and Solana Devnet only, not audited. Click **Set up a wallet**, then **Set up my wallet**. | The rule step recommends any 2 of 3 devices. | |
-| 0:45 | L1 | Keep the recommended rule and click **Next**. Type a name. Keep **Also set up Solana Devnet** ticked. Click **Review wallet**, then **Create wallet**. | The picker shows Testnet only. The review shows any 2 of 3 devices, Zcash testnet and Solana Devnet. The card **Add the other devices** shows. | M1, M3 |
+| 0:45 | L1 | Keep the recommended rule and click **Next**. Type a name. Keep **Also set up Solana Devnet** ticked. Click **Review wallet**, then **Create wallet**. | The picker has Testnet chosen. The review shows any 2 of 3 devices, Zcash testnet and Solana Devnet. The card **Add the other devices** shows. | M1, M3 |
 | 1:15 | L1, L2, L3 | L1 clicks **Copy link** and sends the link to L2 and L3 through an end-to-end encrypted chat. L2 and L3 open it in Chrome or Safari, type a label, then click **Join as device**. For a phone, L1 opens **Show link and QR code** on the card, and the phone scans the QR code. | 3 of 3 devices joined. | S10 |
 | 1:45 | L1, L2, L3 | Read the safety number aloud. Each person compares all 30 digits, ticks the box, and clicks **It matches**. Narrate the card **Setting up your wallet**: **Devices join**, **Create the key together**, **Check the address**, **Create the Solana key**, **Fund your fee address**. Keep L1 open until every device shows its Solana key ready (D7). | Both ceremonies run. Each device shows **Address checked** and its Solana key ready. | M3, M4 |
 | 3:00 | L1 | Switch to Demo A. Show the Zcash address, the **Available** balance and the Solana section. Click **Sync Solana**. | Both balances show. | S2 |
@@ -222,7 +222,7 @@ says Sent (Zcash) or Executed (Solana).
 | 7:30 | L1 | Wait for the execute: a device with a funded fee address executes by itself. Click **Sync Solana**. | The status says **Executed**. The private balance drops. | S3, S2 |
 | 8:15 | L1 | Click the transaction link in the result line. | The Devnet explorer shows the transaction. | S16 |
 | 8:45 | L1 | Switch to the spare wallet. In its Solana section, click **Look for rent** in the card **Rent of old proposals** (step 14). Do not click **Get it back**: it is a Devnet write. Show the backup buttons. Say what is public (section 6). | The words match ZOLANA.md and PRIVACY.md. | M6 |
-| 9:30 | L1 | Close: both chains are test networks, the web app makes no mainnet wallets, and the code is not audited. | | M1 |
+| 9:30 | L1 | Close: this demo ran on test networks, a mainnet wallet is a beta, and the code is not audited. | | M1 |
 
 ## 5. Contingencies
 

@@ -3266,9 +3266,9 @@ export const MUTATIONS = [
     "'aria-label': 'Swap pages'", "'aria-label': 'Swap privacy options'"],
     DEMOS, /the swap tabs are not named as privacy options/),
   program("L-swap-subtitle", "the swap page does not say that the prices are mainnet prices", [SWAP,
-    "'Live prices from NEAR Intents on mainnet. This app runs on Zcash testnet '",
-    "'Live prices from NEAR Intents. This app runs on Zcash testnet '"],
-    DEMOS, /the subtitle says mainnet prices, testnet app and no funds/),
+    "'Live prices from NEAR Intents on mainnet. Zigs cannot run a swap, so no '",
+    "'Live prices from NEAR Intents. Zigs cannot run a swap, so no '"],
+    DEMOS, /the subtitle says mainnet prices, no swap and no funds/),
   program("L-swap-1click", "the ZEC swap line hides the transparent deposit address", [SWAP,
     "export const ZEC_PRIVACY = 'A swap from ZEC leaves the shielded pool, because NEAR Intents "
       + "takes '", "export const ZEC_PRIVACY = 'Ironwood routing is unverified, because NEAR "
@@ -3282,8 +3282,8 @@ export const MUTATIONS = [
     "(q.source === 'demo' ? 'Demo quote, not a price' : LIVE_QUOTE)", "LIVE_QUOTE"],
     DEMOS, /a demo quote says Demo/),
   program("L-swap-norun", "the review dialog has no words for the no-run message", [SWAP,
-    "export const NO_RUN = 'Zigs cannot run this swap: NEAR Intents runs on mainnet only, "
-      + "and this '", "export const NO_RUN = ''"],
+    "export const NO_RUN = 'Zigs cannot run this swap: the page shows quotes only, "
+      + "and no funds '", "export const NO_RUN = ''"],
     DEMOS, /the words of the no-run message/),
   program("L-swap-details", "the details dialog keeps the quote that it opened with", [SWAP,
     "    detailBlock?.replaceChildren(...quoteBlock(s));\n", ""],

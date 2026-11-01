@@ -483,7 +483,8 @@ export function recoveryWorkspace() {
 let swapPreview;
 export function swapWorkspace() {
   const context = { id: state.g?.id, name: state.g?.name,
-    networks: 'Zcash ' + (state.g ? netOf(state.g).label : 'Testnet') + ' · Solana Devnet',
+    networks: state.g && netOf(state.g).cap ? 'Zcash ' + netOf(state.g).label
+      : 'Zcash Testnet · Solana Devnet',
     threshold: state.g ? state.g.t + " of " + state.g.n + " device approvals per payment." : "" };
   swapPreview ??= createSwapPreview(context);
   swapPreview.setContext(context);

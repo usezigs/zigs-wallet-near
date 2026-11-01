@@ -143,7 +143,7 @@ a wallet marks a payment as sent with the transaction that reaches the network a
 This links a wallet id to a transaction id, but not to its amount or recipient.
 
 - **Mainnet** wallets use ChainSafe's public light-wallet server, so the two servers have
-  different operators.
+  different operators. The page asks ChainSafe directly, so ChainSafe sees your IP address.
 - **Testnet** wallets use the Zigs light-wallet server first, with ChainSafe as the backup. The
   page calls the Zigs server through the app Worker (`/lwd`), and its public side answers the
   Worker only. So our node sees each request from the Worker, not from your
@@ -258,9 +258,8 @@ What the app trusts, and what it checks:
 ## Swap quotes (NEAR Intents)
 
 **Status:** live quotes only. The Swap page of the web app shows prices from NEAR Intents (the
-1Click API). Zigs cannot run a swap, because NEAR Intents runs on mainnet only and the web app
-runs on Zcash testnet and Solana Devnet. No funds move, no API key is used, and no deposit
-address is made.
+1Click API). Zigs cannot run a swap: the page shows quotes only. No funds move, no API key is
+used, and no deposit address is made.
 
 How a quote works:
 
@@ -718,10 +717,10 @@ the passkey guards the key share instead. The lock is opt-in.
 - Anyone with an invite link can write many small messages into a wallet room or a chat. The
   iPhone and Mac apps open each message document once and stop reading a conversation with more
   than 10,000 documents. The web app downloads the whole room.
-- The code is not audited. The web app of this release makes testnet wallets only. A mainnet
-  wallet made before is limited to 0.5 ZEC: at that balance the app stops showing the address and
-  warns. It cannot stop someone from sending more, and payments out
-  always stay possible.
+- The code is not audited. A mainnet wallet holds real ZEC and is limited to 0.5 ZEC: at that
+  balance, or while the app does not know the balance, it stops showing the address and warns.
+  An address that was shared stays valid. The app cannot stop someone from sending more, and
+  payments out always stay possible.
 
 ## Checks
 

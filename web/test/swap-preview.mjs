@@ -515,8 +515,8 @@ try {
   const view = () => text(root);
   assert.equal(LIVE_TAG, 'Live quotes · no funds move', 'the live tag says Live quotes');
   assert.ok(view().includes(LIVE_TAG), 'the swap page carries the live tag');
-  assert.match(view(), /Live prices from NEAR Intents on mainnet\. This app runs on Zcash testnet and Solana Devnet, so it cannot run a swap\. No funds move\./,
-    'the subtitle says mainnet prices, testnet app and no funds');
+  assert.match(view(), /Live prices from NEAR Intents on mainnet\. Zigs cannot run a swap, so no funds move\./,
+    'the subtitle says mainnet prices, no swap and no funds');
   assert.doesNotMatch(view(), /Private Swaps?|Powered by/,
     'the swap page does not claim a private swap or a provider');
   assert.match(view(), /SwapQuotes: NEAR Intents \(mainnet\)Live quotes/, 'the first tab says Live quotes');
@@ -531,8 +531,8 @@ try {
   assert.match(QUOTE_PRIVACY, /^Zigs sends the pair, the amount and the slippage to NEAR Intents through the Zigs server, with sample addresses and no address of yours\. NEAR Intents sees the Zigs server, not your IP address\.$/,
     'the quote line names the pair, the sample addresses and the server');
   assert.ok(view().includes(QUOTE_PRIVACY), 'the page says what the quote request sends');
-  assert.equal(NO_RUN, 'Zigs cannot run this swap: NEAR Intents runs on mainnet only, and this '
-    + 'wallet is on testnet.', 'the words of the no-run message');
+  assert.equal(NO_RUN, 'Zigs cannot run this swap: the page shows quotes only, and no funds '
+    + 'move.', 'the words of the no-run message');
   assert.ok(view().includes(NO_RUN), 'the page says that Zigs cannot run the swap');
   assert.ok(view().includes('Receive to · Demo'), 'the destination is labelled Demo');
   assert.match(view(), /Choose a pair and enter an amount to get a live quote\./);

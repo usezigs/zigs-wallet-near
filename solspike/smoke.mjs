@@ -4,9 +4,10 @@
 // - the page and the engine load, and the Tor demo popup of a first visit is turned down the way
 //   a person does it (two clicks), so the rest runs on the page that a person uses;
 // - every network picker on the page (the create dialog "Set up your wallet", and the personal
-//   account form when it shows) shows Testnet only, with no tick (M1). The dialog draws all its
-//   steps at once and hides all but one, so the picker of its third step is in the page without a
-//   walk through the passkey step; the check opens the dialog and closes it with its × button;
+//   account form when it shows) offers Testnet and Mainnet, with Testnet chosen and no tick (M1).
+//   The dialog draws all its steps at once and hides all but one, so the picker of its third step
+//   is in the page without a walk through the passkey step; the check opens the dialog and closes
+//   it with its × button;
 // - the Solana part loads: /sol/config.json answers, the Solana Worker of the page starts, and it
 //   answers a command that does not exist with "unknown command". The Solana tab itself needs a
 //   wallet, and a new wallet is a write, so the check stops there;

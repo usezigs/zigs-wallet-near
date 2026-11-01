@@ -55,16 +55,16 @@ proposer chooses one ([comparison](PRIVACY.md#on-chain)).
   scan the wallet again from its birthday.
 
 Zigs uses re-randomized FROST threshold signatures ([ZIP 312](https://zips.z.cash/zip-0312)) on
-the Ironwood shielded pool. It is a **beta** and **not audited**. The web app of this release runs
-on **Zcash testnet and Solana Devnet only**, with free test coins, and makes no mainnet wallets. A
-mainnet wallet made before still opens. At **0.5 ZEC** the app warns and hides its address. It
-cannot block deposits.
+the Ironwood shielded pool. It is a **beta** and **not audited**. The web app makes Zcash wallets on
+**testnet** (free test coins) or on **mainnet** (real ZEC, which you can lose). Solana Devnet is for
+testnet wallets only. In a mainnet wallet, at **0.5 ZEC** the app warns and hides the address. It
+cannot block deposits. The iPhone and Mac apps do not support mainnet wallets yet: use the web app.
 
 ## For judges: try it alone
 
 You can play every device from one browser. Use a desktop browser with Zigs in one tab, not a
-private window. Zigs runs on Zcash testnet and Solana Devnet only, so every coin is a free test
-coin. The runbook of a demo with three devices is in [docs/demo.md](docs/demo.md).
+private window. The steps below use Zcash testnet and Solana Devnet, so every coin is a free test
+coin. Keep Testnet chosen in the network choice. The runbook of a demo with three devices is in [docs/demo.md](docs/demo.md).
 
 **Zcash testnet**
 
@@ -350,8 +350,8 @@ On Solana Devnet, through the Zigs approvals program:
 | [`3ZytbWVs…7YPT`](https://explorer.solana.com/tx/3ZytbWVsua1GgmLVSG2ocervHPTRU2EqynfD4YJvGKj3sAem5Atuw9LYvAkm3b1dgykscg8EiBz5LwaE1ck17YPT?cluster=devnet) | 512,517,818 | **Private payment:** a 2-of-3 group pays 0.001 SOL to a shielded address. Device 1 proposed, devices 2 and 3 approved, and device 1 executed it |
 | [`5n7U9CJv…L9ba`](https://explorer.solana.com/tx/5n7U9CJv1Qf3yeMBBKATgYhxMcw7hizZb4sV9vqjTrwyYz53T9H1hDidfH3a4YNmnnJm1gdkcre81PcGqYn5L9ba?cluster=devnet) | 514,915,452 | **Demo video, private payment:** a 2-of-3 group pays 0.005 SOL to the shielded address of a second group. Device 1 proposed, and devices 1 and 2 approved (three browser windows on one computer) |
 
-Before this release turned mainnet off in the web app, a 2-of-2 mainnet wallet was created and
-synced to the mainnet tip in the web app and on the iPhone.
+An earlier release created a 2-of-2 mainnet wallet and synced it to the mainnet tip in the web
+app and on the iPhone.
 
 ## Repository layout
 
@@ -773,10 +773,10 @@ folder path.
   builds (fixed sample addresses, no header of the user, redirect not followed), the check of the
   answer, the seven fields of the answer, the three errors (too low, no route, unavailable), the
   limit for each network (429 before the call), and the password gate.
-- `node web/test/mainnet-off.mjs`: mainnet is off for this release. The network picker of a new
-  wallet and of the personal account shows Testnet only and no tick, a chat reads testnet
-  requests only, the page texts name Zcash testnet and Solana Devnet, and the testnet faucet is
-  the Valar faucet.
+- `node web/test/mainnet-on.mjs`: mainnet is on for this release. The network picker of a new
+  wallet and of the personal account offers Testnet and Mainnet with Testnet chosen, Mainnet needs
+  a tick, a chat reads testnet and mainnet requests, the page texts name Zcash and Solana Devnet,
+  and the testnet faucet is the Valar faucet.
 - `node web/test/chain-fallback.mjs`: the light-wallet fallback with a fake engine. A server that
   did not answer goes to the end of the list for 5 minutes, the first try waits 3 s, a sync that
   gets no blocks for 60 s stops and frees the busy flag, and a tab that comes back syncs at once.
@@ -800,9 +800,10 @@ folder path.
 
 ## Known limits
 
-- **Not audited, and test networks only.** The web app of this release makes Zcash testnet wallets
-  only. In a mainnet wallet made before, at 0.5 ZEC the app hides the address and warns. It cannot
-  stop someone from sending more.
+- **Not audited.** The web app makes Zcash testnet wallets and mainnet wallets. A mainnet wallet
+  holds real ZEC. At 0.5 ZEC the app hides its address and warns. It cannot stop someone from
+  sending more. The iPhone and Mac apps read a mainnet wallet but do not create, join, approve for
+  or send from one yet.
 - **ZIP 2005 is Proposed, and every signer holds `qsk`.** New wallets are built to it so that funds
   can be recovered if quantum computers break today's keys. A quantum attacker who has `qsk` may
   steal the funds, so one signer or one stolen backup with its passphrase could take them. The

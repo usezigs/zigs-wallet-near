@@ -1423,6 +1423,7 @@ function privacyText(host) {
     + "Sync downloads blocks and resumes from the saved browser state. Direct data providers see your IP address. "
     + "On testnet, requests normally pass through the Zigs Worker: the upstream node sees the Worker IP, "
     + "while the Worker sees your browser IP. A direct fallback provider sees your IP. "
+    + "A mainnet wallet asks ChainSafe’s public server directly, and that server sees your IP. "
     + "These requests do not send your signing key."),
   el("p", { class: "small muted" }, "Incoming memo retrieval additionally identifies transactions that pay this wallet. "
     + "Its consent and caching details are under General. Wallet descriptions are local notes outside the encrypted vault, "

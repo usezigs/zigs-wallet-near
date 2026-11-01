@@ -23,8 +23,8 @@ export const ZEC_PRIVACY = 'A swap from ZEC leaves the shielded pool, because NE
 export const QUOTE_PRIVACY = 'Zigs sends the pair, the amount and the slippage to NEAR Intents '
   + 'through the Zigs server, with sample addresses and no address of yours. NEAR Intents sees '
   + 'the Zigs server, not your IP address.';
-export const NO_RUN = 'Zigs cannot run this swap: NEAR Intents runs on mainnet only, and this '
-  + 'wallet is on testnet.';
+export const NO_RUN = 'Zigs cannot run this swap: the page shows quotes only, and no funds '
+  + 'move.';
 const privacy = (zec) => (zec ? ZEC_PRIVACY
   : 'Network visibility varies by route. Input, output and intermediate transfers may be '
     + 'publicly visible.') + ' ' + QUOTE_PRIVACY;
@@ -132,8 +132,8 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   root.append(el('header', { class: 'swap-heading' },
     el('div', { class: 'swap-topline' }, text('swap-eyebrow', 'EXCHANGE'), previewTag()),
     el('h1', {}, 'Swap assets', el('span', { 'aria-hidden': 'true' }, '.')),
-    text('swap-subtitle', 'Live prices from NEAR Intents on mainnet. This app runs on Zcash testnet '
-      + 'and Solana Devnet, so it cannot run a swap. No funds move.')),
+    text('swap-subtitle', 'Live prices from NEAR Intents on mainnet. Zigs cannot run a swap, so no '
+      + 'funds move.')),
   el('div', { class: 'swap-mode-tabs', role: 'tablist', 'aria-label': 'Swap pages' }, modeTabs),
   el('div', { class: 'swap-panel', id: 'swap-panel-private', role: 'tabpanel',
     'aria-labelledby': 'swap-tab-private', tabindex: '0' },
@@ -250,8 +250,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     sourceLine.textContent = 'Source wallet: ' + (source.name || 'no wallet selected') + '. '
       + (source.threshold || 'Approval requirements will be shown with a selected wallet.');
     networkLine.textContent = (source.networks || 'Zcash Testnet · Solana Devnet')
-      + '. NEAR Intents runs on mainnet only, so Zigs cannot run a swap here. There is no mainnet '
-      + 'fallback.';
+      + '. NEAR Intents quotes are mainnet prices. Zigs cannot run a swap here.';
   }
   function drawRetry(s) {
     root.querySelectorAll('.swap-retry').forEach((n) => n.remove());

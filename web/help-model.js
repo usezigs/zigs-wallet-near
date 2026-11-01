@@ -42,7 +42,8 @@ export const HELP = [
     + "confirmations. Open the payment in Approvals or Activity to see its step. A payment can "
     + "need a few blocks to confirm. Do not pay again while it shows Confirming."],
   ["Which networks does Zigs use?",
-    "Zigs uses Zcash testnet and Solana Devnet. These networks use test coins."],
+    "Zigs uses Zcash testnet or mainnet, and Solana Devnet. Testnet and Devnet use test coins. "
+    + "Mainnet uses real ZEC: it is a beta, it is not audited, and you can lose the funds."],
 ];
 
 /**
