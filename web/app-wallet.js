@@ -591,7 +591,7 @@ function zecAsset(c) {
     shieldingActions("zec", false)),
     b?.sending ? sendingLine(b.sending) : null, atCap() ? capNote() : null,
     assetNote("zec", "Balance details", [
-      emptyNote(b), syncLine(c), shieldingBreakdown("zec"),
+      emptyNote(b, c), syncLine(c), shieldingBreakdown("zec"),
       el("p", { class: "asset-total" }, "Total shielded balance ", amount(zecTotal(b))),
       el("p", {}, "Includes available and incoming ZEC."),
       el("p", { id: "zec-shielding-note" }, "Percentages unavailable: this wallet tracks shielded ZEC only. Unshielded ZEC balances and shield/unshield transfers are not supported."),
@@ -638,6 +638,10 @@ export const FAUCET_TEXT = "That site is not Zigs: it sees the address that you 
   + "Online. Then Paid · 24h shows 0, and a claim ends with \"Not paid\". Try again later, or ask "
   + "the Zigs team for test coins.";
 const noCoins = (b) => !!b && b.spendable + b.pending + b.sending === 0 && !state.g.movedTo;
+// "No coins" and "empty" are untrue while a payment waits for its block (the line "Not in a block
+// yet"), so the lead sentence of these texts says that the payment is on its way.
+const lead = (c, text) => mempoolTotal(c) > 0
+  ? "A payment to this wallet is on its way: no block holds it yet." : text;
 const addressReady = () => !!state.wallet?.address && !addrHidden();
 const fundShown = (b) => noCoins(b) && !!curNet().faucet && addressReady();
 
@@ -648,8 +652,8 @@ function fundCard(c) {
   const showAddress = () => { ui.receive = true; render(); };
   return el("section", { class: "card card-pad attention", "aria-labelledby": "fund-title" },
     el("div", { class: "card-head" }, el("h3", { id: "fund-title" }, "Fund this wallet")),
-    el("p", { class: "small muted" }, "This wallet has no coins. Copy its address, then paste "
-      + "it at the faucet to get free testnet ZEC."),
+    el("p", { class: "small muted" }, lead(c, "This wallet has no coins.") + " Copy its address, "
+      + "then paste it at the faucet to get free testnet ZEC."),
     el("div", { class: "row-actions" },
       copyBtn(state.wallet.address, "Copy address", "btn primary", showAddress),
       el("a", { class: "btn", href: curNet().faucet, target: "_blank", rel: "noopener" },
@@ -660,13 +664,14 @@ function fundCard(c) {
     el("p", { class: "small muted" }, FAUCET_TEXT));
 }
 
-function emptyNote(b) {
+function emptyNote(b, c) {
   if (!noCoins(b) || fundShown(b)) return null;
+  const first = lead(c, "This wallet is empty.");
   return el("div", { class: "callout" }, curNet().faucet
-    ? el("span", {}, "This wallet is empty. Share its address to receive ZEC, or get free "
+    ? el("span", {}, first + " Share its address to receive ZEC, or get free "
       + "testnet ZEC from a ", el("a", { href: curNet().faucet, target: "_blank",
       rel: "noopener" }, "faucet", icon("external")), ". " + FAUCET_TEXT)
-    : el("span", {}, "This wallet is empty. Share its address to receive ZEC. Keep it under "
+    : el("span", {}, first + " Share its address to receive ZEC. Keep it under "
       + capText(curNet().cap) + ": the app warns at that level. It cannot block deposits."));
 }
 const SOL_NOTE = {
