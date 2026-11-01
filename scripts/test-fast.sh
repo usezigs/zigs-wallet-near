@@ -23,6 +23,7 @@ FAST="optional-passkey demo-check chain-fallback chat backup-check graph persona
   sol-docs sol-transfer sol-wasm mainnet-on
   smoke help contrast overview setup-stage approvals recovery security-dashboard
   payment-model
+  plain-worker
   cf/test/gate sol-nonce-tabs no-storage"
 SLOW="app sol-fee sol-sessions sol-limits sol-ceremony sol-app sol-pay sol-pay-exec sol-pay-seats
   sol-pay-lease sol-pay-look sol-pay-end unified-setup sol-prove"
