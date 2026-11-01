@@ -19,7 +19,18 @@ export const zecTotal = (b) => (b ? b.spendable + b.pending : null);
 
 export const PRICE_FRESH_MS = 5 * 60_000; // a price younger than this is reused
 export const PRICE_RETRY_MS = 60_000; // the wait after a failed call
+export const PRICE_TIMEOUT_MS = 15_000; // a call with no answer by then is a failed call
+// A kept price older than this is dropped (the NEAR Intents terms allow at most 24 h).
+export const PRICE_MAX_MS = 60 * 60_000;
 const assetId = (key) => SWAP_ASSETS.find((a) => a.key === key).id;
+// The withTimeout of app-kit.js, which a pure module cannot import (web/test/graph.mjs).
+function within(promise, ms) {
+  let timer;
+  const late = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error("no answer in " + ms + " ms")), ms);
+  });
+  return Promise.race([promise, late]).finally(() => clearTimeout(timer));
+}
 // The ask is fixed: exactly 1 ZEC in zatoshi, never an amount that depends on a wallet.
 const PRICE_ASK = Object.freeze({ originAssetId: assetId("zec"),
   destinationAssetId: assetId("usdc"), amountAtomic: "100000000", slippageBps: 50 });
@@ -28,11 +39,13 @@ const PRICE_ASK = Object.freeze({ originAssetId: assetId("zec"),
  * The USD price of 1 ZEC for the Overview of a mainnet wallet, from one dry NEAR Intents quote of
  * 1 ZEC to USDC (1 USDC counts as 1 USD). It lives in memory for the page session. `ask()` calls
  * `provider.previewQuote` only when no call runs, no price is younger than 5 minutes and the last
- * failed call is at least 60 s old. `settled()` runs after each call, whatever its result.
+ * failed call is at least 60 s old. A call fails after 15 s without an answer, and a price older
+ * than 1 hour is dropped. `settled()` runs after each call, whatever its result.
  * ponytail: no timer. The Overview redraws about once a minute (the sync of the open wallet) and
  * each redraw calls `ask()`. Upgrade path: a shared fetch of the Worker for all page sessions.
  */
-export function createZecPrice({ provider, now = () => Date.now(), settled = () => {} }) {
+export function createZecPrice({ provider, now = () => Date.now(), settled = () => {},
+  timeoutMs = PRICE_TIMEOUT_MS }) {
   let usdPerZec = null, at = null, failedAt = null, busy = false;
   const want = () => {
     const t = now();
@@ -43,7 +56,8 @@ export function createZecPrice({ provider, now = () => Date.now(), settled = () 
     if (!want()) return;
     busy = true;
     try {
-      const price = Number((await provider.previewQuote(PRICE_ASK)).amountOut) / 1e6;
+      const quote = await within(provider.previewQuote(PRICE_ASK), timeoutMs);
+      const price = Number(quote.amountOut) / 1e6;
       if (!(price > 0)) throw new Error("no price");
       usdPerZec = price; at = now(); failedAt = null;
     } catch {
@@ -52,7 +66,11 @@ export function createZecPrice({ provider, now = () => Date.now(), settled = () 
     busy = false;
     settled();
   }
-  return { ask, want, read: () => ({ usd: usdPerZec, at, failed: failedAt !== null }) };
+  function read() {
+    if (at !== null && now() - at > PRICE_MAX_MS) { usdPerZec = null; at = null; }
+    return { usd: usdPerZec, at, failed: failedAt !== null };
+  }
+  return { ask, want, read };
 }
 
 /** The USD value of `zat` zatoshi at `usdPerZec` USD for 1 ZEC, or null when one is unknown. */

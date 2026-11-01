@@ -359,6 +359,7 @@ assert.equal(wallet.network, "mainnet");
 // testnet wallet and a hidden tab ask nothing. A stub replaces fetch, and `skew` moves Date.now.
 {
   const realFetch = globalThis.fetch, realNow = Date.now, realDocument = globalThis.document;
+  const realFrame = globalThis.requestAnimationFrame;
   const quotes = [], BODY = '{"from":"zec","to":"usdc","amount":"100000000","slippageBps":50}';
   const quote = (out) => () => Response.json({ amountIn: "100000000", amountOut: out,
     minAmountOut: "1" });
@@ -369,20 +370,22 @@ assert.equal(wallet.network, "mainnet");
     return reply();
   };
   Date.now = () => realNow() + skew;
-  const hero = () => {
+  const draw = (tab) => {
     globalThis.document = new Proxy(realDocument, { get: (o, k) => ({
       createElement: (tag) => new Rec(tag), createElementNS: (_ns, tag) => new Rec(tag),
       createTextNode: (text) => ({ text }), visibilityState: visibility })[k] ?? o[k] });
     try {
-      t.ui.tab = "overview";
-      return findNode(t.walletView(null, null), (n) => n.className === "overview-hero");
+      t.ui.tab = tab;
+      return t.walletView(null, null);
     } finally { globalThis.document = realDocument; }
   };
-  const total = (tree) => findNode(tree, (n) => n.className?.split(" ").includes("portfolio-value"));
+  const hero = () => findNode(draw("overview"), (n) => n.className === "overview-hero");
+  const total = (tree) =>
+    findNode(tree, (n) => n.className?.split(" ").includes("portfolio-value"));
   const note = (tree) => textOf(byId(tree, "usd-note"));
   const summary = (tree) => findNode(tree, (n) => n.className === "portfolio-summary");
-  const chain = (spendable, pending = 0) => t.setChain({ gid, bal: { spendable, pending, height: 1 },
-    received: [], sent: new Set(), cw: null });
+  const chain = (spendable, pending = 0) => t.setChain({ gid,
+    bal: { spendable, pending, height: 1 }, received: [], sent: new Set(), cw: null });
   const keep = t.state.g;
   try {
     // A testnet wallet: the demo total, and no call.
@@ -400,6 +403,8 @@ assert.equal(wallet.network, "mainnet");
     hero();
     assert.deepEqual(quotes, [], "a hidden tab asks for no price");
     visibility = "visible";
+    for (const tab of ["activity", "settings"]) draw(tab);
+    assert.deepEqual(quotes, [], "a section other than the Overview asks for no price");
     tree = hero(); hero();
     assert.deepEqual(quotes, [BODY], "one call for two draws");
     assert.equal(note(tree), "Price not available yet", "while the call runs");
@@ -421,7 +426,8 @@ assert.equal(wallet.network, "mainnet");
     tree = hero();
     assert.equal(textOf(total(tree)), "$12.33");
     assert.equal(total(tree).attrs["aria-label"], "About $12.33");
-    assert.match(note(tree), /^≈ Price of a NEAR Intents quote for 1 ZEC, just now\. 1 USDC counts as 1 USD\. The quote includes fees and spread\. It is not a market rate/);
+    assert.ok(note(tree).startsWith("≈ Price of a NEAR Intents quote for 1 ZEC, just now. "
+      + "1 USDC counts as 1 USD. The quote includes fees and spread. It is not a market rate"));
     assert.equal(total(tree).attrs["aria-describedby"], "usd-note");
     assert.doesNotMatch(textOf(summary(tree)), /Demo|Test funds/);
     assert.match(textOf(summary(tree)),
@@ -439,13 +445,19 @@ assert.equal(wallet.network, "mainnet");
     skew += 61_000; hero();
     assert.deepEqual(quotes, [BODY, BODY, BODY], "the third call has the same fixed body");
     await waitFor("the third price", () => note(hero()).includes("1 ZEC, just now"));
-    reply = quote("1250500000");
+    let release, frames = 0;
+    reply = () => new Promise((done) => { release = () => done(quote("1250500000")()); });
     visibility = "hidden";
     skew += 6 * 60_000; hero();
     assert.equal(quotes.length, 3, "a hidden tab asks no new price");
     visibility = "visible";
     hero();
     assert.equal(quotes.length, 4, "a visible Overview with an old price asks");
+    // The page redraws by itself when the call ends: no draw by hand until the new price shows.
+    await new Promise((done) => setTimeout(done, 200));
+    globalThis.requestAnimationFrame = () => { frames += 1; return 0; };
+    release();
+    await waitFor("a redraw after the call", () => frames > 0);
     await waitFor("the new price", () => textOf(total(hero())) === "$3,126.25");
 
     // Before the first sync the total has no value, and the price call goes on.
@@ -458,6 +470,7 @@ assert.equal(wallet.network, "mainnet");
     console.log("ok  the USD total of a mainnet wallet comes from a fixed quote of 1 ZEC");
   } finally {
     globalThis.fetch = realFetch; Date.now = realNow; globalThis.document = realDocument;
+    globalThis.requestAnimationFrame = realFrame;
     t.state.g = keep; t.setChain(null);
   }
 }

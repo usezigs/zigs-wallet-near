@@ -38,9 +38,10 @@ is a bug: please report it.
   amount and the slippage, with sample addresses and no address of yours. NEAR Intents sees the
   Worker and not your IP address. Read [Swap quotes](#swap-quotes-near-intents).
 - The Overview of a mainnet wallet (web app only) shows a USD total. It asks for the price of a
-  fixed 1 ZEC from NEAR Intents, through the same route, at most every 5 minutes while it shows.
-  The call holds no balance and no address. NEAR Intents and the Worker see the time of the call,
-  not the balance. A testnet wallet asks nothing. Read [Swap quotes](#swap-quotes-near-intents).
+  fixed 1 ZEC from NEAR Intents, through the same route, about every 5 minutes while it shows, and
+  at most once a minute after a failed call. The call holds no balance and no address. NEAR
+  Intents sees the time of the call. The Worker sees the time and your IP address, not the
+  balance. A testnet wallet asks nothing. Read [Swap quotes](#swap-quotes-near-intents).
 
 ## On chain
 
@@ -283,8 +284,9 @@ How a quote works:
   depends on your balance. The page multiplies the price by the ZEC total of the wallet, on the
   device, and counts 1 USDC as 1 USD. It asks when the Overview shows and no price on the page is
   younger than 5 minutes. It runs one call at a time and waits at least 60 seconds after a failed
-  call. A hidden tab asks nothing, and a testnet wallet asks nothing. The price stays in memory for
-  the page session: the page stores it nowhere.
+  call. A call with no answer in 15 seconds counts as failed. A hidden tab asks nothing, and a
+  testnet wallet asks nothing. The price stays in memory only, for at most 1 hour: the page stores
+  it nowhere.
 
 | Party | What it learns |
 |---|---|
@@ -296,9 +298,9 @@ How a quote works:
 
 What stays visible:
 
-- The page asks for a quote when you stop typing, and again when you change the pair or the
+- The Swap page asks for a quote when you stop typing, and again when you change the pair or the
   slippage. So the Worker and NEAR Intents see each amount that you pause on.
-- A quote older than 60 seconds is cleared on the page. The page asks for a new quote only after
+- The Swap page clears a quote older than 60 seconds. It asks for a new quote only after
   an action of yours: when you type, change the pair or the slippage, press **Refresh quote**, or
   leave the simulation with **Back to swap**.
 - A real swap from ZEC would leave the shielded pool. NEAR Intents takes ZEC only at a transparent
@@ -309,9 +311,10 @@ What stays visible:
   address, so no payout was made. The chain-support page of NEAR Intents still lists Zcash as
   "Partially supported - Transparent addresses only". Treat the shielded claim as unproven until
   a real swap pays to such an address.
-- An open Overview of a mainnet wallet asks about once every 5 minutes. So the Worker and NEAR
-  Intents see the times at which someone has a mainnet wallet open in the web app. They do not see
-  the balance, the wallet or the address.
+- An open Overview of a mainnet wallet asks about once every 5 minutes, and at most once a minute
+  while calls fail. It asks with no action of yours. So the Worker and NEAR Intents see the times
+  at which someone has a mainnet wallet open in the web app. They do not see the balance, the
+  wallet or the address.
 - The USD total of the Overview is the price of a NEAR Intents quote for 1 ZEC, times your ZEC
   total. The quote includes the fees and the spread of NEAR Intents. It is not a market rate, and a
   swap can give another amount. The page shows the age of the price. Only ZEC counts in the total.

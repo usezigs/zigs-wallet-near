@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
   ageText, createZecPrice, formatUsdBalance, pendingShortcut, portfolioView, PRICE_FRESH_MS,
-  PRICE_RETRY_MS, solRow, zecInProgress, zecTotal, zecUsd,
+  PRICE_MAX_MS, PRICE_RETRY_MS, solRow, zecInProgress, zecTotal, zecUsd,
 } from "../overview-model.js";
 import { NearIntentsSwapProvider } from "../near-intents-swap-provider.js";
 import { describeOrb } from "../wallet-identity.js";
@@ -95,10 +95,11 @@ console.log("ok  the pending shortcut");
 // The price of 1 ZEC: one dry quote of exactly 1 ZEC to USDC, kept for 5 minutes. `now.t` is the
 // clock; `answer` makes the reply of the provider (a thrown error is a failed call).
 const T0 = 1_000_000;
-function priceRig(answer = async () => ({ amountOut: "1232971711" })) {
+function priceRig(answer = async () => ({ amountOut: "1232971711" }), timeoutMs = undefined) {
   const asks = [], now = { t: T0 }, rig = { asks, now, settled: 0 };
   const provider = { previewQuote: async (ask) => { asks.push(ask); return answer(ask); } };
-  rig.price = createZecPrice({ provider, now: () => now.t, settled: () => { rig.settled++; } });
+  rig.price = createZecPrice({ provider, now: () => now.t, settled: () => { rig.settled++; },
+    timeoutMs });
   return rig;
 }
 const FIXED_ASK = { originAssetId: "nep141:zec.omft.near",
@@ -170,6 +171,32 @@ const FIXED_ASK = { originAssetId: "nep141:zec.omft.near",
   r.now.t += PRICE_RETRY_MS - 1;
   assert.equal(r.price.want(), false, "and waits 60 s");
   console.log("ok  the price: a failed call waits 60 s");
+}
+{
+  // A kept price older than 1 hour is dropped, so the page never shows API data that old.
+  let fail = false;
+  const r = priceRig(async () => {
+    if (fail) throw new Error("down");
+    return { amountOut: "2000000" };
+  });
+  await r.price.ask();
+  fail = true;
+  r.now.t = T0 + PRICE_MAX_MS;
+  await r.price.ask();
+  assert.deepEqual(r.price.read(), { usd: 2, at: T0, failed: true }, "a price of 1 hour stays");
+  r.now.t += 1;
+  assert.deepEqual(r.price.read(), { usd: null, at: null, failed: true }, "an older one goes");
+  console.log("ok  the price: a kept price older than 1 hour is dropped");
+}
+{
+  // A call with no answer fails after the timeout, so the next ask can call again.
+  const r = priceRig(() => new Promise(() => {}), 20);
+  await r.price.ask();
+  assert.deepEqual(r.price.read(), { usd: null, at: null, failed: true }, "no answer is a failure");
+  assert.equal(r.settled, 1, "and the page redraws");
+  r.now.t = T0 + PRICE_RETRY_MS;
+  assert.equal(r.price.want(), true, "a stalled call does not block the next ask");
+  console.log("ok  the price: a call with no answer fails after the timeout");
 }
 for (const bad of ["0", "abc", undefined, null, "-5"]) {
   const r = priceRig(async () => ({ amountOut: bad }));
