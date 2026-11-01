@@ -347,7 +347,8 @@ wallet, the creator also cannot choose `nk` or `rivk`.
     or the 0.5 ZEC level.
   - The page asks after each finished sync and every 30 seconds, one call at a time for each
     wallet (the group wallet and the personal account ask apart). A call that fails or takes 20
-    seconds shows nothing, and the last good list stays for 2 minutes.
+    seconds shows nothing, and the last good list stays for 2 minutes. The stream of a call that
+    took too long can stay open, so the next call can overlap it.
   - The page shows the list as the line "Not in a block yet" in the balance and as the row
     "Receiving · not in a block yet" in the activity. It is never Available or Incoming. The line
     and the row go away when a synced block holds the payment or the mempool drops it.
@@ -904,8 +905,9 @@ the web, on iPhone and on Mac at the same time.
   exist, or hide transactions. The wallet follows real reorganisations of up to 100 blocks
   (section 6). The mempool list is the same: it can hide a payment that waits for its block. A
   false server that knows an address of the wallet can also show a made-up one, because a note
-  needs only the address to be made and the viewing key opens it. The page shows it only as "Not
-  in a block yet" and never counts it as a balance.
+  needs only the address to be made and the viewing key opens it. The page shows it only as
+  waiting ("Not in a block yet", the waiting row, and "on its way" on an empty wallet) and never
+  counts it as a balance.
 - A memo on chain comes from the payer and is not authenticated. Every signer can read it, and a
   signer who kept the viewing key can read it after "Change devices".
 - A full session in Tor Browser is not tested yet.

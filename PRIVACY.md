@@ -137,7 +137,8 @@ The app downloads compact blocks and finds the wallet's notes on the device. The
   hides. Each call asks for every transaction in the mempool, the same for every wallet. The page
   reads at most 1,000 transactions and 20,000 Ironwood actions of the answer and stops at the
   first limit. It opens the notes on the device, one transaction at a time, and keeps only the
-  notes that open with your viewing key. A call that takes 20 seconds counts as failed. So the
+  notes that open with your viewing key. A call that takes 20 seconds counts as failed, but its
+  stream can stay open, so the server can see two calls of the same wallet at once. So the
   server sees the time of each call and that this IP address has a wallet open, not which payment
   is yours. The page shows a payment that it finds this way as "Not in a block yet" and never
   counts it in the balance;
@@ -719,7 +720,8 @@ the passkey guards the key share instead. The lock is opt-in.
   note needs only the address to be made, and the viewing key of the wallet opens it. The engine
   drops a single note above 21,000,000 ZEC, but the notes of one transaction add up in one row. A
   false server can also show a note of a block that the wallet has not synced yet, or of a branch
-  that the chain left. The page shows such a payment only as "Not in a block yet". It never counts
+  that the chain left. The page shows such a payment only as waiting: the line "Not in a block
+  yet", the row, and "A payment to this wallet is on its way" on an empty wallet. It never counts
   it as Available or Incoming, and it does not change the 0.5 ZEC warning level.
 - A payment request names a wallet address, and may name an amount and a memo. Everyone who reads
   the message reads them. In a wallet room, these are the signers and anyone who has the invite

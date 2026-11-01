@@ -171,7 +171,8 @@ const frame = (msg, flag = 0) => {
     seen.push({ url: request.url, body: Buffer.from(await request.arrayBuffer()) });
     return new Response(end, { headers: { "content-type": "application/grpc-web+proto" } });
   };
-  try { assert.equal(await new Z.ChainWallet(ufvk, 4500000, "https://engine.test").mempool(), "[]"); }
+  const wallet = new Z.ChainWallet(ufvk, 4500000, "https://engine.test");
+  try { assert.equal(await wallet.mempool(), "[]"); }
   finally { globalThis.fetch = stub; }
   assert.equal(seen.length, 1, "one call");
   assert.equal(seen[0].url, "https://engine.test" + SERVICE + "GetMempoolTx");
