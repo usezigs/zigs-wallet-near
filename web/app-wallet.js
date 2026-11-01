@@ -238,6 +238,7 @@ function overviewTab() {
   const c = curChain();
   return el("div", { class: "page overview-page" },
     state.g.movedTo ? moveCard(c) : null,
+    fundCard(c),
     localSeats().includes(1) && !state.g.movedTo
       ? fundingOverviewCard(state.gid, state.g.name) : null,
     pendingCard(),
@@ -529,8 +530,10 @@ const assetHead = (id, symbol, network) => el("div", { class: "asset-title" },
   el("span", { class: "coin-mark" }, icon(id)),
   el("div", {}, el("h3", { id: "asset-" + id }, symbol), el("p", {}, network)));
 
+const zecBal = (c) => c && c.bal ? balanceNow(c.bal) : null;
+
 function zecAsset(c) {
-  const b = c && c.bal ? balanceNow(c.bal) : null;
+  const b = zecBal(c);
   const amount = (zat, size = "md") => b ? money(zat, size)
     : el("span", { class: "skel", role: "img", "aria-label": "Loading balance" });
   const status = c?.error ? (b ? "Sync failed · saved balance" : "Sync failed") : c?.syncing ? "Syncing…"
@@ -585,8 +588,31 @@ export const FAUCET_TEXT = "That site is not Zigs: it sees the address that you 
   + "transaction id, the amount and the time. The faucet can stop paying while its page says "
   + "Online. Then Paid · 24h shows 0, and a claim ends with \"Not paid\". Try again later, or ask "
   + "the Zigs team for test coins.";
+const noCoins = (b) => !!b && b.spendable + b.pending + b.sending === 0 && !state.g.movedTo;
+const addressReady = () => !!state.wallet?.address && !addrHidden();
+const fundShown = (b) => noCoins(b) && !!curNet().faucet && addressReady();
+
+// The card sits at the top of Overview while an empty wallet can use the faucet. It holds the
+// faucet text that emptyNote would repeat.
+function fundCard(c) {
+  if (!fundShown(zecBal(c))) return null;
+  const showAddress = () => { ui.receive = true; render(); };
+  return el("section", { class: "card card-pad attention", "aria-labelledby": "fund-title" },
+    el("div", { class: "card-head" }, el("h3", { id: "fund-title" }, "Fund this wallet")),
+    el("p", { class: "small muted" }, "This wallet has no coins. Copy its address, then paste "
+      + "it at the faucet to get free testnet ZEC."),
+    el("div", { class: "row-actions" },
+      copyBtn(state.wallet.address, "Copy address", "btn primary", showAddress),
+      el("a", { class: "btn", href: curNet().faucet, target: "_blank", rel: "noopener" },
+        "Open the faucet", el("span", { class: "sr-only" }, " (opens in a new tab)"),
+        icon("external"))),
+    el("p", { class: "small muted" }, "Coins show as Incoming, then as Available after 3 "
+      + "confirmations (about 75 seconds)."),
+    el("p", { class: "small muted" }, FAUCET_TEXT));
+}
+
 function emptyNote(b) {
-  if (!b || b.spendable + b.pending + b.sending !== 0 || state.g.movedTo) return null;
+  if (!noCoins(b) || fundShown(b)) return null;
   return el("div", { class: "callout" }, curNet().faucet
     ? el("span", {}, "This wallet is empty. Share its address to receive ZEC, or get free "
       + "testnet ZEC from a ", el("a", { href: curNet().faucet, target: "_blank",

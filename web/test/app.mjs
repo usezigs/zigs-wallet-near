@@ -2172,6 +2172,82 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
     assert.deepEqual(t.finishButtons(unmarkedOne), [], "no Send again for a payment on chain");
     t.state.sessions.splice(t.state.sessions.indexOf(sentOne), 1);
 
+    // The Fund card tops Overview of an empty testnet wallet that has an address, and only then.
+    // The faucet text shows once: in the card, not in the closed balance details.
+    t.ui.tab = "overview";
+    const wallet = t.state.wallet;
+    const overview = () => t.walletView(null, null);
+    const fundIn = (tree) => all(tree, (x) => x.tag === "section"
+      && x.attrs["aria-labelledby"] === "fund-title")[0];
+    const fundCardOf = () => fundIn(overview());
+    const detailsText = () => textOf(all(overview(), (x) => x.tag === "details"
+      && x.attrs.id === "zec-asset-details")[0]);
+    const fundBal = (bal) => t.setChain({ gid: t.state.gid, url: "https://lwd.test",
+      bal: { height: 4500000, ...bal }, balAt: Date.now(), received: [], sent: new Set(),
+      cw: null });
+    fundBal({ spendable: 0, pending: 0 });
+    const top = overview(), fund = fundIn(top);
+    assert.ok(fund, "an empty testnet wallet shows the Fund card");
+    assert.equal(textOf(all(fund, (x) => x.tag === "h3")[0]), "Fund this wallet");
+    assert.equal(all(top, (x) => x.tag === "section")[1], fund, "the card leads Overview");
+    const [link, ...more] = all(fund, (x) => x.tag === "a");
+    assert.equal(more.length, 0, "one faucet link");
+    assert.deepEqual([link.attrs.href, link.attrs.target, link.attrs.rel],
+      ["https://faucet.testnet.valargroup.dev/", "_blank", "noopener"]);
+    assert.ok(!link.attrs.href.includes(wallet.address), "the link has no address");
+    assert.equal(all(link, (x) => x.attrs["data-icon"] === "external").length, 1);
+    assert.match(textOf(fund), /Coins show as Incoming, then as Available after 3 confirmations/);
+    assert.match(textOf(fund), /\(about 75 seconds\)\./);
+    assert.match(textOf(fund), /That site is not Zigs: it sees the address that you paste and/);
+    assert.match(textOf(fund), /Try again later, or ask the Zigs team for test coins\.$/,
+      "the card keeps the privacy and paused-faucet text");
+    assert.doesNotMatch(detailsText(), /faucet|This wallet is empty/,
+      "the balance details do not repeat the faucet text");
+    const copyBtn = named(fund, "button", "Copy address");
+    assert.equal(copyBtn.className, "btn primary");
+    const clipboard = { text: [], fail: false };
+    const navBefore = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+    Object.defineProperty(globalThis, "navigator", { configurable: true, value: { clipboard: {
+      writeText: async (x) => {
+        if (clipboard.fail) throw new Error("clipboard refused");
+        clipboard.text.push(x);
+      },
+    } } });
+    try {
+      await copyBtn.on.click({ currentTarget: copyBtn });
+      assert.deepEqual(clipboard.text, [wallet.address], "Copy address copies the address");
+      assert.equal(copyBtn.textContent, "Copied");
+      clipboard.fail = true;
+      t.ui.receive = false;
+      await copyBtn.on.click({ currentTarget: copyBtn });
+      assert.equal(t.ui.receive, true, "a refused copy opens Receive, which shows the address");
+    } finally {
+      Object.defineProperty(globalThis, "navigator", navBefore);
+      t.ui.receive = false;
+    }
+    fundBal({ spendable: 0, pending: 0, sending: 0 });
+    assert.ok(fundCardOf(), "a balance with no sending part still counts as empty");
+    fundBal({ spendable: 0, pending: 5 });
+    assert.equal(fundCardOf(), undefined, "incoming coins end the card");
+    fundBal({ spendable: 1e8, pending: 0 });
+    assert.equal(fundCardOf(), undefined, "a funded wallet has no card");
+    assert.match(detailsText(), /Total shielded balance/);
+    t.state.wallet = { ...wallet, address: undefined };
+    fundBal({ spendable: 0, pending: 0 });
+    assert.equal(fundCardOf(), undefined, "no card before the address is ready");
+    t.state.wallet = wallet;
+    const testnet = t.state.g;
+    t.state.g = { ...testnet, network: "mainnet" };
+    assert.equal(fundCardOf(), undefined, "a network with no faucet has no card");
+    assert.match(detailsText(), /This wallet is empty\. Share its address to receive ZEC\./,
+      "the empty note stays for that network");
+    assert.doesNotMatch(detailsText(), /faucet/);
+    t.state.g = { ...testnet, movedTo: "MV1" };
+    assert.equal(fundCardOf(), undefined, "a moved wallet has no card");
+    t.state.g = testnet;
+    assert.ok(fundCardOf(), "the card is back for the same wallet");
+    tipAt(4500000);
+
     const group = t.state.g;
     t.state.g = { ...group, movedTo: "MV1" };
     t.gkeys = { ...t.gkeys, MV1: "k".repeat(43) };

@@ -77,12 +77,12 @@ coin. The runbook of a demo with three devices is in [docs/demo.md](docs/demo.md
 3. Open **Trying Zigs alone? Play the other devices in this browser** and click
    **Play device 2**. The two devices create the key together. Within half a minute the wallet
    opens, and both devices show **Address checked**.
-4. Click **Receive** and copy the address. Then click **faucet** in its notice: it opens the Valar
-   faucet, which pays 0.125 TAZ to a `utest1…` address, once for each IP address and once for
-   each address every 24 hours. On a shared network, such as a venue or an office, only the first
-   person gets coins. The faucet lists each payout in public, with a short form of the address and
-   the transaction id. Paste the address there. The balance appears as **Incoming**, then as
-   **Available** after 3 confirmations (about 75 s).
+4. In the **Fund this wallet** card on the Overview, click **Copy address**. Then click **Open the
+   faucet**: it opens the Valar faucet, which pays 0.125 TAZ to a `utest1…` address, once for each
+   IP address and once for each address every 24 hours. On a shared network, such as a venue or an
+   office, only the first person gets coins. The faucet lists each payout in public, with a short
+   form of the address and the transaction id. Paste the address there. The balance appears as
+   **Incoming**, then as **Available** after 3 confirmations (about 75 s).
    - The Valar faucet can pause. Then **Paid · 24h** shows 0 payouts, and a claim ends with "Not
      paid: the wallet cannot pay this address". Try again later, or use one of the routes below.
    - Or paste the address at [fauzec.com](https://fauzec.com/), a second testnet faucet. The site
