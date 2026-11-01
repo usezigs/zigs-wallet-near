@@ -339,9 +339,8 @@ function keepMempool(c, list) {
   c.mempool = { list, at: Date.now() };
   clearTimeout(c.mempoolTimer);
   c.mempoolTimer = setTimeout(() => {
-    const had = mempoolNow(c).length > 0;
     c.mempool = null;
-    if (had) render();
+    render();
   }, MEMPOOL_KEEP_MS);
   if (S(mempoolNow(c)) !== was) render();
 }
