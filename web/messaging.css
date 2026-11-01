@@ -374,7 +374,6 @@
 @media(max-width:760px) {
   .messages-workspace { gap:16px; }
   .messages-heading { flex-wrap:wrap; gap:12px; }
-  .messages-heading h1 { font-size:27px; }
   .messages-heading p { font-size:13px; line-height:19px; }
   .messages-toolbar { justify-content:space-between; width:100%; }
   .messages-learn { padding-inline:0; }

@@ -984,6 +984,8 @@ body { margin:0; background:var(--bg); color:var(--text); font:var(--font-body);
 .overview-approvals>.page { gap:20px; }
 .settings-group { display:grid; gap:20px; padding-top:28px; border-top:1px solid var(--line); }
 .recipients-page { display:grid; gap:var(--page-gap); width:100%; max-width:var(--content-width); margin-inline:auto; min-width:0; }
+/* The workspace lists share the width of Settings. A wallet page keeps the full width. */
+#app>:is(#panel-approvals,#panel-activity,#panel-recovery,.recipients-page) { max-width:1120px; }
 .recipients-page>.card { display:grid; gap:20px; padding:28px; }
 .recipients-page h1 { font:var(--font-page); letter-spacing:-.02em; }
 .recipient-list { display:grid; gap:0; min-width:0; }

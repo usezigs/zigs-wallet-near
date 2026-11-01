@@ -11,8 +11,11 @@ const read = (file) => readFileSync(new URL("../" + file, import.meta.url), "utf
 const rules = (sheet) => [...sheet.replace(/\/\*[\s\S]*?\*\//g, "")
   .matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1].trim(), body: m[2] }));
 const app = rules(read("app.css")), html = read("index.html");
+const refined = read("site-refinement.css");
 const has = (list, sel, decl) => list.some((r) => r.sel.split(/,\s*/).includes(sel)
   && decl.test(r.body));
+// The declarations of the rules with exactly this selector text.
+const bodyOf = (list, sel) => list.filter((r) => r.sel === sel).map((r) => r.body).join(";");
 
 // A page root takes the focus after a pick and shows no frame. A blanket [tabindex="-1"] rule
 // would also take the ring from the error callouts that take the focus on purpose.
@@ -23,5 +26,22 @@ assert.ok(!app.some((r) => r.sel.split(/,\s*/).includes('[tabindex="-1"]:focus')
 assert.match(html, /<nav id="side-nav" aria-label="Sections">/, "the side list is Sections");
 assert.match(html, /<a class="skip-link" href="#app">Skip to main content<\/a>/,
   "the skip link names its target");
+
+// One page title: --font-page at weight 700, 32/40 px and 26/32 px on a phone. No later rule
+// gives a page h1 another weight or the Messages h1 another size.
+assert.match(refined, /^ --font-page:700 2rem\/2\.5rem var\(--sans\);/m, "the title token");
+assert.match(refined,
+  /@media\(max-width:760px\)\{:root\{--font-page:700 1\.625rem\/2rem var\(--sans\)\}\}/,
+  "the title token of a phone");
+assert.deepEqual(rules(refined).filter((r) => /\bh1\b/.test(r.sel) && /font-weight/.test(r.body))
+  .map((r) => r.sel), [".lobby-home .home-hero h1"], "only the home hero sets an h1 weight");
+assert.doesNotMatch(bodyOf(rules(read("messaging.css")), ".messages-heading h1"), /font-size/,
+  "the Messages title takes its size from the token");
+// Approvals, Activity, Security and the Address book share the width of Settings. The wallet
+// sections with the same ids stay at the full width, so the rule takes children of #app only.
+assert.match(bodyOf(app, "#app>:is(#panel-approvals,#panel-activity,#panel-recovery,"
+  + ".recipients-page)"), /max-width:1120px/, "the workspace lists are 1120 px wide");
+assert.match(bodyOf(rules(read("settings-experience.css")), "#panel-settings"),
+  /max-width:1120px/, "as Settings");
 
 console.log("orientation: ok");
