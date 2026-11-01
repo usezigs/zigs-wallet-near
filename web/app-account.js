@@ -9,7 +9,7 @@ import {
   sendGate, sentState,
 } from "./personal.js";
 import { REQUEST_NET, requestProblem } from "./requests.js";
-import { log, showBanner, state, ui } from "./app-state.js";
+import { log, resetPersonalPick, showBanner, state, ui } from "./app-state.js";
 import { exclusive, J, release, S, said, track } from "./app-kit.js";
 import { engineOffThread, Z } from "./app-engine.js";
 import { idb, LOCKED_ELSEWHERE, lockedVault, persist, vault } from "./app-keystore.js";
@@ -301,7 +301,7 @@ export async function createPersonal(network) {
     return newPersonal({ seed: made.seed, network, birthday }, newRoom().key);
   }, "This browser could not save the account, so it was not made. Lock Zigs with a passkey, or "
     + "use a browser that keeps site data.");
-  ui.personal.ack = false;
+  resetPersonalPick();
   startAccount();
   showBanner("ok", "Account made. Back it up now: the file is the only copy outside this browser.");
 }
@@ -315,6 +315,7 @@ export async function restoreAccount(b, encrypted) {
   }
   await claimAccount(() => restoredPersonal(readBackup(b, personalEnv()), newRoom().key),
     "This browser could not save the restored account, so it was not used.");
+  resetPersonalPick();
   startAccount();
   showBanner("ok", "Restored the personal account. It syncs from block " + fmtInt(personal.birthday)
     + ". A contact that you added after you made the file is not in it. Messages to the address "
@@ -333,6 +334,7 @@ export async function removeAccount() {
   dropAccount();
   try { await idb("readwrite", (st) => st.delete("personal")); } catch { /* the state is sealed */ }
   ui.personal.drop = false;
+  resetPersonalPick();
   state.contact = null;
   showBanner("ok", "The personal account is removed from this browser.");
 }

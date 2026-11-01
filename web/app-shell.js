@@ -1,6 +1,6 @@
 // Side navigation, lock screen, wallet list and create dialog.
 import {
-  busy, clearBadBanner, openCreate, ready, resetCreate, showBanner, state, ui,
+  busy, clearBadBanner, openCreate, ready, resetCreate, resetPersonalPick, showBanner, state, ui,
 } from "./app-state.js";
 import { initials } from "./app-kit.js";
 import { offReason } from "./util.js";
@@ -14,7 +14,8 @@ import { joinWalletLink, openChat } from "./app-links.js";
 import { balOf, MAINNET_ON, netOf } from "./app-chain.js";
 import { canWrite, closeSession, db, dbReady, openGroup, toApprove } from "./app-groups.js";
 import {
-  act, countBadge, el, guard, money, nameField, networkPick, newBadge, ruleText, unreadable, unreadChip,
+  act, countBadge, el, guard, mainnetRisk, money, nameField, networkPick, newBadge, requireAck,
+  ruleText, unreadable, unreadChip,
 } from "./app-dom.js";
 import { contactName, contactOf, joinChat, joinLinks, unreadIn } from "./app-messages.js";
 import { createGroup } from "./app-dkg.js";
@@ -505,6 +506,9 @@ export function browserSettings() {
       ? (personal.backedUp ? "Account set up · separate funds and backup for message fees."
         : "Save an account backup · separate from your shared wallets.")
       : "Optional · separate funds, access and backup for message fees.";
+  const account = settingsDisclosure("On-chain messaging account", accountNote,
+    guard(personalCard, () => restoreInput.click()));
+  account.addEventListener("toggle", () => { if (!account.open) resetPersonalPick(); });
   return [settingsGroup("Security & Device", security,
     settingsRow(passkeyProtected() ? "Lock this browser" : "Browser protection",
       passkeyProtected() ? "Use your passkey to unlock again."
@@ -512,9 +516,7 @@ export function browserSettings() {
     settingsRow("Recover access", "Restore a device’s share or a separate messaging-account backup. Each file restores only its own contents.",
       el("button", { class: "btn sm", type: "button", onclick: () => restoreInput.click() }, "Choose file")),
     restoreInput),
-  settingsGroup("Messaging account", settingsDisclosure("On-chain messaging account",
-    accountNote,
-    guard(personalCard, () => restoreInput.click())))];
+  settingsGroup("Messaging account", account)];
 }
 
 export function settingsWorkspace() {
@@ -835,10 +837,11 @@ async function submitWallet({ name, n, t, sol, solExpected = false, description 
   requireSetupProtection();
   checkRule(n, t);
   const network = from ? from.network || "testnet" : ui.net;
-  if (network === "mainnet" && !ui.ack) throw new Error("Confirm that you understand Zigs is "
-    + "not audited before you create a mainnet wallet.");
+  // A replacement wallet has no tick: the person ticked when the old wallet was made.
+  if (!from && network === "mainnet" && !ui.ack) throw new Error("Confirm that you understand "
+    + "Zigs is not audited before you create a mainnet wallet.");
   const withSol = solChosen(from, network, sol);
-  endCreate(); ui.net = "testnet"; ui.ack = false;
+  endCreate();
   const gid = await createGroup(name, n, t, from && from.id, network);
   if (!from && description) {
     try { setWalletDescription(gid, description); } catch (e) { showBanner("bad", e.message); }
@@ -877,6 +880,7 @@ function takeRule() {
   ui.createDraft = { ...ui.createDraft, n, t };
 }
 function takeNames() {
+  requireAck(ui, ui.net, "create a mainnet wallet");
   // The explicit consent control is on the final review. Naming keeps the current opt-out
   // or the default included intent; an absent review control cannot silently opt out here.
   const sol = ui.net === "testnet" && ui.sol !== false;
@@ -897,7 +901,7 @@ function nextStep(ev) {
   try {
     requireSetupProtection();
     TAKE[ui.createStep]();
-  } catch (e) { ui.createError = e.message; render(); return; }
+  } catch (e) { ui.createError = e.shown ? null : e.message; render(); return; }
   goStep(ui.createStep + 1);
 }
 // The seat takes its label from what this browser keeps: the label that the review showed, also
@@ -992,6 +996,7 @@ function reviewStep() {
           el("div", {}, el("strong", {}, "Zcash " + curNetLabel()),
             el("span", {}, includeSol ? solServed() ? "+ Solana Devnet" : "Solana Devnet · waiting for service"
               : "Zcash only"))),
+        ui.net === "mainnet" ? el("p", { class: "callout bad" }, mainnetRisk()) : null,
         el("p", { class: "small muted" }, "All " + d.n + " devices join and check the wallet before use. Initial formation needs no fee funding or on-chain deployment. Later Deposit and Send operations show their own costs."),
         el("p", { class: "small muted" }, "Recovery files are recommended and optional. Each copies one device’s share and needs its separate passphrase. You can save or check files later."))),
     // Preserve the existing setup submission value without displaying the network section.

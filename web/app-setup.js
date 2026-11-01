@@ -8,7 +8,11 @@ import {
 } from "./app-seats.js";
 import { BROWSER_NOTE, inviteLink, senderNote } from "./app-links.js";
 import { signedMode } from "./app-filter.js";
-import { act, avatar, copyBtn, el, guard, nameField, qrBox, seatLabel, secretQr } from "./app-dom.js";
+import {
+  ackTick, act, avatar, copyBtn, el, guard, mainnetRisk, nameField, netBadge, qrBox, requireAck,
+  seatLabel, secretQr,
+} from "./app-dom.js";
+import { netName } from "./app-chain.js";
 import {
   abortedText, confirmedBy, confirmSeats, confirmSeatsOf, groupVersion, holdsAllSeats,
   rejectedSeats, remoteAborts, safetyNo, SAVE_FAILED, saveFailed, stopSetup, takeSeat,
@@ -589,12 +593,18 @@ export const joinText = () => solPlanned()
     + "key share. It never leaves this browser unless you save a backup. Keep this page open until "
     + "the wallet is ready.";
 
+// A device that joins a mainnet wallet sees the network and the risk, and ticks before it joins.
+const mainnetConsent = () => netName(state.g) !== "mainnet" ? []
+  : [netBadge(state.g, true), el("p", { class: "callout bad" }, mainnetRisk()),
+    ...ackTick(ui.join, "wallet", "j")];
+
 function joinCard(seat, compact = false) {
   const off = offOf({ pending: state.pending, newSigner: true }, "why-take");
   if (compact && off.note) off.note.className += " sr-only";
   const take = el("button", {
     class: "btn primary lg", type: "button", "data-key": "join-device-" + seat, ...off.attrs,
     onclick: act(() => {
+      requireAck(ui.join, netName(state.g), "join a mainnet wallet");
       requireSetupProtection();
       if (!(usesV2(groupVersion()) || confirm(NOT_ZIP2005))) return;
       try { beginGuided(state.gid); } catch (e) { showBanner("bad", e.message); }
@@ -608,6 +618,7 @@ function joinCard(seat, compact = false) {
         : el("p", { class: "small muted" }, joinText()),
       el("p", { class: "small muted" }, compact ? "Use a regular browser. Chat-app browsers and private windows may delete your signing share." : OPEN_HERE),
       solPlanned() ? el("p", { class: "small muted" }, SOL_DISCLOSURE) : null),
+    ...mainnetConsent(),
     nameField("seat-name"),
     deviceProtection("join:" + state.gid,
       () => { focusAfter("join-device-" + seat, true); render(); }),
@@ -621,6 +632,8 @@ export const inviteMessage = (link) => "I made a shared wallet \"" + state.g.nam
     : "private shared wallet for shielded Zcash")
   + ". It has " + state.g.n + " devices. Any " + state.g.t + " of them must approve each "
   + "payment. Your device will be one of them."
+  + (netName(state.g) === "mainnet" ? "\nThis is a mainnet wallet, so every device must use the "
+    + "web app for now." : "")
   + "\n\n1. Open this link on your phone or computer: " + link + "\n" + BROWSER_NOTE
   + "\n2. Protect this browser with a passkey (recommended), or choose Skip for now and confirm "
   + "the warning. Then tap \"Join as device\".\n3. Keep the page open until the "

@@ -11,7 +11,8 @@ import { initials, short, when } from "./app-kit.js";
 import { Z } from "./app-engine.js";
 import { explorerText, netOf, NETWORKS } from "./app-chain.js";
 import {
-  act, copyBtn, el, guard, logBox, money, netBadge, networkPick, noteFor, qrBox, setNote, skeleton,
+  act, copyBtn, el, guard, logBox, money, netBadge, networkPick, noteFor, qrBox, requireAck, setNote,
+  skeleton,
 } from "./app-dom.js";
 import { proposeWallets, requestCard, requestOf } from "./app-payreq.js";
 import {
@@ -111,7 +112,10 @@ function createCard(pickRestore) {
       el("button", { class: "btn", type: "button", onclick: pickRestore }, "Recover access"),
       el("button", {
         class: "btn primary", type: "button", disabled: !Z,
-        onclick: act(() => createPersonal(p.net)),
+        onclick: act(() => {
+          requireAck(p, p.net, "make a mainnet account");
+          return createPersonal(p.net);
+        }),
       }, "Create account")));
 }
 

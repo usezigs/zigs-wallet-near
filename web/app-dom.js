@@ -16,9 +16,11 @@ import {
 } from "./app-payments.js";
 import { focusAfter, react, render } from "./app-loop.js";
 
-export const netBadge = (g) => netOf(g).cap
+// `full`: a mainnet badge that states the risk in its text, for the wallet header and the join card.
+export const netBadge = (g, full = false) => netOf(g).cap
   ? el("span", { class: "badge bad", title: "Real ZEC. Not audited. At " + capText(netOf(g).cap)
-    + " the app warns and hides the address. It cannot block deposits." }, "Mainnet")
+    + " the app warns and hides the address. It cannot block deposits." },
+  full ? "Mainnet · Beta · Not audited" : "Mainnet")
   : el("span", { class: "badge plain" }, "Testnet");
 
 export const el = (tag, attrs = {}, ...kids) => {
@@ -54,7 +56,7 @@ export const act = (fn) => async (ev) => {
   try {
     await fn(ev);
     clearBadBanner();
-  } catch (e) { showBanner("bad", e.message || String(e)); }
+  } catch (e) { if (!e.shown) showBanner("bad", e.message || String(e)); }
   finally {
     if (b) b.disabled = false;
     focusAfter(key, false);
@@ -199,7 +201,8 @@ export function networkPick(sel = ui, what = "wallet", idp = "g") {
   const on = (value) => (sel.net === value ? " on" : "");
   const opt = (value, title, text) => el("label", { class: "net-opt" + on(value) },
     el("input", { type: "radio", name: idp + "-network", value, id: idp + "-net-" + value,
-      checked: sel.net === value, onchange: () => { sel.net = value; render(); } }),
+      checked: sel.net === value,
+      onchange: () => { sel.net = value; sel.ackBad = ""; render(); } }),
     el("span", { class: "net-text" }, el("b", {}, title), el("span", { class: "small muted" }, text)));
   return el("fieldset", { class: "net-pick" },
     el("legend", { class: "label" }, "Network"),
@@ -207,11 +210,40 @@ export function networkPick(sel = ui, what = "wallet", idp = "g") {
       opt("testnet", "Testnet", "Free test coins, for trying Zigs."),
       MAINNET_ON ? opt("mainnet", "Mainnet", "Real ZEC. At " + capText(NETWORKS.mainnet.cap)
         + " the app warns and hides the address. It cannot block deposits.") : null),
-    sel.net === "mainnet" ? el("label", { class: "ack" },
-      el("input", { type: "checkbox", id: idp + "-ack", checked: sel.ack,
-        onchange: (ev) => { sel.ack = ev.target.checked; } }),
-      el("span", { class: "small" }, "I understand that Zigs is not audited and that I can lose "
-        + "the funds in this " + what + ".")) : null);
+    sel.net === "mainnet" ? ackTick(sel, what, idp) : null);
+}
+
+/** The risk of a mainnet wallet, for the review step and for a device that joins one. */
+export const mainnetRisk = () => "Real ZEC. Beta, not audited: you can lose the funds. At "
+  + capText(NETWORKS.mainnet.cap) + " the app warns and hides the address. It cannot block "
+  + "deposits.";
+
+/**
+ * The "I understand" tick of a mainnet choice in `sel`, with its error `sel.ackBad` next to it.
+ * `what` names the thing that holds the funds, and `idp` prefixes the ids.
+ */
+export function ackTick(sel, what, idp) {
+  const error = idp + "-ack-error", bad = !!sel.ackBad;
+  return [el("label", { class: "ack" },
+    el("input", { type: "checkbox", id: idp + "-ack", checked: sel.ack,
+      "aria-invalid": bad ? "true" : null, "aria-describedby": bad ? error : null,
+      onchange: (ev) => {
+        sel.ack = ev.target.checked;
+        if (sel.ack && sel.ackBad) { sel.ackBad = ""; render(); }
+      } }),
+    el("span", { class: "small" }, "I understand that Zigs is not audited and that I can lose "
+      + "the funds in this " + what + ".")),
+  bad ? el("p", { class: "small bad", id: error, role: "alert" }, sel.ackBad) : null];
+}
+
+/**
+ * Throws unless a device that uses `net` ticked the box of `sel`. The error shows next to the tick
+ * (`sel.ackBad`), so the thrown error has `shown` set: `act` and the dialog do not show it again.
+ */
+export function requireAck(sel, net, doing) {
+  if (net !== "mainnet" || sel.ack) return;
+  sel.ackBad = "Confirm that you understand Zigs is not audited before you " + doing + ".";
+  throw Object.assign(new Error(sel.ackBad), { shown: true });
 }
 
 export const countBadge = (n, what, cls) => n

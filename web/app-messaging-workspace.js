@@ -1,5 +1,5 @@
 // Presentation-only inbox. Existing wallet, relay and personal-account handlers own all data.
-import { state, ui } from "./app-state.js";
+import { resetPersonalPick, state, ui } from "./app-state.js";
 import { initials } from "./app-kit.js";
 import { engineSettled, Z } from "./app-engine.js";
 import { offReason } from "./util.js";
@@ -100,7 +100,8 @@ function zcashRows() {
       } })) : el("p", { class: "small muted messages-inbox-note" }, search ? "No matching contacts." : "Add a shielded address to start a conversation."),
     el("details", { class: "messages-details messages-account-details",
       "data-disclosure-key": "messages-account-funding",
-      open: wantFocus?.key === "messages-account-summary" },
+      open: wantFocus?.key === "messages-account-summary",
+      ontoggle: (ev) => { if (!ev.target.open) resetPersonalPick(); } },
       el("summary", { "data-key": "messages-account-summary" }, "Messaging account & funding"),
       guard(zcashAccountSetup, pickRestore)),
     guard(otherMessages)].flat();
