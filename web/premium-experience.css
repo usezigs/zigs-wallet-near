@@ -313,19 +313,6 @@
 .premium-paused .premium-empty-art { animation:none!important; }
 .premium-paused .symbol { scale:none!important; }
 .premium-paused .icon-detail { translate:none!important; rotate:none!important; }
-/* Keep the selected wallet and every network/demo disclosure in two compact mobile rows. */
-@media(max-width:760px) {
-  .wallet-topbar.wallet-context-header:has(>.pp-header-status) {
-    grid-template-columns:minmax(0,1fr) auto auto; gap:8px;
-  }
-  .wallet-context-header:has(>.pp-header-status)>.wallet-identity { grid-column:1/-1; }
-  .wallet-context-header:has(>.pp-header-status)>.ph-meta { grid-column:1; grid-row:2; }
-  .wallet-context-header:has(>.pp-header-status)>.wallet-home {
-    grid-column:2; grid-row:2; max-width:none; white-space:nowrap; padding-inline:8px;
-    gap:6px; font-size:13px;
-  }
-  .wallet-context-header>.pp-header-status { grid-column:3; grid-row:2; }
-}
 @media(prefers-reduced-motion:reduce),(update:slow) {
   *,*::before,*::after { animation:none!important; transition:none!important; }
   [data-premium-surface]::after { display:none; }

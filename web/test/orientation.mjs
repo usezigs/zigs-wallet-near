@@ -44,4 +44,16 @@ assert.match(bodyOf(app, "#app>:is(#panel-approvals,#panel-activity,#panel-recov
 assert.match(bodyOf(rules(read("settings-experience.css")), "#panel-settings"),
   /max-width:1120px/, "as Settings");
 
+// One place for the Tor chip: a slot of the side panel, between the side list and the footer,
+// so a phone shows it between the logo and Menu. No page header has a rule for it now.
+assert.match(html, /<nav id="side-nav"[^>]*><\/nav>\s*<div class="side-privacy" id="privacy-slot">/,
+  "the slot of the Tor chip follows the side list");
+const sheets = ["app.css", "network-privacy-popup.css", "premium-experience.css"].map(read);
+assert.ok(sheets.every((sheet) => !sheet.includes(":has(>.pp-header-status)")),
+  "no page header makes room for the Tor chip");
+assert.ok(has(rules(sheets[1]), ".side-privacy", /display:flex/), "the slot is a flex row");
+assert.ok(has(app, ".logo-word", /display:\s*none/), "a narrow phone shows the logo mark only");
+assert.ok(read("app.css").includes("@media(max-width:360px) { .logo-word { display:none; } }"),
+  "from 360 px down");
+
 console.log("orientation: ok");

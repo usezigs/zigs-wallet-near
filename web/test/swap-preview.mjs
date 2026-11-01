@@ -353,13 +353,30 @@ try {
   app.id = 'app';
   const head = new FakeNode('header');
   app.append(head);
-  const page = { querySelector: (sel) => (sel === '#app' ? app : null) };
+  const slot = new FakeNode('div');
+  slot.id = 'privacy-slot';
+  const page = { querySelector: (sel) => ({ '#app': app, '#privacy-slot': slot })[sel] ?? null };
   assert.equal(popup.hasPrivacyPopup(), false,
     'no popup is installed before the entry installs it');
   popup.installPrivacyPopup();
   popup.presentPrivacyStatus(page);
-  const pill = walk(head, (n) => n.className === 'pp-status')[0];
-  assert.ok(pill, 'the Tor pill is drawn in the page header');
+  const pill = walk(slot, (n) => n.className === 'pp-status')[0];
+  assert.ok(pill, 'the Tor pill has one place: the slot of the side panel');
+  assert.equal(walk(head, (n) => n.className === 'pp-status').length, 0,
+    'a page header gets no Tor pill');
+  // Wallet setup hides the side panel, so its header takes the pill.
+  const setup = new FakeNode('div');
+  setup.className = 'page guided-setup';
+  const setupHead = new FakeNode('header');
+  setupHead.className = 'guided-header';
+  setup.append(setupHead);
+  app.append(setup);
+  popup.presentPrivacyStatus(page);
+  assert.equal(walk(setupHead, (n) => n === pill).length, 1,
+    'during wallet setup the pill is in the setup header');
+  app.kids = [head];
+  assert.equal(popup.TITLES.offer, 'See how a private route works.',
+    'the offer says what the preview shows, not that it makes anything private');
   const dialog = body.querySelector('dialog');
   assert.equal(text(pill), popup.PILL_TEXT, 'the Tor pill says the demo');
   assert.doesNotMatch(text(pill) + pill.getAttribute('aria-label'), /protect|private route/i,

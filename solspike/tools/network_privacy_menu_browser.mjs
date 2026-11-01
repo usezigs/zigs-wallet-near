@@ -70,7 +70,7 @@ try {
       }).map((n) => n.textContent.trim().slice(0, 60));
     });
   }
-  async function offered() { await heading('Make your connection private.'); }
+  async function offered() { await heading('See how a private route works.'); }
   async function reset() { await page.evaluate((key) => localStorage.removeItem(key),
     KEY); await page.reload(); await offered(); }
   await page.goto(origin); await offered();
