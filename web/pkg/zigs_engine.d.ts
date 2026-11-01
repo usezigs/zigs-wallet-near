@@ -43,10 +43,10 @@ export class ChainWallet {
      * Payments to this wallet that sit in the mempool of the server and that no block of this
      * wallet holds yet: `[{"txid", "value", "index"}, …]` (zatoshis; `index` is the address that
      * got the note, null if it does not fit in a u32). It asks the server for its whole Ironwood
-     * mempool, reads at most 1,000 transactions, and opens their notes with the external
-     * viewing key, so change is never listed. It changes nothing in the wallet: balance,
-     * snapshot and notes stay as they are. The server learns the time of the call, not which
-     * payment is ours.
+     * mempool, reads at most 1,000 transactions and 20,000 actions, and opens their notes with
+     * the external viewing key, so change is never listed. A note above 21,000,000 ZEC is left
+     * out. It changes nothing in the wallet: balance, snapshot and notes stay as they are. The
+     * server learns the time of the call, not which payment is ours.
      */
     mempool(): Promise<string>;
     constructor(ufvk: string, birthday: number, endpoint: string);
