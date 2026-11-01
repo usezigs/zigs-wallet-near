@@ -95,7 +95,7 @@ TESTS=(messaging-presentation messaging-cost-review messaging-account-view premi
   graph sol-fee sol-rent sol-errors sol-prove demo-check mainnet-on mempool chain-fallback smoke
   contrast overview setup-stage approvals recovery security-dashboard payment-model
   plain-worker
-  sol-nonce-tabs no-storage)
+  sol-nonce-tabs nonce-locks no-storage)
 HELPERS=(passkey-fixture sol-rig sol-setup sol-chain sol-vector sol-fixture sol-pay-rig page)
 # The tests that take more than 20 s, slowest first, then the server test. Each must be in TESTS.
 SLOW_FIRST=(sol-pay app sol-pay-seats sol-pay-exec sol-pay-lease sol-pay-look sol-ceremony sol-app

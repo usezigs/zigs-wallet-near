@@ -25,9 +25,10 @@ export const putSol = (host, gid, seat, patch) =>
   });
 
 /**
- * putSol for a step that holds the lock of the secrets already: the lock is not reentrant. putSec
- * changes memory before it saves, so a failed save gives memory the old values back: no step acts
- * on a change that storage does not hold, such as a spent nonce whose share would go out.
+ * putSol for a step that holds the lock of the secrets already: the lock is not reentrant, so
+ * `host.putSec` is the save of such a step (putSecHeld in the page). It changes memory before it
+ * saves, so a failed save gives memory the old values back: no step acts on a change that storage
+ * does not hold, such as a spent nonce whose share would go out.
  */
 export async function putSolHeld(host, gid, seat, patch) {
   const before = host.sec(gid, seat)?.sol;

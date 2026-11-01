@@ -43,7 +43,7 @@ export const NAMES = [
   "saveFormState", "restoreFormState",
   "pickServer",
   "personalError", "personalPending", "priorityTimes", "proposalFields", "proposeAgain", "proposer",
-  "proposeRequest", "proposeWallets", "putSec", "raw", "rawInbox",
+  "proposeRequest", "proposeWallets", "putSec", "putSecHeld", "raw", "rawInbox",
   "reactSession", "readsMemos", "ready", "render",
   "recipientCheck", "refilter", "releaseHold",
   "removeAccount", "requestCard", "requestOf", "rereadPersonal", "resendTx",

@@ -6,7 +6,9 @@ import { payeeRows } from "./requests.js";
 import { busy, log, ready, showBanner, state, ui } from "./app-state.js";
 import { exclusive, fmtZec, isStr, J, release, S, said, track, withTimeout } from "./app-kit.js";
 import { engineOffThread, Z } from "./app-engine.js";
-import { loadKept, mySeatSecrets, putSec, saveKept, sec, takeStored } from "./app-keystore.js";
+import {
+  loadKept, mySeatSecrets, putSecHeld, saveKept, sec, takeStored,
+} from "./app-keystore.js";
 import { isMe, keysDiffer, localSeats, myUid, signersOf } from "./app-seats.js";
 import {
   balanceNow, chain, curChain, curNet, dropStalled, inFlight, netName, preferredServers, runSync,
@@ -71,8 +73,8 @@ export const approvalKept = (s, sid) => !!(s?.nonces || {})[sid] || !!(s?.unsent
 // Every change of the nonces of this browser (an approval, a share, a cancel) runs under one
 // lock, and first takes what storage holds now. The secrets are saved as one record, so two tabs
 // that change it at once would undo each other's change and could bring a burned nonce back.
-// ponytail: the other writes of the record (a backup, a room, the account, Solana) take no lock,
-// so one of them can still bring a nonce back; ZEC-12 writes only `nonces[<payment>]`.
+// Every other save of the record takes the same lock (persist, app-keystore.js). A step in here
+// holds the lock already, so it saves with putSecHeld, never with putSec.
 const withSecrets = (fn) => exclusive("secrets", async () => { await takeStored(); return fn(); });
 // A cancel of this tab that is not in the store yet: no approval or share of this tab goes out for
 // it. A payment that this browser knows as cancelled or failed is stopped too.
@@ -84,8 +86,8 @@ const stopped = (ss) => cancelling.has(ss.id)
 // again starts from what storage holds, and the step fails with `failure`.
 async function saveOrUndo(gid, i, patch, s, failure) {
   const before = Object.fromEntries(Object.keys(patch).map((k) => [k, s[k]]));
-  if (await putSec(gid, i, patch)) return;
-  await putSec(gid, i, before);
+  if (await putSecHeld(gid, i, patch)) return;
+  await putSecHeld(gid, i, before);
   throw new Error(failure ?? "This browser could not save the change of device " + i + ".");
 }
 
@@ -220,7 +222,7 @@ async function dropUnsent(gid, i, sid) {
   if (!(s?.unsent || {})[sid]) return;
   const unsent = { ...s.unsent };
   delete unsent[sid];
-  await putSec(gid, i, { unsent });
+  await putSecHeld(gid, i, { unsent });
 }
 
 // Any participant: aggregate. The result is deterministic, so a race is harmless.

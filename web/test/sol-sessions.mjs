@@ -1020,7 +1020,8 @@ const file = J(Z.backupOpen(PASS, backed.at(-1).data));
   const after = await proposedBeforeStop();
   await approve(c, ssOf(after), 1); // seat 1 holds nonces for it when the stop comes
   // Seat 2 stops. Its browser publishes the signed document by itself.
-  await putSol(t, gid, 2, { aborted: "Solana setup stopped: a test. Do not use the Solana part." });
+  const stopText = "Solana setup stopped: a test. Do not use the Solana part.";
+  await putSol(c.host, gid, 2, { aborted: stopText });
   notify(); // abortSeat runs inside a reactor step, which ends with a new pass; here the test asks
   await waitFor("the abort document", () => data.has(path(gid, "solabort/2")));
   const doc = data.get(path(gid, "solabort/2"));

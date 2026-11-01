@@ -5,7 +5,7 @@ import { docFields } from "./signed.js";
 import { banner, clearBadBanner, log, openCreate, showBanner, state, ui } from "./app-state.js";
 import { exclusive, said } from "./app-kit.js";
 import { Z } from "./app-engine.js";
-import { putSec, sec, takeStored } from "./app-keystore.js";
+import { putSec, putSecHeld, sec, takeStored } from "./app-keystore.js";
 import { localSeats, seatIds } from "./app-seats.js";
 import { netName } from "./app-chain.js";
 import {
@@ -109,8 +109,10 @@ let solStartDoc = null;   // the stored solstart/1 of the open wallet, whoever w
 let solWatched = null;    // the wallet whose start document is watched
 let solStartRead = null;  // the wallet whose start documents arrived
 export function resetSolStart() { solStartDoc = null; solWatched = null; solStartRead = null; }
-const solHost = () => ({
-  Z, sdb, state, el, act, log, once, render, refilter, showBanner, sec, putSec, signedDoc,
+// host.putSec is the save of a step that holds the lock of the secrets (putSol, shareOnce).
+export const solHost = () => ({
+  Z, sdb, state, el, act, log, once, render, refilter, showBanner, sec, putSec: putSecHeld,
+  signedDoc,
   recipientSelect,
   exclusive, takeStored,
   canWriteAs, localSeats, seatIds, checkIn, safetyNo, seatCheck, confirmedNo, openGroup, restore,

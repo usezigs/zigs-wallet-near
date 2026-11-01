@@ -384,12 +384,12 @@ export const restoreWatch = new Map();
 
 // What a restore stores now: the allowed fields of the file without its key pairs, version and
 // room, which wait for the check of settleRestore. Older backups hold nonces: a restored nonce
-// could sign a second, different package, so the nonces of this browser stay. A seat that held a
-// key share stays what it was: the flag `restored` would put the seat of this browser under the
-// fit rule of seatOwned.
+// could sign a second, different package, so a restore takes none and the nonces of this browser
+// stay (the patch names no nonce, and persist takes them from storage). A seat that held a key
+// share stays what it was: the flag `restored` would put the seat of this browser under the fit
+// rule of seatOwned.
 export function restoredFor(b, held) {
-  const nonces = (held || {}).nonces || {};
-  return { ...restoredSecret(b.secret, held), nonces, ...(held ? {} : { restored: true }),
+  return { ...restoredSecret(b.secret, held), ...(held ? {} : { restored: true }),
     backupSaved: false };
 }
 

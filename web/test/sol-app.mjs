@@ -56,7 +56,7 @@ const words = (gid, i) =>
       host: {
         state: t.state,
         sec: t.sec,
-        putSec: t.putSec,
+        putSec: t.putSecHeld,
         exclusive,
         takeStored,
         localSeats: t.localSeats,
@@ -239,7 +239,8 @@ const hashes = [1, 2, 3].map((i) => sha(solOf(gid, i).solSeed));
 
 // ── The Zcash backup has no Solana field ──
 {
-  await t.putSec(gid, 1, { nonces: { abc: { sighash: "x" } } });
+  // A nonce is set up as a locked step sets it (persist takes it from storage otherwise).
+  await exclusive("secrets", () => t.putSecHeld(gid, 1, { nonces: { abc: { sighash: "x" } } }));
   const text = t.backupText(1),
     file = JSON.parse(text);
   assert.equal(file.kind, "zigs-key-share");
@@ -787,7 +788,7 @@ const syncState = (rpcUrl = RPC) => ({
 
 // ── SOL-4: the backup carries the pin of local proving; a restored seat proves here ──
 {
-  const host = { state: t.state, sec: t.sec, putSec: t.putSec, exclusive, takeStored };
+  const host = { state: t.state, sec: t.sec, putSec: t.putSecHeld, exclusive, takeStored };
   // The switch was on for seat 3: its file carries the pin, and only the value true.
   await putSol(host, gid, 3, { proveLocal: true });
   const file3 = JSON.parse(solBackupText(host, gid, 3));

@@ -28,10 +28,11 @@ async function reset() {
   ks.setVault(null); ks.setLocked(null); ks.setSecrets({}); ks.setGkeys({});
   t.adoptPersonal(null); t.setAcct(null); ks.setIdb(async () => null);
   Object.assign(t.state, { gid: null, g: null });
-  Object.defineProperty(globalThis, "navigator", { configurable: true, value: fakePasskey() });
   globalThis.zigs = { use: async () => null };
   storage.clear();
   await ks.persist(); // A successful save also clears a previous transient write failure.
+  // After the save: its lock request must not show in the list of the case.
+  Object.defineProperty(globalThis, "navigator", { configurable: true, value: fakePasskey() });
   storage.set("zf-secrets", JSON.stringify({ "wallet:1": { keyPackage: marker } }));
   storage.set("zf-keys", JSON.stringify({ wallet: "k".repeat(43) }));
 }

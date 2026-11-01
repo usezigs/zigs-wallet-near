@@ -4,7 +4,7 @@ import { canonical, skey } from "./util.js";
 import { normChats } from "./chat.js";
 import { changeRecipient, checkedRecipient, emptyRecipients, readRecipients } from "./recipients.js";
 import { log, showBanner } from "./app-state.js";
-import { exclusive, isObj, S, said, withTimeout } from "./app-kit.js";
+import { exclusive, holds, isObj, S, said, withTimeout } from "./app-kit.js";
 import { Z } from "./app-engine.js";
 import { adoptInviteKey } from "./app-links.js";
 import { boot } from "./app-groups.js";
@@ -81,11 +81,13 @@ export function lockedElsewhere() {
   try { return !!localStorage.getItem("zf-vault"); } catch { return false; }
 }
 
-function persistPlain() {
+function persistPlain(fresh) {
   // With no storage at all, nothing can come back after a reload, so signing stays safe.
   if (secrets === mem) return true;
   if (lockedElsewhere()) { showBanner("bad", LOCKED_ELSEWHERE); return false; }
   try {
+    // A record that does not read stops the save: it may hold the only copy of a key share.
+    if (fresh) takeOnceOnly(plainRecord("zf-secrets", {}));
     localStorage.setItem("zf-secrets", S(secrets));
     localStorage.setItem("zf-keys", S(gkeys));
     localStorage.setItem("zf-chats", S(chats));
@@ -93,23 +95,31 @@ function persistPlain() {
   } catch { return wrote(false); }
 }
 
-// Fields of the stored record that this page does not know stay in it. A page of another version
-// saved them, and this save must not erase them.
-const VAULT_FIELDS = ["secrets", "keys", "chats", "personal"];
-async function foreignFields() {
+// The sealed record in storage, opened. A save that takes the once-only fields from it (`strict`)
+// stops when the record is there and does not open. Else the save goes on over it.
+async function storedRecord(strict) {
   try {
-    const stored = parseVault(localStorage.getItem("zf-vault"));
-    const got = stored ? await openVault(vault.key, stored) : {};
-    return Object.fromEntries(Object.entries(got).filter(([k]) => !VAULT_FIELDS.includes(k)));
+    const text = localStorage.getItem("zf-vault"), stored = parseVault(text);
+    if (stored) return await openVault(vault.key, stored);
+    if (strict && text) throw new Error("it does not parse");
+    return {};
   } catch (e) {
     log("could not read the saved record again: " + said(e));
+    if (strict) throw e;
     return {};
   }
 }
 
-export async function persistSealed(recipientOverride) {
+// Fields of the stored record that this page does not know stay in it. A page of another version
+// saved them, and this save must not erase them.
+const VAULT_FIELDS = ["secrets", "keys", "chats", "personal"];
+const foreignFields = (got) => Object.fromEntries(
+  Object.entries(got).filter(([k]) => !VAULT_FIELDS.includes(k)));
+
+export async function persistSealed(recipientOverride, fresh = false) {
   try {
-    const foreign = await foreignFields();
+    const got = await storedRecord(fresh), foreign = foreignFields(got);
+    if (fresh) takeOnceOnly(got.secrets);
     const rec = await seal(vault.key, vault.rec, { ...foreign, secrets,
       keys: gkeys, chats, personal: personal || personalDamaged,
       recipients: recipientOverride === undefined
@@ -125,17 +135,49 @@ export async function persistSealed(recipientOverride) {
   }
 }
 
-// Writes the secrets and wallet keys. Resolves true once saved. Sealed writes are queued, so the
-// last one always holds the newest state. A save also saves the changes that came before it.
+/**
+ * Saves the secrets and wallet keys under the lock of the secrets (exclusive, app-kit.js). The
+ * secrets are one record that each tab writes whole, so a save from a tab that is behind would
+ * bring back a nonce that another tab burned. Inside the lock the save first takes the once-only
+ * fields of every seat from storage (takeOnceOnly), then writes. Every save takes it, except a
+ * step that holds the lock already and saves with persistHeld: the lock is not reentrant.
+ * Resolves true once saved. Sealed writes are queued, so the last one always holds the newest
+ * state. A save also saves the changes that came before it.
+ * ponytail: the save waits for the lock, so a seat, wallet key or chat that this tab removed
+ * comes back when a locked step of this tab takes the record before that save gets the lock. The
+ * person removes it again. Upgrade path: a set of removals that takeStored skips.
+ */
 export function persist(recipientOverride) {
+  if (lockedVault) return Promise.resolve(false);
+  // These need no lock: nothing is read or written.
+  if (!vault && (memoryOnly() || lockedElsewhere())) return saveNow(recipientOverride, false);
+  return exclusive("secrets", () => saveNow(recipientOverride, true)).catch((e) => {
+    log("could not save: " + said(e));
+    return wrote(false);
+  });
+}
+
+// A guard only: it stops a locked save that runs with no lock at all, which would write a record
+// that no step took from storage first. It cannot tell which step holds the lock.
+function requireLock() {
+  if (!holds("secrets")) throw new Error("A locked save ran without the lock of the secrets.");
+}
+/** persist for a step that holds the lock of the secrets: it already took what storage holds. */
+export function persistHeld(recipientOverride) {
+  requireLock();
+  return lockedVault ? Promise.resolve(false) : saveNow(recipientOverride, false);
+}
+
+// Never wait for the lock here: a step that holds it waits for this write. `fresh`: take the
+// once-only fields from storage first.
+function saveNow(recipientOverride, fresh) {
   const upTo = changes;
   const done = (ok) => {
     if (ok) for (const [k, n] of unsaved) if (n <= upTo) unsaved.delete(k);
     return ok;
   };
-  if (lockedVault) return Promise.resolve(false);
-  if (!vault) return Promise.resolve(done(persistPlain()));
-  vaultWrite = vaultWrite.then(() => persistSealed(recipientOverride)).then(done);
+  if (!vault) return Promise.resolve(done(persistPlain(fresh)));
+  vaultWrite = vaultWrite.then(() => persistSealed(recipientOverride, fresh)).then(done);
   return vaultWrite;
 }
 // The seats whose last change no save holds yet, with the number of that change (putSec).
@@ -258,7 +300,7 @@ async function finishProtection(made) {
   vault = made;
   let saved;
   try {
-    if (!await persist(bookToLock)) throw new Error("The locked copy was not saved.");
+    if (!await persistHeld(bookToLock)) throw new Error("The locked copy was not saved.");
     saved = localStorage.getItem("zf-vault");
     const back = parseVault(saved);
     if (!sameVault(back, made.rec)) throw new Error("The locked copy changed during setup.");
@@ -408,9 +450,9 @@ export async function takeStored() {
 // The plain record `name`, or `empty` when there is none. A damaged record throws.
 const plainRecord = (name, empty) => JSON.parse(localStorage.getItem(name)) ?? empty;
 // Each seat in storage comes in whole: another tab may have saved it since this tab read it. A
-// seat whose last change no save holds keeps that change. Only the records of its approvals come
-// from storage: the nonces, the marks, the kept shares and the Solana records (SOL_RECORDS). A
-// change that was not saved never went out. A seat that only this tab holds stays.
+// seat whose last change no save holds yet keeps that change. Only the records of its approvals
+// come from storage (takeOnceOnly). A change that was not saved never went out. A seat that only
+// this tab holds stays.
 function takeSecrets(stored) {
   for (const [k, v] of Object.entries(stored)) {
     if (!isObj(v)) continue;
@@ -418,14 +460,32 @@ function takeSecrets(stored) {
   }
 }
 function withStoredNonces(mine, v) {
-  const out = { ...mine, nonces: v.nonces, marks: v.marks, unsent: v.unsent };
-  if (!mine.sol && !v.sol) return out;
-  out.sol = { ...mine.sol };
-  for (const f of SOL_RECORDS) out.sol[f] = v.sol?.[f];
+  const out = { ...mine };
+  if (mine.sol) out.sol = { ...mine.sol };
+  copyOnce(out, v);
   return out;
 }
-// The Solana records of the approvals of a seat (web/sol/nonces.js).
+// The once-only fields of a seat: the Zcash records, then the Solana records of the approvals
+// (web/sol/nonces.js). The seat `v` of storage decides them. A field that `v` lacks goes.
+const ONCE_FIELDS = ["nonces", "marks", "unsent"];
 const SOL_RECORDS = ["nonces", "used", "pending", "salts", "bodies"];
+const setOrDrop = (o, f, x) => { if (x === undefined) delete o[f]; else o[f] = x; };
+function copyOnce(mine, v) {
+  for (const f of ONCE_FIELDS) setOrDrop(mine, f, v[f]);
+  if (!mine.sol && !v.sol) return;
+  mine.sol ??= {};
+  for (const f of SOL_RECORDS) setOrDrop(mine.sol, f, v.sol?.[f]);
+}
+// The once-only fields of every seat that this tab holds come from `stored`, the record that
+// storage holds now. A save that no locked step makes (a backup, a chat, a wallet key) runs this
+// under the lock, so it never writes back a nonce or a mark that another tab burned. A seat that
+// storage lacks has none. Seats that only storage holds, and every other field, stay as they are.
+function takeOnceOnly(stored) {
+  const from = isObj(stored) ? stored : {};
+  for (const [k, mine] of Object.entries(secrets)) {
+    if (isObj(mine)) copyOnce(mine, isObj(from[k]) ? from[k] : {});
+  }
+}
 // Both sides keep their wallet keys. ponytail: a key that an undone restore removed in another tab
 // comes back here, and opens that wallet with no seat, as an invite link does.
 const takeKeys = (stored) => { gkeys = { ...stored, ...gkeys }; };
@@ -443,13 +503,26 @@ function takeAccount(got) {
 }
 export function mySeatSecrets(gid) { return Object.entries(secrets).filter(([k]) => k.startsWith(gid + ":")).map(([k, v]) => [Number(k.split(":")[1]), v]); }
 export function sec(gid, seat) { return secrets[skey(gid, seat)]; }
-export function putSec(gid, seat, patch) {
+function change(gid, seat, patch) {
   const k = skey(gid, seat);
   const held = Object.assign(secrets[k] || {}, patch);
   delete held.backedUp;   // the flag of an older version, see seatBackedUp in util.js
   secrets[k] = held;
   unsaved.set(k, ++changes);
+}
+/**
+ * Changes a seat and saves it (persist). The nonces, marks, kept shares and Solana records of the
+ * seat in `patch` are lost: storage decides them. A locked step changes them with putSecHeld.
+ */
+export function putSec(gid, seat, patch) {
+  change(gid, seat, patch);
   return persist();
+}
+/** putSec for a step that holds the lock of the secrets (persistHeld). */
+export function putSecHeld(gid, seat, patch) {
+  requireLock();
+  change(gid, seat, patch);
+  return persistHeld();
 }
 
 // Every field under groups/{gid} is sealed with the group secret. The secret lives in the invite
@@ -528,7 +601,7 @@ export function takeFromTab(key) {
   if (vault ? key !== "zf-vault" : key === "zf-vault") return Promise.resolve();
   return exclusive("secrets", async () => {
     const got = await takeStored();
-    if (got) takeVaultRest(got);
+    if (got) await takeVaultRest(got);
     else if (key === "zf-chats") chats = normChats(plainRecord(key, null));
     else if (key === RECIPIENTS_KEY) readPlainRecipients();
   });
@@ -557,12 +630,13 @@ async function takeSealed() {
   }
 }
 
-function takeVaultRest(got) {
+// Under the lock, so the save is held and the step waits for it: it must not end before.
+async function takeVaultRest(got) {
   chats = normChats(got.chats);
   // A page from before the accounts writes no `personal` field, not even null. It erased the
   // account from the record: seal ours again. A null means that another tab removed it.
   if (!("personal" in got)) {
-    if (personal || personalDamaged) persist();
+    if (personal || personalDamaged) await persistHeld();
     return;
   }
   adoptPersonal(got.personal);
@@ -588,7 +662,7 @@ function updateRecipient(previous, next) {
       (b) => b.toString(16).padStart(2, "0")).join("");
     const changed = changeRecipient(recipients, previous, next, id);
     if (vault) {
-      if (!await persist(changed)) throw new Error("The recipient could not be saved. Your changes are still in the form.");
+      if (!await persistHeld(changed)) throw new Error("The recipient could not be saved. Your changes are still in the form.");
     } else {
       if (lockedElsewhere()) throw new Error(LOCKED_ELSEWHERE);
       try { localStorage.setItem(RECIPIENTS_KEY, S(changed)); }

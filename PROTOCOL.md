@@ -473,6 +473,13 @@ A proposer also cannot make an output, the change included, that its recipient c
     read the key writes nothing. Two tabs that write in the same moment can lose one mark until
     the page notes that session again;
   - in IndexedDB, sealed with the group key: the PCZT that a seat approved.
+- The secrets of all seats of a browser are one record that each tab writes whole. A change of
+  the nonces, the marks and the kept shares (an approval, a share, a cancel, a release) runs under
+  one lock across the tabs (Web Locks), after the tab read the record again. Every other save of
+  the record (a backup, a restore, a room, a ceremony step, a chat, a wallet key, the account)
+  takes that lock too, and copies the nonces, the marks, the kept shares and the Solana records
+  from storage before it writes. So a tab that is behind never writes back a nonce that another
+  tab burned (ZEC-12). A browser without Web Locks queues the steps of one tab only.
 - After the start, a browser that approved takes "Sent", "Expired" and "Propose again" only from
   the engine's `sessionState` (TICKETS.md ZEC-9, ZEC-13). It passes the kept PCZT and the
   approved sighash, so a proposal that one seat rewrote does not count, and a cancel or failure

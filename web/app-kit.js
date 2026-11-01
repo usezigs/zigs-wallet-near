@@ -45,10 +45,16 @@ export function release(cw) {
 // Runs `fn` when no other step with this name runs, in this tab and, where the browser has Web
 // Locks, in every other tab. Web Locks are not reentrant: a step must not wait for its own name.
 // ponytail: without Web Locks, only the steps of this tab queue.
-const turns = new Map();
+const turns = new Map(), held = new Set();
+/** True while a step of this tab runs under the lock `name`. A guard only, never a decision. */
+export const holds = (name) => held.has(name);
 export function exclusive(name, fn) {
-  if (globalThis.navigator?.locks) return navigator.locks.request("zigs-" + name, fn);
-  const next = (turns.get(name) || Promise.resolve()).then(fn);
+  const step = async () => {
+    held.add(name);
+    try { return await fn(); } finally { held.delete(name); }
+  };
+  if (globalThis.navigator?.locks) return navigator.locks.request("zigs-" + name, step);
+  const next = (turns.get(name) || Promise.resolve()).then(step);
   turns.set(name, next.catch(() => {}));
   return next;
 }
