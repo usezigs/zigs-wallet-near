@@ -6,11 +6,13 @@
 // file brings back the key that the seat published. A restore runs only on a seat that settled
 // and fits. When the document of the seat shows another key than the key share gives, the restore
 // says that this seat cannot pay and what can still be done.
+import { SOL_LABELS } from "../backup-check.js";
 import { backupName, shareShape } from "../util.js";
-import { agreement, fitsSolana } from "./ceremony.js";
+import { agreement, fitsLocal } from "./ceremony.js";
 import { CLUSTER, COLLECTIONS } from "./docs.js";
 import { feeMismatch, mismatchText } from "./fee.js";
 import { holdsShare, putSol, refuseStopped, solOf, stopOf } from "./secrets.js";
+import { isPlain, labelOf } from "./wallet.js";
 
 /** The inner kind of the sealed text. app-sol.js sends a file of this kind to restoreSolana. */
 export const KIND = "zigs-sol-backup";
@@ -41,6 +43,15 @@ export function backupText(host, gid, i) {
   });
 }
 
+const POOL_FILE_WORDS =
+  "The file holds your Solana key share and the secret that gives the Solana viewing and " +
+  "proving keys. Your fee key comes from the key share. Anyone who has the file and the " +
+  "passphrase can sign as this device on Solana and spend the SOL of its fee address.";
+const PLAIN_FILE_WORDS =
+  "The file holds your Solana key share. Anyone who has the file and the passphrase can sign " +
+  "as this device for the funds at the group address. They can also spend the SOL of its fee " +
+  "address.";
+
 /** The words and the save call of the backup dialog of seat `i` (backupDialog, app-backups.js). */
 export function backupWords(c, i) {
   const { host, gid } = c;
@@ -50,10 +61,7 @@ export function backupWords(c, i) {
     pass:
       "This passphrase opens your Solana key share. Zigs cannot recover it. Write it down " +
       "and keep it apart from the file. It is a second file with its own passphrase.",
-    file:
-      "The file holds your Solana key share and the secret that gives the Solana viewing and " +
-      "proving keys. Your fee key comes from the key share. Anyone who has the file and the " +
-      "passphrase can sign as this device on Solana and spend the SOL of its fee address.",
+    file: isPlain(c) ? PLAIN_FILE_WORDS : POOL_FILE_WORDS,
     async save(pass) {
       refuseStopped(c);
       if (!holdsShare(solOf(host, gid, i)))
@@ -68,7 +76,7 @@ export function backupWords(c, i) {
 }
 
 const FILE_CHECKS = [
-  (b) => b.kind === KIND && typeof b.group === "string" && b.cluster === CLUSTER,
+  (b) => b.kind === KIND && typeof b.group === "string" && SOL_LABELS.includes(b.cluster),
   (b) => Number.isInteger(b.seat) && b.seat >= 1 && b.seat <= 7,
   (b) => HEX64.test(b.solSeed) && HEX64.test(b.groupKey),
   (b) => shareShape(b.keyPackage) && isObj(b.publicKeyPackage),
@@ -95,6 +103,9 @@ const noSeat = (c, f) =>
 const notLoaded = (c, f) =>
   (c.host.state.gid !== f.group || !c.host.state.g || !loaded(c, f.group)) &&
   WAIT("The wallet did not load in time. Open it, then open the file again.");
+const otherLabel = (c, f) =>
+  f.cluster !== labelOf(c) &&
+  REFUSE("This Solana backup is for another network or mode. It was not used.");
 const stopped = (c) => {
   const text = stopOf(c);
   return !!text && REFUSE(text);
@@ -114,13 +125,14 @@ const hasData = (c, f) =>
   Object.keys(solOf(c.host, f.group, f.seat)).some((k) => !EMPTY_MARKS.has(k)) &&
   REFUSE("Device " + f.seat + " already has Solana data in this browser, so it was not restored.");
 const noFit = (c, f) =>
-  (!fitsSolana(c.W, f.seat, f, c.docs.soldone[f.seat]) || agreement(c).state === "differ") &&
+  (!fitsLocal(c, f.seat, f, c.docs.soldone[f.seat]) || agreement(c).state === "differ") &&
   REFUSE(NO_FIT);
-// fitsSolana compares the share with the published data, not with its own public share.
+// fitsLocal compares the share with the published data, not with its own public share.
 const badShare = (c, f) =>
   !c.W.sol_share_fits(JSON.stringify(f.keyPackage)) &&
   REFUSE("The key share in this Solana backup is damaged. It was not used.");
-const CHECKS = [noSeat, notLoaded, stopped, notSettled, noDone, hasData, noFit, badShare];
+const CHECKS = [noSeat, notLoaded, otherLabel, stopped, notSettled, noDone, hasData, noFit,
+  badShare];
 
 /** What a restore of `f` may do now: { ok }, { wait: why } or { refuse: why }. */
 function verdict(c, f) {
@@ -161,7 +173,7 @@ export async function restoreSolana(c, b, encrypted) {
     publicKeyPackage: f.publicKeyPackage,
     groupKey: f.groupKey,
     solSeed: f.solSeed,
-    cluster: CLUSTER,
+    cluster: f.cluster, // the verdict above proved it equal to the label of the wallet
     doneSent: true,
     otherCopy: null,
     backupSaved: true,

@@ -73,6 +73,7 @@ function react(c) {
 export async function attach(host) {
   await W.default();
   const c = { host: { ...host, mode: "plain" }, W, ...blank() };
+  c.refresh = () => refresh(c); // restoreSolana reads the documents again while it waits
   return {
     ctl: c, // the state of the controller, for the tests
     open: (gid, base) => openGroup(c, gid, base),

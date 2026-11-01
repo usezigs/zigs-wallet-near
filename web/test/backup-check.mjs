@@ -3,10 +3,15 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as Z from "../pkg/zigs_engine.js";
-import { checkBackupPayload, checkSavedBackup, MAX_CHECK_BYTES } from "../backup-check.js";
+import {
+  checkBackupPayload, checkSavedBackup, MAX_CHECK_BYTES, SOL_LABELS,
+} from "../backup-check.js";
+import * as W from "../sol/wasm/sol_wasm.js";
+import { walletOf } from "../sol/wallet.js";
 import { frostId, slowCall } from "../util.js";
 
 Z.initSync({ module: readFileSync(new URL("../pkg/zigs_engine_bg.wasm", import.meta.url)) });
+W.initSync({ module: readFileSync(new URL("../sol/wasm/sol_wasm_bg.wasm", import.meta.url)) });
 const clone = structuredClone;
 const freeze = (v) => {
   if (v && typeof v === "object") { Object.values(v).forEach(freeze); Object.freeze(v); }
@@ -69,6 +74,19 @@ for (const [key, value] of [["version", 2], ["room", { id: zec.group, key: "othe
   wrong(zec, (f) => { delete f.secret[key]; }, "missing " + key); checks++;
 }
 wrong(sol, (f) => { f.cluster = "mainnet-beta"; }, "another Solana cluster"); checks++;
+// The label of the file is the label of the wallet kind: the pool on Devnet, the plain wallet on
+// mainnet. Both sides must name the same known label.
+const plain = freeze({ ...clone(sol), cluster: "mainnet-plain" });
+assert.deepEqual(SOL_LABELS, [walletOf(W, "testnet").label, walletOf(W, "mainnet").label],
+  "the labels of the check are the labels of the wallet kinds");
+assert.equal(checkBackupPayload(plain, plain), true, "a plain file fits a plain seat"); checks++;
+wrong(plain, (f) => { f.cluster = "devnet"; }, "a pool file for a plain seat"); checks++;
+wrong(sol, (f) => { f.cluster = "mainnet-plain"; }, "a plain file for a pool seat"); checks++;
+for (const cluster of ["mainnet-beta", "mainnet", "", undefined]) {
+  const both = freeze({ ...clone(sol), cluster });
+  assert.throws(() => checkBackupPayload(both, both), /not the saved recovery file/,
+    "an unknown label on both sides: " + String(cluster)); checks++;
+}
 wrong(sol, (f) => { f.solSeed = "0".repeat(64); }, "another Solana setup secret"); checks++;
 wrong(sol, (f) => { delete f.solSeed; }, "missing Solana setup secret"); checks++;
 wrong(sol, (f) => { f.proveLocal = false; }, "changed local-proving privacy pin"); checks++;

@@ -22,8 +22,23 @@ export const config = {
   down: false,
   calls: 0,
 };
+// The probe of the plain wallet: /sol/config-mainnet.json answers 404 (SOL_MAINNET "0") unless a
+// test sets `status` to 200. `inits` keeps the options of each request.
+export const mainnetConfig = {
+  status: 404,
+  rpcUrl: `https://mainnet.helius-rpc.com/?${KEY_NAME}=not-a-real-key`,
+  calls: 0,
+  inits: [],
+};
 const otherFetch = globalThis.fetch;
 globalThis.fetch = async (url, init) => {
+  if (String(url) === "/sol/config-mainnet.json") {
+    mainnetConfig.calls++;
+    mainnetConfig.inits.push(init);
+    return mainnetConfig.status === 200
+      ? Response.json({ rpcUrl: mainnetConfig.rpcUrl })
+      : new Response("Not found\n", { status: mainnetConfig.status });
+  }
   if (String(url) !== "/sol/config.json") return otherFetch(url, init);
   config.calls++;
   if (config.down) {

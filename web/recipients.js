@@ -19,6 +19,10 @@ const fields = ["id", "name", "address", "asset", "network", "type"];
 export const recipientKind = (v) => v.asset === "ZEC"
   ? v.type === "shielded" && ["testnet", "mainnet"].includes(v.network)
   : v.asset === "SOL" && v.network === "devnet" && ["shielded", "public"].includes(v.type);
+// The reader knows the public mainnet kinds before any writer offers them, so a tab of this
+// version reads the book that a later version wrote. checkedRecipient refuses them until then.
+const readableKind = (v) => recipientKind(v)
+  || (["SOL", "USDC"].includes(v.asset) && v.network === "mainnet" && v.type === "public");
 
 /** A strict versioned record. Unknown/damaged records must be kept, never replaced by empty. */
 export function readRecipients(value) {
@@ -30,7 +34,7 @@ export function readRecipients(value) {
   for (const r of value.entries) {
     if (!object(r) || Object.keys(r).some((k) => !fields.includes(k))
       || !/^[0-9a-f]{32}$/.test(r.id) || ids.has(r.id) || !text(r.name, 80)
-      || !text(r.address, 2048) || !recipientKind(r)) {
+      || !text(r.address, 2048) || !readableKind(r)) {
       throw new Error("The saved address book cannot be read. Its stored copy has been kept.");
     }
     ids.add(r.id);

@@ -22,6 +22,7 @@ const patch = (file, from, to = "") => ({ file, from, to });
 const SOL_APP = ["node", "web/test/sol-app.mjs"];
 const SOL_CEREMONY = ["node", "web/test/sol-ceremony.mjs"];
 const SOL_PLAIN = ["node", "web/test/sol-plain-ceremony.mjs"];
+const SOL_PLAIN_APP = ["node", "web/test/sol-plain-app.mjs"];
 const UNIFIED = ["node", "web/test/unified-setup.mjs"];
 const NONCE_TABS = ["node", "web/test/sol-nonce-tabs.mjs"];
 const APP_TEST = ["node", "web/test/app.mjs"];
@@ -158,6 +159,12 @@ const PLAIN_CONTROL = "web/sol/plain/control.js";
 // Adds a function that no code calls to the plain controller: only a scan of its text can see it.
 const LOG_LINE = "const LOG_MAX = 200;\n";
 const uncalled = (code) => [PLAIN_CONTROL, LOG_LINE, LOG_LINE + `const later = () => ${code};\n`];
+// The plain wallet in the page (web/app-sol.js, web/sol/backup.js): each mutant undoes one rule of
+// sol-plain-app.mjs, backup-check.mjs or recipients.mjs, which name it in the message of `detect`.
+const BACKUP_JS = "web/sol/backup.js";
+const RECIPIENTS_JS = "web/recipients.js";
+const appMutant = (id, what, patches, detect, run = SOL_PLAIN_APP) =>
+  mutant(id, what, run, patches, { detect, ms: 240000 });
 const SHAPED_PLAIN =
   "HEX(32)(d.groupKey) && d.cluster === labelOf(c) && d.program === programOf(c)";
 const plainMutant = (id, what, [file, from, to], detect) =>
@@ -942,6 +949,72 @@ export const MUTATIONS = [
     /an unconfirmed testnet wallet is not opened/),
   plainMutant("PL-abort-doc", "a stopped plain seat publishes no abort document",
     [PLAIN_CONTROL, "  reactAborts(c);\n", ""], /timeout: the abort document of seat 2/),
+  appMutant("PL-probe-gate", "the page loads the plain wallet without asking the server",
+    [patch(APP_SOL, "if (!plainOn() || !plainServed()) return;", "if (!plainOn()) return;")],
+    /timeout: the answer of the probe/),
+  appMutant("PL-load-pool", "the plain slot loads the module of the pool",
+    [patch(APP_SOL, 'import("./sol/plain/control.js")', 'import("./sol/main.js")')],
+    /the controller follows the wallet/),
+  appMutant("PL-switch", "a wallet switch leaves the plain controller open",
+    [patch(APP_SOL, "  plainSol?.close();\n")], /opening a testnet wallet closes the plain/),
+  appMutant("PL-watch-open", "a loaded plain controller does not follow the open wallet",
+    [patch(APP_SOL, '  if (plainSol) plainSol.open(gid, "groups/" + gid);',
+      '  if (false) plainSol.open(gid, "groups/" + gid);')],
+    /timeout: the controller follows the wallet/),
+  appMutant("PL-start-signed", "the page loads the plain wallet on any start document",
+    [patch(APP_SOL, "else if (!plainLoading && solStartSigned()) plainLoad();",
+      "else if (!plainLoading) plainLoad();")],
+    /no start document, so nothing loads/),
+  appMutant("PL-on-confirmed", "a plain wallet is a wallet that names mainnet",
+    [patch(APP_SOL, 'const mainnet = g?.network === "mainnet" && netConfirmed(gid) === "mainnet";',
+      'const mainnet = g?.network === "mainnet";')],
+    /the stored network is no confirmation/),
+  appMutant("PL-served-cache", "the probe of the server can come from a cache",
+    [patch(APP_SOL, 'globalThis.fetch("/sol/config-mainnet.json", { cache: "no-store" })',
+      'globalThis.fetch("/sol/config-mainnet.json")')],
+    /and the request is not cached/),
+  appMutant("PL-restore-route", "a plain file does not reach the plain controller",
+    [patch(APP_SOL, "if (plainOn(b.group) && ui.plainServed === true) {", "if (false) {")],
+    /another network or mode/),
+  appMutant("PL-restore-label", "a restore does not compare the label of the file",
+    [patch(BACKUP_JS, "const CHECKS = [noSeat, notLoaded, otherLabel, stopped,",
+      "const CHECKS = [noSeat, notLoaded, stopped,")],
+    /Missing expected rejection/),
+  appMutant("PL-file-label", "a Solana backup file may name any label",
+    [patch(BACKUP_JS, "SOL_LABELS.includes(b.cluster)", 'typeof b.cluster === "string"')],
+    /not a Zigs Solana backup/),
+  appMutant("PL-restore-write", "a restore writes the label of the pool",
+    [patch(BACKUP_JS,
+      "    cluster: f.cluster, // the verdict above proved it equal to the label of the wallet\n",
+      "    cluster: CLUSTER,\n")],
+    /a restored seat keeps the plain label/),
+  appMutant("PL-restore-fit", "a restore compares a plain share with the pool keys",
+    [patch(BACKUP_JS, "(!fitsLocal(c, f.seat, f, c.docs.soldone[f.seat]) ||",
+      "(!fitsLocal({ ...c, wallet: null }, f.seat, f, c.docs.soldone[f.seat]) ||")],
+    /does not fit this wallet/),
+  appMutant("PL-words", "the backup words of a plain seat name the viewing and proving keys",
+    [patch(BACKUP_JS, "file: isPlain(c) ? PLAIN_FILE_WORDS : POOL_FILE_WORDS,",
+      "file: POOL_FILE_WORDS,")],
+    /a plain wallet has no such keys/),
+  appMutant("PL-refresh", "the plain controller has no refresh for the restore",
+    [patch(PLAIN_CONTROL, "  c.refresh = () => refresh(c);", "  c.refresh = undefined;")],
+    /c\.refresh is not a function/),
+  appMutant("PL-check-known", "the saved-file check accepts any label that both sides share",
+    [patch("web/backup-check.js", "f.cluster === e.cluster && SOL_LABELS.includes(e.cluster)",
+      "f.cluster === e.cluster")],
+    /an unknown label on both sides/, ["node", "web/test/backup-check.mjs"]),
+  appMutant("PL-check-same", "the saved-file check accepts a file of another label",
+    [patch("web/backup-check.js", "f.cluster === e.cluster && SOL_LABELS.includes(e.cluster)",
+      "SOL_LABELS.includes(e.cluster)")],
+    /Missing expected exception/, ["node", "web/test/backup-check.mjs"]),
+  appMutant("PL-reader-kind", "the address book reads a USDC destination on Devnet",
+    [patch(RECIPIENTS_JS, '["SOL", "USDC"].includes(v.asset) && v.network === "mainnet"',
+      '["SOL", "USDC"].includes(v.asset) && ["devnet", "mainnet"].includes(v.network)')],
+    /USDC devnet public/, ["node", "web/test/recipients.mjs"]),
+  appMutant("PL-reader-writer", "the address book saves a mainnet destination before any screen",
+    [patch(RECIPIENTS_JS, "if (!recipientKind({ asset, network, type }))",
+      "if (!readableKind({ asset, network, type }))")],
+    /Missing expected exception/, ["node", "web/test/recipients.mjs"]),
   mutant("W-share-check", "the restore does not ask the wasm if the key share fits", SOL_APP,
     [patch("web/sol/backup.js", SHARE_CALL, "false &&")], /AssertionError/),
   mutant("P3-ps", "the sampling ps counts", only("^P3"),

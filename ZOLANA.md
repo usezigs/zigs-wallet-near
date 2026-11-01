@@ -219,7 +219,7 @@ Zcash key. Each step writes a signed document (3.2).
 
 | Step | Document | Content |
 |---|---|---|
-| 1 Start | `solstart/1` | Cluster (4.4). A seat refuses unless the wallet is version 3 and the safety number that the device computes now equals the number its person confirmed. A restored seat has no such number (a restore does not take it from the file): its own stored confirm document counts, when the key of the seat signed it and it carries the number of now. That number covers the wallet id, `t`, `n`, `network` and every box key (PROTOCOL.md 4.1). Testnet gives Devnet. A mainnet wallet gets no Solana. The ceremony needs all `n` seats. A seat on an app without Solana support writes nothing. The wallet page then shows "Device N has not started" for each seat with no `soldkg1` document. A seat of this browser that waits says why: no Zcash key share, no Address checked, or a safety number that it did not confirm or that changed |
+| 1 Start | `solstart/1` | Cluster (4.4). A seat refuses unless the wallet is version 3 and the safety number that the device computes now equals the number its person confirmed. A restored seat has no such number (a restore does not take it from the file): its own stored confirm document counts, when the key of the seat signed it and it carries the number of now. That number covers the wallet id, `t`, `n`, `network` and every box key (PROTOCOL.md 4.1). Testnet gives Devnet (the pool). A mainnet wallet gives the plain wallet, label `mainnet-plain`, only when the people of the wallet confirmed mainnet and the server serves `/sol/config-mainnet.json`: the page asks once, and a 404 leaves the wallet with no Solana part. The ceremony needs all `n` seats. A seat on an app without Solana support writes nothing. The wallet page then shows "Device N has not started" for each seat with no `soldkg1` document. A seat of this browser that waits says why: no Zcash key share, no Address checked, or a safety number that it did not confirm or that changed |
 | 2 Round 1 | `soldkg1/<i>` | A seat takes a lease on the document first (60 s, the longest of the group server) and looks for a published document again just before it writes, so two copies of one seat (a device and a restored copy) do not publish it at the same time. This narrows that race and does not close it: the group server keeps leases in memory and forgets them when it sleeps, and a write that stalls can still land over the document of the other copy. A copy whose secret does not hold the published package drops that secret and takes no part. The `frost-ed25519` round-1 package and a commitment to a fresh 32-byte part `rSol`. The commitment is BLAKE2b-256 with the personalization `Zigs_SolCmt___v1` over the wallet id, seat, box key, cluster and `rSol` |
 | 3 Echo | none | BLAKE2b-256 with `Zigs_SolEcho__v1` over the wallet id, safety number, cluster, and every package and commitment, in seat order |
 | 4 Round 2 | `soldkg2/<i>-<j>` | A box with the share and `rSol`. The box context carries a curve label (`<id>:sol:<i>-><j>`). Today's context `<id>:<i>-><j>` would let a Zcash box open here |
@@ -271,7 +271,10 @@ identity too when the `soldone` names one. When a valid
 `solfee/<i>` shows another key than the key share gives, that document is forged or broken: the
 restore says that this seat cannot pay, that it can still approve and sign, and that the other
 seats can propose and add SOL. The snapshot is not in the file. A restored seat that has
-`soldone/<i>` on the server and no Solana key package shows "Solana part missing".
+`soldone/<i>` on the server and no Solana key package shows "Solana part missing". The `cluster`
+field of the file is the label of the wallet, `devnet` or `mainnet-plain`. A restore refuses a file
+of another label, and the saved-file check needs the same label on both sides. The words of a plain
+backup do not name viewing or proving keys, because the plain wallet has none.
 
 **4.4 Version marker.** An old app ignores the Solana documents, so the wallet document needs no
 marker. Recommended: `solstart/1`, signed by seat 1, and no change to the wallet version.

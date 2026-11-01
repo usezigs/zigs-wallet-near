@@ -533,7 +533,7 @@ function pdaOf(c, dones) {
 }
 
 // Does the key share of seat `seat` fit its soldone? A plain share has no pool keys to compare.
-const fitsLocal = (c, seat, s, done) =>
+export const fitsLocal = (c, seat, s, done) =>
   isPlain(c) ? !!done && fitsPublished(seat, s, done) : fitsSolana(c.W, seat, s, done);
 
 /**

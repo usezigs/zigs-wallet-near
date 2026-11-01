@@ -22,8 +22,11 @@ const zecChecks = [
   (f, e) => (f.wallet.network ?? null) === (e.wallet.network ?? null),
   (f, e) => heldFieldsMatch(f.secret, e.secret),
 ];
+// The labels of a Solana backup file: the pool on Devnet and the plain wallet on mainnet. This
+// module is eager and cannot read /sol, so a test ties the list to the wasm.
+export const SOL_LABELS = ["devnet", "mainnet-plain"];
 const solChecks = [
-  (f, e) => f.cluster === "devnet" && e.cluster === "devnet",
+  (f, e) => f.cluster === e.cluster && SOL_LABELS.includes(e.cluster),
   (f, e) => fits(f.keyPackage, e.keyPackage),
   (f, e) => samePackages([f.publicKeyPackage, e.publicKeyPackage]),
   (f, e) => same(f.groupKey, e.groupKey) && same(f.solSeed, e.solSeed),
