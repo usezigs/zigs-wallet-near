@@ -1550,6 +1550,8 @@ mod tests {
         let agg = v(&sign_aggregate(pczt, &pkp, &pkg, &Value::Object(shares.clone()).to_string()).unwrap());
         let signed = pczt_from_b64(agg["signed_pczt"].as_str().unwrap()).unwrap();
         let facts = session::facts(&signed, &parse_fvk(fvk).unwrap(), true).unwrap();
+        let again = inspect(agg["signed_pczt"].as_str().unwrap(), fvk).unwrap_err();
+        assert_eq!(again, "this transaction spends nothing from this wallet");
         let out = v(&finalize(agg["signed_pczt"].as_str().unwrap()).unwrap());
         assert_eq!(json!(facts.txid), out["txid"], "the FROST signatures verify, and the id holds");
         assert!(out["size"].as_u64().unwrap() > 9000);
@@ -1773,6 +1775,61 @@ mod tests {
     #[test]
     fn ironwood_2_of_3_with_version_2_wallet() {
         full_flow("ironwood", &[2, 3], true);
+    }
+
+    /// The coordinator refuses commitments that do not fit the spends. A signer re-derives the
+    /// spends and the sighash from the PCZT, and refuses a package that the coordinator changed.
+    #[test]
+    fn signers_refuse_a_package_that_does_not_match_the_transaction() {
+        let (fin, _) = run_dkg(false);
+        let w = make_wallet(&fin, &[]);
+        let fvk = w["orchard_fvk"].as_str().unwrap();
+        let demo = || v(&tx_demo_create(fvk, 100_000, 1_000_000, "ironwood").unwrap());
+        let (tx, other_tx) = (demo(), demo());
+        let pczt = tx["pczt"].as_str().unwrap();
+        let kp = |i: usize| fin[i - 1]["key_package"].to_string();
+        let commit = |i: usize| v(&sign_commit(pczt, fvk, &kp(i), Some(TIP)).unwrap());
+        let (c1, c2, c3) = (commit(1), commit(2), commit(3));
+        let package = |p: &str, m: Value| sign_package(p, fvk, &m.to_string(), 2);
+
+        let one = json!({"1": c1["commitments"]});
+        assert_eq!(package(pczt, one).unwrap_err(), "need at least 2 signers");
+        let c = &c2["commitments"][0];
+        let twice = json!({"1": c1["commitments"], "2": [c, c]});
+        let why = package(pczt, twice).unwrap_err();
+        assert_eq!(why, "a signer committed for the wrong number of spends");
+
+        let both = json!({"1": c1["commitments"], "2": c2["commitments"]});
+        let pkg = v(&package(pczt, both.clone()).unwrap());
+        let mut approval = c1.clone();
+        approval["sighash"] = pkg["sighash"].clone();
+        let share = |pkg: &Value, approval: &Value| {
+            sign_share(pczt, fvk, &pkg.to_string(), &approval.to_string(), &kp(1), 1)
+        };
+        share(&pkg, &approval).unwrap();
+        let refused = |change: &dyn Fn(&mut Value)| {
+            let mut bad = pkg.clone();
+            change(&mut bad);
+            share(&bad, &approval).unwrap_err()
+        };
+        let why = refused(&|p| p["sighash"] = json!(hex::encode([7u8; 32])));
+        assert_eq!(why, "coordinator's sighash does not match the transaction");
+        let why = refused(&|p| p["spends"][0]["alpha"] = json!(hex::encode([7u8; 32])));
+        assert_eq!(why, "coordinator's spends or randomizers do not match the transaction");
+        assert_eq!(refused(&|p| p["signing_packages"] = json!([])), "package count mismatch");
+        let other = v(&package(other_tx["pczt"].as_str().unwrap(), both).unwrap());
+        let why = refused(&|p| p["signing_packages"] = other["signing_packages"].clone());
+        assert_eq!(why, "a signing package signs the wrong message");
+
+        let new = commit(1);
+        let swapped = json!({"1": new["commitments"], "2": c2["commitments"]});
+        let why = share(&v(&package(pczt, swapped).unwrap()), &approval).unwrap_err();
+        assert_eq!(why, "the coordinator replaced my nonce commitment");
+        let without = json!({"2": c2["commitments"], "3": c3["commitments"]});
+        let why = share(&v(&package(pczt, without).unwrap()), &approval).unwrap_err();
+        assert_eq!(why, "my commitment is missing from the package");
+        approval["nonces"] = json!([]);
+        assert_eq!(share(&pkg, &approval).unwrap_err(), "nonce count mismatch");
     }
 
     #[test]
