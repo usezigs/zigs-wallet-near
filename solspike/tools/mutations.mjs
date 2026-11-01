@@ -155,6 +155,9 @@ const LABEL_LINE = "  d.program === W.sol_program_label();";
 // The plain Solana wallet (web/sol/wallet.js, web/sol/plain/control.js): each mutant undoes one
 // rule of sol-plain-ceremony.mjs, which names it in the message that `detect` matches.
 const PLAIN_CONTROL = "web/sol/plain/control.js";
+// Adds a function that no code calls to the plain controller: only a scan of its text can see it.
+const LOG_LINE = "const LOG_MAX = 200;\n";
+const uncalled = (code) => [PLAIN_CONTROL, LOG_LINE, LOG_LINE + `const later = () => ${code};\n`];
 const SHAPED_PLAIN =
   "HEX(32)(d.groupKey) && d.cluster === labelOf(c) && d.program === programOf(c)";
 const plainMutant = (id, what, [file, from, to], detect) =>
@@ -909,6 +912,36 @@ export const MUTATIONS = [
     [PLAIN_CONTROL, 'import { reactAborts } from "../abort.js";\n',
       'import { reactAborts } from "../abort.js";\nimport "../session.js";\n'],
     /no pool module in the closure of the plain controller: sol\/session\.js/),
+  plainMutant("PL-import-bare", "the plain controller imports a module that is no relative path",
+    [PLAIN_CONTROL, 'import { reactAborts } from "../abort.js";\n',
+      'import { reactAborts } from "../abort.js";\nimport "node:path";\n'],
+    /imports a path that is not relative: node:path/),
+  plainMutant("PL-import-dyn", "the plain controller imports a pool module by a computed path",
+    uncalled('import("../" + "session.js")'),
+    /has an import\(\) whose path is no relative literal/),
+  plainMutant("PL-worker", "the plain controller can start the Worker of the pool",
+    uncalled('new Worker(new URL("../worker.js", import.meta.url))'),
+    /sol\/plain\/control\.js starts a Worker/),
+  plainMutant("PL-fetch", "the plain controller can ask the server for the config",
+    uncalled('fetch("/sol/" + "config.json")'),
+    /sol\/plain\/control\.js asks the server for a file/),
+  plainMutant("PL-forged-start", "the plain controller counts documents with no valid signature",
+    [PLAIN_CONTROL, "filterSol(c.raw, c.host.checkIn(c.gid),", 'filterSol(c.raw, () => "yes",'],
+    /a start document changed after the signature counts/),
+  plainMutant("PL-drift-share", "a pool key share runs on a plain wallet",
+    [SOL_CEREMONY_JS, "!!s.r2secret || !!s.keyPackage)", "!!s.r2secret)"],
+    /timeout: a stop of seat 3/),
+  plainMutant("PL-drift-r2", "a pool secret of round 2 runs on a plain wallet",
+    [SOL_CEREMONY_JS, "(!!s.r1secret || !!s.r2secret ||", "(!!s.r1secret ||"],
+    /seat 2 stopped on its secret/),
+  plainMutant("PL-drift-nolabel", "a secret with no label counts as a plain secret",
+    [SOL_CEREMONY_JS, "(s.cluster ?? CLUSTER)", "(s.cluster ?? labelOf(c))"],
+    /seat 2 stopped on its secret/),
+  plainMutant("PL-pool-net", "the pool controller opens a wallet by the network of its group",
+    ["web/sol/main.js", 'c.host.netConfirmed(gid) !== "testnet"', 'c.host.network() !== "testnet"'],
+    /an unconfirmed testnet wallet is not opened/),
+  plainMutant("PL-abort-doc", "a stopped plain seat publishes no abort document",
+    [PLAIN_CONTROL, "  reactAborts(c);\n", ""], /timeout: the abort document of seat 2/),
   mutant("W-share-check", "the restore does not ask the wasm if the key share fits", SOL_APP,
     [patch("web/sol/backup.js", SHARE_CALL, "false &&")], /AssertionError/),
   mutant("P3-ps", "the sampling ps counts", only("^P3"),

@@ -52,21 +52,31 @@ const HEX64 = /^[0-9a-f]{64}$/;
 step("the wallet kind is derived from the confirmed network only");
 
 // ── The plain controller loads no pool code ──
-// The closure of its imports (static, re-export and import() with a literal path) holds no module
-// of the pool, the Worker, the prover or the config. A computed import() path would escape this
-// scan, so the closure must hold none.
+// The closure of its imports holds no module of the pool, the Worker, the prover or the config.
+// Every path that the scan follows is a relative literal, so no import can hide from it. No file
+// starts a Worker or asks the server for a file; the wasm glue fetches its own wasm only.
 {
   const web = new URL("../", import.meta.url);
-  const SPEC = [/(?:^|\n)\s*(?:import|export)\b[^;]*?\bfrom\s*["'](\.{1,2}\/[^"']+)["']/g,
-    /(?:^|\n)\s*import\s*["'](\.{1,2}\/[^"']+)["']/g,
-    /\bimport\(\s*["'](\.{1,2}\/[^"']+)["']\s*\)/g];
+  const FROM = /\b(?:import|export)\b[^;"'`]*?\bfrom\s*(["'`])([^"'`]*)\1/g;
+  const BARE = /\bimport\s*(["'`])([^"'`]*)\1/g;
+  const DYNAMIC = /\bimport\s*\(([^)]*)\)/g;
+  const RELATIVE = /^\.{1,2}\//;
+  const LITERAL = /^\s*(["'])(\.{1,2}\/[^"'\\]*)\1\s*$/;
   const closure = new Map();
   const follow = (url) => {
     const rel = url.pathname.slice(web.pathname.length);
     if (closure.has(rel)) return;
     const text = fs.readFileSync(url, "utf8");
     closure.set(rel, text);
-    for (const re of SPEC) for (const m of text.matchAll(re)) follow(new URL(m[1], url));
+    for (const m of [...text.matchAll(FROM), ...text.matchAll(BARE)]) {
+      assert.match(m[2], RELATIVE, rel + " imports a path that is not relative: " + m[2]);
+      follow(new URL(m[2], url));
+    }
+    for (const m of text.matchAll(DYNAMIC)) {
+      const lone = LITERAL.exec(m[1]);
+      assert.ok(lone, rel + " has an import() whose path is no relative literal: " + m[1]);
+      follow(new URL(lone[2], url));
+    }
   };
   follow(new URL("sol/plain/control.js", web));
   const files = [...closure.keys()];
@@ -80,10 +90,12 @@ step("the wallet kind is derived from the confirmed network only");
     const banned = pool.some((name) => file === `sol/${name}.js`) || /prover/.test(file);
     assert.ok(!banned, "no pool module in the closure of the plain controller: " + file);
     assert.ok(!file.startsWith("app"), "no page module in the closure: " + file);
-    const text = closure.get(file);
+    const glue = file === "sol/wasm/sol_wasm.js";
+    const text = glue ? closure.get(file).replace("fetch(module_or_path)", "") : closure.get(file);
     assert.ok(!text.includes("/sol/config.json"), file + " asks for the config of the pool");
     assert.ok(!text.includes("/sol/worker.js"), file + " starts the Worker of the pool");
-    assert.ok(!/\bimport\(\s*[^"'\s]/.test(text), file + " has a computed import path");
+    assert.ok(!/\bWorker\s*\(/.test(text), file + " starts a Worker");
+    assert.ok(!/\bfetch\s*\(/.test(text), file + " asks the server for a file");
   }
 }
 step("the closure of the plain controller holds no pool code");
@@ -119,6 +131,28 @@ const countWrites = () => {
 };
 const dones = (gid) => [1, 2, 3].map((i) => data.get(path(gid, "soldone/" + i)));
 const haveAll = (gid, name) => [1, 2, 3].every((i) => data.get(path(gid, `${name}/${i}`)));
+// A device that never saw the confirmed number: its stored pins of the wallet are gone.
+const forget = (gid, names) => {
+  const pins = JSON.parse(storage.get("zf-signpins"));
+  for (const k of names.map((name) => name + ":" + gid)) {
+    delete t.signPins[k];
+    delete pins[k];
+  }
+  storage.set("zf-signpins", JSON.stringify(pins));
+};
+// A seat secret that holds ceremony material of another label stops its seat, whichever material
+// it is. `seeds` maps a seat to its Solana secret. The Zcash part of the seat is not touched.
+const SHARE = { keyPackage: {}, groupKey: "ab".repeat(32) };
+const DRIFT = /holds a Solana part of another network or mode/;
+const drifts = async (gid, add, until, seeds) => {
+  for (const [i, sol] of Object.entries(seeds)) await t.putSec(gid, Number(i), { sol });
+  await add();
+  for (const i of Object.keys(seeds)) {
+    await until("a stop of seat " + i, () => solOf(gid, i).aborted, 15000);
+    assert.match(solOf(gid, i).aborted, DRIFT, "seat " + i + " stopped on its secret");
+    assert.match(solOf(gid, i).aborted, /Do not use the Solana part of this wallet/);
+  }
+};
 
 const gid = await rig.wallet({ name: "Plain", network: "mainnet", n: 3, k: 2 });
 assert.equal(t.netConfirmed(gid), "mainnet", "control: the people confirmed mainnet");
@@ -202,6 +236,30 @@ step("a confirmed mainnet wallet runs the second DKG with the label mainnet-plai
 }
 step("a soldone of another label, program or shape gives differ");
 
+// ── A start document with a bad signature or a wrong writer counts for nothing ──
+{
+  const forged = await rig.wallet({ name: "Forged", network: "mainnet" });
+  await opened(forged);
+  const rel = "solstart/1";
+  const fields = { cluster: PLAIN, at: 1 };
+  const good = await t.signedDoc(forged, rel, 1, fields);
+  const ignored = async (doc, what) => {
+    data.set(path(forged, rel), doc);
+    rig.notify();
+    await passes(30);
+    assert.equal(c.wait, 0, "the verdict on " + what + " is final");
+    assert.equal(c.docs.solstart[1], undefined, what + " counts");
+    assert.equal(data.get(path(forged, "soldkg1/1")), undefined, "round 1 started on " + what);
+  };
+  await ignored({ ...good, at: 2 }, "a start document changed after the signature");
+  await ignored(await t.signedDoc(forged, rel, 2, fields), "a start document signed by seat 2");
+  data.set(path(forged, rel), good);
+  rig.notify();
+  await pump("the signed start document", () => haveAll(forged, "soldkg1"), 15000);
+  assert.ok(c.docs.solstart[1], "control: the signed start document counts");
+}
+step("a start document with a bad signature or a wrong writer is ignored");
+
 {
   // A start document of another label starts nobody.
   const other = await rig.wallet({ name: "Other", network: "mainnet" });
@@ -214,15 +272,18 @@ step("a soldone of another label, program or shape gives differ");
   assert.equal(haveAll(other, "soldkg1"), false, "a start of another label starts nobody");
   assert.equal([1, 2, 3].some((i) => data.get(path(other, "soldkg1/" + i))), false);
   assert.deepEqual([1, 2, 3].map((i) => solOf(other, i)), [{}, {}, {}], "and keeps no secret");
-  // A seat secret of another label stops the seat; the Zcash part is not touched.
+  // The stop of a seat reaches the others in a signed document (abort.js).
   const drift = await rig.wallet({ name: "Drift", network: "mainnet" });
   await opened(drift);
-  await t.putSec(drift, 2, { sol: { r1secret: {}, cluster: CLUSTER } });
-  await plain.add();
-  await pump("a stop of seat 2", () => solOf(drift, 2).aborted, 15000);
-  assert.match(solOf(drift, 2).aborted, /holds a Solana part of another network or mode/);
-  assert.match(solOf(drift, 2).aborted, /Do not use the Solana part of this wallet/);
+  await drifts(drift, plain.add, pump,
+    { 2: { r1secret: {}, cluster: CLUSTER }, 3: { ...SHARE, cluster: CLUSTER } });
   assert.equal(solOf(drift, 1).aborted, undefined, "the other seats do not stop on their own");
+  await pump("the abort document of seat 2", () => data.get(path(drift, "solabort/2")), 15000);
+  assert.match(stored(drift, "solabort/2").reason, DRIFT, "the stop of seat 2 is published");
+  // A secret with no label is a pool secret.
+  const legacy = await rig.wallet({ name: "Legacy", network: "mainnet" });
+  await opened(legacy);
+  await drifts(legacy, plain.add, pump, { 2: { r2secret: {} } });
 }
 step("a start document or a seat secret of another label does not run on a plain wallet");
 
@@ -242,12 +303,7 @@ step("a start document or a seat secret of another label does not run on a plain
   t.state.g = real;
   // A device that never saw the confirmed number: the stored network says mainnet, and that is
   // no confirmation. Nothing waits between the forget and the open, so the page learns nothing.
-  const stored = JSON.parse(storage.get("zf-signpins"));
-  for (const k of ["network:" + late, "confirmednet:" + late]) {
-    delete t.signPins[k];
-    delete stored[k];
-  }
-  storage.set("zf-signpins", JSON.stringify(stored));
+  forget(late, ["network", "confirmednet"]);
   assert.equal(t.netConfirmed(late), undefined, "control: no confirmed network");
   assert.equal(t.state.g.network, "mainnet", "control: the stored network says mainnet");
   plain.open(late, base(late));
@@ -284,11 +340,22 @@ step("the plain controller loaded no pool code and asked for no config");
   assert.equal(t.sol.ctl.gid, pool, "it opens a confirmed testnet wallet");
   assert.equal(labelOf(t.sol.ctl), CLUSTER, "with the label devnet");
   // A plain part on a pool wallet stops the seat.
-  await t.putSec(pool, 2, { sol: { r1secret: {}, cluster: PLAIN } });
-  await t.sol.add();
-  await waitFor("a stop of seat 2", () => solOf(pool, 2).aborted, 15000);
-  assert.match(solOf(pool, 2).aborted, /holds a Solana part of another network or mode/);
+  const add = () => t.sol.add();
+  await drifts(pool, add, waitFor,
+    { 2: { r1secret: {}, cluster: PLAIN }, 3: { ...SHARE, cluster: PLAIN } });
   assert.equal(stored(pool, "solstart/1").cluster, CLUSTER, "the pool start names devnet");
+  const second = await rig.wallet({ name: "Pool 2" });
+  t.openGroup(second);
+  await waitFor("the second pool wallet", () => t.state.gid === second && t.state.g);
+  t.sol.open(second, base(second));
+  await drifts(second, add, waitFor, { 2: { r2secret: {}, cluster: PLAIN } });
+  // The wallet kind comes from the confirmed network, not from the network that the group names.
+  const claimed = await rig.wallet({ name: "Claimed" });
+  forget(claimed, ["confirmednet"]);
+  assert.equal(t.netConfirmed(claimed), undefined, "control: no confirmed network");
+  assert.equal(t.state.g.network, "testnet", "control: the group names testnet");
+  t.sol.open(claimed, base(claimed));
+  assert.equal(t.sol.ctl.gid, null, "an unconfirmed testnet wallet is not opened");
 }
 step("the pool controller opens testnet wallets only and keeps the label devnet");
 
