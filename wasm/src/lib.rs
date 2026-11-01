@@ -65,9 +65,7 @@ use zcash_keys::{address::UnifiedAddress, keys::UnifiedFullViewingKey};
 use zcash_primitives::transaction::{
     builder::{BuildConfig, Builder, BundlePadding, PcztResult},
     fees::zip317,
-    sighash::SignableInput,
-    sighash_v5::v5_signature_hash,
-    sighash_v6::v6_signature_hash,
+    sighash::{PrecomputedSighashData, SignableInput},
     txid::{to_txid, TxIdDigester},
     TxVersion,
 };
@@ -384,14 +382,10 @@ struct PendingSpend {
 
 fn sighash(p: &Pczt) -> R<(TxVersion, [u8; 32])> {
     let tx = p.clone().into_effects().map_err(e("effects"))?;
-    let parts = tx.digest(TxIdDigester);
     let v = tx.version();
-    let h = match v {
-        TxVersion::V6 => v6_signature_hash(&tx, &SignableInput::Shielded, &parts),
-        TxVersion::V5 => v5_signature_hash(&tx, &SignableInput::Shielded, &parts),
-        _ => return Err("unsupported transaction version".into()),
-    };
-    Ok((v, h.as_ref().try_into().map_err(|_| "sighash length")?))
+    let unsupported = |_| "unsupported transaction version";
+    let pre = PrecomputedSighashData::new_zip244(tx).map_err(unsupported)?;
+    Ok((v, *pre.signature_hash(&SignableInput::Shielded).as_ref()))
 }
 
 /// The id that the transaction of `p` gets on chain (ZIP 244). It covers neither the signatures
@@ -399,7 +393,8 @@ fn sighash(p: &Pczt) -> R<(TxVersion, [u8; 32])> {
 fn txid_of(p: &Pczt) -> R<String> {
     let tx = p.clone().into_effects().map_err(e("effects"))?;
     let parts = tx.digest(TxIdDigester);
-    Ok(to_txid(tx.version(), tx.consensus_branch_id(), &parts).to_string())
+    let id = to_txid(tx.version(), tx.consensus_branch_id(), &parts);
+    Ok(id.ok_or("unsupported transaction version")?.to_string())
 }
 
 #[derive(Debug)]
@@ -548,8 +543,9 @@ pub fn inspect(pczt: &str, fvk: &str) -> R<String> {
 }
 
 /// Round 1: one nonce pair per pending spend. Nonces are secret, single-use. `tip` is the chain
-/// height that this device just read: an expired payment, or one that stays valid much longer
-/// than the expiry window, gets no approval. The iPhone and Mac apps pass None until they read
+/// height that this device just read: an expired payment, one made for another network upgrade
+/// than the next block, or one that stays valid much longer than the expiry window, gets no
+/// approval. The iPhone and Mac apps pass None until they read
 /// a chain height (TICKETS.md, ZEC-8), so they get only the checks of `inspect`.
 pub fn sign_commit(pczt: &str, fvk: &str, key_package: &str, tip: Option<u32>) -> R<String> {
     let p = pczt_from_b64(pczt)?;
@@ -1038,6 +1034,9 @@ mod tests {
     use zcash_primitives::transaction::Transaction;
     use zcash_protocol::{local_consensus::LocalNetwork, memo::Memo};
 
+    /// A test chain at block 10,000,000. With `nu6_3` it also has NU6.3 and NU7, as the test
+    /// network does, so the transactions have the branch and the window that an approver expects.
+    /// Without it, the chain has NU6.2 only: V5 transactions.
     fn regtest(nu6_3: bool) -> LocalNetwork {
         LocalNetwork {
             overwinter: Some(BlockHeight::from_u32(1)),
@@ -1050,7 +1049,7 @@ mod tests {
             nu6_1: Some(BlockHeight::from_u32(8)),
             nu6_2: Some(BlockHeight::from_u32(9)),
             nu6_3: nu6_3.then(|| BlockHeight::from_u32(10)),
-            nu7: None,
+            nu7: nu6_3.then(|| BlockHeight::from_u32(11)),
         }
     }
 
@@ -1523,11 +1522,14 @@ mod tests {
             check_demo_memos(&ins, &tx);
         }
 
+        // The Orchard payment is a V5 transaction of NU6.2, a branch that the test network left
+        // long ago, so an approver with a tip would refuse it.
+        let tip = (pool == "ironwood").then_some(TIP);
         let mut comm = serde_json::Map::new();
         let mut secrets = BTreeMap::new();
         for &i in signers {
             let kp = fin[i as usize - 1]["key_package"].to_string();
-            let c = v(&sign_commit(pczt, fvk, &kp, Some(TIP)).unwrap());
+            let c = v(&sign_commit(pczt, fvk, &kp, tip).unwrap());
             comm.insert(i.to_string(), c["commitments"].clone());
             secrets.insert(i, c);
         }
@@ -1644,7 +1646,7 @@ mod tests {
             let ins = v(&inspect(&one_payment(&fvk, factor, None).unwrap(), &hex).unwrap());
             let fees = (&ins["fee"], &ins["standard_fee"]);
             assert_eq!(fees, (&json!(10_000 * factor), &json!(10_000)));
-            assert_eq!(ins["expiry_height"], TIP + 1 + 1_152, "one day at 75 seconds");
+            assert_eq!(ins["expiry_height"], TIP + 1 + 3_456, "one day at 25 seconds");
         }
         for factor in [0, 11] {
             let err = inspect(&one_payment(&fvk, factor, None).unwrap(), &hex).unwrap_err();
@@ -1741,8 +1743,8 @@ mod tests {
         assert!(passes(commit(TIP + 4, TIP)));
         assert!(commit(TIP + 3, TIP).contains("expired at block 10000002"));
         assert!(commit(TIP + 100, TIP + 200).contains("Propose it again"));
-        // The coin type of the test chain is the testnet one, where NU7 is active: one day of
-        // window and one day of slack at 25 seconds.
+        // The coin type of the test chain is the testnet one, where NU7 is active, as on the
+        // test chain: one day of window and one day of slack at 25 seconds.
         let most = TIP + 1 + 2 * 3_456;
         assert!(passes(commit(most, TIP)));
         assert!(commit(most + 1, TIP).contains("more than 48 hours from now"));
@@ -1754,17 +1756,78 @@ mod tests {
         assert!(passes(sign_commit(&pczt(TIP + 3), &hex, "{}", None).unwrap_err()));
     }
 
-    /// ZEC-1: this test fails until the pinned zcash_protocol sets the NU7 height of mainnet.
-    /// Then update the Zcash crates, remove the `ignore`, and rebuild the engine for the web
-    /// (`web/pkg`) and for the iPhone and Mac (`ios/build-core.sh`).
+    /// `one_payment` under `net` for block `target`, with the window of a group payment or with
+    /// `expiry`.
+    fn payment_at<P: Parameters>(net: P, target: u32, expiry: Option<u32>, fvk: &FullViewingKey)
+        -> String
+    {
+        let target = BlockHeight::from_u32(target);
+        let expiry = expiry.map_or_else(|| expiry::expiry_for(&net, target), BlockHeight::from_u32);
+        let terms = Terms { target, expiry: Some(expiry), fee_factor: 1 };
+        payment_under(net, &terms, fvk).unwrap()
+    }
+
+    /// Mainnet changes to NU7 at block 3,543,405: the branch 0x77190AD9 and blocks of 25 seconds.
     #[test]
-    #[ignore = "ZEC-1: the pinned zcash_protocol has no NU7 height for mainnet yet"]
     fn mainnet_activates_nu7() {
         use zcash_protocol::consensus::{BranchId, NetworkUpgrade};
-        let at = Network::MainNetwork.activation_height(NetworkUpgrade::Nu7);
-        let at = at.expect("the pinned zcash_protocol has no NU7 height for mainnet");
-        assert_eq!(BranchId::for_height(&Network::MainNetwork, at), BranchId::Nu7);
-        assert_eq!(expiry::block_seconds(&Network::MainNetwork, at), 25);
+        let net = Network::MainNetwork;
+        let at = net.activation_height(NetworkUpgrade::Nu7);
+        assert_eq!(at, Some(BlockHeight::from_u32(3_543_405)));
+        let (before, at) = (BlockHeight::from_u32(3_543_404), at.unwrap());
+        assert_eq!(BranchId::for_height(&net, before), BranchId::Nu6_3);
+        assert_eq!(BranchId::for_height(&net, at), BranchId::Nu7);
+        assert_eq!(u32::from(BranchId::Nu7), 0x7719_0AD9);
+        assert_eq!(TxVersion::suggested_for_branch(BranchId::Nu7), TxVersion::V6);
+        assert_eq!(expiry::block_seconds(&net, before), 75);
+        assert_eq!(expiry::block_seconds(&net, at), 25);
+    }
+
+    /// A mainnet group payment takes the consensus branch of its target block. Before NU7 it is
+    /// a V6 transaction of NU6.3 with a window of 1,152 blocks, cut at the last block before
+    /// NU7. From NU7 on it is a V6 transaction of NU7 with a window of 3,456 blocks.
+    #[test]
+    fn a_mainnet_payment_follows_the_branch_and_the_window_of_its_target() {
+        use zcash_protocol::consensus::BranchId;
+        let fvk = FullViewingKey::from(&random_sk());
+        let key = hex::encode(fvk.to_bytes());
+        let cases = [
+            (3_540_000, BranchId::Nu6_3, 3_540_000 + 1_152),
+            (3_542_500, BranchId::Nu6_3, 3_543_404),
+            (3_543_404, BranchId::Nu6_3, 3_543_404),
+            (3_543_405, BranchId::Nu7, 3_543_405 + 3_456),
+        ];
+        for (target, branch, expiry) in cases {
+            let pczt = payment_at(Network::MainNetwork, target, None, &fvk);
+            let made = pczt_from_b64(&pczt).unwrap();
+            assert_eq!(*made.global().consensus_branch_id(), u32::from(branch), "{target}");
+            let ins = v(&inspect(&pczt, &key).unwrap());
+            assert_eq!((&ins["tx_version"], &ins["expiry_height"]), (&json!("V6"), &json!(expiry)));
+        }
+    }
+
+    /// An approver refuses a payment of another network upgrade than the one of the next block,
+    /// in both directions, and approves one of the same upgrade. It refuses a payment for the
+    /// last block before NU7 as expired. The native apps pass no tip: they check no branch.
+    #[test]
+    fn sign_commit_refuses_a_payment_of_another_branch() {
+        let fvk = FullViewingKey::from(&random_sk());
+        let key = hex::encode(fvk.to_bytes());
+        let main = |target, expiry| payment_at(Network::MainNetwork, target, expiry, &fvk);
+        // NU6.3, and a window that ends after NU7 on purpose.
+        let (old, new) = (main(3_543_000, Some(3_543_500)), main(3_543_405, None));
+        let commit = |pczt: &str, tip: u32| sign_commit(pczt, &key, "{}", Some(tip)).unwrap_err();
+        let passes = |err: String| err.starts_with("bad key package");
+        assert!(passes(commit(&old, 3_543_000)));
+        assert!(passes(commit(&new, 3_543_404)));
+        for (pczt, tip) in [(&old, 3_543_404), (&new, 3_543_403)] {
+            let err = commit(pczt, tip);
+            assert!(err.contains("another network upgrade"), "{err}");
+            assert!(err.contains("Propose it again"), "{err}");
+        }
+        assert!(commit(&main(3_543_404, None), 3_543_403).contains("expired at block 3543404"));
+        assert!(passes(sign_commit(&old, &key, "{}", None).unwrap_err()));
+        assert!(passes(sign_commit(&new, &key, "{}", None).unwrap_err()));
     }
 
     #[test]
@@ -1864,17 +1927,15 @@ mod tests {
             let tx = v(&tx_demo_create(&hex_of(k), 100_000, 1_000_000, pool).unwrap());
             tx["pczt"].as_str().unwrap().to_string()
         };
-        let under = |net: Network, target: u32, k: &FullViewingKey| {
-            let target = BlockHeight::from_u32(target);
-            let expiry = Some(expiry::expiry_for(&net, target));
-            payment_under(net, &Terms { target, expiry, fee_factor: 1 }, k).unwrap()
-        };
         let (a, b, c, d) = (key(), key(), key(), key());
+        let (main, test) = (Network::MainNetwork, Network::TestNetwork);
+        let pc = payment_at(main, 3_540_000, None, &c);
+        let pd = payment_at(test, 4_500_001, None, &d);
         vec![
             ("ironwood v6, 4 recipients, test chain", hex_of(&a), demo(&a, "ironwood")),
             ("orchard v5, test chain", hex_of(&b), demo(&b, "orchard")),
-            ("ironwood v6, mainnet before NU7", hex_of(&c), under(Network::MainNetwork, 3_540_000, &c)),
-            ("ironwood v6, test network after NU7", hex_of(&d), under(Network::TestNetwork, 4_500_001, &d)),
+            ("ironwood v6, mainnet before NU7", hex_of(&c), pc),
+            ("ironwood v6, test network after NU7", hex_of(&d), pd),
         ]
     }
 

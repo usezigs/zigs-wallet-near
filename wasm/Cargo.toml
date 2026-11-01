@@ -11,12 +11,12 @@ crate-type = ["cdylib", "rlib", "staticlib"]
 reddsa = { git = "https://github.com/ZcashFoundation/reddsa.git", rev = "ed49e9ca0699a6450f6d4a9fe62ff168f5ea1ead", features = ["frost", "serde"] }
 frost-rerandomized = { version = "2.1.0", features = ["serde"] }
 orchard = { version = "=0.16.0", default-features = false, features = ["std", "circuit", "unstable-frost"] }
-pczt = { version = "=0.10.0-pre.1", features = ["signer", "orchard", "prover", "io-finalizer", "spend-finalizer", "tx-extractor", "zcp-builder"] }
-zcash_primitives = { version = "=0.31.0-pre.1", default-features = false, features = [
+pczt = { version = "=0.10.0", features = ["signer", "orchard", "prover", "io-finalizer", "spend-finalizer", "tx-extractor", "zcp-builder"] }
+zcash_primitives = { version = "=0.31.0", default-features = false, features = [
     "std", "circuits", "non-standard-fees",
 ] }
-zcash_protocol = { version = "=0.11.0-pre.0", features = ["local-consensus"] }
-zcash_keys = { version = "=0.17.0-pre.1", default-features = false, features = ["orchard", "unstable-frost"] }
+zcash_protocol = { version = "=0.11.0", features = ["local-consensus"] }
+zcash_keys = { version = "=0.17.0", default-features = false, features = ["orchard", "unstable-frost"] }
 incrementalmerkletree = "=0.9.0"
 shardtree = "=0.8.0"
 zcash_note_encryption = "=0.5.1"
@@ -35,8 +35,8 @@ chacha20poly1305 = "0.10"
 blake2b_simd = "1"
 wasm-bindgen = "0.2"
 console_error_panic_hook = "0.1"
-zcash_client_backend = { version = "=0.25.0-pre.1", default-features = false, features = ["orchard", "lightwalletd-tonic"] }
-zip321 = "=0.10.0-pre.1"
+zcash_client_backend = { version = "=0.25.0", default-features = false, features = ["orchard", "lightwalletd-tonic"] }
+zip321 = "=0.10.0"
 tonic = { version = "0.14", default-features = false }
 prost = "0.14"
 tonic-web-wasm-client = "0.9.2"

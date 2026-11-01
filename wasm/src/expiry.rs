@@ -1,8 +1,8 @@
 //! Block times and the expiry window of group payments.
 //!
 //! NU7 (ZIP 218) cuts the target block time from 75 to 25 seconds. A group payment collects its
-//! approvals over hours, so its expiry comes from a window in time, not from the 40 blocks that
-//! the transaction builder sets by default.
+//! approvals over hours, so its expiry comes from a window in time, not from the default of the
+//! transaction builder (40 blocks, and 120 blocks from NU7: 50 minutes in both cases).
 
 use pczt::Pczt;
 use serde_json::{json, Value};
@@ -70,8 +70,9 @@ pub(crate) fn state<P: Parameters>(net: &P, expiry: u32, tip: u32) -> R<String> 
 }
 
 /// The check of an approving device. `tip` is the chain height that the device just read. It
-/// refuses a payment that a node would refuse at the next block, and one that stays valid much
-/// longer than the window.
+/// refuses a payment that a node would refuse at the next block, one that has the consensus
+/// branch of another network upgrade than the next block, and one that stays valid much longer
+/// than the window.
 pub(crate) fn check(p: &Pczt, tip: u32) -> R<()> {
     let net = pczt_network(p)?;
     let expiry = *p.global().expiry_height();
@@ -79,6 +80,10 @@ pub(crate) fn check(p: &Pczt, tip: u32) -> R<()> {
     ensure(!expired, &format!(
         "this payment expired at block {expiry} (the chain is at block {tip}). Propose it again"))?;
     let next = BlockHeight::from_u32(tip.saturating_add(1));
+    let branch = u32::from(BranchId::for_height(&net, next));
+    ensure(*p.global().consensus_branch_id() == branch, &format!(
+        "this payment was made for another network upgrade than the one of the next block \
+         (the chain is at block {tip}). Propose it again"))?;
     let slack = SLACK_SECONDS / block_seconds(&net, next);
     let most = u32::from(expiry_for(&net, next)).saturating_add(slack);
     let hours = (EXPIRY_SECONDS + SLACK_SECONDS) / 3600;
@@ -92,6 +97,7 @@ mod tests {
     use zcash_protocol::{consensus::Network, local_consensus::LocalNetwork};
 
     const TEST_NU7: u32 = 4_465_026;
+    const MAIN_NU7: u32 = 3_543_405;
 
     /// A chain with NU6.3 at block 10 and NU7 at `nu7`, if any.
     fn chain(nu7: Option<u32>) -> LocalNetwork {
@@ -108,8 +114,10 @@ mod tests {
         let net = Network::TestNetwork;
         assert_eq!(block_seconds(&net, BlockHeight::from_u32(TEST_NU7 - 1)), 75);
         assert_eq!(block_seconds(&net, BlockHeight::from_u32(TEST_NU7)), 25);
-        // The pinned crate has no NU7 height for mainnet yet (ZEC-1).
-        assert_eq!(block_seconds(&Network::MainNetwork, BlockHeight::from_u32(9_000_000)), 75);
+        let main = Network::MainNetwork;
+        assert_eq!(block_seconds(&main, BlockHeight::from_u32(MAIN_NU7 - 1)), 75);
+        assert_eq!(block_seconds(&main, BlockHeight::from_u32(MAIN_NU7)), 25);
+        assert_eq!(block_seconds(&main, BlockHeight::from_u32(9_000_000)), 25);
     }
 
     #[test]
@@ -119,6 +127,8 @@ mod tests {
         assert_eq!(span_seconds(&net, TEST_NU7, TEST_NU7 + 10), 250);
         // Blocks TEST_NU7 - 2 and TEST_NU7 - 1 are slow, TEST_NU7 to TEST_NU7 + 2 are fast.
         assert_eq!(span_seconds(&net, TEST_NU7 - 3, TEST_NU7 + 2), 2 * 75 + 3 * 25);
+        let main = Network::MainNetwork;
+        assert_eq!(span_seconds(&main, MAIN_NU7 - 3, MAIN_NU7 + 2), 2 * 75 + 3 * 25);
         assert_eq!(span_seconds(&net, 50, 50), 0);
         assert_eq!(span_seconds(&net, 50, 40), 0);
         assert_eq!(span_seconds(&chain(None), 0, u32::MAX), u64::from(u32::MAX) * 75);
@@ -131,6 +141,19 @@ mod tests {
         assert_eq!(u32::from(testnet), 4_500_001 + 3_456, "24 hours at 25 seconds");
         let mainnet = expiry_for(&Network::MainNetwork, at(3_520_001));
         assert_eq!(u32::from(mainnet), 3_520_001 + 1_152, "24 hours at 75 seconds");
+        let mainnet = expiry_for(&Network::MainNetwork, at(MAIN_NU7));
+        assert_eq!(u32::from(mainnet), MAIN_NU7 + 3_456, "24 hours at 25 seconds, from NU7");
+    }
+
+    #[test]
+    fn the_window_on_mainnet_ends_before_nu7() {
+        let at = |h: u32| BlockHeight::from_u32(h);
+        let net = Network::MainNetwork;
+        let last = at(MAIN_NU7 - 1);
+        assert_eq!(expiry_for(&net, at(MAIN_NU7 - 1_154)), at(MAIN_NU7 - 2), "the whole window");
+        assert_eq!(expiry_for(&net, at(MAIN_NU7 - 1_153)), last, "up to the last block");
+        assert_eq!(expiry_for(&net, at(MAIN_NU7 - 1_152)), last, "cut by one block");
+        assert_eq!(expiry_for(&net, last), last, "built for the last block");
     }
 
     #[test]

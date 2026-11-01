@@ -839,12 +839,15 @@ fn message_payees(to: &str, text: &str, net: Network) -> R<Vec<Payee>> {
 
 /// Like `spend_pczt` for the outputs of `message_payees`: the account pays the fee only. One
 /// device signs and sends it at once, so it keeps the builder's expiry and the standard fee.
+/// `expiry_height` is the expiry that the builder set (40 blocks, and 120 from NU7).
 fn message_pczt(s: &Inner, payees: &[Payee], tip: u32) -> R<String> {
     let terms = Terms { target: BlockHeight::from_u32(tip + 1), expiry: None, fee_factor: 1 };
     let choose = |values: &[(u64, u32)]| pick_notes(values, 0, payees.len() + 1, s.synced, 1);
     let (pczt, pick) = build_spend(s, payees, &terms, choose)?;
+    let expiry_height = *pczt.global().expiry_height();
     Ok(json!({"pczt": pczt_to_b64(pczt)?, "pool": "ironwood", "fee": pick.fee,
-        "parts": payees.len(), "note_value": pick.total, "change": pick.change})
+        "parts": payees.len(), "note_value": pick.total, "change": pick.change,
+        "expiry_height": expiry_height})
     .to_string())
 }
 
@@ -2026,7 +2029,7 @@ mod tests {
     }
 
     /// A group payment expires one day of blocks after its target and may pay 10 times the fee.
-    /// A message keeps the builder's 40 blocks and the standard fee.
+    /// A message keeps the builder's 120 blocks of NU7 (ZIP 218) and the standard fee.
     #[test]
     fn a_group_payment_expires_after_a_day_and_may_pay_the_priority_fee() {
         let (w, chain) = funded_account(&"0a".repeat(32), &[1_000_000]);
@@ -2044,8 +2047,10 @@ mod tests {
             assert_eq!((&ins["fee"], &ins["standard_fee"]), (&json!(fee), &json!(10_000)));
             assert_eq!(ins["expiry_height"], tip + 1 + 3_456, "one day at 25 seconds");
         }
-        let ins = inspect(&message_of(&w, &to, "hi", tip).unwrap());
-        assert_eq!((&ins["fee"], &ins["expiry_height"]), (&json!(10_000), &json!(tip + 1 + 40)));
+        let made = message_of(&w, &to, "hi", tip).unwrap();
+        let ins = inspect(&made);
+        assert_eq!((&ins["fee"], &ins["expiry_height"]), (&json!(10_000), &json!(tip + 1 + 120)));
+        assert_eq!(made["expiry_height"], ins["expiry_height"], "the message gives its own expiry");
     }
 
     #[test]
