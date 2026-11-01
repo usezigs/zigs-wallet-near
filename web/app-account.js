@@ -418,7 +418,8 @@ async function sendLocked(contact, text) {
     const out = await engineOffThread("finalize", signed);
     const rec = {
       txid: out.txid, to: contact.index, text, at: Date.now(), tip, fee: m.fee, parts: m.parts,
-      note_value: m.note_value, change: m.change, broadcast: false, failed: "",
+      note_value: m.note_value, change: m.change, expiry: m.expiry_height, broadcast: false,
+      failed: "",
     };
     await changePersonal((p) => { p.sent.push(rec); });
     c.live = rec.txid;

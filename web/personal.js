@@ -213,6 +213,7 @@ function readSent(list) {
     txid: r.txid, to: r.to, text: r.text, at: r.at, tip: r.tip, fee: num(r.fee),
     parts: num(r.parts), note_value: num(r.note_value), change: num(r.change),
     broadcast: r.broadcast === true, failed: typeof r.failed === "string" ? r.failed : "",
+    ...(Number.isFinite(r.expiry) ? { expiry: r.expiry } : {}),
   }));
 }
 
@@ -261,9 +262,12 @@ export function salvageBackup(x, env) {
 }
 
 // ── Sent messages ──
-// A message expires 40 blocks after the block that it was built for (ZIP 203). Once the synced
-// height is past that, a message that no block holds will never get in.
-export const EXPIRY_BLOCKS = 40, EXPIRY_MARGIN = 3;
+// A message expires at the expiry height that the engine set when it built the message: 120
+// blocks after the block that it was built for from NU7 on, 40 before (ZIP 218). Once the synced
+// height is past that, a message that no block holds will never get in. A record from before NU7
+// has no `expiry`, and the engine of that time set 40 blocks.
+export const OLD_EXPIRY_BLOCKS = 40, EXPIRY_MARGIN = 3;
+export const expiryOf = (rec) => rec.expiry ?? rec.tip + 1 + OLD_EXPIRY_BLOCKS;
 
 // "chain" (a block holds it), "failed" (a node answered and refused it), "expired" (the network
 // took no block of it in time), "sending" (a server took it, or this page sends it now) or
@@ -273,7 +277,7 @@ export const EXPIRY_BLOCKS = 40, EXPIRY_MARGIN = 3;
 export function sentState(rec, { sent, height, live }) {
   if (sent.has(rec.txid)) return "chain";
   if (rec.failed) return "failed";
-  const late = Number.isFinite(height) && height >= rec.tip + 1 + EXPIRY_BLOCKS + EXPIRY_MARGIN;
+  const late = Number.isFinite(height) && height >= expiryOf(rec) + EXPIRY_MARGIN;
   if (late) return "expired";
   return rec.broadcast || live ? "sending" : "unsure";
 }

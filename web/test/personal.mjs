@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import * as Z from "../pkg/zigs_engine.js";
 import {
   accountBackupName, accountBalance, addContact, backupPayload, balanceWarnings,
-  CONTACT_INDEX_MAX, EXPIRY_BLOCKS, feeFor, feeText, fundingPayees, fundingWarning, highestIndex,
+  CONTACT_INDEX_MAX, expiryOf, feeFor, feeText, fundingPayees, fundingWarning, highestIndex,
   HIGH_TEXT, holdsNotes, LOW_BALANCE, LOW_TEXT, MAX_CONTACTS, messagePlan, MIN_FUND, nameError,
   newPersonal, nextIndex, normPersonal, NOT_PERSONAL, otherWhere, readBackup, receivedItems,
   removeWarning, restoredPersonal, routeItems, salvageBackup, SENT_WORDS, sendGate, sentNote,
@@ -227,13 +227,18 @@ assert.equal(accountBackupName("testnet"), "zigs-personal-testnet.zigsbackup");
 const saved = JSON.parse(JSON.stringify({ ...mineAcct, backedUp: true, sent: [
   { txid: "t1", to: 1, text: "hi", at: 5, tip: 9, fee: 10000, parts: 1, note_value: 3, change: 2,
     broadcast: true },
+  { txid: "t3", to: 1, text: "hi", at: 6, tip: 9, fee: 10000, parts: 1, note_value: 3, change: 2,
+    broadcast: true, expiry: 130 },
+  { txid: "t4", to: 1, text: "hi", at: 7, tip: 9, expiry: "soon" },
   { txid: 5, to: 1, text: "bad", at: 5, tip: 9 }, null,
   { txid: "t2", to: "x", text: "bad", at: 1, tip: 1 },
 ] }));
 const norm = normPersonal(saved, env);
-assert.equal(norm.sent.length, 1, "a bad entry of the history is dropped");
+assert.equal(norm.sent.length, 3, "a bad entry of the history is dropped");
 assert.deepEqual(norm.sent[0], { txid: "t1", to: 1, text: "hi", at: 5, tip: 9, fee: 10000, parts: 1,
   note_value: 3, change: 2, broadcast: true, failed: "" });
+assert.equal(norm.sent[1].expiry, 130, "the record keeps the expiry height of the engine");
+assert.equal("expiry" in norm.sent[2], false, "an expiry that is no number is dropped");
 assert.deepEqual([norm.seed, norm.backedUp, norm.snapKey, norm.contacts],
   [acct.seed, true, "k".repeat(43), list]);
 assert.equal(normPersonal(null, env), null);
@@ -292,12 +297,20 @@ assert.equal(at(100, [], { failed: "refused" }), "failed", "a node answered and 
 assert.equal(at(100, [], { broadcast: false }), "unsure", "the page closed before it sent");
 assert.equal(sentState({ ...rec, broadcast: false }, { sent: new Set(), height: 100, live: true }),
   "sending", "the page is sending it now");
-const last = rec.tip + 1 + EXPIRY_BLOCKS + 3;
+const last = rec.tip + 1 + 40 + 3;
 assert.equal(at(last - 1), "sending");
 assert.equal(at(last), "expired");
 assert.equal(at(last - 1, [], { broadcast: false }), "unsure");
 assert.equal(at(last, [], { broadcast: false }), "expired", "it frees the notes at the end");
 assert.equal(at(last, ["t1"], { broadcast: false }), "chain", "a block that holds it wins");
+// A message from NU7 on has the expiry height that the engine set: 120 blocks.
+const nu7 = { expiry: rec.tip + 1 + 120 };
+assert.equal(expiryOf(rec), rec.tip + 1 + 40, "a record from before NU7 has no expiry");
+assert.equal(expiryOf({ ...rec, ...nu7 }), rec.tip + 121);
+assert.equal(at(last, [], nu7), "sending", "the old 40 blocks do not apply");
+assert.equal(at(rec.tip + 121 + 2, [], nu7), "sending");
+assert.equal(at(rec.tip + 121 + 3, [], nu7), "expired");
+assert.equal(at(rec.tip + 121 + 3, [], { ...nu7, broadcast: false }), "expired");
 assert.equal(at(undefined), "sending", "no height: wait");
 assert.equal(at(undefined, [], { broadcast: false }), "unsure");
 assert.deepEqual(["sending", "unsure", "chain", "failed", "expired"].map(holdsNotes),
