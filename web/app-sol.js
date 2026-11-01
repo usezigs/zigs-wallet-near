@@ -116,7 +116,7 @@ export const solHost = () => ({
   recipientSelect,
   exclusive, takeStored,
   canWriteAs, localSeats, seatIds, checkIn, safetyNo, seatCheck, confirmedNo, openGroup, restore,
-  groupVersion, sealAndSave, network: () => netName(state.g),
+  groupVersion, sealAndSave, network: () => netName(state.g), netConfirmed, mode: "pool",
   askBackup: (words) => { ui.backup = { words, made: false, busy: false }; render(); },
   newWallet,
 });

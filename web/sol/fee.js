@@ -6,8 +6,8 @@
 // with another key is forged or broken: the page writes nothing over it, and the seat says that
 // it cannot pay. An approver takes the payer of a proposal from the document of the proposing
 // seat and never from the proposal.
-import { CLUSTER } from "./docs.js";
 import { holdsShare, solOf } from "./secrets.js";
+import { labelOf } from "./wallet.js";
 
 const J = JSON.parse;
 const isKey = (v) => typeof v === "string" && /^[0-9a-f]{64}$/.test(v);
@@ -23,7 +23,7 @@ export function feeOf(c, seat) {
 /** The fee key (hex) that seat `seat` published in a valid signed document, or undefined. */
 export function publishedFee(c, seat) {
   const doc = c.docs.solfee?.[seat];
-  return isKey(doc?.key) && doc.cluster === CLUSTER ? doc.key : undefined;
+  return isKey(doc?.key) && doc.cluster === labelOf(c) ? doc.key : undefined;
 }
 
 /** True when the seat has a fee key and no valid document shows a key for it. */
@@ -49,12 +49,13 @@ export const mismatchText = (seat) =>
 
 /** The reactor step: publish the signed document of the fee key of a seat. */
 export async function publishFee(c, seat) {
-  const held = feeOf(c, seat);
+  const label = labelOf(c),
+    held = feeOf(c, seat);
   if (held === null) return;
   const rel = "solfee/" + seat;
   const doc = await c.host.signedDoc(c.gid, rel, seat, {
     key: held.key,
-    cluster: CLUSTER,
+    cluster: label,
     at: Date.now(),
   });
   await c.host.sdb.doc(c.base + "/" + rel).set(doc);

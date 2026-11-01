@@ -58,7 +58,7 @@ export const NAMES = [
   "setChain", "setDb", "setDownloads", "setGkeys", "setIdb", "setIdbMs", "setLocked", "setMe",
   "setMemoReading", "setModal", "setPersonal", "setSecrets", "settleRestore", "setVault", "setZ",
   "showBanner", "showOffline", "signedDoc", "signedMode", "signing", "signPins", "sigPart", "sol",
-  "solError",
+  "solError", "solHost",
   "solAttach", "solLoad", "solLoading", "solNotAdded", "solOn", "solPending", "solPendingRows",
   "solTab",
   "staleRestoreNote",

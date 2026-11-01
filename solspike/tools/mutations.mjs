@@ -21,6 +21,7 @@ const patch = (file, from, to = "") => ({ file, from, to });
 // web/test pins. They run in the node rig (sol-rig.mjs), without a server or a browser.
 const SOL_APP = ["node", "web/test/sol-app.mjs"];
 const SOL_CEREMONY = ["node", "web/test/sol-ceremony.mjs"];
+const SOL_PLAIN = ["node", "web/test/sol-plain-ceremony.mjs"];
 const UNIFIED = ["node", "web/test/unified-setup.mjs"];
 const NONCE_TABS = ["node", "web/test/sol-nonce-tabs.mjs"];
 const APP_TEST = ["node", "web/test/app.mjs"];
@@ -151,6 +152,13 @@ const mutant = (id, what, run, patches, expect) => ({
 });
 
 const LABEL_LINE = "  d.program === W.sol_program_label();";
+// The plain Solana wallet (web/sol/wallet.js, web/sol/plain/control.js): each mutant undoes one
+// rule of sol-plain-ceremony.mjs, which names it in the message that `detect` matches.
+const PLAIN_CONTROL = "web/sol/plain/control.js";
+const SHAPED_PLAIN =
+  "HEX(32)(d.groupKey) && d.cluster === labelOf(c) && d.program === programOf(c)";
+const plainMutant = (id, what, [file, from, to], detect) =>
+  mutant(id, what, SOL_PLAIN, [patch(file, from, to)], { detect, ms: 240000 });
 const POOL_AND_REGISTRY =
   '"zolana-devnet:sppU489D7A4U1exNo1oeMGZtLEofq3a6o2fR7UeoWB6:' +
   'regyS5rkAcw2YzDJCmTwCTHs2s246FXxbmuRZ42u2PD"';
@@ -846,6 +854,61 @@ export const MUTATIONS = [
   mutant("W-label-const", "a seat compares the label with a text of the page, not of the wasm",
     SOL_CEREMONY, [patch(SOL_CEREMONY_JS, LABEL_LINE, `  d.program === ${POOL_AND_REGISTRY};`)],
     /another label/),
+  plainMutant("PL-map-cluster", "a mainnet wallet gets the cluster devnet",
+    ["web/sol/wallet.js", 'mainnet: "mainnet" };', 'mainnet: "devnet" };'],
+    /a mainnet wallet is on the mainnet cluster/),
+  plainMutant("PL-map-mode", "a mainnet wallet gets the pool mode",
+    ["web/sol/wallet.js", 'mainnet: "plain" };', 'mainnet: "pool" };'],
+    /mainnet is a plain wallet/),
+  plainMutant("PL-net-source", "the plain controller opens a wallet by the network first seen",
+    [PLAIN_CONTROL, "walletOf(c.W, c.host.netConfirmed(gid))", "walletOf(c.W, c.host.network())"],
+    /an unconfirmed mainnet wallet is not opened/),
+  plainMutant("PL-start-net", "the plain start accepts the network first seen",
+    [SOL_CEREMONY_JS, 'host.netConfirmed(host.state.gid) === "mainnet" ? null : PLAIN_NET;',
+      'host.network() === "mainnet" ? null : PLAIN_NET;'],
+    /an unconfirmed mainnet wallet may not start/),
+  plainMutant("PL-start-label", "a start document is compared with the pool label",
+    [SOL_CEREMONY_JS, "docs.solstart[1]?.cluster === label;",
+      "docs.solstart[1]?.cluster === CLUSTER;"],
+    /timeout: plain soldone/),
+  plainMutant("PL-pda-gate", "a plain soldone is published again for a PDA identity",
+    [SOL_CEREMONY_JS, "return !isPlain(c) && holdsShare(s)", "return holdsShare(s)"],
+    /soldone\/\d was written once/),
+  plainMutant("PL-done-fields", "a plain soldone carries the pool fields too",
+    [SOL_CEREMONY_JS, "plainDoneFields(c, s, label) : doneFields(W, s);",
+      "{ ...doneFields(W, s), ...plainDoneFields(c, s, label) } : doneFields(W, s);"],
+    /a plain soldone holds no pool role|timeout: plain solfee/),
+  plainMutant("PL-shaped-label", "a plain soldone may carry another label",
+    [SOL_CEREMONY_JS, SHAPED_PLAIN, "HEX(32)(d.groupKey) && d.program === programOf(c)"],
+    /a soldone with the label devnet-plain/),
+  plainMutant("PL-shaped-program", "a plain soldone may carry another program label",
+    [SOL_CEREMONY_JS, SHAPED_PLAIN, "HEX(32)(d.groupKey) && d.cluster === labelOf(c)"],
+    /a soldone with the program label of the pool/),
+  plainMutant("PL-drift", "a seat secret of another label runs on a plain wallet",
+    [SOL_CEREMONY_JS, '  if (driftOf(c, s)) return launch(c, "drift:" + i, () => abortSeat(c, i, '
+      + "new Error(DRIFT)));\n", ""],
+    /timeout: a stop of seat 2/),
+  plainMutant("PL-pool-guard", "the pool controller opens a mainnet wallet",
+    ["web/sol/main.js", 'if (!gid || c.host.netConfirmed(gid) !== "testnet") return;',
+      "if (!gid) return;"],
+    /the pool controller does not open a mainnet wallet/),
+  plainMutant("PL-plain-guard", "the plain controller opens a testnet wallet",
+    [PLAIN_CONTROL, 'if (wallet?.mode !== "plain") return;', "if (!wallet) return;"],
+    /a confirmed testnet wallet is no plain wallet/),
+  plainMutant("PL-plain-version", "the plain controller opens a wallet before version 3",
+    [PLAIN_CONTROL, "if (!gid || c.host.groupVersion() !== 3) return;", "if (!gid) return;"],
+    /a wallet before version 3 is not opened/),
+  plainMutant("PL-fee-label", "the fee document of a plain seat names the pool label",
+    ["web/sol/fee.js", "    cluster: label,\n", '    cluster: "devnet",\n'],
+    /the fee document names the label/),
+  plainMutant("PL-roles", "a plain seat derives the pool roles in round 3",
+    [SOL_CEREMONY_JS, "if (!isPlain(c)) W.sol_roles(r.sol_seed, r.group_key);",
+      "W.sol_roles(r.sol_seed, r.group_key);"],
+    /a plain wallet has no pool roles/),
+  plainMutant("PL-import", "the plain controller imports the session module of the pool",
+    [PLAIN_CONTROL, 'import { reactAborts } from "../abort.js";\n',
+      'import { reactAborts } from "../abort.js";\nimport "../session.js";\n'],
+    /no pool module in the closure of the plain controller: sol\/session\.js/),
   mutant("W-share-check", "the restore does not ask the wasm if the key share fits", SOL_APP,
     [patch("web/sol/backup.js", SHARE_CALL, "false &&")], /AssertionError/),
   mutant("P3-ps", "the sampling ps counts", only("^P3"),
@@ -1141,7 +1204,7 @@ export const MUTATIONS = [
     ["web/sol/payview.js", "  if (feeMismatch(c, seat)) {", "  if (false) {"],
     ["node", "web/test/sol-fee.mjs"], /no address to fund/),
   payment("F-cluster", "a fee document of another cluster counts as the document of the seat",
-    ["web/sol/fee.js", "isKey(doc?.key) && doc.cluster === CLUSTER ?", "isKey(doc?.key) ?"],
+    ["web/sol/fee.js", "isKey(doc?.key) && doc.cluster === labelOf(c) ?", "isKey(doc?.key) ?"],
     ["node", "web/test/sol-fee.mjs"], /another cluster: one write, then it stops/),
   // The proposals from before the fee keys (ZOLANA.md 5) and the kinds that run as a session.
   payment("F-old-id", "a landed proposal from before the fee keys is looked up by the wrong id",

@@ -1,7 +1,8 @@
 // The Solana part of the page (ZOLANA.md 3). app-sol.js loads this file with a dynamic import when
 // the Solana tab of a version 3 testnet wallet opens, when a seat signed the solstart document, or
 // early for a wallet whose group document asks for Solana (the M3 hint), so the ceremony does not
-// wait for it.
+// wait for it. This is the pool controller: it opens a confirmed testnet wallet only. The plain
+// wallet of a confirmed mainnet wallet has its own controller, plain/control.js.
 // `attach(host)` asks the server for the Helius URL, loads the Solana wasm and returns the
 // controller that the page calls: open and close follow the open wallet, react advances the
 // ceremony, the stops and the signing sessions, view builds the tab, restore takes a backup.
@@ -152,7 +153,7 @@ function watchSessions(c, gid, base) {
 
 function openGroup(c, gid, base) {
   teardown(c);
-  if (!gid) return;
+  if (!gid || c.host.netConfirmed(gid) !== "testnet") return;
   Object.assign(c, { gid, base });
   for (const name of COLLECTIONS) {
     const onDocs = (snap) => {

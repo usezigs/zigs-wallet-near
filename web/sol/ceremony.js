@@ -6,6 +6,7 @@ import { deviceWords, fitsPublished, samePackages } from "../util.js";
 import { CLUSTER } from "./docs.js";
 import { feeUnpublished, publishFee } from "./fee.js";
 import { holdsShare, putSol, refuseStopped, solOf, stopOf } from "./secrets.js";
+import { isPlain, labelOf, programOf } from "./wallet.js";
 
 const J = JSON.parse,
   S = JSON.stringify;
@@ -31,16 +32,24 @@ const stopText = (e) =>
   deviceWords(e?.message ?? e).replace(/\.+$/, "") +
   ". Do not use the Solana part of this wallet.";
 
-/** Why this wallet cannot get a Solana part, or null. Version 3 and testnet only. */
+const PLAIN_NET = "The plain Solana wallet runs on a mainnet wallet that its people confirmed.";
+
+/**
+ * Why this wallet cannot get a Solana part, or null. Version 3 only. The pool controller needs
+ * testnet. The plain controller (host.mode "plain") needs the mainnet that the people confirmed.
+ */
 export function startBlock(host) {
   if (host.groupVersion() !== 3) return "Solana needs a version 3 wallet.";
+  if (host.mode === "plain") {
+    return host.netConfirmed(host.state.gid) === "mainnet" ? null : PLAIN_NET;
+  }
   if (host.network() !== "testnet")
     return "Solana runs on Devnet only. A mainnet wallet gets none.";
   return null;
 }
 
-/** The start document of seat 1 names the cluster of this build. */
-export const started = (docs) => docs.solstart[1]?.cluster === CLUSTER;
+/** The start document of seat 1 names the label of this wallet (a pool wallet: the cluster). */
+export const started = (docs, label = CLUSTER) => docs.solstart[1]?.cluster === label;
 
 const numberMoved = (host, i) => {
   const kept = host.confirmedNo(i),
@@ -93,10 +102,10 @@ const needR2 = (c, i, s) =>
 const needR3 = (c, i, s) => !!s.r2secret && !s.keyPackage && allR1(c) && r2For(c, i);
 const needDone = (c, i, s) => !!s.keyPackage && !s.doneSent && !c.docs.soldone[i];
 // A seat that published its soldone before the program design publishes it again with the PDA
-// identity, once the seats agree on the rest.
+// identity, once the seats agree on the rest. A plain soldone never has one.
 const needPdaDoc = (c, i, s) => {
   const doc = c.docs.soldone[i];
-  return holdsShare(s) && !!doc && !hasPda(doc) && agreement(c).state === "agree";
+  return !isPlain(c) && holdsShare(s) && !!doc && !hasPda(doc) && agreement(c).state === "agree";
 };
 
 /** Seals the failure into the seat: the reactor does not retry a seat that stopped. */
@@ -124,12 +133,14 @@ function round1Docs(c) {
 }
 
 /** The echo: one digest of every round-1 document, so a seat that saw other data is found. */
-const echoNow = (c) => c.W.sol_echo(c.gid, c.host.safetyNo(), CLUSTER, S(round1Docs(c)));
+const echoNow = (c, label) =>
+  c.W.sol_echo(c.gid, c.host.safetyNo(), label, S(round1Docs(c)));
 
 async function round1(c, i) {
   const { host, W, gid, base } = c,
     g = host.state.g,
-    boxPk = host.state.seats[i].boxPk; // read before the first await: another wallet may open
+    label = labelOf(c), // read before the first await, as the box key: another wallet may open
+    boxPk = host.state.seats[i].boxPk;
   // Two copies of one seat (a device and a restored copy) must not both publish round 1. A document
   // that fails its signature check does not count, so a seat still publishes one again.
   const ref = host.sdb.doc(base + "/soldkg1/" + i);
@@ -142,7 +153,7 @@ async function round1(c, i) {
       r1secret: r.secret,
       r1package: r.package,
       rSol: randomHex32(),
-      cluster: CLUSTER,
+      cluster: label,
     };
     if (!(await putSol(host, gid, i, made))) {
       await putSol(host, gid, i, { r1secret: null, r1package: null, rSol: null, cluster: null });
@@ -151,7 +162,7 @@ async function round1(c, i) {
     }
     s = solOf(host, gid, i);
   }
-  const commit = W.sol_commit(gid, i, boxPk, CLUSTER, s.rSol);
+  const commit = W.sol_commit(gid, i, boxPk, label, s.rSol);
   const fields = { package: s.r1package, commit, at: Date.now() };
   const doc = await host.signedDoc(gid, "soldkg1/" + i, i, fields);
   if (c.docs.soldkg1[i]) return pause();
@@ -188,9 +199,10 @@ function makeBoxes(c, i, s) {
 
 async function round2(c, i) {
   const { host, gid, base } = c,
+    label = labelOf(c),
     s = solOf(host, gid, i);
   const { echo, made } = await guarded(c, i, () => ({
-    echo: s.echo ?? echoNow(c),
+    echo: s.echo ?? echoNow(c, label),
     made: makeBoxes(c, i, s),
   }));
   await putSol(host, gid, i, { echo });
@@ -227,7 +239,7 @@ function unboxFrom(c, j, i) {
 // the round-1 documents and requires that it equals the echo that this seat saved and the echo
 // that each other seat signed in its round-2 documents. Then it checks every commitment (and
 // names the first seat that does not match), and only then it runs the key share.
-function openRound3(c, i, s) {
+function openRound3(c, i, s, label) {
   const { host, W, gid } = c,
     seats = host.state.seats,
     r2 = {},
@@ -241,16 +253,17 @@ function openRound3(c, i, s) {
   }
   const safety = host.safetyNo();
   const echo = s.echo;
-  const ctx = S({ walletId: gid, safety, cluster: CLUSTER, seat: i, echo, peerEchoes, parts });
+  const ctx = S({ walletId: gid, safety, cluster: label, seat: i, echo, peerEchoes, parts });
   const r = J(W.sol_dkg3(S(s.r2secret), S(round1Docs(c)), S(r2), ctx));
-  W.sol_roles(r.sol_seed, r.group_key);
+  if (!isPlain(c)) W.sol_roles(r.sol_seed, r.group_key);
   return r;
 }
 
 async function round3(c, i) {
   const { host, gid } = c,
+    label = labelOf(c),
     s = solOf(host, gid, i);
-  const r = await guarded(c, i, () => openRound3(c, i, s));
+  const r = await guarded(c, i, () => openRound3(c, i, s, label));
   const saved = await putSol(host, gid, i, {
     keyPackage: r.key_package,
     publicKeyPackage: r.public_key_package,
@@ -315,10 +328,24 @@ function doneFields(W, s) {
   };
 }
 
+/**
+ * The soldone fields of a plain seat: the group key, the public key package, the label and the
+ * program label. A plain wallet has no pool roles, no address and no PDA identity.
+ */
+const plainDoneFields = (c, s, label) => ({
+  groupKey: s.groupKey,
+  publicKeyPackage: S(s.publicKeyPackage),
+  cluster: label,
+  program: programOf(c),
+  at: Date.now(),
+});
+
 async function publishDone(c, i) {
   const { host, W, gid, base } = c,
+    label = labelOf(c),
     s = solOf(host, gid, i);
-  const doc = await host.signedDoc(gid, "soldone/" + i, i, doneFields(W, s));
+  const fields = isPlain(c) ? plainDoneFields(c, s, label) : doneFields(W, s);
+  const doc = await host.signedDoc(gid, "soldone/" + i, i, fields);
   await host.sdb.doc(base + "/soldone/" + i).set(doc);
   await putSol(host, gid, i, { doneSent: true });
   const key = s.groupKey.slice(0, 12);
@@ -343,9 +370,17 @@ const STEPS = [
   ["feedoc", (c, i) => c.loaded.solfee && feeUnpublished(c, i), publishFee],
 ];
 
+const DRIFT = "This seat holds a Solana part of another network or mode.";
+// A seat secret that holds ceremony material names the label it was made for (none: the pool on
+// Devnet). A part of another label never runs on this wallet: the key package carries no mode
+// (ZOLANA.md 3.9, limit 2).
+const driftOf = (c, s) =>
+  (!!s.r1secret || !!s.r2secret || !!s.keyPackage) && (s.cluster ?? CLUSTER) !== labelOf(c);
+
 function stepSeat(c, i) {
   const s = solOf(c.host, c.gid, i);
   if (s.aborted) return false;
+  if (driftOf(c, s)) return launch(c, "drift:" + i, () => abortSeat(c, i, new Error(DRIFT)));
   const open = seatReady(c.host, c.gid, i);
   const step = STEPS.find(([, due]) => due(c, i, s, open));
   return step ? launch(c, step[0] + ":" + i, () => step[2](c, i)) : false;
@@ -385,14 +420,15 @@ const autoStart = (c) => AUTO.every((due) => due(c)) && launch(c, "solstart", ()
 export function reactCeremony(c) {
   const { host } = c;
   autoStart(c);
-  if (startBlock(host) || !started(c.docs) || c.wait > 0 || stopOnDiffer(c)) return;
+  if (startBlock(host) || !started(c.docs, labelOf(c)) || c.wait > 0 || stopOnDiffer(c)) return;
   if (stopOf(c)) return;
   for (const i of host.localSeats()) if (host.canWriteAs(i)) stepSeat(c, i);
 }
 
 /** Seat 1 starts the ceremony with the signed start document. */
 export async function addSolana(c) {
-  const { host, gid, base } = c;
+  const { host, gid, base } = c,
+    label = labelOf(c);
   refuseStopped(c);
   const why = startBlock(host) ?? (c.docs.solstart[1] ? "Solana was added already." : null);
   if (why) throw new Error(why);
@@ -401,7 +437,7 @@ export async function addSolana(c) {
   }
   const wait = waitOf(host, gid, 1);
   if (wait) throw new Error(wait);
-  const doc = await host.signedDoc(gid, "solstart/1", 1, { cluster: CLUSTER, at: Date.now() });
+  const doc = await host.signedDoc(gid, "solstart/1", 1, { cluster: label, at: Date.now() });
   await host.sdb.doc(base + "/solstart/1").set(doc);
 }
 
@@ -496,6 +532,10 @@ function pdaOf(c, dones) {
   return seat === undefined ? {} : pdaFields(c.W, solOf(c.host, c.gid, seat));
 }
 
+// Does the key share of seat `seat` fit its soldone? A plain share has no pool keys to compare.
+const fitsLocal = (c, seat, s, done) =>
+  isPlain(c) ? !!done && fitsPublished(seat, s, done) : fitsSolana(c.W, seat, s, done);
+
 /**
  * Why a key share of this browser does not fit the documents, or null: its own soldone, and the
  * PDA identity that a soldone of another seat names (its own may be from before the PDA).
@@ -503,7 +543,7 @@ function pdaOf(c, dones) {
 function localMisfit(c, dones) {
   const { host, W, docs } = c;
   const mine = host.localSeats().filter((i) => solOf(host, c.gid, i).keyPackage);
-  const bad = mine.find((i) => !fitsSolana(W, i, solOf(host, c.gid, i), docs.soldone[i]));
+  const bad = mine.find((i) => !fitsLocal(c, i, solOf(host, c.gid, i), docs.soldone[i]));
   if (bad) return "The Solana key share of device " + bad + " does not fit.";
   const named = dones.find(hasPda);
   const seat = mine.find((i) => holdsShare(solOf(host, c.gid, i)));
@@ -513,12 +553,7 @@ function localMisfit(c, dones) {
   return fits ? null : "The PDA identity of the documents does not fit the key share here.";
 }
 
-/**
- * What the seats published. "wait": a seat has not finished. "agree": every soldone is equal and
- * well formed and each key share of this browser fits its own. Else "differ", with a reason.
- * `done` is the common document when they agree.
- */
-export function agreement(c) {
+function poolAgreement(c) {
   const { host, docs, W } = c,
     dones = host.seatIds().map((i) => docs.soldone[i]);
   if (!dones.length || !dones.every(Boolean)) return { state: "wait" };
@@ -531,3 +566,26 @@ export function agreement(c) {
   if (why) return { state: "differ", why };
   return { state: "agree", done: { ...dones[0], ...pdaOf(c, dones) } };
 }
+
+const SAME_PLAIN = ["groupKey", "cluster", "program"];
+const shapedPlain = (c, d) =>
+  HEX(32)(d.groupKey) && d.cluster === labelOf(c) && d.program === programOf(c) && !hasPda(d);
+
+function plainAgreement(c) {
+  const dones = c.host.seatIds().map((i) => c.docs.soldone[i]);
+  if (!dones.length || !dones.every(Boolean)) return { state: "wait" };
+  const same =
+    SAME_PLAIN.every((k) => dones.every((d) => d[k] === dones[0][k])) &&
+    samePackages(dones.map((d) => d.publicKeyPackage));
+  if (!same || !dones.every((d) => shapedPlain(c, d)))
+    return { state: "differ", why: "The devices published different Solana keys." };
+  const why = localMisfit(c, dones);
+  return why ? { state: "differ", why } : { state: "agree", done: { ...dones[0] } };
+}
+
+/**
+ * What the seats published. "wait": a seat has not finished. "agree": every soldone is equal and
+ * well formed and each key share of this browser fits its own. Else "differ", with a reason.
+ * `done` is the common document when they agree. A plain wallet has its own shape (plainAgreement).
+ */
+export const agreement = (c) => (isPlain(c) ? plainAgreement : poolAgreement)(c);

@@ -89,7 +89,8 @@ TESTS=(messaging-presentation messaging-cost-review messaging-account-view premi
   requests account personal payees
   vault util qr shim shim-status
   lwd zns near-quote
-  sol-config sol-docs sol-ceremony sol-app sol-wasm sol-sessions sol-limits sol-pay sol-pay-exec
+  sol-config sol-docs sol-ceremony sol-plain-ceremony sol-app sol-wasm sol-sessions sol-limits
+  sol-pay sol-pay-exec
   sol-pay-seats sol-pay-lease sol-pay-look sol-pay-end sol-transfer
   unified-setup help
   graph sol-fee sol-rent sol-errors sol-prove demo-check mainnet-on mempool chain-fallback smoke
