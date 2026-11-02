@@ -468,6 +468,27 @@ console.log("ok  no call for a hidden tab or a closed wallet; the 30 s call asks
     "seat 3 makes the same address from the keys in another order");
   console.log("ok  three seats publish signed keys and make one 2-of-3 address");
 
+  // The real store calls a watch again only for a write under its path, and the keys arrive
+  // before the seats load. So the reactor publishes them, not the first snapshot.
+  for (const seat of [1, 2, 3]) rig.data.delete(`groups/${tg}/p2sh/${seat}`);
+  t.openGroup(null);
+  t.openGroup(tg);
+  await rig.waitFor("the keys after a reopen", () => keyDocs(tg).every(Boolean));
+  await rig.waitFor("the address after a reopen", () => groupTaddress().address === address);
+  console.log("ok  the reactor publishes the keys after the seats load");
+
+  // Seat 3 signs another key later: the address does not move to it.
+  const { signedDoc } = await import("../app-filter.js");
+  const first = rig.data.get(`groups/${tg}/p2sh/3`);
+  const other = await signedDoc(tg, "p2sh/3", 3, { v: 1, key: docs[0].key });
+  await rig.db.doc(`groups/${tg}/p2sh/3`).set(other);
+  await rig.waitFor("the changed key", () => /^Device 3 published another/.test(
+    groupTaddress().error ?? ""));
+  rig.data.set(`groups/${tg}/p2sh/3`, first);
+  rig.notify();
+  await rig.waitFor("the first key again", () => groupTaddress().address === address);
+  console.log("ok  a seat that signs another key later hides the address");
+
   // An engine that fails a balance read at once, then a stub that answers with two payments.
   const before = engine.Z;
   const offline = { ...before, transparentUtxos: async () => { throw new Error("offline"); } };
@@ -493,6 +514,7 @@ console.log("ok  no call for a hidden tab or a closed wallet; the 30 s call asks
   const swapped = await rig.wallet({ name: "Swapped key" });
   await rig.waitFor("three key documents", () => keyDocs(swapped).every(Boolean));
   await real(300);
+  await rig.waitFor("the checks of the keys", () => groupTaddress().published === 2);
   assert.deepEqual(groupTaddress(), { published: 2, of: 3 }, "the swapped key does not check");
   assert.equal(writes, 1, "seat 3 wrote its key once, not again on each snapshot");
   assert.match(shown(), /2 of 3 devices published their key/);

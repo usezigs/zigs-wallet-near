@@ -48,16 +48,18 @@ pub fn p2sh_key(key_package: &str, net: &str) -> R<String> {
     Ok(account_key(key_package, &net)?.to_account_pubkey().key_info_expression(&net))
 }
 
-/// The P2SH address of the group: `t` signatures of the `keys` of all seats (the published key
-/// information expressions, in any order). The key of this seat (`key_package`) must be among
-/// them exactly once, and no two seats may have the same key: a key twice in the script would
-/// let one seat give two of the `t` signatures. Returns JSON {address, redeem_script (hex)}.
+/// The P2SH address of the group: `t` signatures (at least 2) of the `keys` of all seats (the
+/// published key information expressions, in any order). The key of this seat (`key_package`)
+/// must be among them exactly once, and no two seats may have the same key: a key twice in the
+/// script would let one seat give two of the `t` signatures. Returns JSON {address,
+/// redeem_script (hex)}.
 pub fn p2sh_address(t: u32, keys: &[String], key_package: &str, net: &str) -> R<String> {
     let net = network(net)?;
     if keys.is_empty() || keys.len() > MAX_KEYS {
         return Err(format!("a group address needs 1 to {MAX_KEYS} keys, not {}", keys.len()));
     }
-    let fits = |t: &NonZeroU8| usize::from(t.get()) <= keys.len();
+    // One signature would let one seat spend alone.
+    let fits = |t: &NonZeroU8| (2..=keys.len()).contains(&usize::from(t.get()));
     let threshold = u8::try_from(t).ok().and_then(NonZeroU8::new).filter(fits);
     let threshold = threshold.ok_or(format!("the threshold {t} does not fit {} keys", keys.len()))?;
     let parse = |(i, k): (usize, &String)| {
@@ -151,6 +153,7 @@ mod tests {
         };
         assert!(err(0, &keys, &packages[0]).contains("threshold 0"));
         assert!(err(4, &keys, &packages[0]).contains("threshold 4"));
+        assert!(err(1, &keys, &packages[0]).contains("threshold 1"));
         assert!(err(2, &[], &packages[0]).contains("1 to 15 keys"));
         assert!(err(2, &vec![keys[0].clone(); 16], &packages[0]).contains("not 16"));
         let not_mine = [keys[1].clone(), keys[2].clone()];

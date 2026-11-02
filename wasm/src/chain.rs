@@ -1075,9 +1075,10 @@ pub async fn js_latest_height(endpoint: String) -> Result<u32, JsError> {
 const MAX_UTXOS: u32 = 100;
 
 /// The unspent outputs of the transparent `address` that the light-wallet server lists, and their
-/// sum: JSON {total, utxos: [{txid, index, value, height}]}. The txid is in the order that
-/// explorers use. The server can hide an output or invent one: a spend commits to the value and
-/// the script of each input (ZIP 244), so an invented output makes a spend fail and loses nothing.
+/// sum: JSON {total, utxos: [{txid, index, value, height}], more}. `more` says that the server
+/// listed `MAX_UTXOS` outputs, so it can hold more. The txid is in the order that explorers use.
+/// The server can hide an output or invent one: a spend commits to the value and the script of
+/// each input (ZIP 244), so an invented output makes a spend fail and loses nothing.
 async fn utxos_of(endpoint: &str, address: &str) -> R<String> {
     let arg = GetAddressUtxosArg {
         addresses: vec![address.to_string()],
@@ -1095,13 +1096,15 @@ fn utxo_json(
     let mut utxos = Vec::with_capacity(list.len());
     for u in list.iter().filter(|u| u.address == address) {
         let value = u64::try_from(u.value_zat).map_err(|_| "lightwalletd: a negative value")?;
+        ensure(value <= MAX_MONEY, "lightwalletd: a value above the money supply")?;
         total = total.checked_add(value).ok_or("lightwalletd: the values overflow")?;
         let mut txid = u.txid.clone();
         txid.reverse();
         utxos.push(json!({"txid": hex::encode(txid), "index": u.index, "value": value,
             "height": u.height}));
     }
-    Ok(json!({"total": total, "utxos": utxos}).to_string())
+    let more = list.len() >= MAX_UTXOS as usize;
+    Ok(json!({"total": total, "utxos": utxos, "more": more}).to_string())
 }
 
 #[wasm_bindgen(js_name = transparentUtxos)]
@@ -1504,9 +1507,13 @@ mod tests {
         let out = v(&utxo_json("t3a", &[row("t3a", 5), row("t3b", 7), row("t3a", 6)]).unwrap());
         assert_eq!(out["total"], 11);
         assert_eq!(out["utxos"][0], json!({"txid": "0201", "index": 3, "value": 5, "height": 9}));
+        assert_eq!(out["more"], false);
         assert!(utxo_json("t3a", &[row("t3a", -1)]).unwrap_err().contains("negative"));
-        assert!(utxo_json("t3a", &[row("t3a", i64::MAX), row("t3a", i64::MAX), row("t3a", 2)])
-            .unwrap_err().contains("overflow"));
+        let most = MAX_MONEY as i64;
+        assert_eq!(v(&utxo_json("t3a", &[row("t3a", most)]).unwrap())["total"], most);
+        assert!(utxo_json("t3a", &[row("t3a", most + 1)]).unwrap_err().contains("money supply"));
+        let full: Vec<_> = (0..MAX_UTXOS as i64).map(|i| row("t3a", i)).collect();
+        assert_eq!(v(&utxo_json("t3a", &full).unwrap())["more"], true);
     }
 
     #[test]

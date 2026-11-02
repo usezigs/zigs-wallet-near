@@ -36,6 +36,7 @@ import {
 import { recipientsView } from "./app-recipients.js";
 import { sessionLayer } from "./app-drawer.js";
 import { solPending, solReact } from "./app-sol.js";
+import { publishTaddressKeys } from "./app-taddress.js";
 import { groupView, walletHeader, walletShown } from "./app-wallet.js";
 import { closeSetupQr, setupQrDialog } from "./app-setup.js";
 import { endSend, receiveDialog, sendDialog } from "./app-send.js";
@@ -82,7 +83,7 @@ function reactNow() {
   reactStops();
   reactConfirm();
   for (const i of localSeats()) reactSeat(i);
-  if (chainReady()) { ensureChain(); noteSessions(); }
+  if (chainReady()) { ensureChain(); noteSessions(); publishTaddressKeys(); }
   // Group creator builds the shared wallet once all group keys agree.
   if (canCreateWallet()) once("wallet", createWallet);
   // Signing: the open payment, and in the background each other one that waits for this browser.
