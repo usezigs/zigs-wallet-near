@@ -10,9 +10,11 @@
 // confirm; a late device finds a landed transaction and sends nothing; a refusal at share time,
 // a commitment that the package does not name and three refusals end the session; every other error
 // (transport, a hang, a 429, a bad answer, a failed read or write) is no failed try, and a session
-// whose transaction landed is never ended; a hung call ends its step; a wallet that closes or a
-// session that ends stops a step before the send; the nonces of an ended session are dropped; a
-// hostile document stops no device; the pool controller and the plain controller never touch each
+// whose transaction landed is never ended, also when the status node lags behind the node that
+// simulates (a refusal soon after a send counts for nothing); a hung call ends its step; a wallet
+// that closes or a session that ends stops a step before the send; the nonces of an ended session
+// are dropped; a hostile document stops no device, and a seat that posts many proposals cannot
+// take every watch of the page; the pool controller and the plain controller never touch each
 // other's sessions; no secret leaves. The fake Worker answers errors as the real one does
 // (`Error: <method>: <text>`, worker.js), because the page reads those texts.
 // Run: node web/test/sol-plain-sign.mjs   (Node 26)
@@ -29,14 +31,13 @@ import { dropNonces, saveNonces } from "../sol/nonces.js";
 import { readSolSession } from "../sol/sessions.js";
 import { approvePlain as approveStep } from "../sol/plain/approve.js";
 import { attach } from "../sol/plain/control.js";
-import { block, settledBlock } from "../sol/plain/direct.js";
+import { LIMITS, block, settledBlock } from "../sol/plain/direct.js";
 import { GENESIS, base58Bytes, checkCommand } from "../sol/plain/guard.js";
 import {
   bytesOfHex, createNonceIntent, hexOfBytes, plainPins, sendSolIntent,
 } from "../sol/plain/intent.js";
 import { proposeSend as proposeStep } from "../sol/plain/propose.js";
 import { usdcAddress } from "../sol/plain/reads.js";
-import { LIMITS } from "../sol/plain/sign.js";
 import { filterSessions, writePart, writeProposal } from "../sol/plain/sessions.js";
 import * as W from "../sol/wasm/sol_wasm.js";
 import { loadRig, mainnetConfig, sleep } from "./sol-rig.mjs";
@@ -877,6 +878,127 @@ step("a transport error after the send and an unknown result are no failed tries
 }
 step("a send that landed is never ended by a status that fails or hangs");
 
+// ── The status node lags behind the node that simulates: a refusal soon after a send ──
+// The bytes went out and landed, the nonce moved on, so the simulation refuses (BlockhashNotFound),
+// and a status node that lags still says "none". For LIMITS.grace after the bytes may have gone
+// out, such a refusal counts for nothing: the step waits and reads the status again.
+const NONCE_MOVED = '"BlockhashNotFound"';
+const lagging = () => ({ statuses: [unseen] });
+const orig = { send: answers.send, status: answers.status, confirm: answers.confirm,
+  simulate: answers.simulate };
+// The node takes the bytes and the nonce moves on, and then the answer of the send is lost
+// ("answer"), or the send is good and the wait for the result fails ("wait").
+const landing = {
+  answer: () => {
+    answers.send = (args) => {
+      orig.send(args);
+      world.simError = NONCE_MOVED;
+      throw new Error("sendTransaction: the request failed (fetch failed)");
+    };
+  },
+  wait: () => {
+    answers.send = (args) => {
+      const out = orig.send(args);
+      world.simError = NONCE_MOVED;
+      return out;
+    };
+    answers.confirm = () => {
+      throw new Error("confirm: Helius is not answering.");
+    };
+  },
+};
+const unlag = () => {
+  Object.assign(answers, orig);
+  world.simError = null;
+};
+const simulations = () => calls.filter((x) => x.cmd === "simulate").length;
+{
+  const saved = { ...LIMITS };
+  LIMITS.grace = 1500;
+  for (const how of Object.keys(landing)) {
+    reset();
+    const { id, ss } = await newSend([2, 3]);
+    landing[how]();
+    answers.status = lagging;
+    await pump("the first send", () => sendCalls() >= 1);
+    await pump("half the grace", () => Date.now() - world.sendTimes[0] > LIMITS.grace / 2);
+    assert.ok(simulations() >= 2, how + ": control: the simulation refused the nonce again");
+    assert.ok(world.landed.has(base58(ss.feeSig)), how + ": control: the transaction landed");
+    assert.equal(await status(id), "signed", how + ": a refusal that the lag explains ends none");
+    assert.equal(doc(id).error, undefined, how + ": and no failure part was written");
+    assert.equal(c.tries.get(id), undefined, how + ": and no try was counted");
+    unlag();
+    await pump("sent", becomes(id, "sent"), 8000);
+    assert.equal(world.sends.length, 1, how + ": the bytes went out once");
+    assert.equal((await session(id)).slot, "4242");
+    await pump("the memory of the send is dropped", () => !c.went.has(id));
+  }
+  // The lag has an end: after the grace the refusals count again, and three end the session.
+  reset();
+  const late = await newSend([2, 3]);
+  landing.answer();
+  answers.status = lagging;
+  await pump("the session ends", becomes(late.id, "failed"), 10000);
+  assert.ok(Date.now() - world.sendTimes[0] >= LIMITS.grace - 20, "not before the grace is over");
+  assert.match((await session(late.id)).error, /^Not sent: .*BlockhashNotFound/);
+  assert.equal(c.tries.get(late.id), 3);
+  unlag();
+  Object.assign(LIMITS, saved);
+}
+step("a refusal soon after a send ends nothing while the status node lags; later it counts");
+
+// ── Two refusals before the send count; the lag after the send does not ──
+{
+  const saved = { ...LIMITS };
+  LIMITS.grace = 1500;
+  reset();
+  const { id } = await newSend([2, 3]);
+  let early = 2;
+  answers.simulate = (args) => (early-- > 0
+    ? { err: '"AccountNotFound"', unitsConsumed: null, loadedAccountsDataSize: null, logs: [] }
+    : orig.simulate(args));
+  let lag = 0;
+  answers.status = (args) => (lag-- > 0 ? lagging() : orig.status(args));
+  answers.send = (args) => {
+    orig.send(args);
+    world.simError = NONCE_MOVED;
+    lag = 2; // the status node shows the landing two reads later
+    throw new Error("sendTransaction: the request failed (fetch failed)");
+  };
+  const ended = () => ["sent", "failed"].includes(c.sessions.find((s) => s.id === id)?.status);
+  await pump("settles", ended);
+  assert.equal(await status(id), "sent", "two reads of a lagging status end nothing");
+  assert.equal(doc(id).error, undefined);
+  assert.equal(c.tries.get(id), 2, "the two refusals before the send counted, none after");
+  assert.equal(world.sends.length, 1);
+  unlag();
+  Object.assign(LIMITS, saved);
+}
+step("the refusals before a send count and the ones soon after it do not");
+
+// ── The same payment is not proposed again while the first one may stand ──
+{
+  const saved = { ...LIMITS };
+  LIMITS.grace = 1500;
+  reset();
+  const first = await newSend([2, 3]);
+  landing.answer();
+  answers.status = lagging;
+  await pump("the first send", () => sendCalls() >= 1);
+  await pump("half the grace", () => Date.now() - world.sendTimes[0] > LIMITS.grace / 2);
+  // The landing used the nonce, so the account holds a new value. The first session is open and
+  // holds the account: nothing is proposed on it, and nothing is paid twice.
+  setNonce(1, first.k, 1);
+  await assert.rejects(asSeat(c, 1, () => proposeSend(c, ensure, typed())),
+    /Create a nonce account first\./);
+  unlag();
+  await pump("the first is sent", becomes(first.id, "sent"), 8000);
+  assert.equal(world.sends.length, 1, "one payment");
+  assert.equal(new Set(world.sends).size, 1);
+  Object.assign(LIMITS, saved);
+}
+step("a payment whose send may have landed cannot be proposed again");
+
 // ── A 429 on the read-only calls is no failed try ──
 {
   reset();
@@ -935,6 +1057,23 @@ step("a 429 on simulate is no failed try and the step waits longer each time");
   await pump("sent", becomes(id, "sent"));
 }
 step("a status or confirm answer with another word or no slot is refused and writes no mark");
+
+// ── A simulation answer without an err field is no refusal ──
+{
+  reset();
+  const { id } = await newSend([2, 3]);
+  const realSim = answers.simulate;
+  answers.simulate = () => ({});
+  await pump("three simulations", () => simulations() >= 3);
+  await sleep(200);
+  assert.equal(await status(id), "signed", "an answer of another shape ends nothing");
+  assert.equal(doc(id).error, undefined);
+  assert.equal(c.tries.get(id), undefined, "and counts no try");
+  assert.equal(world.sends.length, 0, "and nothing was sent");
+  answers.simulate = realSim;
+  await pump("sent", becomes(id, "sent"));
+}
+step("a simulation answer with no err field is refused as an answer and counts no try");
 
 // ── A hung call ends its step ──
 {
@@ -1417,6 +1556,26 @@ step("a session that throws in its step is skipped and the others go on");
 }
 step("a package that names another digest gets no share");
 
+// ── A package with no text, or with no digest, ends the session and breaks no pass ──
+{
+  reset();
+  const empty = await newSend([2, 3]);
+  const digest = W.sol_plain_digest(pinsOf(1), bytesOfHex(empty.ss.message));
+  await writePart(c, empty.id, "package", { package: "", signers: [2, 3], digest }, { seat: 3 });
+  rig.notify();
+  await pump("a package with no text ends the session", becomes(empty.id, "failed"), 8000);
+  assert.match((await session(empty.id)).error, /^A device did not sign: /);
+  assert.equal(count("sol_plain_sign_share"), 0, "and no share was made");
+  const bare = await newSend([2, 3]);
+  await writePart(c, bare.id, "package", { package: "{}", signers: [2, 3] }, { seat: 3 });
+  rig.notify();
+  await pump("a package with no digest ends the session", becomes(bare.id, "failed"), 8000);
+  assert.match((await session(bare.id)).error, /^A device did not sign: The digest differs\./);
+  const skipped = logs.filter((l) => l.includes(`session ${bare.id} skipped`));
+  assert.deepEqual(skipped, [], "no pass threw");
+}
+step("a package with no text or no digest ends the session and no pass throws");
+
 // ── The fee signature is checked again before a share ──
 {
   reset();
@@ -1547,6 +1706,64 @@ step("a hung chain read frees its step and confirm has a limit of its own");
   rig.hook.lease = () => true;
 }
 step("a package and a send wait while another device holds the lease");
+
+// ── One seat that posts many proposals cannot take every watch of the page ──
+// The older honest session needs the commits and the shares of the other devices: a session that
+// is not watched never signs. Proposals that this app cannot show take no watch, those with a
+// stake of this device come first, and a seat holds at most 8.
+{
+  const DAY = 24 * 60 * 60 * 1000;
+  const junk = (seat, k, createdAt) => ({
+    intent: hexOfBytes(sendSolIntent(k, nonceValue(seat, k), recipient, 1000n)),
+    message: "81" + "00".repeat(100), feeSig: "ab".repeat(64), createdAt });
+  const post = async (seat, k, createdAt) => {
+    const id = hexOfBytes(crypto.getRandomValues(new Uint8Array(16)));
+    await writeProposal(c, id, junk(seat, k, createdAt), seat);
+    return id;
+  };
+  const watched = (ids) => ids.filter((id) => c.watching.has(id));
+  const cleanup = async (ids) => {
+    for (const id of ids) data.delete(path(gid, "solsessions/" + id));
+    rig.notify();
+    await pump("the junk is gone", () => ids.every((id) => !c.sessions.some((x) => x.id === id)));
+  };
+  // Seat 3 posts 51 proposals that can be shown and 51 that cannot (a date far ahead), all newer.
+  reset();
+  const honest = await newSend([]);
+  const shown = [], hidden = [];
+  for (let i = 0; i < 51; i++) {
+    shown.push(await post(3, 300 + i, Date.now() + 1000 + i));
+    hidden.push(await post(3, 400 + i, Date.now() + 3 * DAY + i));
+  }
+  for (const seat of [2, 3]) {
+    await approvePlain(c, ensure, await session(honest.id), seat);
+    keep(seat, honest.id);
+  }
+  plain.react();
+  assert.ok(c.watching.has(honest.id), "the older honest session is watched");
+  assert.deepEqual(watched(shown), shown.slice(-8), "the newest 8 of the seat, not all 51");
+  assert.deepEqual(watched(hidden), [], "a proposal that cannot be shown takes no watch");
+  await pump("the honest session is sent", becomes(honest.id, "sent"));
+  await cleanup([...shown, ...hidden]);
+  // The seat that proposed the honest session posts them too. The honest session has a stake of
+  // this device (saved nonces): it comes before the newer proposals of the seat.
+  reset();
+  const own = await newSend([]);
+  const flood = [];
+  for (let i = 0; i < 51; i++) flood.push(await post(1, 500 + i, Date.now() + 1000 + i));
+  for (const seat of [2, 3]) {
+    await approvePlain(c, ensure, await session(own.id), seat);
+    keep(seat, own.id);
+  }
+  plain.react();
+  assert.ok(c.watching.has(own.id), "a session with a stake is watched before newer ones");
+  const byOf = (id) => c.sessions.find((x) => x.id === id)?.by;
+  const ofSeat = [...c.watching.keys()].filter((id) => byOf(id) === 1);
+  assert.equal(ofSeat.length, 8, "and the seat holds 8 in all");
+  await pump("the session is sent", becomes(own.id, "sent"));
+  await cleanup(flood);
+}
+step("51 newer proposals of one seat leave the watches of the older honest session");
 
 // ── A stopped wallet drops every nonce ──
 {

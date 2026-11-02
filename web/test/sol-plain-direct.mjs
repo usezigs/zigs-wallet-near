@@ -18,7 +18,7 @@ import { agreement } from "../sol/ceremony.js";
 import { COLLECTIONS, base58 } from "../sol/docs.js";
 import { feeOf, publishedFee } from "../sol/fee.js";
 import { wireBase64 } from "../sol/intent.js";
-import { closeDirect } from "../sol/plain/direct.js";
+import { BAD_ANSWER, LIMITS, closeDirect } from "../sol/plain/direct.js";
 import { GENESIS, PLAIN_WORKER_POLICY, checkCommand } from "../sol/plain/guard.js";
 import { createNonceIntent, plainPins } from "../sol/plain/intent.js";
 import { usdcAddress } from "../sol/plain/reads.js";
@@ -53,9 +53,13 @@ const world = {
   simulated: new Set(),
   sent: [],
   failing: null, // a command that answers with an error
+  sendError: null, // the send answers with this text, and the node has not taken the bytes
+  lostSend: false, // the node takes the bytes and the answer is lost
+  status: null, // the answer for any signature, or null: the sent bytes are on the chain
   afterWindow: null, // runs after the list of 100 nonce addresses was answered
 };
 const calls = [];
+const NONE = { status: "none", slot: "", err: null };
 const signatureOf = (tx) => Buffer.from(tx, "base64").subarray(-64).toString("hex");
 const answers = {
   init: ({ cluster }) => ({ cluster }),
@@ -77,10 +81,14 @@ const answers = {
       logs: world.sim.logs };
   },
   send: ({ tx }) => {
+    if (world.sendError) throw new Error(world.sendError);
     if (!world.simulated.has(tx)) throw new Error("send: these bytes did not pass a simulation");
     world.sent.push(tx);
+    if (world.lostSend) throw new Error("sendTransaction: the request failed (fetch failed)");
     return { signature: base58(signatureOf(tx)) };
   },
+  status: ({ signatures }) => ({ statuses: signatures.map((signature) => world.status
+    ?? (world.sent.some((tx) => base58(signatureOf(tx)) === signature) ? world.confirm : NONE)) }),
   confirm: ({ signature }) => {
     if (!world.sent.some((tx) => base58(signatureOf(tx)) === signature)) {
       throw new Error("confirm: no such signature was sent");
@@ -688,16 +696,17 @@ step("a stop before Confirm or between the test run and the send sends nothing")
   const confirm = mark(draw(), "confirm");
   const hashes = world.hashes;
   const before = world.sent.length;
-  world.failing = "send";
+  const refusal = "sendTransaction: RPC error -32002: Transaction simulation failed";
+  world.sendError = refusal;
   calls.length = 0;
   spy.signs.length = 0;
   await click(confirm);
-  world.failing = null;
+  world.sendError = null;
   assert.deepEqual(names(), ["simulate", "send"], "no confirm and no second send");
   assert.equal(spy.signs.length, 1, "one signature");
   assert.equal(world.hashes, hashes, "no new blockhash");
   assert.equal(c.direct.step, "failed");
-  assert.equal(c.direct.text, "send: Helius is not answering.");
+  assert.equal(c.direct.text, refusal);
   await click(confirm);
   await sleep(100);
   assert.deepEqual(names(), ["simulate", "send"], "a late click does nothing");
@@ -705,6 +714,97 @@ step("a stop before Confirm or between the test run and the send sends nothing")
   c.direct = null;
 }
 step("a refused send is shown once and never repeated");
+
+// ── A send with no known result may have landed: its status comes before a new try ──
+{
+  const answersStatus = answers.status;
+  const failedSend = async () => {
+    await start("create-nonce");
+    world.lostSend = true;
+    calls.length = 0;
+    await click(mark(draw(), "confirm"));
+    world.lostSend = false;
+  };
+  const before = world.sent.length;
+  spy.signs.length = 0;
+  said.length = 0;
+  await failedSend();
+  const txId = base58(signatureOf(world.sent.at(-1)));
+  assert.deepEqual(names(), ["simulate", "send"], "no confirm: the person looks again");
+  assert.deepEqual([c.direct.step, c.direct.result?.status, c.direct.result?.txId],
+    ["done", "maybe", txId], "the id is kept, and the result is not a failure");
+  const done = draw();
+  const words = "Create nonce: May have been sent. Not confirmed yet, device 1.";
+  assert.ok(text(mark(done, "direct-result")).startsWith(words + " "), words);
+  assert.ok(mark(done, "direct-explorer"), "the link is there to look");
+  assert.equal(said.at(-1), words, "the live region says it");
+  assert.equal(world.sent.length, before + 1);
+  // The next try reads the status first. The node shows nothing yet: no new review, nothing signed.
+  world.status = NONE;
+  await start("create-nonce");
+  assert.deepEqual(names(), ["status"], "only the status is read");
+  assert.deepEqual(calls.find((x) => x.cmd === "status").args, { signatures: [txId] });
+  assert.deepEqual([c.direct.step, c.direct.result?.status, c.direct.result?.txId],
+    ["done", "maybe", txId], "and the answer is the same");
+  assert.equal(spy.signs.length, 0, "nothing was signed");
+  // The enabling of USDC is another step: it does not wait for the status of Create nonce.
+  await start("enable-usdc");
+  assert.ok(!names().includes("status") && c.direct.step === "review", "Enable USDC starts");
+  c.direct = null;
+  // The status shows the transaction: that result is shown, and the next try starts a new step.
+  world.status = null;
+  await start("create-nonce");
+  assert.deepEqual(names(), ["status"]);
+  assert.deepEqual([c.direct.step, c.direct.result?.status, c.direct.result?.txId],
+    ["done", "confirmed", txId], "the transaction that landed is shown");
+  assert.equal(c.direct.result.slot, "301");
+  assert.equal(c.unsure.size, 0, "and it is forgotten");
+  await start("create-nonce");
+  assert.deepEqual(names().slice(0, 2), ["accounts", "blockhash"], "now a new step starts");
+  assert.equal(c.direct.step, "review");
+  c.direct = null;
+  // A status node that shows nothing for LIMITS.grace: the send is taken as lost. A transaction
+  // that is pending, or an answer that is odd, keeps the step shut: it may still land.
+  await failedSend();
+  world.status = NONE;
+  await start("create-nonce");
+  assert.deepEqual(names(), ["status"], "inside the grace the status comes first");
+  skew += LIMITS.grace + 1000;
+  for (const odd of [{ status: "pending", slot: "300" }, { status: "weird", slot: "1" }, null]) {
+    world.status = odd;
+    answers.status = ({ signatures }) => ({ statuses: signatures.map(() => odd) });
+    await start("create-nonce");
+    const word = JSON.stringify(odd);
+    assert.deepEqual(names(), ["status"], "after the grace " + word + " keeps the step shut");
+    assert.equal(c.direct.result.status, "maybe", word);
+    assert.equal(c.unsure.size, 1, word);
+  }
+  answers.status = answersStatus;
+  world.status = NONE;
+  await start("create-nonce");
+  assert.deepEqual(names().slice(0, 3), ["status", "accounts", "blockhash"],
+    "after the grace a status of none lets a new step start");
+  assert.equal(c.direct.step, "review");
+  assert.equal(c.unsure.size, 0);
+  world.status = null;
+  c.direct = null;
+  // A status that cannot be read stops the try with the text of the Worker.
+  await failedSend();
+  world.failing = "status";
+  await start("create-nonce");
+  world.failing = null;
+  assert.deepEqual([c.direct.step, c.direct.text], ["failed", "status: Helius is not answering."]);
+  assert.equal(c.unsure.size, 1, "the id stays");
+  answers.status = () => ({ statuses: [] });
+  await start("create-nonce");
+  answers.status = answersStatus;
+  assert.deepEqual([c.direct.step, c.direct.text], ["failed", BAD_ANSWER], "an odd shape");
+  assert.deepEqual(names(), ["status"]);
+  assert.equal(c.unsure.size, 1, "the id stays");
+  c.unsure.clear();
+  c.direct = null;
+}
+step("a send with no known result shows the id, and the status is read before a new try");
 
 // ── A review that stayed open until its blockhash was gone ──
 {

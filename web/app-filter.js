@@ -92,15 +92,19 @@ function payloadOf(gid, rel, by, fieldsText) {
   try { return Z.docPayload(gid, rel, by, fieldsText); } catch { return null; }
 }
 
+// A part that no check can read: a signature that is no short text, a long path, or a writer that
+// is no seat number (a writer that is an object makes `skey` throw).
+const unreadable = ({ rel, by, sig }) =>
+  typeof sig !== "string" || sig.length > SIG_MAX || rel.length > REL_MAX || !Number.isInteger(by);
+
 // A signed part: the document path `rel` below the wallet, the writer `by`, its signature `sig`,
 // the signed `fields`, and `need`, the seat that must have written them (null: any seat). `pk`
 // names the key to check with, when it is not the pinned one. What a check needs, or its answer
 // already: "no", or "wait" while the engine, the signing support or the seat keys are not known.
 function partGate(gid, part, known) {
-  const { rel, by, sig, need } = part;
+  const { by, need } = part;
   if (!signing || !Z) return "wait";
-  if (typeof sig !== "string" || sig.length > SIG_MAX || rel.length > REL_MAX) return "no";
-  if (!Number.isInteger(by)) return "no";
+  if (unreadable(part)) return "no";
   const pk = part.pk ?? signPins[skey(gid, by)];
   const gate = writerCheck(by, need, seatCount(gid), pk, known);
   return gate === "check" ? { pk } : gate;

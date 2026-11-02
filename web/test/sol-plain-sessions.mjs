@@ -32,7 +32,7 @@ import { proposeSend as proposeStep, unitsOf } from "../sol/plain/propose.js";
 import { usdcAddress } from "../sol/plain/reads.js";
 import { screenRows } from "../sol/plain/review.js";
 import {
-  ENDED, SESSION_ID, filterSessions, showable, titleOf, writeProposal,
+  ENDED, filterSessions, showable, titleOf, writeProposal,
 } from "../sol/plain/sessions.js";
 import * as W from "../sol/wasm/sol_wasm.js";
 import { loadRig, mainnetConfig, sleep } from "./sol-rig.mjs";
@@ -1315,35 +1315,46 @@ step("the controller offers propose, review and approve; the words go to the liv
     tab.react();
     return live();
   };
-  // A session with an id that the pool refuses (bad.id) is listed and takes no watch.
-  const openSessions = () => tab.ctl.sessions
-    .filter((x) => !ENDED.has(x.status) && SESSION_ID.test(x.id)).length;
+  // The sessions that the tab watches: open ones that this app shows (a session with an id that
+  // the pool refuses, bad.id, is listed and takes no watch), at most 8 of each proposer.
+  const shown = () => tab.ctl.sessions.filter((x) => !ENDED.has(x.status) && showable(x));
+  const openOf = (seat) => shown().filter((x) => x.by === seat).length;
+  const openSessions = () => [1, 2, 3].reduce((n, seat) => n + Math.min(8, openOf(seat)), 0);
+  const byOf = (id) => tab.ctl.sessions.find((x) => x.id === id)?.by;
   const first = await watched();
   assert.ok(tab.ctl.sessions.some((x) => ENDED.has(x.status)), "control: a session has ended");
   assert.ok(tab.ctl.sessions.some((x) => x.id === "bad.id"), "control: a session with a bad id");
-  const fewer = openSessions() > 3 && openSessions() <= 50;
-  assert.ok(fewer, "control: some open sessions, fewer than the limit");
+  assert.ok(openOf(1) > 8 && openOf(3) < 8, "control: seat 1 has more open sessions than the cap");
   assert.equal(first, 1 + 2 * openSessions(),
-    "the collection, and the commits and shares of each open one");
+    "the collection, and the commits and shares of each open one, at most 8 of a seat");
   // An open session takes two watches. When another proposal ends it, it gives them back.
-  const room = openSessions();
-  await plant(1, { k: 60, createdAt: 2000 });
+  await plant(3, { k: 60, createdAt: 2000 });
   assert.equal(await watched(), first + 2, "one more open session: two more watches");
-  await plant(1, { k: 60, createdAt: 1000, units: 5_100_000n });
-  assert.equal(openSessions(), room + 1, "the earlier proposal stands and the later one ended");
+  await plant(3, { k: 60, createdAt: 1000, units: 5_100_000n });
   assert.equal(await watched(), first + 2, "the session that ended gave its two watches back");
-  // 51 newer sessions: only the newest 50 are watched, and no older session keeps a watch.
+  // A proposal that this app cannot show (a date far ahead) is listed and takes no watch.
+  const tooNew = await plant(3, { k: 61, createdAt: Date.now() + 3 * 24 * 60 * 60 * 1000 });
+  const now = await watched();
+  assert.ok(tab.ctl.sessions.some((x) => x.id === tooNew.id), "control: the session is listed");
+  assert.equal(now, first + 2, "a proposal that cannot be shown takes no watch");
+  // 51 newer sessions of seat 2: the tab watches the newest 8 of them. The older sessions of the
+  // other seats keep their watches: one seat cannot take them all.
+  const before = [...tab.ctl.watching.keys()].filter((id) => byOf(id) !== 2);
   const newest = [];
   for (let i = 0; i < 51; i++) {
     const options = { k: 100 + i, createdAt: Date.now() + 1000 + i, units: 5_000_000n + BigInt(i) };
-    newest.push((await plant(1, options)).id);
+    newest.push((await plant(2, options)).id);
   }
-  assert.equal(await watched(), 1 + 2 * 50, "at most 50 sessions are watched");
-  assert.ok(!tab.ctl.watching.has(newest[0]) && tab.ctl.watching.has(newest[50]), "the newest 50");
+  assert.equal(await watched(), 1 + 2 * openSessions(), "at most 8 sessions of one seat");
+  const ofSeat = [...tab.ctl.watching.keys()].filter((id) => byOf(id) === 2);
+  assert.equal(ofSeat.length, 8, "the tab watches 8 sessions of seat 2, not 53");
+  assert.ok(tab.ctl.watching.has(newest[50]) && !tab.ctl.watching.has(newest[0]), "the newest");
+  assert.ok(before.length > 8 && before.every((id) => tab.ctl.watching.has(id)),
+    "no session of another seat lost its watches");
   tab.close();
   assert.equal(open.size, 0, "a close gives every watch back");
 }
-step("the watches of the sessions stop with the wallet and with an ended session; at most 50");
+step("the watches of the sessions stop with the wallet and with an ended session; 8 a seat");
 
 // ── Nothing leaked at the end ──
 assert.deepEqual(leaks(), [], "the nonces and the key shares are nowhere in the open");

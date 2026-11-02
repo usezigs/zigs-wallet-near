@@ -9,9 +9,10 @@
 //  - send: one device lands the transaction (the fee signature, then the group signature, after
 //    the message) and writes the sent mark. It reads the status first.
 // A session that cannot go on ends with a text, and the nonces of an ended session are dropped.
-// Only a definite refusal of the bytes counts as a failed try (three end the session). An error
-// with no known result (a hang, a 429, a failed read or write) is no try: the step waits and
-// looks again.
+// Only a definite refusal of the bytes counts as a failed try (three end the session), and not a
+// refusal soon after this tab sent the bytes: a status node may lag behind the node that
+// simulates. An error with no known result (a hang, a 429, a failed read or write) is no try: the
+// step waits and looks again.
 // The nonce rules are in nonces.js. Nothing here reads or shows a nonce or a key share.
 import { agreement } from "../ceremony.js";
 import { base58 } from "../docs.js";
@@ -20,7 +21,7 @@ import { clearPending, dropNonces, pendingShare, savedNonces, shareOnce } from "
 import { holdsShare, solOf, stopOf } from "../secrets.js";
 import { labelOf } from "../wallet.js";
 import { readChain } from "./chain.js";
-import { BAD_ANSWER, blockNow, stillOpen } from "./direct.js";
+import { BAD_ANSWER, DONE, LIMITS, REFUSED, blockNow, stillOpen } from "./direct.js";
 import { toBase64 } from "./guard.js";
 import { bytesOfHex, join, plainPins } from "./intent.js";
 import { canApprove, reviewText, stopText } from "./review.js";
@@ -32,21 +33,11 @@ const HEX = /^([0-9a-f]{2})+$/;
 const SEND_TRIES = 3;
 const RETRY_MS = 3000;
 const BACKOFF_MAX_MS = 60_000;
-/**
- * The page side time limit of a Worker call (`confirm` waits 45 s inside the Worker), the wait of a
- * device that does not hold the proposing seat before it sends, and the first wait after an error
- * with no known result (each next one is twice as long, up to a minute). Tests lower them.
- */
-export const LIMITS = { call: 20_000, confirm: 60_000, fallback: 30_000, backoff: 3000 };
-// What the page reads when the node refused a send (the Worker names the RPC method) or when the
-// Worker refused to send: nothing went out.
-const REFUSED = /sendTransaction: RPC error|send: these bytes did not pass/;
 const STILL_THERE = /already.*processed|has already been/i;
 const SIGNATURE = /^[0-9a-f]{128}$/;
 const decimal = (v) => typeof v === "string" && /^[0-9]{1,20}$/.test(v);
-// The words of the Worker for a transaction: status gives the first set, confirm the second.
+// The words of the Worker for a transaction: status gives this set, confirm gives DONE.
 const SEEN = new Set(["none", "pending", "confirmed", "finalized", "failed"]);
-const DONE = new Set(["confirmed", "finalized", "failed"]);
 const COLLECTING = new Set(["collecting"]);
 const SIGNING = new Set(["signing"]);
 const SIGNED = new Set(["signed"]);
@@ -340,7 +331,7 @@ function signMine(c, ss, step) {
 function maybeAggregate(c, ss) {
   const shares = c.shares[ss.id] ?? {};
   const whole = signersOf(ss).every(
-    (i) => shares[i]?.digest === ss.digest && typeof shares[i].share === "string"
+    (i) => shares[i] && shares[i].digest === ss.digest && typeof shares[i].share === "string"
       && HEX.test(shares[i].share),
   );
   const seat = writerSeats(c)[0];
@@ -430,6 +421,7 @@ async function waitFor(worker, txId) {
 async function land(c, ss, ctx) {
   const { worker, tx, txId, was } = ctx;
   const sim = await worker.call("simulate", { tx });
+  if (sim.err === undefined) throw new Error(BAD_ANSWER);
   if (sim.err !== null) throw new Refused("The network refused the signed transaction: " + sim.err);
   if (moved(c, was, ss, SIGNED)) return null;
   say(c, "Sending the signed transaction…");
@@ -437,9 +429,13 @@ async function land(c, ss, ctx) {
     await worker.call("send", { tx });
   } catch (e) {
     const text = String(e.message);
-    if (!REFUSED.test(text)) throw unconfirmed(txId);
+    if (!REFUSED.test(text)) {
+      c.went.set(ss.id, Date.now());
+      throw unconfirmed(txId);
+    }
     if (!STILL_THERE.test(text)) throw new Refused(text);
   }
+  c.went.set(ss.id, Date.now());
   return waitFor(worker, txId);
 }
 
@@ -475,8 +471,13 @@ async function countRefusal(c, ss, { e, was, worker }) {
   if (seen.status === "none") await failSession(c, ss, "Not sent: " + errorText(e), was);
 }
 
-// Only a refusal counts as a failed try. Every other error leaves the result unknown: the step
-// waits (holdOff) and the next pass reads the status first. A step that halts does neither.
+// The bytes of this session may have gone out from this tab lately. A status node that lags still
+// says "none" and the nonce has moved on, so a refusal in that time is no proof of a failed send.
+const lately = (c, ss) => Date.now() - (c.went.get(ss.id) ?? -Infinity) < LIMITS.grace;
+
+// Only a refusal counts as a failed try, and not when the bytes may have gone out lately. Every
+// other error leaves the result unknown: the step waits (holdOff) and the next pass reads the
+// status first. A step that halts does neither.
 async function sendSigned(c, ss, { seat, worker }) {
   const was = c.opened,
     how = { key: "send:" + ss.id, was };
@@ -485,7 +486,7 @@ async function sendSigned(c, ss, { seat, worker }) {
     c.fails.delete(how.key);
   } catch (e) {
     if (e instanceof Halt || c.opened !== was) throw e;
-    if (!(e instanceof Refused)) await holdOff(c, e, how);
+    if (!(e instanceof Refused) || lately(c, ss)) await holdOff(c, e, how);
     else await countRefusal(c, ss, { e, was, worker }).catch((f) => holdOff(c, f, how));
     throw e;
   }
@@ -513,7 +514,7 @@ function stepSession(c, ss, { ensure, group }) {
   if (c.refused.has(ss.id)) return endAgain(c, ss);
   const ctx = contextOf(c, ss, group);
   if (!ctx) return;
-  if (!ss.package) return maybePackage(c, ss, ctx);
+  if (ss.package === undefined) return maybePackage(c, ss, ctx);
   signMine(c, ss, { ctx, ensure });
   if (!ss.signature) return maybeAggregate(c, ss);
   maybeSend(c, ss, ensure);
@@ -540,7 +541,10 @@ export function reactSessions(c, ensure) {
   const ours = c.sessions.filter((ss) => showable(ss));
   const over = new Set(ours.filter((ss) => ENDED.has(ss.status)).map((ss) => ss.id));
   dropDead(c, (sid) => over.has(sid));
-  over.forEach((id) => c.refused.delete(id));
+  over.forEach((id) => {
+    c.refused.delete(id);
+    c.went.delete(id);
+  });
   if (blockNow(c)) return;
   const group = agreement(c).done.groupKey;
   for (const ss of ours) {
