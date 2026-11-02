@@ -1,12 +1,14 @@
 // A plain controller that fails to load (plainLoad in web/app-sol.js): the Solana tab says so, one
 // banner shows, the page does not try again (only a reload mends it), and a backup or a restore
-// says that Solana did not load. attach fails at its listener for a tab that shows again.
+// says that Solana did not load. The Security page and the diagnostics say that they could not
+// read the part. attach fails at its listener for a tab that shows again.
 // Run: node web/test/sol-plain-load.mjs   (Node 26)
 import assert from "node:assert/strict";
 import { KIND } from "../sol/backup.js";
 import { config, loadRig, mainnetConfig, sleep } from "./sol-rig.mjs";
 
 const rig = await loadRig();
+const { diagnostics } = await import("../app-help.js");
 const { t, waitFor } = rig;
 
 class Rec extends Node {
@@ -19,19 +21,20 @@ class Rec extends Node {
   append(...kids) { this.kids.push(...kids); }
 }
 const text = (n) => n.text ?? n.kids.map(text).join("");
-const tabText = () => {
+const pageText = (tab) => {
   const before = globalThis.document;
   globalThis.document = new Proxy(before, { get: (o, k) => ({
     createElement: (tag) => new Rec(tag), createElementNS: (_ns, tag) => new Rec(tag),
     createTextNode: (value) => ({ text: value }),
   })[k] ?? o[k] });
   try {
-    t.ui.tab = "solana";
+    t.ui.tab = tab;
     return text(t.walletView(null, null));
   } finally {
     globalThis.document = before;
   }
 };
+const tabText = () => pageText("solana");
 
 let attached = 0;
 const real = globalThis.document;
@@ -62,6 +65,10 @@ await assert.rejects(t.applyBackup({ kind: KIND, group: gid, seat: 1, cluster: "
   true), /Solana did not load\./, "a restore says that Solana did not load");
 await assert.rejects(t.solBackup(1), new RegExp(shown), "so does a backup");
 assert.equal(attached, 1, "and neither loaded again");
+assert.match(pageText("recovery"), /Solana · Status could not be read\. Reload to retry\./,
+  "the Security page says that it could not read the part");
+assert.match(diagnostics(), /^Solana part: could not read$/m, "so do the diagnostics");
+assert.match(diagnostics(), /^Solana backup files not saved: could not read$/m);
 assert.equal(t.sol, null, "the pool did not load");
 assert.equal(config.calls, 0);
 globalThis.document = real;

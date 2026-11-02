@@ -20,7 +20,7 @@ JS=(solspike/harness/*.mjs solspike/tools/*.mjs solspike/build.mjs solspike/buil
   web/test/graph.mjs web/test/demo-check.mjs web/test/smoke.mjs
   web/test/sol-config.mjs web/test/sol-docs.mjs web/test/sol-ceremony.mjs web/test/sol-app.mjs
   web/test/sol-plain-ceremony.mjs web/test/sol-plain-app.mjs web/test/sol-plain-reads.mjs
-  web/test/sol-plain-view.mjs web/test/sol-plain-load.mjs
+  web/test/sol-plain-view.mjs web/test/sol-plain-load.mjs web/test/sol-plain-security.mjs
   web/test/closure.mjs
   web/test/sol-wasm.mjs web/test/sol-chain.mjs web/test/sol-sessions.mjs
   web/sol/spend.js web/sol/transfer.js web/test/sol-limits.mjs web/test/sol-setup.mjs

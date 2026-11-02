@@ -183,9 +183,22 @@ const OVERVIEW_TEST = ["node", "web/test/overview.mjs"];
 const PLAIN_VIEW = "web/sol/plain/view.js";
 const WALLET_JS = "web/app-wallet.js";
 const MODEL_JS = "web/overview-model.js";
+const PROBE_RACE = "  await Promise.race([plainAnswer, new Promise((done) => "
+  + "{ timer = setTimeout(done, PROBE_MS); })]);\n";
 const FEE_ALERT = 'el("p", { class: "small bad", role: "alert" }, mismatchText(i))';
 const FEE_DETAILS = 'el("details", {}, el("summary", {}, "Fee addresses"),';
 const viewMutant = (id, what, [file, from, to], detect, run = SOL_PLAIN_VIEW) =>
+  mutant(id, what, run, [patch(file, from, to)], { detect, ms: 240000 });
+// The Security page and the diagnostics of the plain wallet (sol-plain-security.mjs), the
+// probe limit (sol-plain-app.mjs) and the help words (help.mjs).
+const SOL_PLAIN_SECURITY = ["node", "web/test/sol-plain-security.mjs"];
+const HELP_TEST = ["node", "web/test/help.mjs"];
+const HELP_JS = "web/app-help.js";
+const STATUS_LINE =
+  '  if (plainShown()) return plainNotAdded() ? "not started" : plainSetup()?.status;\n';
+const UNREAD_LINES = "(plainShown() ? !plainSol || unknownSeat()\n"
+  + "  : solOn() && (!sol || unknownSeat()));";
+const secMutant = (id, what, [file, from, to], detect, run = SOL_PLAIN_SECURITY) =>
   mutant(id, what, run, [patch(file, from, to)], { detect, ms: 240000 });
 const POOL_AND_REGISTRY =
   '"zolana-devnet:sppU489D7A4U1exNo1oeMGZtLEofq3a6o2fR7UeoWB6:' +
@@ -1228,7 +1241,8 @@ export const MUTATIONS = [
   viewMutant("PL-file-plain", "solFile does not read a plain seat",
     [APP_SOL, "  if (plainShown()) return plainPart(i);\n", ""], /solFile reads a plain seat/),
   viewMutant("PL-check-ready", "the check of a saved file waits for the setup of the pool",
-    [APP_SOL, "(plainShown() ? plainSetup() : solSetup())?.status", "solSetup()?.status"],
+    [APP_SOL, "export const solReady = () => solPartSetup()?.status",
+      "export const solReady = () => solSetup()?.status"],
     /the check of the saved file opens for a plain seat/),
   viewMutant("PL-backup-pool", "the backup of a plain seat loads the pool",
     [APP_SOL, "  if (plainShown()) return plainBackup(i);\n", ""],
@@ -1240,8 +1254,8 @@ export const MUTATIONS = [
     [APP_SOL, "plainLoading ||= import(", "plainLoading = import("],
     /the page does not try again/, SOL_PLAIN_LOAD),
   appMutant("PL-probe-wait", "a restore does not wait for the probe",
-    [patch(APP_SOL, "  await plainAnswer;\n")],
-    /a restore before the answer of the probe waits for it/),
+    [patch(APP_SOL, PROBE_RACE)],
+    /the wait for the probe is 10 s/),
   appMutant("PL-route-open", "a file routes by the open wallet and not by its own",
     [patch(APP_SOL, "  if (!plainOn(b.group)) return false;", "  if (!plainOn()) return false;")],
     /testnet wallets only/),
@@ -1352,12 +1366,12 @@ export const MUTATIONS = [
   viewMutant("PL-words-ready", "the ready card opens the fee addresses",
     [PLAIN_VIEW, 'good.length ? el("details", {}, el("summary", {}, "Fee addresses"),',
       'good.length ? el("details", { open: true }, el("summary", {}, "Fee addresses"),'],
-    /the ready card stays within 25 words/),
+    /the ready card stays within 26 words/),
   viewMutant("PL-explorer-tab", "the explorer link opens in this tab",
     [PLAIN_VIEW, 'target: "_blank",', ""], /and opens in a new tab/),
   viewMutant("PL-title-private", "the tab calls its receive title private",
     [PLAIN_VIEW, 'ready: "Receive",', 'ready: "Private receive",'],
-    /and no word of a cap or of privacy/),
+    /no word of a promise in the forgedFee card/),
   mutant("PL-gate-extra", "the plain-only server also serves a file of the pool", GATE_TEST,
     [patch(INDEX_JS, '"/sol/abort.js", "/sol/backup.js",',
       '"/sol/abort.js", "/sol/store.js", "/sol/backup.js",')],
@@ -1384,6 +1398,73 @@ export const MUTATIONS = [
     /holds startSolWorker\("\/sol\/plain\/worker\.js"\) once/),
   plainMutant("PL-worker-default2", "the plain controller can start the Worker of the pool",
     uncalled("startSolWorker()"), /starts a Worker with the default URL of the pool/),
+  secMutant("PL-help-state", "the diagnostics ignore the plain part",
+    [HELP_JS, STATUS_LINE, ""], /its diagnostics say not added and count nothing/),
+  secMutant("PL-help-unread", "the diagnostics count a plain part that they did not read",
+    [HELP_JS, UNREAD_LINES, "(solOn() && (!sol || unknownSeat()));"], /and so do its files/),
+  secMutant("PL-help-error", "the diagnostics never say could not read",
+    [HELP_JS, "const solUnreadWord = () => (solPartError() ?",
+      "const solUnreadWord = () => (false ?"],
+    /so do the diagnostics/, SOL_PLAIN_LOAD),
+  secMutant("PL-help-payments", "the diagnostics count the Solana payments of a plain part",
+    [HELP_JS, "...(plainShown() ? [] : solFacts([", "...(false ? [] : solFacts(["],
+    /a plain part has no payments yet/),
+  secMutant("PL-recovery-scope", "the Security page lists the Solana file of a wallet with none",
+    [WALLET_JS, '  return none ? "none" : "pending";', '  return "pending";'],
+    /an unserved mainnet wallet: every device is Zcash/),
+  secMutant("PL-recovery-pending", "a plain part that sets up has the scope of no part",
+    [WALLET_JS, "const none = plainShown() ? !plainAdded() : ", "const none = "],
+    /a part that sets up has its own scope/),
+  secMutant("PL-recovery-open", "the Security page has no button to the plain Solana section",
+    [WALLET_JS, "openSolana: solOn() || plainShown() ?", "openSolana: solOn() ?"],
+    /with a button to the Solana section/),
+  secMutant("PL-recovery-ready", "the Security page reads the setup of the pool for a plain part",
+    [APP_SOL, "export const solPartSetup = () => (plainShown() ? plainSetup() : solSetup());",
+      "export const solPartSetup = () => solSetup();"], /a stopped part/),
+  secMutant("PL-recovery-ready-scope", "a ready plain part has the scope of a part that sets up",
+    [WALLET_JS, 'const SCOPE_OF = { ready: "ready", stopped: "stopped" };',
+      'const SCOPE_OF = { stopped: "stopped" };'], /the signing rule covers both chains/),
+  secMutant("PL-recovery-error", "the Security page reads the load error of the pool",
+    [APP_SOL, "(plainShown() ? plainError : solError)", "solError"],
+    /the Security page says that it could not read the part/, SOL_PLAIN_LOAD),
+  secMutant("PL-recovery-checked", "the Security page does not show the check of a saved file",
+    [WALLET_JS, "checked: progress?.solChecked,", "checked: false,"],
+    /the result of the check shows/),
+  secMutant("PL-recovery-verify", "Verify file waits for the setup of the pool",
+    [APP_SOL, "export const solReady = () => solPartSetup()?.status",
+      "export const solReady = () => solSetup()?.status"],
+    /Verify file opens the check of the plain seat/),
+  appMutant("PL-probe-limit", "a restore waits for ever for a probe that never answers",
+    [patch(APP_SOL, PROBE_RACE, "  await plainAnswer;\n")],
+    /a restore ends its wait for a probe that never answers/),
+  appMutant("PL-probe-ms", "the wait of a restore for the probe is a minute",
+    [patch(APP_SOL, "const PROBE_MS = 10000;", "const PROBE_MS = 60000;")],
+    /a restore ends its wait for a probe that never answers/),
+  appMutant("PL-probe-throw", "a restore that waited in vain goes on to the pool",
+    [patch(APP_SOL, "  if (ui.plainServed === null) throw new Error(NOT_ASKED);\n")],
+    /a restore ends its wait for a probe that never answers/),
+  viewMutant("PL-note-helius", "the ready card does not name Helius",
+    [PLAIN_VIEW, '"Helius and the explorer see your IP."', '"The explorer sees your IP address."'],
+    /the link says who sees what/),
+  viewMutant("PL-promise-facts", "the facts of the start card call the code safe",
+    [PLAIN_VIEW, "Not audited.", "Fully safe."], /no word of a promise in the start card/),
+  viewMutant("PL-promise-title", "the title of the setup says that it is safe",
+    [PLAIN_VIEW, 'running: "Setting up Solana"', 'running: "Safely setting up Solana"'],
+    /no word of a promise in the running card/),
+  viewMutant("PL-promise-backup", "the backup row says that the file is safe",
+    [PLAIN_VIEW, 'const BACKUP_SAVED = "saved";', 'const BACKUP_SAVED = "saved safely";'],
+    /no word of a promise in the backup rows of a saved file/),
+  program("PL-copy-devnet", "the mainnet sentence replaces the Devnet sentence in Help",
+    ["web/help-model.js", "and Solana Devnet. Testnet and Devnet use test coins. ",
+      "and Solana. Testnet uses test coins. "], HELP_TEST,
+    /the Devnet sentence of the networks answer stays/),
+  program("PL-copy-mainnet", "Help has no sentence for the plain Solana part",
+    ["web/help-model.js", "On mainnet, the Solana part is a plain account. ", ""], HELP_TEST,
+    /the servers answer names the plain part/),
+  program("PL-copy-hosts", "Help says that the hosted prover sees a mainnet payment",
+    ["web/help-model.js", "and the explorer sees the address that you open.",
+      "and its hosted prover sees each payment."], HELP_TEST,
+    /the servers answer names the explorer/),
   mutant("W-share-check", "the restore does not ask the wasm if the key share fits", SOL_APP,
     [patch("web/sol/backup.js", SHARE_CALL, "false &&")], /AssertionError/),
   mutant("P3-ps", "the sampling ps counts", only("^P3"),
@@ -2819,7 +2900,7 @@ export const MUTATIONS = [
     ["web/app-help.js", 'c.error ? "failed" :', 'c.error ? "failed " + c.error :'], UNIFIED,
     /the sync word of a failed sync/),
   program("H-sol-failed", "the diagnostics say not read yet after a failed Solana load",
-    ["web/app-help.js", '(solError ? "could not read" : "not read yet")', '"not read yet"'],
+    ["web/app-help.js", '(solPartError() ? "could not read" : "not read yet")', '"not read yet"'],
     ["node", "web/test/sol-config.mjs"], /a failed Solana load says could not read/),
   program("H-facts-name", "the diagnostics name the wallet",
     ["web/app-help.js", '["Network", netName(state.g)]',

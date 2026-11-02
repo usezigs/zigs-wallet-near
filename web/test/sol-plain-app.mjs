@@ -213,6 +213,39 @@ step("the watch starts again after the wallet list, and the answer of the probe 
   await refuses({ cluster: "mainnet" }, /not a Zigs Solana backup/);
   await refuses({ cluster: "mainnet-beta" }, /not a Zigs Solana backup/);
   assert.deepEqual(solOf(added, 2), {}, "no refused file stored anything");
+  // A probe that never answers ends the wait of a restore after 10 s (run here in 50 ms).
+  {
+    probe(200);
+    let free;
+    const stuck = new Promise((done) => void (free = done));
+    const before = globalThis.fetch;
+    globalThis.fetch = async (url, init) => {
+      if (String(url) === "/sol/config-mainnet.json") await stuck;
+      return before(url, init);
+    };
+    const waits = [];
+    const realTimeout = globalThis.setTimeout;
+    globalThis.setTimeout = (fn, ms, ...rest) => {
+      waits.push(ms);
+      return realTimeout(fn, ms === 10000 ? 50 : ms, ...rest);
+    };
+    try {
+      const outcome = await Promise.race([
+        t.applyBackup(good, true).then(() => "restored", (e) => e.message),
+        sleep(4000).then(() => "still waiting"),
+      ]);
+      assert.match(outcome, /does not know yet whether this server serves the Solana wallet/,
+        "a restore ends its wait for a probe that never answers, not: " + outcome);
+    } finally {
+      globalThis.setTimeout = realTimeout;
+    }
+    assert.ok(waits.includes(10000), "the wait for the probe is 10 s");
+    assert.equal(t.ui.plainServed, null, "and the probe is still out");
+    assert.deepEqual(solOf(added, 2), {}, "the restore stored nothing");
+    free();
+    await asked();
+    globalThis.fetch = before;
+  }
   // A restore that comes before the probe answered waits for the answer.
   probe(200);
   let release;
