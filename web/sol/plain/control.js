@@ -16,7 +16,7 @@ import { closeDirect, confirmDirect, startDirect } from "./direct.js";
 import { PLAIN_WORKER_POLICY } from "./guard.js";
 import { proposeSend } from "./propose.js";
 import { readBalances } from "./reads.js";
-import { ENDED, SESSIONS, filterSessions } from "./sessions.js";
+import { ENDED, SESSIONS, SESSION_ID, filterSessions } from "./sessions.js";
 import { plainSetup, plainView, readTexts } from "./view.js";
 
 const LOG_MAX = 200;
@@ -35,7 +35,6 @@ const START_MS = 20_000; // the limit of each step of the start of the Worker
 // Any holder of the wallet link can add session documents. The page watches the commits and the
 // shares of the valid sessions that did not end, and at most this many of them (newest first).
 const WATCH_MAX = 50;
-const SESSION_ID = /^[\w-]{1,64}$/;
 
 // What belongs to the open wallet. The host, the wasm and the read records outlive it.
 let opens = 0;

@@ -134,7 +134,7 @@ export async function proposeSend(c, ensure, typed) {
   const fields = {
     intent: hexOfBytes(intent), message: hexOfBytes(message), feeSig, createdAt: Date.now(),
   };
-  await writeProposal(c, id, fields, seat);
+  await writeProposal(c, id, fields, seat, () => stillOpen(c, opened));
   c.host.log("device " + seat + ": proposed a send");
   return id;
 }

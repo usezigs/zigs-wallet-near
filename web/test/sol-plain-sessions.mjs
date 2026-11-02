@@ -21,17 +21,19 @@ import { COLLECTIONS, base58, keyOfBase58 } from "../sol/docs.js";
 import { feeOf, publishedFee } from "../sol/fee.js";
 import { decodeIntent } from "../sol/intent.js";
 import { beforeFee, isPayment } from "../sol/sessions.js";
-import { approvePlain, reviewSession } from "../sol/plain/approve.js";
+import { approvePlain as approveStep, reviewSession as reviewStep } from "../sol/plain/approve.js";
 import { attach } from "../sol/plain/control.js";
 import { GENESIS, PLAIN_WORKER_POLICY, checkCommand } from "../sol/plain/guard.js";
 import {
   bytesOfHex, createNonceIntent, hexOfBytes, indexOfSend, plainPins, sendSolIntent,
   sendTokenIntent,
 } from "../sol/plain/intent.js";
-import { proposeSend, unitsOf } from "../sol/plain/propose.js";
+import { proposeSend as proposeStep, unitsOf } from "../sol/plain/propose.js";
 import { usdcAddress } from "../sol/plain/reads.js";
 import { screenRows } from "../sol/plain/review.js";
-import { filterSessions, showable, titleOf, writeProposal } from "../sol/plain/sessions.js";
+import {
+  ENDED, SESSION_ID, filterSessions, showable, titleOf, writeProposal,
+} from "../sol/plain/sessions.js";
 import * as W from "../sol/wasm/sol_wasm.js";
 import { loadRig, mainnetConfig, sleep } from "./sol-rig.mjs";
 
@@ -40,6 +42,22 @@ const { t, data, waitFor } = rig;
 const step = (name) => console.log("ok  " + name);
 const path = (gid, rel) => `groups/${gid}/${rel}`;
 const hex = (bytes) => Buffer.from(bytes).toString("hex");
+
+// Every text that a step throws or refuses with: a person sees it as a banner or the page logs it.
+const errors = [];
+const noted = (run) => async (...args) => {
+  try {
+    const out = await run(...args);
+    if (out?.why) errors.push(out.why);
+    return out;
+  } catch (e) {
+    errors.push(String(e?.message ?? e));
+    throw e;
+  }
+};
+const approvePlain = noted(approveStep);
+const reviewSession = noted(reviewStep);
+const proposeSend = noted(proposeStep);
 
 // ── The chain of the fake Worker ──
 const SYSTEM = "11111111111111111111111111111111";
@@ -176,22 +194,37 @@ const forge = (seat, message) => {
 }
 
 // ── What a person could find of a secret ──
+// A secret leaks whole or in part. Any run of 31 hex of it holds one of the windows of 24 hex that
+// start at every 8th place. A saved entry has the digest (64 hex, public), the secret nonces and,
+// at its end, the commitments, which are public: the windows that lie in them are not secret.
 const logs = [];
+const announced = [];
 c.host.log = (message) => logs.push(String(message));
+c.host.announce = (words) => announced.push(words);
+const WINDOW = 24;
+const windows = (text) => {
+  const out = [text.slice(-WINDOW)];
+  for (let at = 0; at + WINDOW <= text.length; at += 8) out.push(text.slice(at, at + WINDOW));
+  return out;
+};
 const secrets = (seat) => {
-  const share = solOf(seat).keyPackage;
-  assert.match(share.signing_share, /^[0-9a-f]{64}$/, "control: the scan has a key share to find");
-  const nonces = Object.values(solOf(seat).nonces ?? {}).map((e) => e.nonces);
-  return [JSON.stringify(share), share.signing_share, feeOf(c, seat).secret,
-    ...nonces.map((n) => (typeof n === "string" ? n : JSON.stringify(n)))].filter(Boolean);
+  const share = solOf(seat).keyPackage.signing_share;
+  assert.match(share, /^[0-9a-f]{64}$/, "control: the scan has a key share to find");
+  const saved = Object.values(solOf(seat).nonces ?? {});
+  const hidden = (e) => windows(e.nonces.slice(64)).filter((w) => !e.commitments.includes(w));
+  assert.ok(saved.every((e) => typeof e.nonces === "string" && hidden(e).length >= 10),
+    "control: the scan has secret nonces to find");
+  return [share, feeOf(c, seat).secret, ...saved.map((e) => e.nonces),
+    ...[share, feeOf(c, seat).secret].flatMap(windows), ...saved.flatMap(hidden)];
 };
 const solOf = (seat) => t.sec(gid, seat).sol ?? {};
 const leaks = (extra = []) => {
   const where = { calls: JSON.stringify(calls), logs: logs.join("\n"),
     banner: JSON.stringify(t.banner ?? null), documents: JSON.stringify([...data.entries()]),
-    state: JSON.stringify([c.sessions, c.commits, c.shares]), extra: extra.join("\n") };
+    state: JSON.stringify([c.sessions, c.commits, c.shares]), extra: extra.join("\n"),
+    errors: errors.join("\n"), announced: announced.join("\n") };
   return [1, 2, 3].flatMap((seat) => Object.entries(where)
-    .filter(([, text]) => secrets(seat).some((s) => s.length > 20 && text.includes(s)))
+    .filter(([, text]) => secrets(seat).some((s) => text.includes(s)))
     .map(([name]) => name + " holds a secret of seat " + seat));
 };
 
@@ -201,8 +234,15 @@ const spy = (name) => (...args) => {
   events.push({ name, args });
   return W[name](...args);
 };
+// The fee signature is verified: how many Worker calls and checker runs came before it.
+const verifies = [];
+const verify = (...args) => {
+  verifies.push({ worker: calls.length, checked: count("plain_check_message") });
+  return W.sol_fee_verify(...args);
+};
 c.W = { ...W, plain_check_message: spy("plain_check_message"),
-  sol_plain_fee_sign: spy("sol_plain_fee_sign"), sol_nonces: spy("sol_nonces") };
+  sol_plain_fee_sign: spy("sol_plain_fee_sign"), sol_nonces: spy("sol_nonces"),
+  sol_fee_verify: verify };
 const count = (name) => events.filter((e) => e.name === name).length;
 rig.hook.before = (p, value) => {
   if (/\/solsessions\/[0-9a-f]{32}$/.test(p)) events.push({ name: "proposal write", path: p });
@@ -239,11 +279,14 @@ const asSeat = async (ctl, seat, fn) => {
     ctl.host.localSeats = all;
   }
 };
+// A failing deepEqual on a saved entry would print its nonces.
+const sameEntry = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const typed = (amount = "0.005", asset = "sol", to = RECIPIENT) =>
   ({ asset, recipient: to, amount });
 const reset = () => {
   calls.length = 0;
   events.length = 0;
+  verifies.length = 0;
 };
 const nothingWritten = (before) => {
   assert.deepEqual(stored(), before, "no document was written");
@@ -452,6 +495,9 @@ const approvedBy = {};
   assert.equal(write.saved.digest, digest, "the saved entry is for the plain digest");
   assert.notEqual(digest, W.sol_digest("devnet", message), "which is not the pool digest");
   assert.equal(events[1].args[1], digest, "the nonces are made for that digest");
+  const [own, other] = [2, 3].map((i) => JSON.stringify(solOf(i).keyPackage));
+  assert.ok(events[1].args[0] === own && own !== other,
+    "the nonces come from the key package of the approving seat");
   const doc = data.get(path(gid, `solsessions/${ids.s2}/commits/2`));
   const { by, sig, ...fields } = doc;
   assert.deepEqual(Object.keys(fields).sort(), ["at", "commitments", "digest"], "the pool fields");
@@ -556,6 +602,8 @@ step("a refused message publishes nothing and saves no nonce");
   await writeProposal(c, mine.id, { ...mine.fields, feeSig: "ab".repeat(64) }, 1);
   await refused(2, mine.id, /The fee signature of device 1 does not fit it\./,
     "a random signature");
+  assert.deepEqual(calls, [], "a bad fee signature stops the step before the chain is read");
+  assert.deepEqual(verifies, [{ worker: 0, checked: 0 }], "the signature is verified first");
   const bytes = bytesOfHex(mine.fields.message);
   await writeProposal(c, mine.id, { ...mine.fields, feeSig: forge(3, bytes) }, 1);
   await refused(2, mine.id, /The fee signature of device 1 does not fit it\./,
@@ -610,7 +658,7 @@ step("a proposal that names another payer in a field is ignored");
   await approvePlain(c, ensure, await ss(), 3);
   assert.equal(count("sol_nonces"), 1, "a retry makes no nonces");
   assert.deepEqual(data.get(rel).commitments, first.commitments, "it publishes the saved one");
-  assert.deepEqual(solOf(3).nonces[p.id], entry);
+  assert.ok(sameEntry(solOf(3).nonces[p.id], entry), "the saved entry stays");
   // The proposer writes other bytes into the same session after the lost publish.
   data.delete(rel);
   rig.notify();
@@ -620,7 +668,7 @@ step("a proposal that names another payer in a field is ignored");
   await assert.rejects(async () => approvePlain(c, ensure, await ss(), 3),
     /The saved approval is for other bytes\./);
   assert.equal(count("sol_nonces"), 0, "no new nonces for other bytes");
-  assert.deepEqual(solOf(3).nonces[p.id], entry, "the saved nonces are the same");
+  assert.ok(sameEntry(solOf(3).nonces[p.id], entry), "the saved nonces are the same");
   assert.equal(data.get(rel), undefined, "and nothing was published");
   assert.deepEqual(leaks(), []);
 }
@@ -687,7 +735,7 @@ step("a proposal that is no send, an unknown payer and a seat without a share ar
 {
   const ss = (await sessions()).find((s) => s.id === ids.signed);
   assert.ok(showable(ss));
-  const good = { intent: ss.intent, message: ss.message, feeSig: ss.feeSig };
+  const good = { id: ss.id, intent: ss.intent, message: ss.message, feeSig: ss.feeSig };
   const kinds = {
     "create-nonce": hex(createNonceIntent(0, "00".repeat(32))),
     "enable-token": "10" + "00" + "11".repeat(32),
@@ -714,6 +762,12 @@ step("a proposal that is no send, an unknown payer and a seat without a share ar
     assert.equal(showable({ ...good, feeSig }), false, JSON.stringify(feeSig) + " is no signature");
   }
   assert.ok(showable({ ...good, message: "00".repeat(1232) }), "a full packet is shown");
+  // The commits and shares of a session are watched by its id: 1 to 64 word characters or -.
+  for (const id of ["a-b_9", "x".repeat(64), "0"]) assert.ok(showable({ ...good, id }), id);
+  const badIds = ["", "x".repeat(65), "a.b", "a b", "a/b", "a\n", "é", undefined, null, 7, ["a"]];
+  for (const id of badIds) {
+    assert.equal(showable({ ...good, id }), false, JSON.stringify(id) + " is no session id");
+  }
   assert.equal(showable(undefined), false);
   assert.equal(showable(null), false);
   assert.equal(titleOf({ ...good, intent: kinds["create-nonce"] }), null);
@@ -987,6 +1041,123 @@ step("of two proposals on one nonce account the earlier stands; an approval stay
 }
 step("a wallet that closes or a proposal that changes during a step stops it before it saves");
 
+// ── Refusals of a session: the id, one more instruction, no cache, the wallet itself ──
+// The v1 message (wasm-sol/src/v1.rs): a copy of the last instruction is appended.
+const withCopyOfLast = (message) => {
+  const buf = Buffer.from(message);
+  const [mask, count, keys32] = [buf.readUInt32LE(4), buf[40], buf[41]];
+  const configs = (mask & 3 ? 8 : 0) + [4, 8, 16].filter((bit) => mask & bit).length * 4;
+  const heads = 42 + 32 * keys32 + configs;
+  const payloads = heads + 4 * count;
+  const size = (i) => buf[heads + 4 * i + 1] + buf.readUInt16LE(heads + 4 * i + 2);
+  const last = payloads + Array.from({ length: count - 1 }, (_, i) => size(i))
+    .reduce((a, b) => a + b, 0);
+  const out = Buffer.concat([buf.subarray(0, payloads), buf.subarray(heads + 4 * (count - 1),
+    payloads), buf.subarray(payloads), buf.subarray(last)]);
+  out[40] = count + 1;
+  return out;
+};
+{
+  // A session whose id the page cannot watch is shown to no one: its commit could not be read.
+  setNonce(1, 42);
+  await plant(1, { k: 42 }, "bad.id");
+  await refused(2, "bad.id", /not one that this app can show/, "an id outside the pool rule");
+  // One more instruction in the message of a proposal: the checker refuses it at approval.
+  setNonce(1, 36);
+  const intent = sendSolIntent(36, nonceValue(1, 36), recipient, 5_000_000n);
+  const longer = withCopyOfLast(W.plain_compile_message(intent, pinsOf(1)));
+  const extra = await plant(1, { k: 36, message: longer });
+  await refused(2, extra.id, /The checker refused this: /, "one more instruction");
+  const counted = await reviewSession(c, ensure, await session(extra.id), 2);
+  assert.ok(counted.review.rules.some((r) => r.id === "plain-instruction-count"), "the count rule");
+  // Each review reads the chain again: a nonce that changed after a good review is refused.
+  setNonce(1, 35);
+  const fresh = await plant(1, { k: 35 });
+  assert.ok((await reviewSession(c, ensure, await session(fresh.id), 2)).ok, "control: it reviews");
+  setNonce(1, 35, 1);
+  reset();
+  const changed = await reviewSession(c, ensure, await session(fresh.id), 2);
+  assert.ok(!changed.ok && changed.review.rules.some((r) => r.id === "plain-nonce-account"),
+    "a nonce that changed after a good review is refused");
+  assert.ok(names().includes("genesis"), "and the chain was read for that review");
+  await refused(2, fresh.id, /The checker refused this: .*nonce account/, "the nonce changed");
+  setNonce(1, 35);
+  assert.ok((await reviewSession(c, ensure, await session(fresh.id), 2)).ok, "it reviews again");
+  // A recipient that is the wallet itself: the checker refuses after the reads, nothing is written.
+  setNonce(1, 37);
+  const before = stored();
+  reset();
+  await assert.rejects(() => proposeSend(c, ensure, typed("0.005", "sol", base58(group))),
+    /^Error: The checker refused this: the recipient is not the group key/);
+  assert.equal(count("plain_check_message"), 1, "the checker ran");
+  nothingWritten(before);
+  assert.deepEqual(leaks(), []);
+}
+step("an id outside the rule, one more instruction and a recipient that is the wallet are refused");
+
+// ── A wallet that closes while a document is signed or nonces are saved writes nothing ──
+// A tab whose wallet closes when its host has signed a document (`on` is "sign") or when it has
+// saved nonces ("save"). It counts the documents that its host signs, and keeps the words it says.
+const closing = async (on) => {
+  const tab = await another();
+  const out = { tab, said: [], signed: 0 };
+  tab.ctl.host.announce = (words) => (out.said.push(words), announced.push(words));
+  const { signedDoc, putSec } = tab.ctl.host;
+  tab.ctl.host.signedDoc = async (...args) => {
+    out.signed++;
+    const doc = await signedDoc(...args);
+    if (on === "sign") tab.close();
+    return doc;
+  };
+  tab.ctl.host.putSec = async (g, seat, patch) => {
+    const ok = await putSec(g, seat, patch);
+    if (on === "save" && patch.sol?.nonces) tab.close();
+    return ok;
+  };
+  return out;
+};
+const inTab = async (tab, id) => {
+  await waitFor("the proposal in the tab", () => {
+    tab.ctl.refresh();
+    return tab.ctl.sessions.some((x) => x.id === id);
+  });
+  return tab.ctl.sessions.find((x) => x.id === id);
+};
+const keys = () => [...data.keys()].sort();
+{
+  setNonce(1, 38);
+  const p = await plant(1, { k: 38 });
+  // The wallet closes while the commit is signed: no document, not even under a null base.
+  const { tab, said } = await closing("sign");
+  const sp = await inTab(tab, p.id);
+  const before = keys();
+  await tab.approve(sp, 2);
+  assert.deepEqual(keys(), before, "a commit signed for a wallet that closed is not written");
+  assert.deepEqual(said, ["Checking the proposal…"], "and 'Approval sent.' is not said");
+  assert.equal(t.banner.text, "The wallet closed during this step. Nothing was published.");
+  assert.ok(solOf(2).nonces?.[p.id], "the nonces were saved first, so a retry publishes them");
+  // The same for a proposal.
+  setNonce(1, 39);
+  const send = await closing("sign");
+  await send.tab.propose(typed("0.013"));
+  assert.equal(send.signed, 1, "control: the document was signed");
+  assert.deepEqual(keys(), before, "a proposal signed for a wallet that closed is not written");
+  assert.deepEqual(send.said, ["Checking the send…"], "and 'Send proposed.' is not said");
+  assert.equal(t.banner.text, "The wallet closed during this step. Nothing was published.");
+  // The wallet closes between the save of the nonces and the publish: no commit is even signed.
+  setNonce(1, 43);
+  const q = await plant(1, { k: 43 });
+  const save = await closing("save");
+  const sq = await inTab(save.tab, q.id);
+  await assert.rejects(() => approvePlain(save.tab.ctl, ensure, sq, 2),
+    /The wallet closed during this step\. Nothing was published\./);
+  assert.equal(save.signed, 0, "no commit is signed after the close");
+  assert.ok(solOf(2).nonces?.[q.id], "the nonces were saved");
+  assert.equal(data.get(path(gid, `solsessions/${q.id}/commits/2`)), undefined);
+  assert.deepEqual(leaks(), []);
+}
+step("a wallet that closes while a document is signed or the nonces are saved writes nothing");
+
 // ── The wasm text of a failed commitment is not passed on ──
 {
   setNonce(1, 33);
@@ -1075,7 +1246,7 @@ step("ensureWorker starts one Worker, and a close during the start leaves none")
 // ── The actions: one at a time, words for the live region, a banner for a refusal ──
 {
   const said = [];
-  c.host.announce = (words) => said.push(words);
+  c.host.announce = (words) => (said.push(words), announced.push(words));
   const before = stored();
   await plain.propose(typed("0"));
   assert.match(t.banner.text, /Enter an amount of SOL with at most 9 decimals/);
@@ -1102,6 +1273,65 @@ step("ensureWorker starts one Worker, and a close during the start leaves none")
   assert.equal(typeof plain.review, "function");
 }
 step("the controller offers propose, review and approve; the words go to the live region");
+
+// ── The watches of the sessions start with the wallet, end with it and with a session ──
+// The host of the tab reports each watch that the tab opens and closes. (The store counts the
+// watches of the page controller too, and that one follows every change of the store.)
+{
+  const prefix = base + "/solsessions";
+  const tab = await attach(t.solHost());
+  const open = new Set();
+  const { sdb } = tab.ctl.host;
+  tab.ctl.host.sdb = { ...sdb, collection: (path) => {
+    const col = sdb.collection(path);
+    const onSnapshot = (...args) => {
+      const [entry, stop] = [{ path }, col.onSnapshot(...args)];
+      open.add(entry);
+      return () => (open.delete(entry), stop());
+    };
+    return { ...col, onSnapshot };
+  } };
+  const live = () => [...open].filter((x) => x.path.startsWith(prefix)).length;
+  tab.open(gid, base);
+  tab.ctl.W = c.W;
+  await waitFor("the tab", () => loaded(tab.ctl));
+  const watched = async () => {
+    await waitFor("the signature checks", () => {
+      tab.ctl.refresh();
+      return tab.ctl.sessWait === 0 && tab.ctl.wait === 0;
+    }, 20000);
+    tab.react();
+    return live();
+  };
+  // A session with an id that the pool refuses (bad.id) is listed and takes no watch.
+  const openSessions = () => tab.ctl.sessions
+    .filter((x) => !ENDED.has(x.status) && SESSION_ID.test(x.id)).length;
+  const first = await watched();
+  assert.ok(tab.ctl.sessions.some((x) => ENDED.has(x.status)), "control: a session has ended");
+  assert.ok(tab.ctl.sessions.some((x) => x.id === "bad.id"), "control: a session with a bad id");
+  const fewer = openSessions() > 3 && openSessions() <= 50;
+  assert.ok(fewer, "control: some open sessions, fewer than the limit");
+  assert.equal(first, 1 + 2 * openSessions(),
+    "the collection, and the commits and shares of each open one");
+  // An open session takes two watches. When another proposal ends it, it gives them back.
+  const room = openSessions();
+  await plant(1, { k: 60, createdAt: 2000 });
+  assert.equal(await watched(), first + 2, "one more open session: two more watches");
+  await plant(1, { k: 60, createdAt: 1000, units: 5_100_000n });
+  assert.equal(openSessions(), room + 1, "the earlier proposal stands and the later one ended");
+  assert.equal(await watched(), first + 2, "the session that ended gave its two watches back");
+  // 51 newer sessions: only the newest 50 are watched, and no older session keeps a watch.
+  const newest = [];
+  for (let i = 0; i < 51; i++) {
+    const options = { k: 100 + i, createdAt: 10 ** 13 + i, units: 5_000_000n + BigInt(i) };
+    newest.push((await plant(1, options)).id);
+  }
+  assert.equal(await watched(), 1 + 2 * 50, "at most 50 sessions are watched");
+  assert.ok(!tab.ctl.watching.has(newest[0]) && tab.ctl.watching.has(newest[50]), "the newest 50");
+  tab.close();
+  assert.equal(open.size, 0, "a close gives every watch back");
+}
+step("the watches of the sessions stop with the wallet and with an ended session; at most 50");
 
 // ── Nothing leaked at the end ──
 assert.deepEqual(leaks(), [], "the nonces and the key shares are nowhere in the open");

@@ -12,6 +12,8 @@ export const ENDED = new Set(["sent", "failed"]);
 /** The fields that the proposer signs, in the order of the signature. */
 export const PROPOSAL = ["intent", "message", "feeSig", "createdAt"];
 
+/** The id rule of the pool. A session with another id has commits that nobody can read. */
+export const SESSION_ID = /^[\w-]{1,64}$/;
 const HEX = /^([0-9a-f]{2})+$/;
 const FEE_SIG = /^[0-9a-f]{128}$/;
 const MAX_MESSAGE_HEX = 2 * 1232; // a transaction fits one packet
@@ -26,14 +28,16 @@ export function proposalFields(d) {
   return out;
 }
 
+// A text (not a number, a list or an absent field) that the pattern accepts.
+const fits = (value, pattern) => typeof value === "string" && pattern.test(value);
+
 /** True for a session that this app shows and signs: a send with well formed hex fields. */
 export const showable = (ss) =>
   isSendIntent(ss?.intent) &&
-  typeof ss.message === "string" &&
-  HEX.test(ss.message) &&
+  fits(ss.id, SESSION_ID) &&
+  fits(ss.message, HEX) &&
   ss.message.length <= MAX_MESSAGE_HEX &&
-  typeof ss.feeSig === "string" &&
-  FEE_SIG.test(ss.feeSig);
+  fits(ss.feeSig, FEE_SIG);
 
 /** The title of a session from its tag. A recipient or an amount comes from the checker only. */
 export const titleOf = (ss) => (showable(ss) ? TITLES[kindOfIntent(ss.intent)] : null);
@@ -101,14 +105,17 @@ export function filterSessions(raw, check, onBad) {
 
 /**
  * Signs the proposal as seat `seat` and writes it as the session `id`. The fields are exactly the
- * ones of PROPOSAL: any other would stay unsigned, so it is an error.
+ * ones of PROPOSAL: any other would stay unsigned, so it is an error. `guard` runs after the
+ * signature and throws when the wallet changed meanwhile: then nothing is written.
  */
-export async function writeProposal(c, id, fields, seat) {
+export async function writeProposal(c, id, fields, seat, guard = () => {}) {
   const extra = Object.keys(fields).filter((k) => !PROPOSAL.includes(k));
   if (extra.length) throw new Error("Unsigned field in the proposal: " + extra.join(", "));
   const rel = SESSIONS + "/" + id;
+  const { base } = c;
   const signed = await c.host.signedDoc(c.gid, rel, seat, proposalFields(fields));
-  await c.host.sdb.doc(c.base + "/" + rel).set(signed);
+  guard();
+  await c.host.sdb.doc(base + "/" + rel).set(signed);
 }
 
 /** True when the session `ss` of an earlier read is still in `sessions` with the same proposal. */

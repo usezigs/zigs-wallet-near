@@ -205,8 +205,10 @@ const PUBLISH_COMMIT = `  const entry = await approvalOnce(c, seat, ss.id, revie
   unchanged(c, opened, ss);
   const rel = \`\${SESSIONS}/\${ss.id}/commits/\${seat}\`;
   const fields = { commitments: entry.commitments, digest: entry.digest, at: Date.now() };
+  const { base } = c;
   const doc = await c.host.signedDoc(c.gid, rel, seat, fields);
-  await c.host.sdb.doc(c.base + "/" + rel).set(doc);
+  unchanged(c, opened, ss);
+  await c.host.sdb.doc(base + "/" + rel).set(doc);
 `;
 const PROPOSE_SIGN = "  const feeSig = sign(c, seat, { message, intent, pins, chain });\n";
 const PROPOSE_GUARD = `  const stop = await settledBlock(c);
@@ -216,6 +218,27 @@ const PROPOSE_GUARD = `  const stop = await settledBlock(c);
 ` + PROPOSE_SIGN;
 const NONCE_RETURN = "  return ready && authority === groupKey ? "
   + "hexOfBytes(data.subarray(VALUE_AT, VALUE_END)) : null;\n";
+// The review of an approval: the fee signature, the chain, the checker, in that order.
+const VERIFY_BLOCK = `  if (!c.W.sol_fee_verify(payer, message, ss.feeSig)) {
+    return { ok: false, why: \`The fee signature of device \${ss.by} does not fit it.\` };
+  }
+`;
+const REVIEW_STEPS = `  const pins = plainPins(c.wallet, agreement(c).done.groupKey, payer);
+  const chain = await readChain(c, await ensure(), intent, pins);
+  stillOpen(c, opened);
+  const review = reviewText(c, message, intent, pins, chain);
+  if (!canApprove(review)) return { ok: false, why: stopText(review), review };
+`;
+const CHAIN_READ = "  const chain = await readChain(c, await ensure(), intent, pins);\n";
+const SIGN_COMMIT = "  const doc = await c.host.signedDoc(c.gid, rel, seat, fields);\n";
+const SAVED_GUARD = "  if (entry.digest !== review.digest) throw new Error(OTHER_BYTES);\n";
+const REFUSE_APPROVE =
+  "  if (!canApprove(review)) return { ok: false, why: stopText(review), review };\n";
+const REFUSE_PROPOSE = "  if (!canApprove(review)) throw new Error(stopText(review));\n";
+// A refusal that names one rule is waved through.
+const waved = (id, refuse) =>
+  "  if (!canApprove(review)\n    && !review.rules?.some((r) => r.id === \"" + id + "\")) {\n  "
+  + refuse + "\n  }\n";
 // The tab and the rows of the plain wallet (sol-plain-view.mjs), its load (sol-plain-load.mjs).
 const SOL_PLAIN_VIEW = ["node", "web/test/sol-plain-view.mjs"];
 const SOL_PLAIN_LOAD = ["node", "web/test/sol-plain-load.mjs"];
@@ -1842,8 +1865,10 @@ export const MUTATIONS = [
     [PLAIN_APPROVE, PUBLISH_COMMIT, `  const entry = await make();
   const rel = \`\${SESSIONS}/\${ss.id}/commits/\${seat}\`;
   const fields = { commitments: entry.commitments, digest: entry.digest, at: Date.now() };
+  const { base } = c;
   const doc = await c.host.signedDoc(c.gid, rel, seat, fields);
-  await c.host.sdb.doc(c.base + "/" + rel).set(doc);
+  unchanged(c, opened, ss);
+  await c.host.sdb.doc(base + "/" + rel).set(doc);
   await approvalOnce(c, seat, ss.id, review.digest, async () => entry);
 `],
     /the nonces were in the secret of seat 2 when the commit was written/),
@@ -1964,6 +1989,68 @@ export const MUTATIONS = [
     [PLAIN_CONTROL_JS, "  syncWatches(c);\n", ""], /timeout: the commit of seat 2/),
   sessionMutant("PL-announce-done", "the end of a proposal is not said",
     [PLAIN_CONTROL_JS, "    c.host.announce(SAYS[name][1]);\n", ""], /Send proposed\./),
+  sessionMutant("PL-watch-teardown", "a close does not stop the watches of the sessions",
+    [PLAIN_CONTROL_JS, "  for (const stop of [...c.unsubs, ...c.watching.values()]) stop();\n",
+      "  for (const stop of c.unsubs) stop();\n"],
+    /a close gives every watch back/),
+  sessionMutant("PL-watch-ended", "a session that ended keeps its watches",
+    [PLAIN_CONTROL_JS, LIVE_LINE, "    .filter((ss) => SESSION_ID.test(ss.id))\n"],
+    /the collection, and the commits and shares of each open one/),
+  sessionMutant("PL-watch-giveback", "a session that ended is forgotten and not unwatched",
+    [PLAIN_CONTROL_JS, "    stop();\n    c.watching.delete(id);\n", "    c.watching.delete(id);\n"],
+    /the session that ended gave its two watches back/),
+  sessionMutant("PL-watch-max", "the live watches have no cap",
+    [PLAIN_CONTROL_JS, "    .slice(0, WATCH_MAX)\n", ""], /at most 50 sessions are watched/),
+  sessionMutant("PL-watch-id", "a session with an id that the pool refuses takes a watch",
+    [PLAIN_CONTROL_JS, LIVE_LINE, "    .filter((ss) => !ENDED.has(ss.status))\n"],
+    /the collection, and the commits and shares of each open one/),
+  sessionMutant("PL-showable-id", "a session with any id can be shown and approved",
+    [PLAIN_SESSIONS, "  fits(ss.id, SESSION_ID) &&\n", ""],
+    /is no session id/),
+  sessionMutant("PL-write-guard", "a proposal is written for a wallet that closed in the signature",
+    [PLAIN_SESSIONS, "  guard();\n", ""],
+    /a proposal signed for a wallet that closed is not written/),
+  sessionMutant("PL-write-noguard", "a proposal passes no guard to its write",
+    [PLAIN_PROPOSE, "  await writeProposal(c, id, fields, seat, () => stillOpen(c, opened));\n",
+      "  await writeProposal(c, id, fields, seat);\n"],
+    /a proposal signed for a wallet that closed is not written/),
+  sessionMutant("PL-sign-guard", "a commit is written for a wallet that closed while it was signed",
+    [PLAIN_APPROVE, SIGN_COMMIT + "  unchanged(c, opened, ss);\n", SIGN_COMMIT],
+    /a commit signed for a wallet that closed is not written/),
+  sessionMutant("PL-save-guard", "a commit is signed for a wallet that closed after the save",
+    [PLAIN_APPROVE, SAVED_GUARD + "  unchanged(c, opened, ss);\n", SAVED_GUARD],
+    /no commit is signed after the close/),
+  sessionMutant("PL-verify-late", "the fee signature is verified after the chain and the checker",
+    [PLAIN_APPROVE, VERIFY_BLOCK + REVIEW_STEPS, REVIEW_STEPS + VERIFY_BLOCK],
+    /a bad fee signature stops the step before the chain is read/),
+  sessionMutant("PL-chain-cache", "a review keeps the chain of an earlier review of the session",
+    [PLAIN_APPROVE, CHAIN_READ, "  c.seen ??= {};\n  const chain = (c.seen[ss.id] ??= "
+      + "await readChain(c, await ensure(), intent, pins));\n"],
+    /a nonce that changed after a good review is refused/),
+  sessionMutant("PL-nonces-seat", "the nonces are made from the key package of seat 1",
+    [PLAIN_APPROVE, "  const { keyPackage } = solOf(c.host, c.gid, seat);\n",
+      "  const { keyPackage } = solOf(c.host, c.gid, 1);\n"],
+    /the nonces come from the key package of the approving seat/),
+  sessionMutant("PL-count-wave", "an approval goes on after a refusal for one more instruction",
+    [PLAIN_APPROVE, REFUSE_APPROVE,
+      waved("plain-instruction-count", "  return { ok: false, why: stopText(review), review };")],
+    /one more instruction/),
+  sessionMutant("PL-propose-self", "a proposal to the wallet itself goes on after the refusal",
+    [PLAIN_PROPOSE, REFUSE_PROPOSE,
+      waved("plain-recipient-reserved", "  throw new Error(stopText(review));")],
+    /Missing expected rejection|did not match the regular expression/),
+  sessionMutant("PL-leak-nonce-tail", "the log line of an approval holds the secret nonces",
+    [PLAIN_APPROVE, "commitment published`);", "commitment published ${entry.nonces.slice(64)}`);"],
+    /logs holds a secret of seat/),
+  sessionMutant("PL-leak-share-part", "the log line of an approval holds a part of the key share",
+    [PLAIN_APPROVE, "commitment published`);", "commitment published "
+      + "${solOf(c.host, c.gid, seat).keyPackage.signing_share.slice(0, 40)}`);"],
+    /logs holds a secret of seat/),
+  sessionMutant("PL-leak-error-text", "the error of a saved approval of other bytes holds nonces",
+    [PLAIN_APPROVE, SAVED_GUARD,
+      "  if (entry.digest !== review.digest) {\n    throw new Error(OTHER_BYTES + \" \" + "
+        + "entry.nonces.slice(100, 140));\n  }\n"],
+    /errors holds a secret of seat/),
   viewMutant("PL-setup-copy", "the idle setup title is a paragraph of the ready card",
     [PLAIN_VIEW, "el(\"h4\", {}, SETUP_TITLE)", "el(\"p\", {}, SETUP_TITLE)"],
     /the forgedFee card has at most 70 own words/),

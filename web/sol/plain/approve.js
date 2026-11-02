@@ -112,7 +112,9 @@ export async function approvePlain(c, ensure, ss, seat) {
   unchanged(c, opened, ss);
   const rel = `${SESSIONS}/${ss.id}/commits/${seat}`;
   const fields = { commitments: entry.commitments, digest: entry.digest, at: Date.now() };
+  const { base } = c;
   const doc = await c.host.signedDoc(c.gid, rel, seat, fields);
-  await c.host.sdb.doc(c.base + "/" + rel).set(doc);
+  unchanged(c, opened, ss);
+  await c.host.sdb.doc(base + "/" + rel).set(doc);
   c.host.log(`device ${seat}: approved a Solana proposal, commitment published`);
 }
