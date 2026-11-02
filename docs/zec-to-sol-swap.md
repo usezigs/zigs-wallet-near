@@ -77,8 +77,10 @@ With an allowance, the device accepts the transaction only when all of these are
 3. The device decodes the address from the `script_pubkey` of that output itself. It ignores the
    optional `user_address` text of the PCZT. The `redeem_script` field is empty.
 4. The script is a P2PKH script (`t1`), and its key hash equals the hash of the allowance address.
-   The device refuses a P2SH (`t3`) script and a TEX address. If the first live quote (step L0 in
-   section 6.3) shows a `t3` deposit address, change this rule to P2SH only, not to both.
+   The device refuses a P2SH (`t3`) script. A TEX address (ZIP 320) holds the same key hash as a
+   `t1` address, so the script cannot show it. The quote check refuses it instead: it decodes the
+   text of `depositAddress` and accepts only the `t1` encoding. If the first live quote (step L0
+   in section 6.3) shows a `t3` deposit address, change this rule to P2SH only, not to both.
 5. The value of the output equals the allowance value, to the zatoshi.
 6. The transaction has no Sapling part, and its expiry height is not 0 (as today).
 7. The fee check of section 3.3 passes.
@@ -110,7 +112,7 @@ balance and refuses to build. That failure loses no funds.
 
 ### 3.4 The quote check on each device
 
-The hard part is the binding. A proposer, or the Zigs Worker, can name any transparent address as
+The binding needs the most care. A proposer, or the Zigs Worker, can name any transparent address as
 "the deposit". So each approving device checks a signed 1Click quote itself, and only that check
 makes the allowance.
 
@@ -132,7 +134,9 @@ Each device then does these checks:
    the Receive card (`web/sol/plain/view.js:361`).
 4. **Refund.** `refundTo` is the unified address of this ZEC wallet. Its Orchard receiver equals
    the external address of the viewing key of this device (`wasm/src/lib.rs:438`). See section 4.
-5. **Amount.** `amount` and `quote.amountIn` equal the allowance value `V`.
+5. **Amount and address.** `amount` and `quote.amountIn` equal the allowance value `V`.
+   `quote.depositAddress` decodes as a mainnet `t1` address (Base58Check). A `tex1` text is
+   refused. The allowance address is that decoded address.
 6. **Price.** `slippageTolerance` is 50, 100 or 200 (`cf/src/near.js:42`). `minAmountOut` is at
    least `floor(amountOut × (10000 - bps) / 10000)`, the floor rule of the `pq-swap` adapter.
 7. **No extras.** The answer has no `depositMemo`, `customRecipientMsg`, `virtualChainRecipient`
@@ -260,7 +264,10 @@ follow-up for that route.
 The staging Worker builds every dry quote from ZEC with the Orchard-only sample unified address as
 `refundTo` and `refundType: "ORIGIN_CHAIN"` (`cf/src/near.js:32-36`, `cf/src/near.js:103-112`). So a
 dry quote from ZEC through `POST https://staging.zigs.app/near/quote` tests a shielded refund
-address. On 2026-11-02 these calls ran (no deposit address exists for a dry quote):
+address. The calls went to the Worker that staging runs, not to a6264ca9. `cf/src/near.js` is the
+same at `3a4f922f` (the last staging deploy that a hand-over note names) and at a6264ca9, so the
+deployed Worker sends the same sample. On 2026-11-02 these calls ran (no deposit address exists
+for a dry quote):
 
 | Time (UTC) | Ask | Answer |
 |---|---|---|
@@ -283,8 +290,9 @@ The limits of this result:
   public report said that a NEAR Intents refund of ZEC went to a transparent address, and that
   shielded refunds would come in a later update. A swap provider guide says that NEAR Intents
   cannot quote unified Zcash addresses. The dry quotes above contradict that guide.
-- A live quote (`dry: false`) checks the addresses more strictly. The SOL to ZEC route proved that
-  1Click accepts an Orchard-only unified address as the recipient of a live quote.
+- It is not known whether a live quote (`dry: false`) checks `refundTo` more than a dry quote.
+  Step L0 answers this for a ZEC refund address. The SOL to ZEC route showed only that 1Click
+  accepts an Orchard-only unified address as the recipient of a live quote.
 
 ### 4.3 The options
 
@@ -304,7 +312,9 @@ The engine records Ironwood outputs only (`wasm/src/chain.rs:276-290`). If 1Clic
 an Orchard (version 5) output, the wallet does not show it (`PROTOCOL.md:1029-1032`). The funds are
 not lost to another person, because the refund pays the group address, but the balance and the
 spend path miss them until the engine scans Orchard notes. Step L1 tests which pool 1Click uses.
-Run it before NU7 (block 3,543,405, about 2026-11-06) and again after it (`README.md:853-854`).
+NU7 activates at block 3,543,405, about 2026-11-06 (`README.md:853-854`). L1 needs the Worker step
+of section 6.1 first, so it will most likely run after NU7. The run after NU7 is the one that
+counts. Run L1 before NU7 only if the steps get there in time.
 
 ## 5. The payout
 
@@ -373,7 +383,8 @@ Each step needs the step before it. No step has a time estimate.
 6. **Text:** `PRIVACY.md` (the rule at `:785-788`, the swap sections at `:286-390`, the status leak
    of 3.8), `README.md` (`:583-586`, and the swap text), and the page texts.
 7. **QA:** one round. Then record the baseline as the last commit.
-8. **L2:** the full swap through the group (section 6.3). Then **L3**: the same after NU7.
+8. **L2:** the full swap through the group (section 6.3). If L2 runs before NU7, run **L3**, the
+   same swap, after NU7.
 
 ### 6.2 Tests
 
@@ -416,7 +427,7 @@ commit, the command and the amounts. No run happens as part of this record.
 | L0 | Nothing. One live quote (`dry: false`) from ZEC to SOL through the new Worker route, with the plain group address as recipient and the wallet address as `refundTo`. Nobody pays the deposit address | 200. The deposit address is `t1`. The signature verifies under the pinned key. Record `refundFee`, `timeWhenInactive` and the size of the answer |
 | L1 | About 199,000 zat from a shielded wallet outside Zigs that the owner controls. It pays the deposit address of a new L0-type quote of 200,000 zat. The deposit is too small on purpose, so 1Click refunds it to the Zigs wallet after the deadline of the quote | `INCOMPLETE_DEPOSIT`, then `REFUNDED` with a Zcash transaction hash. The Zigs wallet shows the note after a sync. Read `refundFee` from L0 first: if it is near the deposit, raise the amounts |
 | L2 | 200,000 zat plus a 15,000 zat fee from the Zigs mainnet wallet, through the group | `SUCCESS` with a Solana transaction hash. The plain Solana wallet shows about 0.0249 SOL (the 20:02 UTC quote). The ZEC change comes back |
-| L3 | The same as L2, after NU7 | The same as L2 |
+| L3 | The same as L2, after NU7. Only when L2 ran before NU7 | The same as L2 |
 
 Do not use the sample unified address of `cf/src/near.js:32-34` in a funded run. Its keys are
 public. Do not use an exchange address in any run.
