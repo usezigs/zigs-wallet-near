@@ -152,6 +152,24 @@ function balanceRow(balance, { text = "", busy = false }) {
   return { state: text.startsWith("saved") ? "saved" : "synced", text: balance };
 }
 
+/**
+ * The SOL or USDC row of a served mainnet wallet (the plain wallet). `setup`: the summary of its
+ * Solana part, null until its documents are read; `notAdded`: its start documents hold no start;
+ * `read`: readTexts of web/sol/plain/view.js, or null before the controller follows the wallet.
+ * @returns {{state: string, text: string, amount?: string, unit?: string}}
+ */
+export function plainRow(asset, { notAdded, loading, setup, read }) {
+  if (notAdded) return { state: "none", text: "Not added" };
+  if (!setup) {
+    return loading ? { state: "loading", text: "Loading…" } : { state: "idle", text: "Not open" };
+  }
+  if (setup.status !== "ready") {
+    const [state, text] = SOL_STATES[setup.status] ?? ["unknown", "Unknown"];
+    return { state, text };
+  }
+  return read?.rows[asset] ?? { state: "reading", text: "Reading…" };
+}
+
 /** The ZEC payments in progress, each counted once: open, waiting for their block, or held. */
 export const zecInProgress = (open, flying, held) => new Set([...open, ...flying, ...held]).size;
 

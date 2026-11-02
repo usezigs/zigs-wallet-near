@@ -10,15 +10,15 @@
 // 4. no name is exported by two page modules (page.mjs finds a name by its export), no page
 //    module and not web/app.js imports a test setter, and no page module imports another one
 //    with `import * as`;
-// 5. every key that web/sol/*.js reads from the host is a key of solHost();
+// 5. every key that web/sol/*.js and web/sol/plain/*.js reads from the host is a key of solHost();
 // 6. every file that a listed file imports is in the list (so the browser fetches them all at
 //    the second level);
 // 7. every name that web/app.js or a listed file imports is an export of its source: the tests
 //    never load web/app.js, so its imports are checked here by their text;
 // 8. no page module imports a top-level name of a page module from a pure module: personal.js
 //    and app-chain.js both export NETWORKS, and the page means the one of app-chain.js;
-// 9. no file of web/sol imports web/app.js or a page module, statically or with import():
-//    web/sol reaches the page only through the keys of solHost().
+// 9. no file of web/sol or web/sol/plain imports web/app.js or a page module, statically or with
+//    import(): web/sol reaches the page only through the keys of solHost().
 // A promise of a module that rejects soon after the load fails the test too.
 // The parser is the acorn of the node binary: the test starts itself again with
 // --expose-internals. ponytail: that path is internal to node; the upgrade is acorn as a dev
@@ -159,7 +159,9 @@ function checkHost() {
     });
   }
   if (!keys.size) problems.push("no solHost() in the page modules");
-  for (const f of fs.readdirSync(new URL("sol/", web)).filter((x) => x.endsWith(".js"))) {
+  const solFiles = (dir) => fs.readdirSync(new URL(`sol/${dir}`, web))
+    .filter((x) => x.endsWith(".js")).map((x) => `${dir}${x}`);
+  for (const f of [...solFiles(""), ...solFiles("plain/")]) {
     walk(parse(`sol/${f}`), (n) => {
       for (const k of hostKeys(n)) if (k && !keys.has(k)) problems.push(`sol/${f} reads host.${k}`);
       if (PAGE_PATH.test(sourceOf(n))) problems.push(`sol/${f} imports ${sourceOf(n)}`);

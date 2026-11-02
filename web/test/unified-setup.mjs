@@ -2237,6 +2237,8 @@ async function walkSteps(fields, times, fresh = true) {
       + findNode(n, (x) => /^security-signer-[1-7]$/.test(x.attrs?.id))
         .attrs.id.split("-").pop());
   await waitFor("Security backup controls", () => solButtons().length === 3);
+  assert.match(pageText(), /Zcash \+ Solana · same approval rule/,
+    "a ready Devnet part gives Security the rule of both chains");
   assert.match(pageText(), /Restore the Zcash file first, then its separate Solana file/);
   assert.match(pageText(), /Keep the devices that still work/, "the Security text says device");
   assert.doesNotMatch(pageText(), /Keep the signers|restore signers/);
@@ -2262,6 +2264,8 @@ async function walkSteps(fields, times, fresh = true) {
   data.set(`groups/${gidS}/solabort/2`, stop);
   rig.notify();
   await waitFor("no Solana backup is asked", () => solButtons().length === 0);
+  assert.match(pageText(), /Setup stopped\. Do not use the Solana part\./,
+    "and a stopped Devnet part says so on Security");
   ui.tab = backupTab;
   assert.doesNotMatch(pageText(), /Back up your key share|This browser can forget it/,
     "a stopped Solana part does not introduce a dashboard reminder");

@@ -21,7 +21,7 @@ import {
   changePersonal, personal, personalDamaged, personalEnv, restoreAccount,
 } from "./app-account.js";
 import { once, render } from "./app-loop.js";
-import { solRestore, solSetup } from "./app-sol.js";
+import { solReady, solRestore } from "./app-sol.js";
 import { heldApprovals } from "./app-payments.js";
 import { checkBackupPayload, checkSavedBackup } from "./backup-check.js";
 import { markBackupChecked, reportBackupSaved } from "./app-guided-setup.js";
@@ -209,13 +209,13 @@ export function backupDialog() {
 
 // Verification is deliberately separate from restore: reopening a saved file cannot overwrite
 // a share, consume a nonce, replace a room key, or select another wallet.
-function backupCheckExpected(gid, seat, chain) {
+export function backupCheckExpected(gid, seat, chain) {
   if (gid !== state.gid || !localSeatReady(seat)) {
     throw new Error("Open this wallet on the device that saved the file and finish its address check first.");
   }
   if (chain === "zec") return J(backupText(seat));
   const s = sec(gid, seat)?.sol;
-  if (chain !== "sol" || solSetup()?.status !== "ready" || !s?.keyPackage
+  if (chain !== "sol" || !solReady() || !s?.keyPackage
       || !s.solSeed || !s.groupKey || s.aborted) {
     throw new Error("Wait for this device’s Solana address checks before checking its Solana recovery file.");
   }

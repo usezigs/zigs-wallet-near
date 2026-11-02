@@ -200,7 +200,65 @@ second. The server gives `/sol/plain/*` its own policy (`PLAIN_WORKER_POLICY` in
 secret `HELIUS_MAINNET_URL`, and else `{ rpcUrl }` with `Cache-Control: no-store`. A Helius Secure
 URL (paid plan) has another host, so it needs a change of the pin in both files. A new module in
 `web/sol/plain` needs a name of lowercase letters, digits and hyphens: no other name answers when `SOL` is
-off.
+off. With `SOL` off and `SOL_MAINNET` `"1"`, the server also serves the shared modules and the wasm
+file that the plain wallet loads (`PLAIN_SOL_FILES` in `cf/src/index.js`) and no other file of `/sol`;
+`cf/test/gate.mjs` computes the import closure of `web/sol/plain/control.js` and of
+`web/sol/backup.js` and fails when the list differs.
+
+The plain controller (`web/sol/plain/control.js`) starts this Worker for the first balance read of an
+open wallet, and only if a screen shows the wallet. It compares the `content-security-policy` header
+of `/sol/plain/worker.js` with `PLAIN_WORKER_POLICY`; a difference starts nothing. It then asks
+`/sol/config-mainnet.json` (not cached) and sends `init` with the cluster and the URL, and checks that
+the answer names the cluster of the wallet. The URL is not stored, logged or shown. The read job gets
+the SOL of the group address, the USDC of its associated token account and the SOL of each published
+fee address. The wasm names the token account (`plain_reads`, row `source`); no document or answer
+of the network gives it. The page decodes the token account for display only (the checker parses it
+again before any signature). One read job runs at a time, a wallet is read once in 30 s, a hidden tab
+reads nothing, and a failed read keeps the old balances and waits 30 s. A step of the start that
+takes more than 20 s ends the read. A close of the wallet closes a Worker that is still in init.
+A timer wakes the page when the gap ends, after a good read too, and a tab that shows again asks
+for a pass. A bad or frozen USDC account is an error of the USDC row only: the SOL and fee balances
+still show.
+
+The Solana tab of a served mainnet wallet (`web/sol/plain/view.js`) shows the start card (device 1
+only), the progress of the seats, then the address (base58 of the agreed group key), Copy, the
+explorer link (no cluster parameter), the SOL and USDC balances, the fee addresses of this browser
+and the backup rows. Overview shows the SOL and USDC rows. Send is not available in this version.
+The warning is the first block of the ready card. The tab says "Loading Solana…" until the Solana
+documents arrive. A part that stopped after the seats agreed still shows the address and the
+balances, with no Copy. The Change devices texts, also the dialog that moves the Zcash funds, say
+that the SOL and USDC stay at the Solana address. The probe of the config keeps no body.
+
+The ready tab also has Create nonce (S1) and Enable USDC (S4), which one device takes alone with its
+fee key (`web/sol/plain/direct.js`). Both messages have one signature, so the group does not sign.
+Each step spends only the SOL of that fee address. The page reads the chain at the addresses that
+the wasm names, compiles the message and runs the checker, and it shows the lines of the checker.
+Only after the person presses Confirm does the fee key sign the exact message that the checker
+accepted. The page then simulates it, sends the bytes that passed and waits for the id of the
+signature. A refusal, an error or a failed simulation signs or sends nothing more, and an answer
+"unknown" is never sent again. Each step reads a new blockhash. Create nonce takes the first of the
+first 100 nonce indexes of the device whose account is missing. The tab shows Enable USDC from the
+next balance read and never from the result of a step. The fee key stays on the device: the Worker
+gets the signed transaction only.
+
+A device can also propose a send of SOL (S2) or USDC (S3), and the other devices can approve it
+(`web/sol/plain/propose.js`, `approve.js`, `sessions.js`). The tab has no form for it yet. The
+session is the document `solsessions/<id>` with one signed part, the proposal: `intent`,
+`message`, `feeSig` and `createdAt`. The commits sit below it, at the path and with the fields of
+the pool. The plain controller does not import the pool session module: `sessions.js` of the
+plain wallet reads the same path and the same signed fields. The one pool module that it shares is
+`nonces.js`, because the once-only rule of the FROST nonces must have one copy. The proposer
+takes the lowest index k whose nonce account (the nonce accounts of its own fee address) is
+initialised, names the group key as authority and has no open session. It reads the chain at the
+addresses of the wasm, runs the checker, and only after an accepted answer signs the exact
+message with its fee key. A refusal or an error signs and writes nothing. An approving device
+takes the payer from the fee document of the proposing seat, never from a field of the proposal,
+checks the fee signature, reads the chain again and runs the checker. Only an accepted answer
+leads to the nonces: they are saved with the plain digest before the commit is published, and a
+saved approval of other bytes is refused. The nonces and the key share are never published.
+Two open proposals of one seat on one nonce account cannot both land: the earlier one stands and
+the later one ends with the text "Propose it again." A proposal and an approval have no age
+limit. The signing rounds and the send come in a later step.
 
 **3.9 Known limits of the plain wallet (P1).**
 
@@ -211,6 +269,34 @@ off.
    for that owner and mint. After that, Zigs works.
 2. For the page step P4: a FROST key package carries no mode. The page must keep the mode (plain
    or pool) in the wallet record. The page must never pass a plain key package to a pool entry.
+   Four controls hold this apart (3.10).
+
+**3.10 What the plain wallet shows and who sees what.** The plain wallet of a served mainnet wallet
+holds real SOL and USDC at the group address. It has no pool, no hosted prover and no privacy,
+and the code is not audited. Balances and payments are public on chain. The tab can receive.
+Send is off until it passes QA. The page asks the Worker for the mainnet cluster only, so the
+Worker reads through `https://mainnet.helius-rpc.com`. Helius sees the IP address, the app origin,
+the group address, its USDC account and the published fee addresses. The explorer sees the address
+that you open and the IP address, and only when you press Open in explorer. The server gives the
+page the Helius URL at `/sol/config-mainnet.json` and serves it only when `SOL_MAINNET` is `"1"`.
+Cloudflare, the host, sees the connection data of each call, also of that call, and its Worker holds
+the URL (`HELIUS_MAINNET_URL`). `SOL_MAINNET` is `"0"` on production and on staging until send
+passes QA. The words are in PRIVACY.md (Solana mainnet plain wallet). The four controls of the
+plain part:
+
+1. The label `mainnet-plain` (`web/sol/wallet.js`), derived from the confirmed network. The start
+   document, the backup file and the saved-file check carry it.
+2. The Worker guard and policy (`web/sol/plain/guard.js`, `PLAIN_WORKER_POLICY`, and
+   `plainWorkerPolicy` in `cf/src/index.js`). The page names the cluster of the wallet. The guard
+   pins `init` to the Helius origin of that cluster, and the controller checks that the answer names
+   it. The policy of `/sol/plain/*` names the Helius Devnet and mainnet hosts.
+3. The drift abort: a seat part with another label stops (`driftOf` in `web/sol/ceremony.js`).
+4. The restore check: a restore refuses a file of another label or a key share that does not fit
+   the published key (`web/sol/backup.js`).
+
+The Security page lists the plain seats of a served wallet with their backup and the result of the
+saved-file check. The help diagnostics give the state of the plain part, and "unavailable" for a
+mainnet wallet that the server does not serve.
 
 ## 4. The second DKG, key roles and backups
 
@@ -219,7 +305,7 @@ Zcash key. Each step writes a signed document (3.2).
 
 | Step | Document | Content |
 |---|---|---|
-| 1 Start | `solstart/1` | Cluster (4.4). A seat refuses unless the wallet is version 3 and the safety number that the device computes now equals the number its person confirmed. A restored seat has no such number (a restore does not take it from the file): its own stored confirm document counts, when the key of the seat signed it and it carries the number of now. That number covers the wallet id, `t`, `n`, `network` and every box key (PROTOCOL.md 4.1). Testnet gives Devnet. A mainnet wallet gets no Solana. The ceremony needs all `n` seats. A seat on an app without Solana support writes nothing. The wallet page then shows "Device N has not started" for each seat with no `soldkg1` document. A seat of this browser that waits says why: no Zcash key share, no Address checked, or a safety number that it did not confirm or that changed |
+| 1 Start | `solstart/1` | Cluster (4.4). A seat refuses unless the wallet is version 3 and the safety number that the device computes now equals the number its person confirmed. A restored seat has no such number (a restore does not take it from the file): its own stored confirm document counts, when the key of the seat signed it and it carries the number of now. That number covers the wallet id, `t`, `n`, `network` and every box key (PROTOCOL.md 4.1). Testnet gives Devnet (the pool). A mainnet wallet gives the plain wallet, label `mainnet-plain`, only when the people of the wallet confirmed mainnet and the server serves `/sol/config-mainnet.json`: the page asks once, and a 404 leaves the wallet with no Solana part. The ceremony needs all `n` seats. A seat on an app without Solana support writes nothing. The wallet page then shows "Device N has not started" for each seat with no `soldkg1` document. A seat of this browser that waits says why: no Zcash key share, no Address checked, or a safety number that it did not confirm or that changed |
 | 2 Round 1 | `soldkg1/<i>` | A seat takes a lease on the document first (60 s, the longest of the group server) and looks for a published document again just before it writes, so two copies of one seat (a device and a restored copy) do not publish it at the same time. This narrows that race and does not close it: the group server keeps leases in memory and forgets them when it sleeps, and a write that stalls can still land over the document of the other copy. A copy whose secret does not hold the published package drops that secret and takes no part. The `frost-ed25519` round-1 package and a commitment to a fresh 32-byte part `rSol`. The commitment is BLAKE2b-256 with the personalization `Zigs_SolCmt___v1` over the wallet id, seat, box key, cluster and `rSol` |
 | 3 Echo | none | BLAKE2b-256 with `Zigs_SolEcho__v1` over the wallet id, safety number, cluster, and every package and commitment, in seat order |
 | 4 Round 2 | `soldkg2/<i>-<j>` | A box with the share and `rSol`. The box context carries a curve label (`<id>:sol:<i>-><j>`). Today's context `<id>:<i>-><j>` would let a Zcash box open here |
@@ -271,7 +357,10 @@ identity too when the `soldone` names one. When a valid
 `solfee/<i>` shows another key than the key share gives, that document is forged or broken: the
 restore says that this seat cannot pay, that it can still approve and sign, and that the other
 seats can propose and add SOL. The snapshot is not in the file. A restored seat that has
-`soldone/<i>` on the server and no Solana key package shows "Solana part missing".
+`soldone/<i>` on the server and no Solana key package shows "Solana part missing". The `cluster`
+field of the file is the label of the wallet, `devnet` or `mainnet-plain`. A restore refuses a file
+of another label, and the saved-file check needs the same label on both sides. The words of a plain
+backup do not name viewing or proving keys, because the plain wallet has none.
 
 **4.4 Version marker.** An old app ignores the Solana documents, so the wallet document needs no
 marker. Recommended: `solstart/1`, signed by seat 1, and no change to the wallet version.

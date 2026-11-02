@@ -89,14 +89,21 @@ TESTS=(messaging-presentation messaging-cost-review messaging-account-view premi
   requests account personal payees
   vault util qr shim shim-status
   lwd zns near-quote
-  sol-config sol-docs sol-ceremony sol-app sol-wasm sol-sessions sol-limits sol-pay sol-pay-exec
+  sol-config sol-docs sol-ceremony sol-plain-ceremony sol-plain-app sol-plain-reads
+  sol-plain-view sol-plain-load sol-plain-security sol-plain-review sol-plain-direct
+  sol-plain-sessions sol-app
+  sol-wasm
+  sol-sessions
+  sol-limits
+  sol-pay sol-pay-exec
   sol-pay-seats sol-pay-lease sol-pay-look sol-pay-end sol-transfer
   unified-setup help
   graph sol-fee sol-rent sol-errors sol-prove demo-check mainnet-on mempool chain-fallback smoke
   contrast orientation overview setup-stage approvals recovery security-dashboard payment-model
   plain-worker
   sol-nonce-tabs nonce-locks no-storage)
-HELPERS=(passkey-fixture sol-rig sol-setup sol-chain sol-vector sol-fixture sol-pay-rig page)
+HELPERS=(passkey-fixture sol-rig sol-setup sol-chain sol-vector sol-fixture sol-pay-rig page
+  closure)
 # The tests that take more than 20 s, slowest first, then the server test. Each must be in TESTS.
 SLOW_FIRST=(sol-pay app sol-pay-seats sol-pay-exec sol-pay-lease sol-pay-look sol-ceremony sol-app
   unified-setup sol-sessions sol-pay-end sol-limits cf/test/limits)

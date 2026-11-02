@@ -36,6 +36,23 @@ export const el = (tag, attrs = {}, ...kids) => {
   for (const k of kids.flat()) if (k != null && k !== false) n.append(k instanceof Node ? k : document.createTextNode(String(k)));
   return n;
 };
+// One live region outside #app, which every redraw rebuilds: a status node that is new on each
+// redraw is not announced reliably, and an alert node is said again. The region stays; only its
+// text changes. app-approval-visualization.js keeps its own region the same way. The text is
+// cleared first and set later, so that the same words twice, and the first words in a region that
+// was just added, are a change that screen readers say.
+const ANNOUNCE_MS = 100;
+let live = null;
+export function announce(text) {
+  if (!live?.isConnected) {
+    live = el("div", { class: "sr-only", role: "status", "aria-live": "polite",
+      "aria-atomic": "true" });
+    document.getElementById("app").after(live);
+  }
+  const region = live;
+  region.textContent = "";
+  setTimeout(() => { region.textContent = text; }, ANNOUNCE_MS);
+}
 // The field of each note under a field. A red note marks its field as invalid.
 const fieldOf = new WeakMap();
 /** Ties the note `hint` to its field `input`, for setNote. */

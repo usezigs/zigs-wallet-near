@@ -24,6 +24,8 @@ for (const value of [
   { ...zec, network: "mainnet" }, { ...zec, type: "public" }, { ...zec, asset: "USDC" },
   { ...sol, address: pub.address }, { ...pub, address: sol.address },
   { ...sol, network: "mainnet" }, { ...zec, name: "bad\nlabel" },
+  // The reader knows the public mainnet kinds; the writer offers none of them yet.
+  { ...pub, network: "mainnet" }, { ...pub, asset: "USDC", network: "mainnet" },
 ]) assert.throws(() => checkedRecipient(value, normalize), /Enter|Choose/);
 assert.deepEqual(checkedRecipient(sol, normalize), sol);
 assert.deepEqual(checkedRecipient(pub, normalize), pub);
@@ -40,6 +42,19 @@ const saved = first.entries[0];
 assert.throws(() => readRecipients({ ...first, version: 2 }), /cannot be read/);
 assert.throws(() => readRecipients({ ...first, entries: [{ ...saved, memo: "secret" }] }), /cannot be read/);
 assert.throws(() => readRecipients({ ...first, entries: [saved, saved] }), /cannot be read/);
+// SOL and USDC on mainnet read as public destinations only.
+const mainnet = (asset, extra = {}) => ({ ...pub, id: "03".repeat(16), asset, network: "mainnet",
+  ...extra });
+for (const asset of ["SOL", "USDC"]) {
+  const book = { version: 1, entries: [mainnet(asset)] };
+  assert.deepEqual(readRecipients(book), book, asset + " on mainnet reads");
+}
+for (const entry of [mainnet("USDC", { network: "devnet" }), mainnet("SOL", { type: "shielded" }),
+  mainnet("USDC", { type: "shielded" }), mainnet("BTC"), mainnet("USDC", { network: "testnet" }),
+  mainnet("ZEC", { type: "public" })]) {
+  assert.throws(() => readRecipients({ version: 1, entries: [entry] }), /cannot be read/,
+    entry.asset + " " + entry.network + " " + entry.type);
+}
 assert.throws(() => changeRecipient(first, null, { ...zec, name: "Duplicate" }, "02".repeat(16)), /already/);
 const renamed = changeRecipient(first, saved, { ...zec, name: "Studio new" });
 assert.throws(() => changeRecipient(renamed, saved, zec), /another tab/);

@@ -12,10 +12,10 @@ import {
   canWriteAs, checkIn, netConfirmed, refilter, signedDoc, signedMode,
 } from "./app-filter.js";
 import { openGroup, sdb, unsubGroup } from "./app-groups.js";
-import { act, el, guard } from "./app-dom.js";
+import { act, announce, el, guard } from "./app-dom.js";
 import { confirmedNo, groupVersion, safetyNo, seatCheck } from "./app-dkg.js";
-import { restore, sealAndSave } from "./app-backups.js";
-import { once, react, render } from "./app-loop.js";
+import { openBackupCheck, restore, sealAndSave } from "./app-backups.js";
+import { focusAfter, once, react, render } from "./app-loop.js";
 
 // Devnet, for version 3 wallets on the testnet that the people of the wallet confirmed (SOL-34).
 // web/sol loads from the Solana tab, a signed solstart document, or the unsigned Solana hint
@@ -27,6 +27,16 @@ export const solOn = (gid = state.gid) => {
   const testnet = g?.network === "testnet" && netConfirmed(gid) === "testnet";
   return testnet && walletVersion(g) === 3 && signedMode(gid);
 };
+// The plain Solana wallet, for version 3 wallets on the mainnet that the people of the wallet
+// confirmed (ZOLANA.md 3.8). Its controller has its own slot (plainSol) and never the pool slot.
+export const plainOn = (gid = state.gid) => {
+  const g = solGroup(gid);
+  const mainnet = g?.network === "mainnet" && netConfirmed(gid) === "mainnet";
+  return mainnet && walletVersion(g) === 3 && signedMode(gid);
+};
+// The plain wallet is shown when the server serves it. Without that answer a mainnet wallet looks
+// as it did before the plain wallet.
+export const plainShown = (gid = state.gid) => plainOn(gid) && ui.plainServed === true;
 // The group document asks for a Solana part (createGroup). It is a hint only: any holder of the
 // link can write it, so it changes the texts and the preload, and it never starts the ceremony.
 export const solPlanned = (g = state.g) =>
@@ -43,6 +53,22 @@ export function solServed() {
     }).catch(() => { if (ui.solServed === null) ui.solServed = false; }).finally(render);
   }
   return ui.solServed === true;
+}
+// Does this server serve the plain wallet? The same states as solServed. Only plainReact asks, so
+// a testnet wallet never does. The server answers 404 until SOL_MAINNET is "1". The page does not
+// keep the body. The answer changes what the reactor does, so it runs a pass.
+// The promise of the probe, for a restore that waits for it. It resolves with no value: the body
+// holds the Helius URL and its key.
+export let plainAnswer = null;
+export function plainServed() {
+  if (ui.plainServed === undefined) {
+    ui.plainServed = null;
+    plainAnswer = globalThis.fetch("/sol/config-mainnet.json", { cache: "no-store" }).then((r) => {
+      ui.plainServed = r.ok;
+      return r.text().then(() => undefined);
+    }).catch(() => { if (ui.plainServed === null) ui.plainServed = false; }).finally(refilter);
+  }
+  return ui.plainServed === true;
 }
 // The Solana choice of the create dialog: the hint for the other seats first, then `solAuto` in
 // the secret of seat 1, which starts the ceremony with no button. A failed hint starts nothing.
@@ -79,6 +105,7 @@ export const solUnsaved = () => localSeats().filter((i) => {
  * the module did not load), so it does not know yet.
  */
 export function solFile(i) {
+  if (plainShown()) return plainPart(i);
   if (!solOn() || solStopped()) return null;
   const s = sec(state.gid, i)?.sol;
   if (solShare(s)) return { saved: s.backupSaved === true, restored: s.restored === true };
@@ -97,6 +124,7 @@ function madeOf(c, i) {
 const solShare = (s) => !!(s?.keyPackage && s.solSeed && s.groupKey) && !s.aborted;
 // The backup dialog of the Solana part of seat i, from the backup note of the wallet.
 export async function solBackup(i) {
+  if (plainShown()) return plainBackup(i);
   await solLoad();
   if (!sol) throw new Error(solError || "Solana did not load.");
   const { backupWords } = await import("./sol/backup.js");
@@ -105,18 +133,23 @@ export async function solBackup(i) {
 }
 const SOL_OFF = "Solana is not available on this server";
 export let sol = null, solLoading = null, solError = "";
+export let plainSol = null, plainLoading = null, plainError = "";
 let solStartDoc = null;   // the stored solstart/1 of the open wallet, whoever wrote it
 let solWatched = null;    // the wallet whose start document is watched
 let solStartRead = null;  // the wallet whose start documents arrived
-export function resetSolStart() { solStartDoc = null; solWatched = null; solStartRead = null; }
+export function resetSolStart() {
+  plainSol?.close();
+  solStartDoc = null; solWatched = null; solStartRead = null;
+}
 // host.putSec is the save of a step that holds the lock of the secrets (putSol, shareOnce).
 export const solHost = () => ({
   Z, sdb, state, el, act, log, once, render, refilter, showBanner, sec, putSec: putSecHeld,
+  focusAfter, announce,
   signedDoc,
   recipientSelect,
   exclusive, takeStored,
   canWriteAs, localSeats, seatIds, checkIn, safetyNo, seatCheck, confirmedNo, openGroup, restore,
-  groupVersion, sealAndSave, network: () => netName(state.g),
+  groupVersion, sealAndSave, network: () => netName(state.g), netConfirmed, mode: "pool",
   askBackup: (words) => { ui.backup = { words, made: false, busy: false }; render(); },
   newWallet,
 });
@@ -198,7 +231,9 @@ export const solSync = (gid = state.gid) => solOpenHere(gid)
   : null;
 /** Overview starts the existing balance sync without opening Solana payment/prover tools. */
 export function solObserveOverview() {
-  if (globalThis.document?.visibilityState === "hidden" || !solOpenHere()) return;
+  if (globalThis.document?.visibilityState === "hidden") return;
+  if (plainHere()) plainSol.observe(state.gid);
+  if (!solOpenHere()) return;
   sol.observe(state.gid);
 }
 // A failed load waits for Try again (solRetry): a retry on every redraw would loop.
@@ -237,6 +272,9 @@ export function solWatch() {
 // write one, so solReact loads the module from it only when a seat signed it.
 export function solAttach(gid, base) {
   if (sol) { sol.open(gid, base); return; }
+  watchStart(gid, base);
+}
+function watchStart(gid, base) {
   unsubGroup.push(sdb.collection(base + "/solstart").onSnapshot((snap) => {
     solStartDoc = snap.docs.find((d) => d.id === "1")?.data() ?? null;
     solStartRead = gid;
@@ -255,11 +293,41 @@ function solPreload() {
   if (!sol && !solLoading && (solPlanned() || auto) && localSeats().length) solLoad();
 }
 export function solReact() {
+  plainReact();
   solPreload();
   if (!solOn()) return;
   solWatch();
   if (sol) sol.react();
   else if (!solLoading && solStartSigned()) solLoad();
+}
+// The plain controller loads once. A failed load shows one banner and the reactor does not try
+// again: only a reload mends it.
+export function plainLoad() {
+  plainLoading ||= import("./sol/plain/control.js").then((m) => m.attach(solHost())).then((m) => {
+    plainSol = m;
+    if (plainOn()) plainSol.open(state.gid, "groups/" + state.gid);
+    render(); react();
+  }, (e) => {
+    plainError = "Solana did not load: " + said(e);
+    showBanner("bad", plainError);
+    render();
+  });
+  return plainLoading;
+}
+// The open wallet gets its watch once it is a plain wallet and the server serves it.
+function plainWatch() {
+  const gid = state.gid;
+  if (!gid || solWatched === gid || !plainOn(gid)) return;
+  solWatched = gid;
+  if (plainSol) plainSol.open(gid, "groups/" + gid);
+  else watchStart(gid, "groups/" + gid);
+}
+// Only a wallet that is plain on a server that serves it comes here. A testnet wallet never asks.
+function plainReact() {
+  if (!plainOn() || !plainServed()) return;
+  plainWatch();
+  if (plainSol) plainSol.react();
+  else if (!plainLoading && solStartSigned()) plainLoad();
 }
 const retryButton = () => el("button", { class: "btn sm", type: "button", "data-sol": "retry-load",
   onclick: solRetry }, "Try again");
@@ -269,9 +337,100 @@ export const loadFail = (error, retry) => el("div", { style: "display:grid;gap:8
 export const solTab = () => sol ? guard(sol.view)
   : solError ? loadFail(solError, !importFailed)
   : (solLoad(), el("p", { class: "small" }, "Loading Solana…"));
+// The plain controller follows wallet `gid`, which is shown as a plain wallet.
+const plainHere = (gid = state.gid) => !!plainSol && plainShown(gid) && plainSol.ctl.gid === gid;
+function fromPlain(what, read, none) {
+  try {
+    return read(plainSol);
+  } catch (e) {
+    log("Solana plain " + what + ": " + said(e));
+    return none;
+  }
+}
+// Null until the Solana documents of the wallet arrived (see solSetup).
+export const plainSetup = () =>
+  (plainHere() ? fromPlain("setup steps", (p) => p.setup(), null) : null);
+// The texts of the last read of the balances (readTexts of web/sol/plain/view.js), or null.
+export const plainRead = () =>
+  (plainHere() ? fromPlain("balances", (p) => p.read(), null) : null);
+// Before the plain controller loads: the start documents arrived and hold no start.
+export const plainNotAdded = () => plainShown() && !plainSol && !plainError
+  && solStartRead === state.gid && !solStartDoc;
+// Does the wallet have a Solana part, or can it have one? Not when it is known to have none.
+export const plainAdded = () => plainShown() && !plainNotAdded()
+  && plainSetup()?.status !== "not started";
+// The setup steps and the load error of the Solana part that this wallet shows: the plain part of a
+// served mainnet wallet, else the pool.
+export const solPartSetup = () => (plainShown() ? plainSetup() : solSetup());
+export const solPartError = () => (plainShown() ? plainError : solError);
+// The ready gate of the check of a saved Solana file (backupCheckExpected).
+export const solReady = () => solPartSetup()?.status === "ready";
+const plainStopped = () => plainSetup()?.status === "stopped";
+// solFile for a plain seat. The tab itself needs no module of the pool.
+function plainPart(i) {
+  if (!plainShown() || plainStopped()) return null;
+  const s = sec(state.gid, i)?.sol;
+  if (solShare(s)) return { saved: !!s.backupSaved, restored: !!s.restored };
+  const made = plainHere() ? fromPlain("device part", (p) => p.made(i), null) : null;
+  if (made === null) return { unknown: true, failed: !!plainError };
+  return made ? { saved: false, missing: true } : null;
+}
+const plainActions = {
+  backup: (i) => solBackup(i),
+  check: (i) => openBackupCheck(i, "sol"),
+  restoreFile: (file) => restore(file),
+};
+/**
+ * The Solana tab of a plain wallet. It shows the wallet only while the controller follows it and
+ * has its Solana documents.
+ */
+export function plainTab() {
+  if (plainError) return loadFail(plainError, false);
+  const loading = el("p", { class: "small" }, "Loading Solana…");
+  if (!plainSol) return (plainLoad(), loading);
+  if (!plainSetup()) return loading;
+  plainSol.observe(state.gid);
+  return guard(plainSol.view, act, plainActions);
+}
 const NET_UNCONFIRMED = "This browser does not know yet which network the people of this wallet "
   + "confirmed. Open the wallet, wait until your device shows Address checked, then try again.";
+async function plainRestore(b, encrypted) {
+  await plainLoad();
+  if (!plainSol) throw new Error("Solana did not load.");
+  const { restoreSolana } = await import("./sol/backup.js");
+  return restoreSolana(plainSol.ctl, b, encrypted);
+}
+async function plainBackup(i) {
+  await plainLoad();
+  if (!plainSol) throw new Error(plainError || "Solana did not load.");
+  const { backupWords } = await import("./sol/backup.js");
+  ui.backup = { words: backupWords(plainSol.ctl, i), made: false, busy: false };
+  render();
+}
+const PLAIN_LABEL = "mainnet-plain";
+const NOT_LISTED = "This browser does not know this wallet yet. Wait a moment, then open the file "
+  + "again.";
+const PROBE_MS = 10000;
+const NOT_ASKED = "This browser does not know yet whether this server serves the Solana wallet. "
+  + "Wait a moment, then open the file again.";
+// Does this Solana file go to the plain controller? Only the wallet decides, never the label of the
+// file: a plain label can only make a restore refuse. A mainnet wallet waits up to PROBE_MS for
+// the probe.
+async function plainRoute(b) {
+  if (!solGroup(b.group)) {
+    if (b.cluster === PLAIN_LABEL) throw new Error(NOT_LISTED);
+    return false;
+  }
+  if (!plainOn(b.group)) return false;
+  plainServed();
+  let timer;
+  await Promise.race([plainAnswer, new Promise((done) => { timer = setTimeout(done, PROBE_MS); })]);
+  clearTimeout(timer);
+  if (ui.plainServed === null) throw new Error(NOT_ASKED);
+  return ui.plainServed === true;
+}
 export async function solRestore(b, encrypted) {
+  if (await plainRoute(b)) return plainRestore(b, encrypted);
   if (solGroup(b.group) && !solOn(b.group)) {
     throw new Error(netConfirmed(b.group) ? "Solana runs on version 3 testnet wallets only."
       : NET_UNCONFIRMED);

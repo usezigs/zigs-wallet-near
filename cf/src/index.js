@@ -36,9 +36,18 @@ const SOL_HOST_MAINNET = "https://mainnet.helius-rpc.com";
 const SOL_KEYS = "https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/3a1c88f90f609eb1/";
 const SOL_CONFIG = "/sol/config.json";
 const SOL_CONFIG_MAINNET = "/sol/config-mainnet.json";
-// With SOL off and SOL_MAINNET "1", only these files answer, in this spelling: no other path can
-// map to a file of the Devnet beta. Name a new module of web/sol/plain with this pattern.
+// With SOL off and SOL_MAINNET "1", only these files of /sol answer, in this spelling: no other
+// path can map to a file of the Devnet beta. PLAIN_FILE covers web/sol/plain, including the Worker
+// script that the page starts by URL. Name a new module of web/sol/plain with this pattern.
+// PLAIN_SOL_FILES are the other files that the plain wallet loads: the shared modules in the
+// import closure of web/sol/plain/control.js and of web/sol/backup.js, and the wasm file. Name a
+// new one here; cf/test/gate.mjs computes that closure and fails when this list differs.
 const PLAIN_FILE = /^\/sol\/plain\/[a-z0-9-]+\.js$/;
+const PLAIN_SOL_FILES = new Set([
+  "/sol/abort.js", "/sol/backup.js", "/sol/ceremony.js", "/sol/client.js", "/sol/docs.js",
+  "/sol/fee.js", "/sol/nonces.js", "/sol/secrets.js", "/sol/wallet.js", "/sol/wasm/sol_wasm.js",
+  "/sol/wasm/sol_wasm_bg.wasm",
+]);
 
 function solWorkerPolicy() {
   return [
@@ -134,12 +143,14 @@ function policyOfPath(url) {
   return isPlainPath(url) ? plainWorkerPolicy() : solWorkerPolicy();
 }
 
+const plainServes = (path) => PLAIN_FILE.test(path) || PLAIN_SOL_FILES.has(path);
+
 // Every file but the page.
 async function assets(req, env, url) {
   if (!isSolPath(url)) return env.ASSETS.fetch(req);
   if (url.pathname === SOL_CONFIG_MAINNET) return solMainnetConfig(req, env);
   const plainOnly = env.SOL !== "1" && env.SOL_MAINNET === "1";
-  if (plainOnly ? !PLAIN_FILE.test(url.pathname) : env.SOL !== "1") {
+  if (plainOnly ? !plainServes(url.pathname) : env.SOL !== "1") {
     return new Response("Not found\n", { status: 404 });
   }
   if (url.pathname === SOL_CONFIG) return solConfig(req, env);

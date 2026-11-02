@@ -27,7 +27,8 @@ export const HELP = [
     + "traffic of both. The Solana part also asks Helius. Helius sees your IP address and the "
     + "public keys of this wallet. Unless local proving is on, the hosted prover of Helius also "
     + "sees each Solana payment. The Zigs server operator can link this wallet to its Solana "
-    + "addresses by timing."],
+    + "addresses by timing. On mainnet, the Solana part is a plain account. Helius sees your IP "
+    + "address and the address of this wallet, and the explorer sees the address that you open."],
   ["How do I read the memos of payments to this wallet?",
     (
       "Open Incoming payment memos under General in Settings, "
@@ -43,7 +44,9 @@ export const HELP = [
     + "need a few blocks to confirm. Do not pay again while it shows Confirming."],
   ["Which networks does Zigs use?",
     "Zigs uses Zcash testnet or mainnet, and Solana Devnet. Testnet and Devnet use test coins. "
-    + "Mainnet uses real ZEC: it is a beta, it is not audited, and you can lose the funds."],
+    + "Mainnet uses real ZEC: it is a beta, it is not audited, and you can lose the funds. "
+    + "Where a server offers it, a mainnet wallet also has a Solana part. It is a plain account "
+    + "with real SOL and USDC, with no privacy and no hosted prover. Sending comes later."],
 ];
 
 /**

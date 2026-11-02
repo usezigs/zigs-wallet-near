@@ -1,5 +1,5 @@
-// Command schema, host pin and redaction of the plain Solana Worker (web/sol/plain/worker.js,
-// ZOLANA.md "Plain wallet RPC"). This file has no import, so Node tests load it as it is. The
+// Command schema, host pin and redaction of the plain Solana Worker: web/sol/plain/worker.js,
+// ZOLANA.md "Plain wallet RPC". This file has no import, so Node tests load it as it is. The
 // Worker holds no key share and no SDK: a field outside its schema is refused by name, and a
 // refusal never holds a value.
 

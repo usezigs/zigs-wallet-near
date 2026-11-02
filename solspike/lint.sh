@@ -15,9 +15,14 @@ JS=(solspike/harness/*.mjs solspike/tools/*.mjs solspike/build.mjs solspike/buil
   web/sol/store.js web/sol/backup.js web/sol/session.js web/sol/abort.js
   web/sol/approve.js web/sol/gate.js web/sol/intent.js web/sol/nonces.js web/sol/payview.js
   web/sol/propose.js web/sol/sessions.js web/sol/signing.js web/sol/fee.js web/sol/addsol.js
-  web/sol/execute.js web/test/sol-rig.mjs web/test/sol-fixture.mjs web/test/page.mjs
+  web/sol/execute.js web/sol/wallet.js web/test/sol-rig.mjs web/test/sol-fixture.mjs
+  web/test/page.mjs
   web/test/graph.mjs web/test/demo-check.mjs web/test/smoke.mjs
   web/test/sol-config.mjs web/test/sol-docs.mjs web/test/sol-ceremony.mjs web/test/sol-app.mjs
+  web/test/sol-plain-ceremony.mjs web/test/sol-plain-app.mjs web/test/sol-plain-reads.mjs
+  web/test/sol-plain-view.mjs web/test/sol-plain-load.mjs web/test/sol-plain-security.mjs
+  web/test/sol-plain-review.mjs web/test/sol-plain-direct.mjs web/test/sol-plain-sessions.mjs
+  web/test/closure.mjs
   web/test/sol-wasm.mjs web/test/sol-chain.mjs web/test/sol-sessions.mjs
   web/sol/spend.js web/sol/transfer.js web/test/sol-limits.mjs web/test/sol-setup.mjs
   web/test/sol-transfer.mjs web/test/sol-vector.mjs web/test/sol-pay.mjs web/test/sol-fee.mjs
@@ -26,7 +31,7 @@ JS=(solspike/harness/*.mjs solspike/tools/*.mjs solspike/build.mjs solspike/buil
   web/help-model.js web/test/help.mjs
   web/test/unified-setup.mjs web/sol/owned.js web/sol/rent.js web/test/sol-rent.mjs
   web/test/sol-nonce-tabs.mjs web/test/mempool.mjs web/test/nonce-locks.mjs
-  web/sol/plain/*.js web/test/plain-worker.mjs
+  web/sol/plain/*.js web/test/plain-worker.mjs web/app-sol.js
   web/guided-setup-model.js web/backup-check.js
   web/wallet-description.js web/test/wallet-description.mjs
   web/test/guided-create.mjs web/test/passkey-setup.mjs web/test/optional-passkey.mjs
