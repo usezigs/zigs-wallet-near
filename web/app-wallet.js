@@ -1343,8 +1343,11 @@ function memberRow(i) {
 
 // The Solana files that the page lists: the plain part of a served mainnet wallet, else the pool.
 const SCOPE_OF = { ready: "ready", stopped: "stopped" };
+// A plain part with keys that differ is out of use, as the Solana tab says.
+const scopeOfStatus = (status) =>
+  (plainShown() && status === "differs" ? "stopped" : SCOPE_OF[status]);
 function solScope(f) {
-  const known = SCOPE_OF[solPartSetup()?.status];
+  const known = scopeOfStatus(solPartSetup()?.status);
   if (known) return known;
   if (solPartError()) return "unavailable";
   const none = plainShown() ? !plainAdded() : !f.solWanted && (!solOn() || solNotAdded());

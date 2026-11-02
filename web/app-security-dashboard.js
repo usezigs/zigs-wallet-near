@@ -140,7 +140,7 @@ function recoveryFileRow(s, chain, actions) {
           "data-key": "security-backup-" + s.id + "-" + chain }),
         button("Verify file", () => actions.check(s.id, chain), { disabled: !f.checkable,
           title: f.checkable ? "Open a saved file without restoring it" : "Wait for the existing address and setup checks",
-          "aria-label": "Verify " + CHAIN[chain] + " file for device " + s.id,
+          "aria-label": "Verify file for the " + CHAIN[chain] + " share of device " + s.id,
           "data-key": "security-check-" + s.id + "-" + chain }),
       ] : local && f.missing ? button("Restore file", () => reveal("security-restore")) : null));
 }

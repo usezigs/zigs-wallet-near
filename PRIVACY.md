@@ -349,8 +349,9 @@ as it is above. A mainnet wallet never loads this code and never connects to the
 A mainnet wallet with the plain Solana part is described in
 [Solana mainnet plain wallet](#solana-mainnet-plain-wallet).
 
-The Solana code runs in a Worker of its own, `/sol/worker.js`. Only that script carries a policy
-that names the Helius Devnet host. The policy of the page does not name it. The Helius URL holds an
+The Solana code runs in a Worker of its own, `/sol/worker.js`. Only the Solana Worker scripts
+(`/sol/worker.js` and `/sol/plain/worker.js`) carry a policy that names a Helius host. The policy
+of the page names none. The Helius URL holds an
 API key. The server gives it to the page at `/sol/config.json` (on staging, behind the same
 password as every other request). So every user of the page can read it. Allowed Domains at
 Helius limits its use by other sites, but it does not protect the key.
@@ -510,6 +511,7 @@ this part. The Solana tab says "Public" for this reason.
 |---|---|---|
 | Helius mainnet host, `https://mainnet.helius-rpc.com` | Your IP address, the app origin, and the addresses that the page reads: the group address, its USDC account and the published fee addresses, with the time of each read | Any key share, the Ed25519 seed. It cannot sign |
 | The explorer, `explorer.solana.com` | Only when you press Open in explorer: the address in the link and your IP address | Anything else of the wallet |
+| Cloudflare, the host of the app | The connection data of every call, also of the call for `/sol/config-mainnet.json`. Its Worker holds the Helius URL (`HELIUS_MAINNET_URL`) | Any key share |
 | Zigs server operator | The time of the Solana writes of the wallet and the time of each call for the config. By timing, it can link the wallet to these addresses, as in the Solana beta | Any key share |
 | Chain observers | Every balance and payment of the group address, and the fee address that pays a fee | Which devices signed |
 
@@ -529,9 +531,11 @@ Four controls keep this part apart from the pool:
 1. The label `mainnet-plain`. The page derives it from the network that the people of the wallet
    confirmed (`web/sol/wallet.js`). The start document, the backup file and the saved-file check
    carry it.
-2. The Worker guard and policy. `web/sol/plain/guard.js` checks each command, and `init` takes only
-   the Helius mainnet host. The server gives `/sol/plain/*` its own policy, and the page starts the
-   Worker only when the header equals it.
+2. The Worker guard and policy. The page names the cluster of the wallet, and `init` takes only the
+   Helius host of that cluster. `web/sol/plain/guard.js` checks each command and pins `init` to that
+   host, and the controller checks that the answer names the cluster. The server gives
+   `/sol/plain/*` its own policy, which names the Helius Devnet and mainnet hosts, and the page
+   starts the Worker only when the header equals it.
 3. The drift abort. A seat part with another label stops (`driftOf` in `web/sol/ceremony.js`).
 4. The restore check. A restore refuses a file of another label, and a key share that does not fit
    the published key (`web/sol/backup.js`).
@@ -561,8 +565,9 @@ What makes this safe to rely on:
   host, and two ChainSafe servers), and to nothing else. The name registry also comes from its
   own host, through `/zns`, and the Swap quotes and the Overview price come through `/near/quote`.
   The Solana Worker (`/sol/worker.js`, testnet wallets only) has a policy of its own, which also
-  names the Helius Devnet host and the one folder of proving keys of the local prover. The policy
-  of the page names neither.
+  names the Helius Devnet host and the one folder of proving keys of the local prover. The plain
+  Solana Worker (`/sol/plain/worker.js`, mainnet wallets only) has a policy of its own, which names
+  the Helius Devnet and mainnet hosts. The policy of the page names none of these.
 - A restored seat works in a new session. The app checks the restored key data against what the
   wallet published for that seat. A proposal records the identity of the seat, not of the session.
 - Backups leave out signing nonces, and a restore drops the nonces in older backup files, so a

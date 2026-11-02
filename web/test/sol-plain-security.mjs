@@ -5,15 +5,19 @@
 // key share of each local device with its backup and the result of the saved-file check; a part
 // that sets up, a part with keys that differ and a part that stopped have their own scope; the
 // diagnostics say the state of the plain part, "unavailable" for an unserved mainnet wallet, and
-// count nothing of payments. The page loads no pool code.
+// count nothing of payments. The page loads no pool code. A testnet wallet keeps the scope of the
+// pool.
 // Run: node web/test/sol-plain-security.mjs   (Node 26)
 import assert from "node:assert/strict";
+import { checkBackupPayload } from "../backup-check.js";
 import { agreement } from "../sol/ceremony.js";
+import { backupText } from "../sol/backup.js";
 import { config, loadRig, mainnetConfig } from "./sol-rig.mjs";
 
 const rig = await loadRig();
 const { diagnostics } = await import("../app-help.js");
-const { markBackupChecked } = await import("../app-guided-setup.js");
+const { backupCheckExpected } = await import("../app-backups.js");
+const { beginGuided, markBackupChecked } = await import("../app-guided-setup.js");
 const { plainShown } = await import("../app-sol.js");
 const { t, data, waitFor } = rig;
 const step = (name) => console.log("ok  " + name);
@@ -127,8 +131,10 @@ const withRaw = (change, show) => {
   assert.doesNotMatch(text1, /^Solana payments to approve/m, "a plain part has no payments yet");
   const forged = (raw) => ({ soldone: { ...raw.soldone, 2: { ...raw.soldone[2],
     groupKey: "00".repeat(32) } } });
-  assert.match(notes(withRaw(forged, security)), /Status is still being read or setup/,
-    "keys that differ are not a ready part");
+  const differs = withRaw(forged, security);
+  assert.match(notes(differs), /Setup stopped\. Do not use the Solana part\./,
+    "keys that differ are an unusable part, as the Solana tab says");
+  assert.equal(review(differs).length, 1, "with a button to the Solana section");
   assert.match(withRaw(forged, diagnostics), /^Solana part: keys differ$/m);
   const none = withRaw(() => ({ solstart: {}, soldone: {} }), security);
   noSolana(none, "a part that never started");
@@ -178,6 +184,17 @@ const SAME_RULE = /Zcash \+ Solana · same approval rule/;
   assert.deepEqual([t.ui.backup?.check, t.ui.backup?.chain, t.ui.backup?.seat],
     [true, "sol", 2], "Verify file opens the check of the plain seat");
   t.ui.backup = null;
+  for (const id of [1, 2, 3]) {
+    const names = all(device(tree, id), (n) => n.tag === "button" && n.attrs["aria-label"]);
+    assert.ok(names.length >= 4 && names.every((n) => n.attrs["aria-label"].startsWith(text(n))),
+      "device " + id + ": the name of a button starts with its visible text");
+  }
+  const file = JSON.parse(backupText(c.host, gid, 2));
+  const expected = backupCheckExpected(gid, 2, "sol");
+  assert.equal(expected.cluster, "mainnet-plain", "the check expects the label of a plain seat");
+  assert.equal(checkBackupPayload(file, expected), true, "it accepts the file that Back up writes");
+  assert.throws(() => checkBackupPayload({ ...file, cluster: "devnet" }, expected),
+    /not the saved recovery file/, "and refuses a file with the label of the pool");
   noPool();
 }
 await t.putSec(gid, 1, { sol: { ...t.sec(gid, 1).sol, backupSaved: true } });
@@ -225,6 +242,17 @@ assert.equal(plainShown(), false);
 await waitFor("the pool start documents", () => /^Solana part: not added$/m.test(diagnostics()));
 assert.match(diagnostics(), /^Network: testnet$/m);
 step("a testnet wallet is no plain wallet");
+
+// ── The Security page of that wallet keeps the scope of the pool ──
+noSolana(security(), "a testnet wallet with no start");
+beginGuided(t.state.gid, { solExpected: true });
+{
+  const tree = security();
+  assert.match(notes(tree), /Solana · Status is still being read or setup is unfinished\./,
+    "a wallet that expects Solana and has no start has the scope of a part that sets up");
+  assert.equal(review(tree).length, 1, "a testnet wallet has its button to the Solana section");
+}
+step("a testnet wallet keeps the Security scope of the pool");
 
 console.log("sol-plain-security: ok");
 process.exit(0);

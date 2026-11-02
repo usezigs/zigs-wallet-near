@@ -30,7 +30,8 @@ const FUNDS_STAY = "Funds sent to this address stay there.";
 const STAYS = "SOL and USDC stay at this wallet’s Solana address. A device left out keeps "
   + "its key share.";
 // The words that the body text of a card may hold: the owner found the tab too text heavy.
-const BUDGET = { start: 30, ready: 26, stopped: 20 };
+const BUDGET = { start: 30, ready: 26, stopped: 20, running: 20, differs: 15, early: 10,
+  stoppedAndDiffer: 10, forgedFee: 70, noFee: 158, away: 13 };
 
 const rig = await loadRig();
 const { t, data, waitFor } = rig;
@@ -309,7 +310,15 @@ step("a served wallet gets the Solana section, and only device 1 gets the start 
   const away = same({ host: { ...c.host, netConfirmed: () => "testnet" } });
   assert.equal(text(mark(away, "status")), "unavailable");
   const states = { running, differs, stopped, early, stoppedAndDiffer, forgedFee, noFee, away };
-  for (const [name, tree] of Object.entries(states)) promise("the " + name + " card", tree);
+  // The stop text of the rig is no word of the card. The stopped card has its check above.
+  const stopWords = { early: wordsIn(stop), stoppedAndDiffer: wordsIn(stop) };
+  for (const [name, tree] of Object.entries(states)) {
+    promise("the " + name + " card", tree);
+    if (name === "stopped") continue;
+    const own = bodyWords(tree) - (stopWords[name] ?? 0);
+    assert.ok(own <= BUDGET[name],
+      `the ${name} card has at most ${BUDGET[name]} own words, not ${own}`);
+  }
 }
 step("the tab shows the setup, the start and each stop");
 

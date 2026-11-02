@@ -209,7 +209,7 @@ export function backupDialog() {
 
 // Verification is deliberately separate from restore: reopening a saved file cannot overwrite
 // a share, consume a nonce, replace a room key, or select another wallet.
-function backupCheckExpected(gid, seat, chain) {
+export function backupCheckExpected(gid, seat, chain) {
   if (gid !== state.gid || !localSeatReady(seat)) {
     throw new Error("Open this wallet on the device that saved the file and finish its address check first.");
   }

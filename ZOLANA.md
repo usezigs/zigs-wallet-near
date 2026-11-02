@@ -243,17 +243,22 @@ that the SOL and USDC stay at the Solana address. The probe of the config keeps 
 **3.10 What the plain wallet shows and who sees what.** The plain wallet of a served mainnet wallet
 holds real SOL and USDC at the group address. It has no pool, no hosted prover and no privacy,
 and the code is not audited. Balances and payments are public on chain. The tab can receive.
-Send is off until it passes QA. The Worker reads through `https://mainnet.helius-rpc.com` only.
-Helius sees the IP address, the app origin, the group address, its USDC account and the published
-fee addresses. The explorer sees the address that the tab opens, and the IP address. The server
-gives the page the Helius URL at `/sol/config-mainnet.json` and serves it only when `SOL_MAINNET`
-is `"1"`. `SOL_MAINNET` is `"0"` on production and on staging until send passes QA. The words are
-in PRIVACY.md (Solana mainnet plain wallet). The four controls of the plain part:
+Send is off until it passes QA. The page asks the Worker for the mainnet cluster only, so the
+Worker reads through `https://mainnet.helius-rpc.com`. Helius sees the IP address, the app origin,
+the group address, its USDC account and the published fee addresses. The explorer sees the address
+that you open and the IP address, and only when you press Open in explorer. The server gives the
+page the Helius URL at `/sol/config-mainnet.json` and serves it only when `SOL_MAINNET` is `"1"`.
+Cloudflare, the host, sees the connection data of each call, also of that call, and its Worker holds
+the URL (`HELIUS_MAINNET_URL`). `SOL_MAINNET` is `"0"` on production and on staging until send
+passes QA. The words are in PRIVACY.md (Solana mainnet plain wallet). The four controls of the
+plain part:
 
 1. The label `mainnet-plain` (`web/sol/wallet.js`), derived from the confirmed network. The start
    document, the backup file and the saved-file check carry it.
 2. The Worker guard and policy (`web/sol/plain/guard.js`, `PLAIN_WORKER_POLICY`, and
-   `plainWorkerPolicy` in `cf/src/index.js`).
+   `plainWorkerPolicy` in `cf/src/index.js`). The page names the cluster of the wallet. The guard
+   pins `init` to the Helius origin of that cluster, and the controller checks that the answer names
+   it. The policy of `/sol/plain/*` names the Helius Devnet and mainnet hosts.
 3. The drift abort: a seat part with another label stops (`driftOf` in `web/sol/ceremony.js`).
 4. The restore check: a restore refuses a file of another label or a key share that does not fit
    the published key (`web/sol/backup.js`).
