@@ -80,7 +80,7 @@ function moved(c, was, ss, wanted) {
 
 /**
  * The Worker with a time limit on each call: a hung answer ends the step and frees its key. The
- * controller gives every step this form of the Worker (control.js).
+ * controller gives every step this form of the Worker, as control.js shows.
  */
 export function limited(worker) {
   const call = (cmd, args) =>
