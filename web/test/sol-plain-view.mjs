@@ -19,8 +19,8 @@ import { config, loadRig, mainnetConfig, sleep } from "./sol-rig.mjs";
 
 // The words of the tab, as people read them. A change of a word is a change of this file.
 const FACTS = "Real money, public on chain. Not audited. Sending comes later.";
-const START_NOTE = "Helius sees your IP address and the wallet address. Funding a fee address "
-  + "links that device to this wallet.";
+const START_NOTE = "Helius sees your IP and wallet address. "
+  + "Funding fee addresses links each device to this wallet.";
 const RECEIVE_ONLY = "Only SOL and USDC. Other tokens can be lost.";
 const FEE_NOTE = "Fee addresses are needed when sending starts.";
 const EXPLORER_NOTE = "The explorer sees your IP address.";
@@ -212,7 +212,7 @@ assert.equal(t.solStays(), "", "a wallet without a start document names no Solan
   const sees = built(() => plainView(others, (fn) => fn, { add() {} }));
   assert.equal(mark(sees, "add"), undefined, "the other devices have no start button");
   assert.match(text(sees), /Device 1 adds Solana\./);
-  assert.equal(mark(sees, "start-note"), undefined, "and no note to accept");
+  assert.equal(text(mark(sees, "start-note")), START_NOTE, "and they see the note too");
   const words = bodyWords(card(tab));
   assert.ok(words <= BUDGET.start,
     `the start card stays within ${BUDGET.start} words, not ${words}`);

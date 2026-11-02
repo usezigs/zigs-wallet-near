@@ -13,8 +13,8 @@ import { DECIMALS, amountText } from "./reads.js";
 
 const NETWORK = "Solana Mainnet";
 const FACTS = "Real money, public on chain. Not audited. Sending comes later.";
-const START_NOTE = "Helius sees your IP address and the wallet address. Funding a fee address "
-  + "links that device to this wallet.";
+const START_NOTE = "Helius sees your IP and wallet address. "
+  + "Funding fee addresses links each device to this wallet.";
 const ONLY_DEVICE_1 = "Device 1 adds Solana.";
 const KEEP_OPEN = "Keep this page open until the setup ends.";
 const DO_NOT_USE = "Do not use the Solana part of this wallet.";
@@ -121,13 +121,12 @@ function head(c, status) {
 
 const facts = (c) => c.host.el("div", { class: "callout warn", "data-sol": "facts" }, FACTS);
 
-// The note is the text that people accept when they press the button: only device 1 has one.
 function startCard(c, act, actions) {
   const { el, localSeats } = c.host;
-  if (!localSeats().includes(1)) return [facts(c), el("p", { class: "small" }, ONLY_DEVICE_1)];
   const add = el("button", { class: "btn primary", type: "button", "data-sol": "add",
     onclick: act(actions.add) }, "Add Solana");
-  return [facts(c), el("p", { class: "small", "data-sol": "start-note" }, START_NOTE), add];
+  return [facts(c), el("p", { class: "small", "data-sol": "start-note" }, START_NOTE),
+    localSeats().includes(1) ? add : el("p", { class: "small" }, ONLY_DEVICE_1)];
 }
 
 function progress(c) {
