@@ -224,7 +224,8 @@ The Solana tab of a served mainnet wallet (`web/sol/plain/view.js`) shows the st
 only), the progress of the seats, then the address (base58 of the agreed group key), Copy, the
 explorer link (no cluster parameter), the SOL and USDC balances, the send form, the list of sends,
 the fee addresses of this browser and the backup rows. Overview shows the SOL and USDC rows, and
-its Send and Receive choices open the tab when the plain part is ready. The warning is the first
+its Send and Receive choices open the tab when the plain part is ready. The SOL row has Add
+Solana (Open Solana once the part exists), which opens the tab in every state. The warning is the first
 block of the ready card. The tab says "Loading Solana…" until the Solana
 documents arrive. A part that stopped after the seats agreed still shows the address and the
 balances, with no Copy. The Change devices texts, also the dialog that moves the Zcash funds, say

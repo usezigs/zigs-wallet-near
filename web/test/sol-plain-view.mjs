@@ -215,6 +215,11 @@ assert.equal(t.solStays(), "", "a wallet without a start document names no Solan
   }
   assert.equal(t.plainSol, null, "Overview loads no module");
   assert.equal(t.sol, null);
+  const buttons = (id) => all(asset(tree, id), (n) => n.tag === "button");
+  assert.deepEqual(buttons("sol").map(text), ["Add Solana"], "the SOL row leads to the start");
+  assert.equal(buttons("usdc").length, 0, "one route, on the SOL row");
+  click(buttons("sol")[0]);
+  assert.equal(t.ui.tab, "solana", "Add Solana opens the Solana tab");
 }
 {
   assert.match(text(draw("solana")), /Loading Solana…/, "the tab loads the plain controller");
@@ -587,6 +592,8 @@ step("a bad USDC account and a failed update stay on their own rows");
     const shield = all(asset(tree, id), (n) => n.tag === "button" && /shield/i.test(text(n)));
     assert.equal(shield.length, 0, id + " row has no Shield and no Unshield");
   }
+  assert.deepEqual(all(asset(tree, "sol"), (n) => n.tag === "button").map(text), ["Open Solana"],
+    "a ready part keeps the route to its tab");
   for (const id of ["sol", "usdc"]) {
     assert.equal(choice(tree, "Send", id).attrs.disabled, undefined, id + " Send works");
     assert.match(text(choice(tree, "Send", id)), /Solana Mainnet · public/);

@@ -791,6 +791,11 @@ function usdcAsset() {
 // The SOL or USDC row of a served plain wallet: the balance of the last read, or the state of its
 // Solana part. It has no Shield and Unshield (no pool), and its details say what is public.
 const PLAIN_STATUS = { stale: "Update failed · old balance" };
+// The SOL row is the route to the Solana tab of a plain wallet in every state: the side menu has
+// no wallet sections, and Send and Receive wait until the part is ready.
+const plainOpen = (state) => el("div", { class: "row-actions" },
+  el("button", { class: "btn", type: "button", onclick: openSolana },
+    state === "none" ? "Add Solana" : "Open Solana"));
 // The amount of a plain row: the balance with its unit, or the state as a text.
 function plainAmount(row) {
   if (row.amount) return unitAmount(row.amount, row.unit);
@@ -809,7 +814,8 @@ function plainAsset(id) {
       privacyBadge(el, "public")),
     el("div", { class: "asset-balance-block" }, el("span", { class: "label" }, "Wallet balance"),
       plainAmount(row), status ? el("p", { class: "asset-row-status small"
-        + (bad ? " asset-row-warning" : " muted"), role: "status" }, status) : null)),
+        + (bad ? " asset-row-warning" : " muted"), role: "status" }, status) : null),
+    id === "sol" ? plainOpen(row.state) : null),
   assetNote(id, "Solana details", [el("p", {}, PLAIN_EXPOSURE),
     plainRead()?.error ? el("p", {}, plainRead().error) : null]));
 }
