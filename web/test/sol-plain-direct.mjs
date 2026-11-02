@@ -732,6 +732,23 @@ step("a stop before Confirm or between the test run and the send sends nothing")
 }
 step("a refused send is shown once and never repeated");
 
+// ── A node that is behind may hold the bytes: that is no refusal ──
+{
+  await start("create-nonce");
+  const confirm = mark(draw(), "confirm");
+  calls.length = 0;
+  world.sendError = "Error: sendTransaction: RPC error -32005: Node is behind by 150 slots";
+  await click(confirm);
+  world.sendError = null;
+  assert.deepEqual(names(), ["simulate", "send"], "no confirm and no second send");
+  assert.deepEqual([c.direct.step, c.direct.result?.status], ["done", "maybe"],
+    "the result is not a failure");
+  assert.equal(c.unsure.size, 1, "and the id is kept");
+  c.unsure.clear();
+  c.direct = null;
+}
+step("a send that an unhealthy node refuses is not shown as a refusal");
+
 // ── A send with no known result may have landed: its status comes before a new try ──
 {
   const answersStatus = answers.status;

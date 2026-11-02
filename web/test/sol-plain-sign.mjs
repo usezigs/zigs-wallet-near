@@ -934,7 +934,7 @@ const unlag = () => {
 const simulations = () => calls.filter((x) => x.cmd === "simulate").length;
 const reads = (k) => calls.filter((x) => x.cmd === "accounts"
   && JSON.stringify(x.args.addresses) === JSON.stringify([nonceAddress(1, k)])).length;
-const waits = (w) => w.startsWith("The nonce account of this payment changed");
+const waits = (w) => w.startsWith("The nonce of this payment moved.");
 // A lagging status leaves the session signed, with no failure part and no counted try.
 async function holds(id, label) {
   assert.equal(await status(id), "signed", label + ": the session stays open");
@@ -1049,6 +1049,143 @@ step("a stale account read does not make a refusal after a landing count");
   Object.assign(LIMITS, saved);
 }
 step("a reload or a device that did not send ends nothing after a landing either");
+
+// ── Only a refusal of the bytes is a failed try, not a node that is behind ──
+// A refusal counts when the node says that the bytes are bad: -32002 (preflight failed) or -32003
+// (a signature failed). Any other error of the send says nothing about the bytes, which may be on
+// the chain already. A node that is behind shows the old nonce, a passing simulation and a status
+// of none, so no other check could tell the refusal from a real one.
+const BEHIND = "sendTransaction: RPC error -32005: Node is behind by 150 slots";
+const NO_BLOCK = "sendTransaction: RPC error -32004: Block not available for slot 9";
+const passes = ({ tx }) => {
+  world.passed.add(tx);
+  return { err: null, unitsConsumed: null, loadedAccountsDataSize: null, logs: [] };
+};
+// The page looks at 100 nonce accounts at most: these tests use one of them again, with a new nonce
+// value each time.
+const firstK = nextK;
+let genNext = 0;
+const fresh = (approvers) => {
+  nextK = firstK;
+  return newSend(approvers, { gen: ++genNext });
+};
+const over = (id) => ["failed", "sent"].includes(c.sessions.find((s) => s.id === id)?.status);
+{
+  const saved = { ...LIMITS };
+  Object.assign(LIMITS, { backoff: 20, grace: 120_000 });
+  for (const text of [BEHIND, NO_BLOCK]) {
+    reset();
+    const { id, k } = await fresh([2, 3]);
+    const address = nonceAddress(1, k);
+    const old = structuredClone(world.accounts.get(address));
+    landing.answer(); // the node takes the bytes, the nonce moves, the answer is lost
+    await pump("the first send", () => sendCalls() >= 1);
+    assert.equal(world.sends.length, 1, text + ": control: the bytes went out");
+    // Now every node in reach is behind: the send is refused with the text, the simulation
+    // passes, the account shows the old nonce and the status says none.
+    answers.send = () => {
+      throw new Error(text);
+    };
+    answers.simulate = passes;
+    answers.accounts = ({ addresses }) => ({
+      accounts: addresses.map((a) => (a === address ? old : (world.accounts.get(a) ?? null))),
+    });
+    answers.status = lagging;
+    plain.close();
+    plain.open(gid, base); // the reload takes the note of the send away
+    await waitFor("the documents",
+      () => [...COLLECTIONS, "solsessions"].every((n) => c.loaded[n]), 15000);
+    assert.equal(c.went.has(id), false, text + ": control: this tab has no note of the send");
+    const before = sendCalls();
+    await pump("many refusals", () => sendCalls() >= before + 6 || over(id));
+    await holds(id, text);
+    await catchUp(id, text);
+  }
+  Object.assign(LIMITS, saved);
+}
+step("a node that is behind or has no block, with a send that landed, ends nothing");
+
+{
+  const saved = { ...LIMITS };
+  Object.assign(LIMITS, { backoff: 20 });
+  const texts = {
+    "a block that is not there": NO_BLOCK,
+    "a 429 in the RPC shape": "sendTransaction: RPC error 429: Too many requests",
+    "a 503 in the RPC shape": "sendTransaction: RPC error 503: Service unavailable",
+    "an internal error": "sendTransaction: RPC error -32603: Internal error",
+    "an unknown code and text": "sendTransaction: RPC error -32099: A text that nobody knows",
+    "a refusal quoted inside another text":
+      "sendTransaction: RPC error -32005: sendTransaction: RPC error -32002: quoted",
+    "the 429 of the Worker": "sendTransaction: Too many Helius calls. Wait a minute.",
+    "the 5xx of the Worker": "sendTransaction: Helius is not answering.",
+  };
+  for (const [label, text] of Object.entries(texts)) {
+    reset();
+    const { id } = await fresh([2, 3]);
+    world.sendError = text;
+    await pump("more sends", () => sendCalls() >= 5 || over(id));
+    await holds(id, label);
+    world.sendError = null;
+    await pump("sent", becomes(id, "sent"));
+    assert.equal(world.sends.length, 1, label + ": the bytes went out once");
+  }
+  // A signature that the node refuses is a refusal of the bytes, like a failed preflight.
+  reset();
+  const { id } = await fresh([2, 3]);
+  world.sendError = "sendTransaction: RPC error -32003: Transaction signature verification failure";
+  await pump("the session ends", becomes(id, "failed"));
+  assert.equal(sendCalls(), 3, "three tries");
+  assert.match((await session(id)).error, /^Not sent: .*RPC error -32003/);
+  Object.assign(LIMITS, saved);
+}
+step("other errors of the send are no failed try, and -32003 is one");
+
+// ── A signed part whose group signature does not verify ends the session at once ──
+// A landing needs a valid group signature, so such a part cannot have landed. A hostile seat can
+// write a package part and a signed part with any 64 bytes. No device waits for it for ever (a
+// message with no nonce, or a nonce account that is gone, would make it wait), and none sends it.
+{
+  const NOT_VERIFIED = "The group signature does not verify. Nothing was sent.";
+  const other = (await session(done.id)).signature; // a valid signature, of other bytes
+  assert.ok(ed25519(null, bytesOfHex((await session(done.id)).message), nodeKey(group),
+    Buffer.from(other, "hex")), "control: it is a good signature of the group");
+  const cases = {
+    "junk, nonce account gone": { signature: "cd".repeat(64), gone: true },
+    "a signature of other bytes, nonce account gone": { signature: other, gone: true },
+    "junk, a message with no nonce":
+      { signature: "cd".repeat(64), message: vector("s1-create-nonce", "msg") },
+  };
+  for (const [label, { signature, gone, message }] of Object.entries(cases)) {
+    reset();
+    let id, digest;
+    if (message) {
+      id = hexOfBytes(crypto.getRandomValues(new Uint8Array(16)));
+      const intent = hexOfBytes(sendSolIntent(1000, nonceValue(3, 1000), recipient, 1000n));
+      await writeProposal(c, id, { intent, message: hex(message), feeSig: "ab".repeat(64),
+        createdAt: Date.now() }, 3);
+      digest = "00".repeat(32);
+    } else {
+      const made = await fresh([]);
+      id = made.id;
+      digest = W.sol_plain_digest(pinsOf(1), bytesOfHex(made.ss.message));
+      if (gone) world.accounts.delete(nonceAddress(1, made.k));
+    }
+    await writePart(c, id, "package", { package: "{}", signers: [2, 3], digest }, { seat: 3 });
+    await writePart(c, id, "signed", { signature }, { seat: 3 });
+    rig.notify();
+    await waitFor("the session is read", () => (c.refresh(),
+      c.sessions.some((x) => x.id === id && x.status === "signed")), 10000);
+    await pump("the session ends", becomes(id, "failed"), 5000);
+    assert.equal((await session(id)).error, NOT_VERIFIED, label);
+    assert.deepEqual(calls.filter((x) => ["status", "simulate", "send"].includes(x.cmd)), [],
+      label + ": no call of the Worker for these bytes");
+    assert.equal(c.tries.get(id), undefined, label + ": and no try was counted");
+    assert.ok(announced.includes(`Send SOL: ${NOT_VERIFIED}`), label + ": the words are said");
+    data.delete(path(gid, "solsessions/" + id));
+    rig.notify();
+  }
+}
+step("a signed part with a group signature that does not verify ends the session at once");
 
 // ── A nonce account that cannot be read or understood ends nothing ──
 // The refusal is a real one, so the nonce account is read. Whatever the read gives besides "the

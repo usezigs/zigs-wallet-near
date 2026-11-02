@@ -36,9 +36,12 @@ const RESULT = {
 export const LIMITS = {
   call: 20_000, confirm: 60_000, fallback: 30_000, backoff: 3000, grace: 120_000,
 };
-// What the page reads when the node refused a send (the Worker names the RPC method) or when the
-// Worker refused to send: nothing went out.
-export const REFUSED = /sendTransaction: RPC error|send: these bytes did not pass/;
+// What the page reads when the node refused the bytes of a send for certain: the preflight failed
+// (-32002) or a signature failed (-32003). The Worker writes `Error: sendTransaction: RPC error
+// <code>: <text>` (worker.js resultOf). The Worker's own refusal, before any call, is the second
+// text. Any other error leaves the bytes with the node, so it is no refusal.
+export const REFUSED =
+  /^(?:Error: )?(?:sendTransaction: RPC error -3200[23]:|send: these bytes did not pass)/;
 // The words of confirm for a transaction that is on the chain.
 export const DONE = new Set(["confirmed", "finalized", "failed"]);
 
