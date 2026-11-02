@@ -1,7 +1,7 @@
 # Design record: a real swap from ZEC to SOL through NEAR Intents
 
-- **Status:** proposed. This record holds no code. Code work starts after the branches
-  `sol-plain-c4` and `sol-plain-c5` (group send of SOL) pass their QA.
+- **Status:** partly built on the branch `zec-to-sol-swap`, for staging only (section 0). The
+  owner changed the plan on 2026-11-02. No funded swap has run.
 - **Date:** 2026-11-02 (UTC).
 - **Base:** `staging-combo` at `a6264ca9`. Each `file:line` below refers to that commit, unless
   the reference names another branch.
@@ -9,6 +9,62 @@
   wallet of the same group (FROST-Ed25519, one group address) gets the SOL. NEAR Intents (the
   1Click API) runs the swap. Production (`app.zigs.app`) stays frozen. The route runs on
   `staging.zigs.app` only.
+
+## 0. The owner's decision and what is built
+
+The owner changed this record on 2026-11-02: the group gets a transparent address of its own, and
+the route is built now, on the branch `zec-to-sol-swap`, for staging only. This section says what
+the branch holds. Where it differs from sections 1 to 7, this section is valid, and those
+sections stay as the record of the first proposal.
+
+| Part | Built | Where |
+|---|---|---|
+| Payment to transparent addresses | A shielded payment can pay `t1`, `t3` (`tm`, `t2` on testnet). Each transparent output shows as a recipient and counts in the sum and in the ZIP 317 fee. The engine still refuses a transparent input, a TEX address and any Sapling part | `wasm/src/lib.rs`, `wasm/src/chain.rs`, `web/app-send.js`, `ios/Zigs` |
+| Group transparent address | A t-of-n P2SH multisig address (ZIP 48, `sortedmulti`). Each seat derives a secp256k1 key from its FROST key share, so a backup restores it, and publishes the public key as a signed document. The address shows on Receive with its balance | `wasm/src/p2sh.rs`, `web/app-taddress.js` |
+| Worker | `/near/swap-zec` (live quote, transparent deposit and refund, a deadline of 6 hours, at least 4 hours left). `/near/status` also passes the swap of the deposit address: the assets, the two addresses, the amount in and the time to pay before | `cf/src/near.js` |
+| Page | The Swap page runs ZEC to SOL behind `NEAR_LIVE`. The recipient is the plain Solana address of the wallet and `refundTo` is the group transparent address. Nobody types an address. **Propose the payment** opens Send with the deposit address, the exact amount and a swap note | `web/app-swap-preview.js`, `web/app-swap-zec.js` |
+| Approval check | Each device that approves a payment with the swap note reads `/near/status` for the deposit address. It approves only a swap from ZEC to SOL of the exact amount that pays the Solana address of this wallet, refunds to its transparent address and ends at the deadline in the note, with 30 minutes left | `web/app-swap-zec.js` |
+| Send check | No device sends a swap payment in the last 30 minutes before the deadline | `sendRefusal` in `web/app-payments.js` |
+| Sweep of the transparent address | Not built yet. Until it is, Zigs cannot move funds from the group transparent address | — |
+
+Changes against the first proposal:
+
+- **Refund address (section 4).** Section 4.1 said that the group cannot hold a transparent key.
+  That is true for a FROST key. The branch adds a separate secp256k1 key for each seat and a P2SH
+  multisig, so the group holds the address with the same threshold. This is option D, and it
+  replaces option A. The Worker accepts a `t3` refund address. It is not known whether NEAR
+  Intents accepts one: no quote with a `t3` refund has run, and no refund to a P2SH address was
+  ever paid. Step L0 answers the first question.
+- **The quote check (section 3.4).** The branch does not check the Ed25519 signature of the quote.
+  Each device checks the swap that `/near/status` gives instead. Section 3.4 says not to use the
+  status in place of the signature. The branch does so as a first floor, with this limit: the
+  check trusts the Zigs Worker and NEAR Intents. It stops one device that proposes a payment to the
+  deposit address of another swap. It does not stop a Worker that lies. The signature check stays
+  the target before a production route.
+- **The trigger of the check.** The check runs for a payment whose note marks a swap. A device that
+  writes another note gets no check, and the approval shows a plain transparent payment. A check
+  for every `t1` payee would tell NEAR Intents about each transparent payment of the wallet.
+- **The expiry (section 3.5).** The payment keeps the expiry window of one day. The engine has no
+  per-payment cap (`wasm/src/expiry.rs`). The send check covers the risk instead: no device sends
+  in the last 30 minutes before the deadline. A transaction that a device sent before that time
+  can still reach a block after the deadline.
+- **Native apps.** The iPhone and Mac apps do not publish a transparent key yet. A group with a
+  native seat has no transparent address, so the Swap page gives the reason and runs no swap.
+- **Not verified here:** that 1Click `/v0/status` gives the quote of a `PENDING_DEPOSIT` address
+  before any deposit. The Worker tests use recorded answers. Run L0 (section 6.3) to check it.
+
+The gaps before the first funded swap:
+
+1. The sweep of the group transparent address. Without it, a refund stays at an address that Zigs
+   cannot move.
+2. A move of the wallet (Change devices) leaves funds at the old transparent address. The sweep
+   must run first, or the move must refuse while that address has a balance.
+3. Run L0 with the owner's yes: one live quote, no deposit, and one `/near/status` read of its
+   deposit address.
+
+The live runs of section 6.3 change so: L1 pays the refund to the group transparent address, which
+Receive shows with its balance. L2 is the full swap through the group. Each run needs the owner's
+yes with the commit, the command and the amounts.
 
 ## 1. Summary
 
@@ -252,6 +308,10 @@ follow-up for that route.
 ## 4. The refund address
 
 ### 4.1 Why the group cannot hold a transparent key
+
+Section 0 replaces this section: the branch gives each seat a separate secp256k1 key, and the
+group holds a P2SH multisig address with the same threshold. The text below stays as the record
+of the first proposal.
 
 - The ZEC wallet has one shielded receiver and no transparent receiver (`README.md:101-102`).
 - A transparent (P2PKH) spend needs an ECDSA signature on secp256k1. The FROST group signs
