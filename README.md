@@ -44,12 +44,20 @@ proposer chooses one ([comparison](PRIVACY.md#on-chain)).
   yours pays it. The iPhone and Mac apps do not have it yet
   ([how](CHAT.md#5-the-personal-account-on-chain-messages)).
 - Solana beta: the web app can give a testnet wallet a private balance of SOL on Devnet, in Zolana,
-  the Helius shielded pool on Solana. It is a beta, off for mainnet wallets, and the iPhone and Mac
+  the Helius shielded pool on Solana. It is a beta, for testnet wallets only, and the iPhone and Mac
   apps do not have it. For such a wallet the page also connects to the Helius Devnet host. Helius
   sees more than the light-wallet server does: it builds the proofs, so it sees amounts and
   recipients of each spend. Each device pays fees and rents from its own fee address on Devnet, and
   a device adds SOL to the group with Add SOL: the fee address shows on chain next to the group.
   Read [ZOLANA.md](ZOLANA.md) first, then [PRIVACY.md](PRIVACY.md#solana-beta-helius-devnet).
+- Solana on mainnet (plain wallet): a mainnet wallet can add a plain Solana account that holds real
+  SOL and USDC. The group signs for it, but it is a normal account: it has no pool, no hosted prover
+  and no privacy, and every balance and payment is public on chain. The page reads balances through
+  `https://mainnet.helius-rpc.com`. Helius sees your IP address and the group address. The explorer
+  sees the address that the page opens. It is not audited. The web app can receive; send comes
+  later. The server turns it on with `SOL_MAINNET`, which is `"0"` on production and on staging
+  until send passes QA ([ZOLANA.md](ZOLANA.md) 3.10,
+  [PRIVACY.md](PRIVACY.md#solana-mainnet-plain-wallet)).
 - The wallet follows chain reorganisations of up to 100 blocks
   ([how](PROTOCOL.md#6-receiving-and-sync)). After a deeper one, the web, iPhone and Mac apps
   scan the wallet again from its birthday.
@@ -136,7 +144,7 @@ To see device changes, open **Devices**, then **Change devices**. To see the pri
 
 | Criterion | Evidence |
 |---|---|
-| **Privacy** | On chain, the transaction shape matches the standard wallet library: same builder, padding, standard fee and anchor depth. A group payment expires after one day instead of about 50 minutes, because its approvals take hours, so the expiry marks it, and so does a priority fee ([comparison](PRIVACY.md#on-chain)). The server stores only encrypted values, padded so that even their length hides amounts. On the device, key shares can be locked with a passkey ([how](PRIVACY.md#lock-with-a-passkey-or-face-id)). Key share backups are encrypted with a passphrase (Argon2id and XChaCha20-Poly1305) ([how](PRIVACY.md#key-share-backups)). The page can connect only to its own host (the group server and the testnet light-wallet relay) and two ChainSafe light-wallet servers (Content-Security-Policy). For testnet wallets, the Solana Worker of the page also connects to the Helius Devnet host ([how](PRIVACY.md#solana-beta-helius-devnet)). With local proving on, it also fetches the proving keys from one CloudFront folder (`d3gbdb0egjwcw9.cloudfront.net/proving-keys/3a1c88f90f609eb1/`, `SOL_KEYS` in `cf/src/index.js`). It is prepared for Tor Browser, but not yet tested end to end ([how](PRIVACY.md#use-zigs-over-tor)). The Zigs server code keeps no logs; its host, Cloudflare, can see connection data. Every remaining leak is listed in [PRIVACY.md](PRIVACY.md). |
+| **Privacy** | On chain, the transaction shape matches the standard wallet library: same builder, padding, standard fee and anchor depth. A group payment expires after one day instead of about 50 minutes, because its approvals take hours, so the expiry marks it, and so does a priority fee ([comparison](PRIVACY.md#on-chain)). The server stores only encrypted values, padded so that even their length hides amounts. On the device, key shares can be locked with a passkey ([how](PRIVACY.md#lock-with-a-passkey-or-face-id)). Key share backups are encrypted with a passphrase (Argon2id and XChaCha20-Poly1305) ([how](PRIVACY.md#key-share-backups)). The page can connect only to its own host (the group server and the testnet light-wallet relay) and two ChainSafe light-wallet servers (Content-Security-Policy). For testnet wallets, the Solana Worker of the page also connects to the Helius Devnet host ([how](PRIVACY.md#solana-beta-helius-devnet)). Once the server turns on the plain Solana wallet, a mainnet wallet with that part connects to the Helius mainnet host instead ([how](PRIVACY.md#solana-mainnet-plain-wallet)). With local proving on, it also fetches the proving keys from one CloudFront folder (`d3gbdb0egjwcw9.cloudfront.net/proving-keys/3a1c88f90f609eb1/`, `SOL_KEYS` in `cf/src/index.js`). It is prepared for Tor Browser, but not yet tested end to end ([how](PRIVACY.md#use-zigs-over-tor)). The Zigs server code keeps no logs; its host, Cloudflare, can see connection data. Every remaining leak is listed in [PRIVACY.md](PRIVACY.md). |
 | **Usefulness** | Designed for team treasuries, DAOs and families. Usable today in the web app, on Zcash testnet and Solana Devnet: invite links and QR codes; batch payments for payroll and grants (up to 8 recipients, one approval round, pasted from a spreadsheet); device changes; encrypted key share backups. |
 | **Execution** | The live app works end to end. The testnet and Devnet transactions that the apps made, a payment to a ZNS name among them, are [listed below](#proof-on-testnet-and-devnet). The engine has 131 tests, and a command-line suite runs adversarial cases. |
 | **Originality** | An end-user app for re-randomized FROST: no command line, no trusted dealer, and no server that can read the wallet. Each device decodes the PCZT and checks every output before it approves, and binds its approval to the transaction's sighash. Device changes and batch payments are included. The iPhone and Mac code in `ios/` is not part of this release. Built during the Zecathon window: the first commit is from October 15, 2026. |
@@ -173,6 +181,7 @@ flowchart LR
 | Light-wallet server | IP address and the blocks requested, as for any light wallet. On testnet, the app Worker relays the requests, so our node sees the Worker and not the device. Where memo reading is on, it also sees which full transactions a device fetches to read memos. Never a key |
 | Zcash network | A shielded transaction with the shape of a shielded payment from a standard wallet, except for its one-day expiry (a standard wallet sets about 50 minutes) and an optional priority fee, which can mark it as a Zigs payment |
 | Helius (Solana beta, testnet wallets only) | IP address, the app origin, the owner key, and for each spend the amounts, recipients and the nullifier secret that its prover needs. Never a key share |
+| Helius and the explorer (plain Solana wallet, mainnet) | Helius: IP address, the app origin, the group address and the fee addresses that the page reads. The explorer: the address that the page opens, and your IP address. Balances and payments are public on chain anyway. Never a key share |
 | ZNS resolver (testnet names) | That the app Worker downloads the whole name registry. Never which name a person pays, never a key |
 
 ## Creating a wallet
@@ -301,6 +310,7 @@ The full threat model is in [PRIVACY.md](PRIVACY.md). In short:
 | Group server | Wallet ids, document paths and field names, timing, which IP addresses connect to which wallet | Wallet and signer names, addresses, viewing key, amounts or their length, recipients, transactions, signing data |
 | Light-wallet server | Your IP address (on testnet, our server sees the app Worker), the wallet's birthday height, the blocks you download, the transactions you send, the full transactions you fetch to read memos (only where memo reading is on) | Which notes are yours while you download blocks (the memo fetches are the exception), any key |
 | Helius (Solana beta, testnet wallets only) | Your IP address, the app origin, the owner key of the wallet, and the witness of each spend: owners, assets, amounts and the nullifier secret. With local proving on (a group setting), no witness: the devices of the group make the proofs. The sender and the recipient of a transfer are public on chain | Any key share, the Ed25519 seed, the viewing key. It cannot sign |
+| Helius and the explorer (plain Solana wallet, mainnet) | Helius: your IP address, the app origin, the group address and the published fee addresses. The explorer: the address that the page opens, and your IP address. Everyone sees the balances and payments of the group address on chain | Any key share, the Ed25519 seed. Helius cannot sign |
 | ZNS resolver (testnet names) | That the app Worker downloads the whole name registry, and when | Your IP address, which name you look up or pay |
 | Other signers | Everything about the shared wallet | Your key share and your signing nonces |
 
@@ -469,8 +479,9 @@ The Worker gives it to the page at `/sol/config-mainnet.json`. The route answers
 variable `SOL_MAINNET` in `cf/wrangler.jsonc` is `"1"`. It is `"0"` at the top level and in
 staging. Set the secret like the Devnet one (`npx wrangler secret put HELIUS_MAINNET_URL`, with
 `--env staging` for staging), and allow only the origin of the page at Helius. Without the secret,
-the route answers 503. The page code of the plain wallet comes in a later step; this step adds the
-Worker (`web/sol/plain/`) and the route (ZOLANA.md 3.8).
+the route answers 503. The plain wallet itself (`web/sol/plain/`, the Solana tab, the balances and
+the backup, ZOLANA.md 3.8 to 3.10) can receive and cannot send yet. Keep `SOL_MAINNET` at `"0"` in
+every config file, on production and on staging, until send passes QA.
 
 To try the beta by hand, make a testnet wallet, add the Solana part, and open the Solana tab. Each
 device that this browser holds shows **Your fee address**. Send Devnet SOL to it (the **Get Devnet

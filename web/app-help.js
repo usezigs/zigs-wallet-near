@@ -9,7 +9,8 @@ import { curChain, netName, readsMemos } from "./app-chain.js";
 import { toApprove } from "./app-groups.js";
 import { groupVersion, verifiedCount } from "./app-dkg.js";
 import {
-  sol, solError, solFile, solNotAdded, solOn, solPending, solSetup, solUnsaved,
+  plainNotAdded, plainSetup, plainShown, plainSol, sol, solFile, solNotAdded, solOn, solPartError,
+  solPending, solSetup, solUnsaved,
 } from "./app-sol.js";
 import { copyBtn, el } from "./app-dom.js";
 import { HELP, diagnosticsText } from "./help-model.js";
@@ -31,14 +32,17 @@ function browserFacts() {
 
 // Zigs counts nothing of the Solana part until it has read it: a count then would say 0. Recovery
 // tells a read that is still going from one that failed, and so do these lines.
-const solUnread = () => solOn() && (!sol || localSeats().some((i) => solFile(i)?.unknown));
-const solUnreadWord = () => (solError ? "could not read" : "not read yet");
+const unknownSeat = () => localSeats().some((i) => solFile(i)?.unknown);
+const solUnread = () => (plainShown() ? !plainSol || unknownSeat()
+  : solOn() && (!sol || unknownSeat()));
+const solUnreadWord = () => (solPartError() ? "could not read" : "not read yet");
 const solCount = (count) => (solUnread() ? solUnreadWord() : count());
 // The state of the Solana part. A wallet that cannot get one is "unavailable"; a part that is not
 // read yet has no state.
 const SOL_PART = { "not started": "not added", running: "setting up", ready: "ready",
   stopped: "stopped", differs: "keys differ", unavailable: "unavailable" };
 function solStatus() {
+  if (plainShown()) return plainNotAdded() ? "not started" : plainSetup()?.status;
   if (!solOn()) return "unavailable";
   return solNotAdded() ? "not started" : solSetup()?.status;
 }
@@ -64,7 +68,7 @@ function stateFacts() {
     ["Zcash sync", syncWord(curChain())],
     ["Solana part", SOL_PART[solStatus()] ?? solUnreadWord()],
     ["Zcash payments to approve", toApprove(state.gid).length],
-    ...solFacts([["Solana payments to approve", solCount(solPending)]]),
+    ...(plainShown() ? [] : solFacts([["Solana payments to approve", solCount(solPending)]])),
     ["Memo reading", readsMemos(state.gid) ? "on" : "off"]];
 }
 

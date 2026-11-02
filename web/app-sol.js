@@ -358,8 +358,12 @@ export const plainNotAdded = () => plainShown() && !plainSol && !plainError
 // Does the wallet have a Solana part, or can it have one? Not when it is known to have none.
 export const plainAdded = () => plainShown() && !plainNotAdded()
   && plainSetup()?.status !== "not started";
+// The setup steps and the load error of the Solana part that this wallet shows: the plain part of a
+// served mainnet wallet, else the pool.
+export const solPartSetup = () => (plainShown() ? plainSetup() : solSetup());
+export const solPartError = () => (plainShown() ? plainError : solError);
 // The ready gate of the check of a saved Solana file (backupCheckExpected).
-export const solReady = () => (plainShown() ? plainSetup() : solSetup())?.status === "ready";
+export const solReady = () => solPartSetup()?.status === "ready";
 const plainStopped = () => plainSetup()?.status === "stopped";
 // solFile for a plain seat. The tab itself needs no module of the pool.
 function plainPart(i) {
@@ -405,8 +409,12 @@ async function plainBackup(i) {
 const PLAIN_LABEL = "mainnet-plain";
 const NOT_LISTED = "This browser does not know this wallet yet. Wait a moment, then open the file "
   + "again.";
+const PROBE_MS = 10000;
+const NOT_ASKED = "This browser does not know yet whether this server serves the Solana wallet. "
+  + "Wait a moment, then open the file again.";
 // Does this Solana file go to the plain controller? Only the wallet decides, never the label of the
-// file: a plain label can only make a restore refuse. A mainnet wallet waits for the probe.
+// file: a plain label can only make a restore refuse. A mainnet wallet waits up to PROBE_MS for
+// the probe.
 async function plainRoute(b) {
   if (!solGroup(b.group)) {
     if (b.cluster === PLAIN_LABEL) throw new Error(NOT_LISTED);
@@ -414,7 +422,10 @@ async function plainRoute(b) {
   }
   if (!plainOn(b.group)) return false;
   plainServed();
-  await plainAnswer;
+  let timer;
+  await Promise.race([plainAnswer, new Promise((done) => { timer = setTimeout(done, PROBE_MS); })]);
+  clearTimeout(timer);
+  if (ui.plainServed === null) throw new Error(NOT_ASKED);
   return ui.plainServed === true;
 }
 export async function solRestore(b, encrypted) {

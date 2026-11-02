@@ -40,8 +40,8 @@ import { helpView } from "./app-help.js";
 import {
   sol, solActivity, solBackup, solBalance, solError, solFile, solLoad, solLoading,
   solActivityWaits, solLoadingCount, solOlderCount, solOn, solPending, solPendingRows, solSetup,
-  solNotAdded, solObserveOverview, solSync, solTab, plainAdded, plainLoading, plainNotAdded,
-  plainRead, plainSetup, plainShown, plainSol, plainTab,
+  solNotAdded, solObserveOverview, solPartError, solPartSetup, solSync, solTab, plainAdded,
+  plainLoading, plainNotAdded, plainRead, plainSetup, plainShown, plainSol, plainTab,
 } from "./app-sol.js";
 import {
   createZecPrice, formatUsdBalance, pendingShortcut, plainRow, portfolioView, solRow, zecInProgress,
@@ -1341,13 +1341,21 @@ function memberRow(i) {
     el("div", { class: "m-actions" }, seatBadge(i), backup));
 }
 
+// The Solana files that the page lists: the plain part of a served mainnet wallet, else the pool.
+const SCOPE_OF = { ready: "ready", stopped: "stopped" };
+function solScope(f) {
+  const known = SCOPE_OF[solPartSetup()?.status];
+  if (known) return known;
+  if (solPartError()) return "unavailable";
+  const none = plainShown() ? !plainAdded() : !f.solWanted && (!solOn() || solNotAdded());
+  return none ? "none" : "pending";
+}
+
 // Read existing wallet and progress facts for the display-only security dashboard.
 // None of these presentation values authorize setup, signing, export, restore or spending.
 function securityRecoveryTab(formed = true) {
-  const f = guidedState(), mine = localSeats(), setup = solSetup();
+  const f = guidedState(), mine = localSeats(), scope = solScope(f);
   const rosterKnown = state.seatsLoaded && (!signedMode(state.gid) || state.seatsSettled);
-  const scope = setup?.status === "ready" ? "ready" : setup?.status === "stopped" ? "stopped"
-    : solError ? "unavailable" : !f.solWanted && (!solOn() || solNotAdded()) ? "none" : "pending";
   const signers = seatIds().map((id) => {
     const s = state.seats[id], local = mine.includes(id), held = local ? sec(state.gid, id) : null;
     const progress = f.backups.find((b) => b.seat === id), part = local ? solFile(id) : null;
@@ -1382,7 +1390,7 @@ function securityRecoveryTab(formed = true) {
     blocked: f.blocked || (muted ? "This browser has no signing key for device " + muted
       + ". Restore that device’s recovery file." : ""),
     storageIssue: f.storageIssue, reportIssue: f.reportIssue,
-    openSolana: solOn() ? openWalletSection("solana") : null };
+    openSolana: solOn() || plainShown() ? openWalletSection("solana") : null };
   return securityDashboard(facts, {
     backup: (id, chain, ev) => chain === "sol" ? act(() => solBackup(id))(ev) : openBackup(id),
     check: (id, chain) => openBackupCheck(id, chain),

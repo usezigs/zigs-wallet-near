@@ -27,6 +27,11 @@ is a bug: please report it.
   Helius runs the RPC, the indexer and the prover. It sees more than the light-wallet server does:
   it sees the amounts and recipients of each spend, because it builds the proof. Read
   [Solana beta](#solana-beta-helius-devnet) before you use it.
+- A mainnet wallet that has the plain Solana part (web app only, off until the server turns it on)
+  reads its balances through the Helius mainnet host. That part has no pool and no privacy: every
+  balance and payment is public on chain. Helius sees your IP address and the group address, and
+  the explorer sees the address that it opens. Read
+  [Solana mainnet plain wallet](#solana-mainnet-plain-wallet).
 - The personal account (web app only) sends and reads messages on chain. A message is the memo of
   a shielded transaction. The account, its contacts and its messages never reach the group
   server. The light-wallet server sees the transactions that the account fetches and sends, and
@@ -340,7 +345,9 @@ What stays visible:
 
 A testnet wallet in the web app can also hold private SOL on Devnet, in Zolana, the Helius
 shielded pool on Solana ([ZOLANA.md](ZOLANA.md)). It is a beta. The Zcash part of the wallet stays
-as it is above. A mainnet wallet never loads the Solana code and never connects to Helius.
+as it is above. A mainnet wallet never loads this code and never connects to the Helius Devnet host.
+A mainnet wallet with the plain Solana part is described in
+[Solana mainnet plain wallet](#solana-mainnet-plain-wallet).
 
 The Solana code runs in a Worker of its own, `/sol/worker.js`. Only that script carries a policy
 that names the Helius Devnet host. The policy of the page does not name it. The Helius URL holds an
@@ -486,6 +493,48 @@ The screen does not read these keys live, so a change of a key does not show the
 
 Tor Browser hides your IP address from Helius. It does not hide the timing link of the group
 server. A person who reads "private" may expect Zcash privacy. The Solana part gives less.
+
+## Solana mainnet plain wallet
+
+A mainnet wallet in the web app can add a plain Solana account ([ZOLANA.md](ZOLANA.md) 3.8 to
+3.10). It holds real SOL and USDC. It has no pool, no hosted prover and no privacy. The code is not
+audited. The page can receive and cannot send yet. The server serves the part only when the
+variable `SOL_MAINNET` is `"1"`. It is `"0"` on production and on staging, and it stays `"0"` until
+send passes QA.
+
+The group address and its USDC account are normal Solana accounts. Everyone can read every balance
+and every payment of them on chain and can link them to the group. Do not read Zcash privacy into
+this part. The Solana tab says "Public" for this reason.
+
+| Party | Sees | Does not see |
+|---|---|---|
+| Helius mainnet host, `https://mainnet.helius-rpc.com` | Your IP address, the app origin, and the addresses that the page reads: the group address, its USDC account and the published fee addresses, with the time of each read | Any key share, the Ed25519 seed. It cannot sign |
+| The explorer, `explorer.solana.com` | Only when you press Open in explorer: the address in the link and your IP address | Anything else of the wallet |
+| Zigs server operator | The time of the Solana writes of the wallet and the time of each call for the config. By timing, it can link the wallet to these addresses, as in the Solana beta | Any key share |
+| Chain observers | Every balance and payment of the group address, and the fee address that pays a fee | Which devices signed |
+
+The page reads the SOL of the group address, the USDC of its token account and the SOL of each
+published fee address. A visible tab reads at most once in 30 s. A hidden tab reads nothing. Each
+device pays fees from its own fee address, and funding that address links the device to this wallet
+on chain. The explorer link opens `https://explorer.solana.com/address/` and the address, in a new
+tab, with no cluster parameter.
+
+The Helius URL holds an API key. It is a secret of the Worker (`HELIUS_MAINNET_URL`). The server
+gives it to the page at `/sol/config-mainnet.json`, so every user of the page can read it. Allowed
+Domains at Helius limits its use by other sites, but it does not protect the key. The page does not
+store, log or show the URL.
+
+Four controls keep this part apart from the pool:
+
+1. The label `mainnet-plain`. The page derives it from the network that the people of the wallet
+   confirmed (`web/sol/wallet.js`). The start document, the backup file and the saved-file check
+   carry it.
+2. The Worker guard and policy. `web/sol/plain/guard.js` checks each command, and `init` takes only
+   the Helius mainnet host. The server gives `/sol/plain/*` its own policy, and the page starts the
+   Worker only when the header equals it.
+3. The drift abort. A seat part with another label stops (`driftOf` in `web/sol/ceremony.js`).
+4. The restore check. A restore refuses a file of another label, and a key share that does not fit
+   the published key (`web/sol/backup.js`).
 
 ## Use Zigs over Tor
 

@@ -23,14 +23,14 @@ const START_NOTE = "Helius sees your IP and wallet address. "
   + "Funding fee addresses links each device to this wallet.";
 const RECEIVE_ONLY = "Only SOL and USDC. Other tokens can be lost.";
 const FEE_NOTE = "Fee addresses are needed when sending starts.";
-const EXPLORER_NOTE = "The explorer sees your IP address.";
+const EXPLORER_NOTE = "Helius and the explorer see your IP.";
 const EXPOSURE = "Solana mainnet shows every balance and payment of this wallet to everyone. "
   + "Helius sees your IP address and the address of this wallet.";
 const FUNDS_STAY = "Funds sent to this address stay there.";
 const STAYS = "SOL and USDC stay at this wallet’s Solana address. A device left out keeps "
   + "its key share.";
 // The words that the body text of a card may hold: the owner found the tab too text heavy.
-const BUDGET = { start: 30, ready: 25, stopped: 20 };
+const BUDGET = { start: 30, ready: 26, stopped: 20 };
 
 const rig = await loadRig();
 const { t, data, waitFor } = rig;
@@ -100,6 +100,14 @@ const click = (node) => node.on.click({ preventDefault() {}, currentTarget: {} }
 // Every text and attribute value of a tree, for the checks of what it must not hold.
 const everything = (n) => n.text ?? JSON.stringify(n.attrs) + n.kids.map(everything).join("");
 const KEY = /api-key|helius-rpc|not-a-real-key/;
+// No card of the tab promises safety, privacy or recovery: the funds are public and unaudited. The
+// check reads what a person reads: the text of the card, the names of its controls and its titles.
+const PROMISE = new RegExp("\\b(safe|safely|secure|securely|recover\\w*|protect\\w*|guarantee\\w*"
+  + "|private|privacy|anonymous)\\b", "i");
+const spoken = (n) => n.text ?? [n.attrs?.["aria-label"], n.attrs?.title,
+  ...n.kids.map(spoken)].filter(Boolean).join(" | ");
+const promise = (what, tree) => assert.doesNotMatch(spoken(tree), PROMISE,
+  "no word of a promise in " + what);
 // The words of the body text of a card: its paragraphs, callouts and notes. It skips what is not
 // body text: hidden nodes, closed details, headings, labels, badges, amounts, the address, buttons
 // and links. The "Device N: saved" status of a backup row is the label of its buttons and each
@@ -213,6 +221,7 @@ assert.equal(t.solStays(), "", "a wallet without a start document names no Solan
   waits("while a start document waits for its signature check", held);
   const tab = draw("solana");
   assert.equal(text(mark(tab, "status")), "not started");
+  promise("the start card", tab);
   assert.equal(text(mark(tab, "facts")), FACTS, "the start card shows the facts");
   assert.equal(text(mark(tab, "start-note")), START_NOTE, "and the note that people accept");
   assert.ok(mark(tab, "add"), "device 1 sees the Add Solana button");
@@ -220,6 +229,7 @@ assert.equal(t.solStays(), "", "a wallet without a start document names no Solan
   const sees = built(() => plainView(others, (fn) => fn, { add() {} }));
   assert.equal(mark(sees, "add"), undefined, "the other devices have no start button");
   assert.match(text(sees), /Device 1 adds Solana\./);
+  promise("the start card of another device", sees);
   assert.equal(text(mark(sees, "start-note")), START_NOTE, "and they see the note too");
   const words = bodyWords(card(tab));
   assert.ok(words <= BUDGET.start,
@@ -298,6 +308,8 @@ step("a served wallet gets the Solana section, and only device 1 gets the start 
   assert.equal(one(noFee, (n) => n.tag === "details"), undefined, "when all are wrong, no details");
   const away = same({ host: { ...c.host, netConfirmed: () => "testnet" } });
   assert.equal(text(mark(away, "status")), "unavailable");
+  const states = { running, differs, stopped, early, stoppedAndDiffer, forgedFee, noFee, away };
+  for (const [name, tree] of Object.entries(states)) promise("the " + name + " card", tree);
 }
 step("the tab shows the setup, the start and each stop");
 
@@ -359,6 +371,7 @@ const readFrom = async (tab) => {
   assert.doesNotMatch(texts(tab).join(" | "),
     /\b(cap|capped|private|privacy|anonymous|shielded?)\b/i, "and no word of a cap or of privacy");
   assert.doesNotMatch(everything(tab), KEY, "and holds no key");
+  promise("the ready card", tab);
   const link = mark(tab, "explorer");
   assert.equal(link.attrs.href, "https://explorer.solana.com/address/" + address,
     "the explorer link is the address page");
@@ -522,6 +535,8 @@ step("the rows of Overview are real, Receive works and Send says it is not avail
   assert.deepEqual(t.solUnsaved(), [2, 3], "a saved file leaves the list");
   assert.deepEqual(t.solFile(1), { saved: true, restored: false });
   const saved = draw("solana");
+  promise("the backup rows of a saved file", saved);
+  promise("the backup rows of a seat with no file", tab);
   assert.match(text(mark(saved, "backup-state-1")), /^Device 1: saved/);
   assert.ok(nameStartsWithText(saved), "the names of the backup buttons start with their text");
   assert.equal(mark(saved, "restore").attrs["aria-label"], "Restore a backup of the Solana part");
