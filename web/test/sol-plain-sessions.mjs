@@ -1154,7 +1154,9 @@ const keys = () => [...data.keys()].sort();
   await send.tab.propose(typed("0.013"));
   assert.equal(send.signed, 1, "control: the document was signed");
   assert.deepEqual(keys(), before, "a proposal signed for a wallet that closed is not written");
-  assert.deepEqual(send.said, ["Checking the send…"], "and 'Send proposed.' is not said");
+  assert.deepEqual(send.said, ["Checking the send…",
+    "The wallet closed during this step. Nothing was published. Nothing was proposed."],
+  "and 'Send proposed.' is not said: the failure is");
   assert.equal(t.banner.text, "The wallet closed during this step. Nothing was published.");
   // The wallet closes between the save of the nonces and the publish: no commit is even signed.
   setNonce(1, 43);
@@ -1262,13 +1264,15 @@ step("ensureWorker starts one Worker, and a close during the start leaves none")
   const before = stored();
   await plain.propose(typed("0"));
   assert.match(t.banner.text, /Enter an amount of SOL with at most 9 decimals/);
-  assert.deepEqual(said, ["Checking the send…"], "a failure says its words as a banner, once");
+  assert.deepEqual(said, ["Checking the send…", t.banner.text + " Nothing was proposed."],
+    "a failure says its words as a banner, and once to the live region");
   said.length = 0;
   reset();
   await Promise.all([plain.propose(typed("5")), plain.propose(typed("5"))]);
   assert.equal(count("plain_check_message"), 1, "a double click is one proposal");
   assert.match(t.banner.text, /^The checker refused this: /);
-  assert.deepEqual(said, ["Checking the send…"]);
+  const refusal = "The checker refused this. Nothing was proposed.";
+  assert.deepEqual(said, ["Checking the send…", refusal], "a refusal is said short");
   assert.deepEqual(stored(), before, "a refusal writes nothing");
   said.length = 0;
   await plain.propose(typed("0.012"));

@@ -339,13 +339,17 @@ const demoBadge = () => el("span", { class: "badge plain demo-badge" }, "Demo");
 // Why a plain wallet cannot send or receive an asset now, in a few words, or "" when it can. USDC
 // is sent only once the last read shows its token account.
 const PLAIN_WHY = { "not started": "Add Solana first", running: "Solana is still setting up",
-  stopped: "Solana stopped", differs: "Solana keys differ", unavailable: "Solana is not available" };
+  stopped: "Solana stopped", differs: "Solana keys differ",
+  unavailable: "Solana is not available" };
 const USDC_WHY = { ready: "", stale: "", off: "Enable USDC first" };
-function plainWhy(id, sending) {
+function plainPartWhy() {
   const status = plainSetup()?.status;
-  if (status !== "ready") return PLAIN_WHY[status] ?? (plainNotAdded() ? PLAIN_WHY["not started"]
-    : "Solana is loading");
-  if (!sending || id !== "usdc") return "";
+  if (status === "ready") return "";
+  return PLAIN_WHY[status] ?? (plainNotAdded() ? PLAIN_WHY["not started"] : "Solana is loading");
+}
+function plainWhy(id, sending) {
+  const why = plainPartWhy();
+  if (why || !sending || id !== "usdc") return why;
   return USDC_WHY[plainRead()?.rows.usdc.state] ?? "USDC is not ready";
 }
 // HTML disclosures keep their own keyboard and dismissal behavior. Asset choices open the
@@ -1159,7 +1163,8 @@ function solApprovalRequest(r) {
     "data-key": "sol-" + r.id, onclick: openSolana },
     el("span", { class: "approval-request-type" }, icon("send"), "Solana proposal"),
     el("span", { class: "approval-request-recipient" }, r.title),
-    el("span", { class: "approval-request-meta" }, solNetwork() + " · Proposed by " + proposer({ by: r.by })),
+    el("span", { class: "approval-request-meta" },
+      solNetwork() + " · Proposed by " + proposer({ by: r.by })),
     el("span", { class: "approval-request-bottom" },
       el("span", { class: "approval-request-status" }, "Awaiting your approval"),
       el("span", { class: "approval-request-action" }, "Review in Solana", el("span", { "aria-hidden": "true" }, icon("external")))),
@@ -1211,7 +1216,7 @@ const solInbox = () => solLine({ on: solWallet(), error: solPartError(),
   loading: plainShown() ? !!(plainSol || plainLoading) : !!(sol || solLoading),
   setup: solPartSetup(), toApprove: solPending(), reading: solLoadingCount(),
   older: solOlderCount() });
-// The wallet can have a Solana part: the pool (testnet) or the plain part of a served mainnet wallet.
+// The wallet can have a Solana part: the pool (testnet) or the plain part of a mainnet wallet.
 const solWallet = () => solOn() || plainShown();
 
 const INBOX_EMPTY = {

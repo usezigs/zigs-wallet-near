@@ -20,6 +20,8 @@ const fields = ["id", "name", "address", "asset", "network", "type"];
 // other kind: there is no USDC on Devnet in this app.
 const mainnetPublic = (v) =>
   ["SOL", "USDC"].includes(v.asset) && v.network === "mainnet" && v.type === "public";
+const PUBLIC_TEXT = { mainnet: "Enter a Solana address.",
+  devnet: "Enter a public Solana address for withdrawals." };
 export const recipientKind = (v) => v.asset === "ZEC"
   ? v.type === "shielded" && ["testnet", "mainnet"].includes(v.network)
   : mainnetPublic(v)
@@ -59,10 +61,7 @@ export function checkedRecipient(value, normalizeZec) {
     }
     address = normalized;
   } else if (type === "public") {
-    if (!publicSolAddress(address)) {
-      throw new Error(network === "mainnet" ? "Enter a Solana address."
-        : "Enter a public Solana address for withdrawals.");
-    }
+    if (!publicSolAddress(address)) throw new Error(PUBLIC_TEXT[network]);
   } else {
     address = address.toLowerCase();
     if (!shieldedSolAddress(address)) throw new Error("Enter the full shielded Solana address (99 bytes).");

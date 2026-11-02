@@ -23,6 +23,7 @@ const NO_NONCE = "No free nonce account. Create one first.";
 const NOT_LOOKED = "Review the proposal first.";
 const GONE = "This proposal is not in the list any more.";
 const LOG_MAX = 300;
+export const NOTHING_PROPOSED = "Nothing was proposed.";
 /** The keys that give the focus back (data-key): the heading of a review, the list of sends. */
 export const LOOK_TITLE = "sol-look-title";
 export const PROPOSALS_KEY = "sol-proposals";

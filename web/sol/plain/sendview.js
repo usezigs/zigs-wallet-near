@@ -7,7 +7,7 @@ import { BUSY } from "./direct.js";
 import { refusalPart, rowList, txLink } from "./rowsview.js";
 import { sameProposal } from "./sessions.js";
 import {
-  LOOK_TITLE, PROPOSALS_KEY, formError, offered, reviewKey, rowsOf,
+  LOOK_TITLE, NOTHING_PROPOSED, PROPOSALS_KEY, formError, offered, reviewKey, rowsOf,
 } from "./sends.js";
 
 const GRID = "display:grid;gap:8px";
@@ -15,7 +15,6 @@ const NAMES = { sol: "SOL", usdc: "USDC" };
 const TO_KEY = "sol-plain-to";
 const AMOUNT_KEY = "sol-plain-amount";
 const SEND_KEY = "sol-send";
-const NOTHING_PROPOSED = "Nothing was proposed.";
 const UNSURE = "Not confirmed yet. Zigs looks again.";
 const approves = (seat) => `Device ${seat} approves.`;
 
@@ -41,7 +40,7 @@ function failure(c) {
 
 function assetChoice(c, actions, asset) {
   const { el } = c.host;
-  const assets = offered(c);
+  const assets = [...new Set([...offered(c), asset])];
   if (assets.length < 2) return null;
   const button = (id) => el("button", { class: "btn sm" + (id === asset ? " primary" : ""),
     type: "button", "aria-pressed": String(id === asset), "data-sol": "asset-" + id,
@@ -50,18 +49,23 @@ function assetChoice(c, actions, asset) {
     ...assets.map(button));
 }
 
+// Only a key of the person clears the error: restoreFormState sends an input event of its own to
+// every field after each redraw, and that must not remove the text of a refusal.
 function input(c, key, attrs) {
   return c.host.el("input", { class: "input mono", id: key, "data-key": key, autocomplete: "off",
-    spellcheck: "false", value: "", oninput: () => { c.form.error = null; }, ...attrs });
+    spellcheck: "false", value: "", ...attrs,
+    oninput: (ev) => { if (ev.isTrusted) c.form.error = null; } });
 }
 
 /** The form of a send: the asset, the Solana address of the recipient, the amount and Propose. */
 export function sendForm(c, act, actions) {
   const { el } = c.host;
-  const asset = offered(c).includes(c.form.asset) ? c.form.asset : "sol";
+  const asset = c.form.asset;
   const to = input(c, TO_KEY, flagged(c, "recipient", "sol-plain-to-error"));
-  const amount = input(c, AMOUNT_KEY,
-    { inputmode: "decimal", ...flagged(c, "amount", "sol-plain-amount-error") });
+  // The focus goes to the amount for an error of the asset too, so the amount names that note.
+  const amount = input(c, AMOUNT_KEY, { inputmode: "decimal",
+    ...flagged(c, "asset", "sol-plain-asset-error"),
+    ...flagged(c, "amount", "sol-plain-amount-error") });
   const propose = async () => {
     const typed = { asset, recipient: to.value, amount: amount.value };
     const bad = formError(c, typed);
@@ -72,8 +76,11 @@ export function sendForm(c, act, actions) {
     }
     await actions.propose(typed);
     if (c.form.error) return;
-    to.value = "";
-    amount.value = "";
+    // A redraw during the wait replaced these nodes, so the fields are found again by id.
+    for (const id of [TO_KEY, AMOUNT_KEY]) {
+      const field = document.getElementById(id);
+      if (field) field.value = "";
+    }
   };
   return el("div", { style: GRID, role: "group", "aria-labelledby": "sol-send-title",
     "data-sol": "send-form", "data-key": SEND_KEY, tabindex: "-1" },
@@ -84,7 +91,7 @@ export function sendForm(c, act, actions) {
   c.host.recipientSelect?.({ asset: NAMES[asset], network: "mainnet", type: "public",
     id: "sol-plain-saved", onSelect: (address) => {
       to.value = address;
-      to.dispatchEvent(new Event("input", { bubbles: true }));
+      c.form.error = null;
       to.focus?.();
     } }),
   el("label", { class: "field" }, el("span", {}, `Amount (${NAMES[asset]})`), amount),

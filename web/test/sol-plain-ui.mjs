@@ -94,8 +94,10 @@ class Rec extends Node {
     super();
     Object.assign(this, { tag, kids: [], attrs: {}, on: {}, style: {} });
   }
+  get id() { return this.attrs.id; }
   setAttribute(k, v) { this.attrs[k] = String(v); }
   addEventListener(k, v) { this.on[k] = v; }
+  dispatchEvent(ev) { this.on[ev.type]?.(ev); return true; }
   append(...kids) { this.kids.push(...kids); }
 }
 const text = (n) => n.text ?? n.kids.map(text).join("");
@@ -122,6 +124,30 @@ const draw = (tab) => built(() => {
   return t.walletView(null, null);
 });
 const click = (node) => node.on.click({ preventDefault() {}, currentTarget: {} });
+// document.getElementById finds the nodes of `tree`, as it finds those of the page just drawn.
+// The result puts the document back.
+const showing = (tree) => {
+  const real = globalThis.document;
+  globalThis.document = new Proxy(real, { get: (o, k) => (k === "getElementById"
+    ? (id) => one(tree, (n) => n.attrs?.id === id) ?? o.getElementById(id) : o[k]) });
+  return () => { globalThis.document = real; };
+};
+// What draw() of the page does to the fields (app-loop.js): the typed values are saved, the page
+// is built again, and the values are restored by id with an input event for each field.
+const redraw = (old) => {
+  const fields = (tree) => ({ querySelector: () => null, querySelectorAll: (selector) =>
+    (selector === "input[id], select[id], textarea[id]"
+      ? all(tree, (n) => n.tag === "input" && n.attrs.id) : []) });
+  const saved = t.saveFormState(fields(old));
+  const fresh = draw("solana");
+  const stop = showing(fresh);
+  try {
+    t.restoreFormState(fields(fresh), saved);
+  } finally {
+    stop();
+  }
+  return fresh;
+};
 const wordsIn = (s) => s.split(/\s+/).filter(Boolean).length;
 // The words of a node that are not in a button or a link.
 const words = (n) => (n.text !== undefined ? [n.text]
@@ -227,8 +253,12 @@ const READ = "Zigs has not read the balance yet.";
   assert.match(text(form), /Amount \(SOL\)/);
   assert.equal(text(mark(tab, "nonces")), "Nonce accounts: 0, free: 0.");
   plain.pick("usdc");
-  assert.match(text(mark(draw("solana"), "send-form")), /Amount \(SOL\)/,
-    "a USDC choice with no account falls back to SOL");
+  const kept = draw("solana");
+  assert.match(text(mark(kept, "send-form")), /Amount \(USDC\)/,
+    "a USDC choice stays when the read shows no account: the asset is not changed silently");
+  assert.equal(mark(kept, "asset-usdc")?.attrs["aria-pressed"], "true");
+  assert.equal(mark(kept, "asset-sol")?.attrs["aria-pressed"], "false",
+    "and SOL stays one click away");
   plain.pick("sol");
   world.accounts.set(ata, account(RENTS[2], TOKEN_PROGRAM, tokenBytes(100_000_000n)));
   const both = await readFrom("solana");
@@ -354,17 +384,48 @@ let first;
   tab = draw("solana");
   assert.match(text(mark(tab, "error-amount")), /^The balance is 1 SOL\.$/);
   assert.deepEqual(stored(), before, "more than the balance proposes nothing");
-  one(tab, (n) => n.attrs?.id === "sol-plain-amount").on.input({});
-  assert.equal(c.form.error, null, "a change of a field clears the note");
+  const fieldsOf = (tree) => ["sol-plain-to", "sol-plain-amount"]
+    .map((id) => one(tree, (n) => n.attrs?.id === id).value);
+  // A redraw of the page sends an input event of its own to each field: the error stays.
+  fill(tab, RECIPIENT, "9");
+  tab = redraw(tab);
+  assert.deepEqual(fieldsOf(tab), [RECIPIENT, "9"], "a redraw keeps what was typed");
+  assert.equal(c.form.error?.field, "amount", "and keeps the error of the form");
+  assert.match(text(mark(tab, "error-amount")), /^The balance is 1 SOL\.$/);
+  one(tab, (n) => n.attrs?.id === "sol-plain-amount").on.input({ isTrusted: true });
+  assert.equal(c.form.error, null, "a key in a field clears the note");
+  // The read loses the USDC account while USDC is chosen: the asset stays and Propose says why.
+  const usdcKept = c.balances.usdc;
+  plain.pick("usdc");
+  c.balances.usdc = null;
+  tab = draw("solana");
+  fill(tab, RECIPIENT, "1");
+  await click(mark(tab, "propose"));
+  assert.equal(c.form.error?.field, "asset");
+  tab = draw("solana");
+  assert.match(text(mark(tab, "error-asset")), /^Enable USDC first\.$/);
+  assert.equal(one(tab, (n) => n.attrs?.id === "sol-plain-amount").attrs["aria-describedby"],
+    "sol-plain-asset-error", "the amount, where the focus goes, names the note of the asset");
+  assert.deepEqual(stored(), before, "a USDC send with no account proposes nothing");
+  c.balances.usdc = usdcKept;
+  plain.pick("sol");
+  tab = draw("solana");
   fill(tab, RECIPIENT, "0.012");
   const button = mark(tab, "propose");
-  await Promise.all([click(button), click(button)]);
+  const clicks = Promise.all([click(button), click(button)]);
+  // The page is drawn again while Zigs writes the proposal: the fields are new nodes.
+  const redrawn = redraw(tab);
+  assert.deepEqual(fieldsOf(redrawn), [RECIPIENT, "0.012"], "control: the new nodes hold the text");
+  const stop = showing(redrawn);
+  try {
+    await clicks;
+  } finally {
+    stop();
+  }
   await sessions();
   assert.equal(stored().length, before.length + 1, "two clicks, one proposal");
   assert.equal(c.form.error, null);
-  assert.deepEqual([one(tab, (n) => n.attrs?.id === "sol-plain-to").value,
-    one(tab, (n) => n.attrs?.id === "sol-plain-amount").value], ["", ""],
-  "a proposal clears the fields");
+  assert.deepEqual(fieldsOf(redrawn), ["", ""], "a proposal clears the fields that the page shows");
   [first] = c.sessions;
   assert.deepEqual([first.by, first.status], [1, "collecting"]);
   const intent = hex(sendSolIntent(0, nonceValue(1, 0), recipient, 12_000_000n));
@@ -399,11 +460,22 @@ step("Propose checks the fields, and a double click makes one proposal");
   const tab = draw("solana");
   one(tab, (n) => n.attrs?.id === "sol-plain-to").value = RECIPIENT;
   one(tab, (n) => n.attrs?.id === "sol-plain-amount").value = "0.01";
-  await click(mark(tab, "propose"));
-  c.W = real;
+  const said = [];
+  const { host } = c;
+  c.host = { ...host, announce: (words) => said.push(words) };
+  try {
+    await click(mark(tab, "propose"));
+  } finally {
+    c.host = host;
+    c.W = real;
+  }
+  const refusal = "The checker refused this. Nothing was proposed.";
+  assert.deepEqual(said, ["Checking the send…", refusal], "the live region says the refusal");
   assert.deepEqual(stored(), before, "a refusal of the checker writes nothing");
   assert.equal(c.form.error?.review?.kind, "refused", "the form keeps the review of the refusal");
-  const shown = draw("solana");
+  const shown = redraw(draw("solana"));
+  assert.equal(c.form.error?.review?.kind, "refused", "a redraw keeps the refusal");
+  assert.equal(text(mark(shown, "send-refused")), "The checker refused this.");
   assert.equal(text(mark(shown, "send-refused")), "The checker refused this.",
     "the form shows the refusal of the checker in one line");
   const why = mark(shown, "send-why");
@@ -413,6 +485,25 @@ step("Propose checks the fields, and a double click makes one proposal");
   assert.match(text(mark(shown, "send-failed")), /Nothing was proposed\.$/);
   assert.equal(live(mark(shown, "send-form")).filter((n) => n.attrs.id !== "sol-plain-saved-hint")
     .length, 0, "the refusal has no live node");
+  c.form.error = null;
+  // An error of the transport: the live region says its text.
+  const real2 = answers.accounts;
+  answers.accounts = () => {
+    throw new Error("accounts: Helius is not answering.");
+  };
+  said.length = 0;
+  c.host = { ...host, announce: (words) => said.push(words) };
+  const again = draw("solana");
+  one(again, (n) => n.attrs?.id === "sol-plain-to").value = RECIPIENT;
+  one(again, (n) => n.attrs?.id === "sol-plain-amount").value = "0.01";
+  try {
+    await click(mark(again, "propose"));
+  } finally {
+    c.host = host;
+    answers.accounts = real2;
+  }
+  assert.ok(c.form.error?.text, "a failed read leaves its text in the form");
+  assert.deepEqual(said, ["Checking the send…", c.form.error.text + " Nothing was proposed."]);
   c.form.error = null;
 }
 step("a refusal of the checker shows one line and its rules in the form, and writes nothing");
@@ -860,7 +951,7 @@ step("the reactor of the controller says a proposal of another device once");
     assert.ok(book.includes(`"${kind}"`), "the Address book offers " + kind);
   }
   const html = src("index.html").replace(/\s+/g, " ");
-  assert.match(html, /A mainnet wallet can also send SOL and USDC from a plain Solana account, /);
+  assert.match(html, /Where the server offers it, a mainnet wallet can also send SOL and USDC/);
   const other = await rig.wallet({ name: "No Solana", network: "mainnet" });
   await waitFor("the part is not added", () => t.plainSol.ctl.gid === other
     && t.plainSol.setup()?.status === "not started");

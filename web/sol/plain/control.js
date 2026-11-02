@@ -19,7 +19,7 @@ import { proposeSend } from "./propose.js";
 import { readBalances } from "./reads.js";
 import { ENDED, SESSIONS, SESSION_ID, feeShared, filterSessions } from "./sessions.js";
 import {
-  announceChanges, approveLooked, closeLook, pendingList, pendingRows, startLook,
+  NOTHING_PROPOSED, announceChanges, approveLooked, closeLook, pendingList, pendingRows, startLook,
 } from "./sends.js";
 import { limited, reactSessions } from "./sign.js";
 import { plainSetup, plainView, readTexts } from "./view.js";
@@ -308,11 +308,13 @@ const directActions = (c) => {
 // Propose a send and approve one (propose.js, approve.js). One key lets one proposal, and one key
 // one approval, run at a time. The words go to the one live region of the page (host.announce); a
 // refusal or an error reaches the page as a banner with its text. A failed proposal also leaves
-// its text, and the review of a refusal, in c.form, which the form shows next to its fields.
+// its text, and the review of a refusal, in c.form, which the form shows next to its fields. The
+// live region says the failure as well, because the form has no live node.
 const SAYS = {
   propose: ["Checking the send…", "Send proposed."],
   approve: ["Checking the proposal…", "Approval sent."],
 };
+const REFUSED = "The checker refused this.";
 const sessionActions = (c) => {
   const ensure = () => ensureWorker(c);
   const once = (name, step) => c.host.once("sol:" + name, async () => {
@@ -325,7 +327,10 @@ const sessionActions = (c) => {
       await proposeSend(c, ensure, typed);
       c.form.error = null;
     } catch (e) {
-      c.form.error = { text: String(e?.message ?? e), review: e?.review };
+      const text = String(e?.message ?? e);
+      c.form.error = { text, review: e?.review };
+      // No live node of the form says it. The words of a refusal are short: its rules are long.
+      c.host.announce(`${e?.review?.kind === "refused" ? REFUSED : text} ${NOTHING_PROPOSED}`);
       throw e;
     }
   };
