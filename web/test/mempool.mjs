@@ -482,8 +482,8 @@ console.log("ok  no call for a hidden tab or a closed wallet; the 30 s call asks
   const first = rig.data.get(`groups/${tg}/p2sh/3`);
   const other = await signedDoc(tg, "p2sh/3", 3, { v: 1, key: docs[0].key });
   await rig.db.doc(`groups/${tg}/p2sh/3`).set(other);
-  await rig.waitFor("the changed key", () => /^Device 3 published another/.test(
-    groupTaddress().error ?? ""));
+  await rig.waitFor("the changed key", () => (groupTaddress().error ?? "").startsWith(
+    "Device 3 published another"));
   rig.data.set(`groups/${tg}/p2sh/3`, first);
   rig.notify();
   await rig.waitFor("the first key again", () => groupTaddress().address === address);

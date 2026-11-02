@@ -896,6 +896,15 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
     const { [ma.id]: _ma, ...marksA } = t.sec(gid, 3).marks;
     await seedSec(gid, 3, { nonces: noncesA, marks: marksA });
     await drop(pathOf(ma));
+    // A note that names a swap, on a payment to a transparent address, that is not the note of
+    // the Swap page gets no approval (checkSwap in app-swap-zec.js).
+    const sw = await propose("sw", 4);
+    const swapLike = { ...liveOf(sw), note: "ZEC to SOL swap through NEAR Intents",
+      payees: [{ to: "t1Hsc1LR8yKnbbe3twRp88p6vFfC5t7DLbs", amount: 4 }] };
+    assert.match(await t.approve(swapLike, 3).then(() => "approved", (e) => e.message),
+      /it is not the note of the Swap page/);
+    assert.equal(data.has(pathOf(sw) + "/commits/3"), false, "no approval went out");
+    await drop(pathOf(sw));
     // A locked step with a damaged or a missing record keeps this tab's copy, and its save writes
     // that copy again.
     for (const bad of ["not json", null]) {
@@ -2458,7 +2467,9 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
         PH: { ...tx("hh", "tx-h"), fee: 20000 },
         PE: { ...tx("ee", "tx-e"), expiry_height: 4400000 },
         PF: { ...tx("ff", "tx-f"), expiry_height: 4999999 },
-        PG: { ...tx("aa", "tx-a"), expiry_height: 4503556 } };
+        PG: { ...tx("aa", "tx-a"), expiry_height: 4503556 },
+        PT: { ...tx("tt", "tx-t"), lines: [{ kind: "output", pool: "Transparent",
+          who: "tmEZhbWHTpdKMw5it8YDspUXSMGQyFwovpU", value: 5, memo_status: "empty" }] } };
       const asked = [];
       let answer = () => ({ state: "unknown", txid: null, why: "no transaction" });
       const S = JSON.stringify;
@@ -3005,6 +3016,15 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
           (x) => x.attrs?.["data-review"]).map((x) => x.attrs["data-review"]);
         assert.deepEqual(reviewOrder.slice(0, 3), ["warnings", "context", "amount"],
           "an expired payment explains the block before its wallet context and amount");
+        // A payment to a transparent address says whether this device checks it as a swap.
+        const { swapNote } = await import("../app-swap-zec.js");
+        const { NOT_CHECKED, SWAP_CHECKED } = await import("../app-drawer.js");
+        const tNote = (note) => textOf(all(t.sessionLayer({ ...open("ht1", "PT"), note }),
+          (x) => x.attrs?.["data-review"] === "transparent")[0] ?? { children: [] });
+        assert.equal(tNote("ZEC to SOL swap through NEAR Intents"), NOT_CHECKED);
+        assert.equal(tNote(swapNote("2030-01-01T00:00:00.000Z")), SWAP_CHECKED);
+        assert.equal(all(t.sessionLayer(open("hd2", "PA")),
+          (x) => x.attrs?.["data-review"] === "transparent").length, 0, "no transparent payee");
         assert.match(oldOne.head, /^Payment expiredNo device can send it now\./,
           "headline: an expired proposal ends");
         assert.deepEqual(oldOne.now, [], "an expired payment has no step that waits");

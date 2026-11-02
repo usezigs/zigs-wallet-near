@@ -27,6 +27,7 @@ import { outcomePanel } from "./outcome-seal.js";
 import { privacyNotice, ZEC_EXPOSURE } from "./privacy-language.js";
 import { icon } from "./app-icons.js";
 import { solStays } from "./app-wallet.js";
+import { swapDeadline } from "./app-swap-zec.js";
 import { zecApprovalMotionValue } from "./app-motion.js";
 import { ApprovalVisualization } from "./app-approval-visualization.js";
 import { walletAvatarFor } from "./app-wallet-identity.js";
@@ -439,6 +440,18 @@ function feeLabel(ins) {
 const payeeLabel = (l) => "To " + short(l.who, 10)
   + (l.pool === "Transparent" ? " (transparent, public)" : "");
 
+// Whether this device checks a payment to a transparent address as a swap: only the note of the
+// Swap page starts the check, and a note that only reads like it must not look checked.
+export const SWAP_CHECKED = "A swap of the Swap page: before this device approves, it asks NEAR "
+  + "Intents whether the swap pays the Solana address of this wallet.";
+export const NOT_CHECKED = "Zigs does not check what this transparent address is for. Only a swap "
+  + "of the Swap page gets a check with NEAR Intents before a device approves.";
+function transparentNote(ins, ss) {
+  if (!ins.lines.some((l) => isPayee(l) && l.pool === "Transparent")) return null;
+  return el("p", { class: "small", "data-review": "transparent" },
+    swapDeadline(ss.note) === null ? NOT_CHECKED : SWAP_CHECKED);
+}
+
 function breakdown(ins, ss) {
   const t = decodedTotals(ins);
   const row = (label, zat, cls = "") => el("div", {}, el("span", { class: cls }, label),
@@ -458,6 +471,7 @@ function breakdown(ins, ss) {
       ins.lines.filter(own).map((l) => row("Change back to this wallet", l.value, "neg"))),
     el("p", { class: "small faint" }, "Your browser decoded this from the transaction itself, "
       + "not from the proposer's description."),
+    transparentNote(ins, ss),
     ss.broadcastTxid ? null : el("p", { class: "small faint" }, ON_CHAIN_PUBLIC));
 }
 

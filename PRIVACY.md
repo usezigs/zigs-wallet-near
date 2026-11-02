@@ -441,7 +441,7 @@ How a live swap from ZEC works:
 | Party | What it learns |
 |---|---|
 | NEAR Intents (`1click.chaindefuser.com`) | The amount, the Solana address and the transparent address of the wallet, linked to the deposit address. Each approving device makes it read the swap again. It sees the Worker, not your IP address |
-| App Worker | The IP address of each device that opens or checks the swap, the amount and both addresses. It keeps no log |
+| App Worker | The IP address of each device that opens or checks the swap, the amount and both addresses. It keeps no log. The same Worker runs the group server, so its operator can link a check of a swap to the group socket of that device |
 | Zcash observers | The payment to the deposit address and its amount: a transparent output. The spent notes and the change stay shielded |
 | Solana observers | The payout to the Solana address of the wallet |
 | Group server | The payment, as for any payment. Its note says that it is a swap from ZEC to SOL, and the note is encrypted like the rest |

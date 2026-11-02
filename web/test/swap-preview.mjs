@@ -372,14 +372,18 @@ async function reviewed(pro, clock = fakeClock()) {
     amountOut: '133100', refundedAmount: 'x', extra: 1 });
   assert.deepEqual({ ...(await provider.swapStatus(DEPOSIT)) }, { status: 'SUCCESS',
     originTxs: ['s1'], destinationTxs: ['z1'], refundReason: undefined, amountOut: '133100',
-    swap: {} });
+    swap: { plain: false } });
   const swapFields = { from: 'zec', to: 'sol', recipient: 'R', refundTo: 'T', amountIn: '5',
     deadline: '2026-10-28T18:00:00.000Z' };
   answer = () => Response.json({ status: 'PENDING_DEPOSIT',
     swap: { ...swapFields, amountIn: 5, extra: 'x' } });
   const { amountIn: _skip, ...textOnly } = swapFields;
-  assert.deepEqual({ ...(await provider.swapStatus(DEPOSIT)).swap }, textOnly,
+  assert.deepEqual({ ...(await provider.swapStatus(DEPOSIT)).swap }, { ...textOnly, plain: false },
     'the text fields of the swap of the deposit address');
+  for (const [plain, kept] of [[true, true], ['true', false], [1, false]]) {
+    answer = () => Response.json({ status: 'PENDING_DEPOSIT', swap: { ...swapFields, plain } });
+    assert.equal((await provider.swapStatus(DEPOSIT)).swap.plain, kept, 'plain: ' + plain);
+  }
   assert.deepEqual([calls[0].url, calls[0].init.method, calls[0].init.cache],
     ['/near/status?depositAddress=' + DEPOSIT, undefined, 'no-store'], 'a GET of the state');
   answer = () => Response.json({ error: 'unknown' }, { status: 404 });
@@ -1114,6 +1118,13 @@ try {
   assert.equal(named(deposit, 'Copy address'), undefined, 'the wallet pays: no copy button');
   press(deposit, 'Propose the payment');
   assert.deepEqual(paid, [zecSwap], 'the button opens Send with the deposit of the swap');
+  // Another wallet opens while the deposit shows: its addresses are not the ones of the swap.
+  swap.setContext({ ...context, id: 'g2', zec: { ...zecSource, recipient: DEPOSIT } });
+  assert.equal(named(deposit, 'Propose the payment').disabled, true,
+    'no payment from another wallet');
+  press(deposit, 'Propose the payment');
+  assert.equal(paid.length, 1, 'a click pays nothing');
+  swap.setContext(context);
   state = stateOf('REFUNDED');
   await swap.model.readSwap(swap.model.value.live);
   assert.match(text(deposit), /Refunded\. NEAR Intents sent the ZEC back to the transparent/);
@@ -1151,7 +1162,7 @@ try {
   }
   const own = { recipient: REFUND, refundTo: T3 };
   const swapOk = { from: 'zec', to: 'sol', recipient: REFUND, refundTo: T3, amountIn: '200000',
-    deadline: iso };
+    deadline: iso, plain: true };
   const asked = [];
   const near = (swap, status = 'PENDING_DEPOSIT') => ({ async swapStatus(address) {
     asked.push(address);
@@ -1177,6 +1188,7 @@ try {
     ['another amount', { amountIn: '200001' }], ['another origin', { from: 'sol' }],
     ['another asset out', { to: 'usdc' }],
     ['another deadline', { deadline: '2030-01-01T00:00:00.000Z' }],
+    ['an app fee or another slippage', { plain: false }],
     ['no swap fields', null]]) {
     await refused(what, ss, near(edit ? { ...swapOk, ...edit } : {}));
   }
@@ -1185,6 +1197,8 @@ try {
   await refused('NEAR is down', ss, { swapStatus: async () => { throw new Error('down'); } });
   await refused('two payees', { ...ss, payees: [...ss.payees, ss.payees[0]] }, near(swapOk));
   await refused('a memo', { ...ss, payees: [{ ...ss.payees[0], memo: 'x' }] }, near(swapOk));
+  await refused('an amount as text', { ...ss, payees: [{ to: T1, amount: '200000' }] },
+    near(swapOk));
   await refused('no own refund address', ss, near(swapOk), { recipient: REFUND });
   const { state: page } = await import('../app-state.js');
   assert.notEqual(page.g?.network, 'mainnet', 'the fixture: no mainnet wallet is open');

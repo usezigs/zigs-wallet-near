@@ -68,8 +68,10 @@ const hashes = (list) => (Array.isArray(list) ? list.filter((h) => typeof h === 
 // The swap that the deposit address belongs to (nearStatusSwap of cf/src/near.js): its text
 // fields only.
 const SWAP_FIELDS = ['from', 'to', 'recipient', 'refundTo', 'amountIn', 'deadline'];
-const swapFieldsOf = (swap) => Object.freeze(Object.fromEntries(SWAP_FIELDS
-  .filter((k) => typeof swap?.[k] === 'string').map((k) => [k, swap[k]])));
+// `plain`: the quote request has the form that the Worker sends (cf/src/near.js nearPlainAsk).
+const swapFieldsOf = (swap) => Object.freeze({ ...Object.fromEntries(SWAP_FIELDS
+  .filter((k) => typeof swap?.[k] === 'string').map((k) => [k, swap[k]])),
+  plain: swap?.plain === true });
 // The state of a swap of an answer of the Worker, or null when the answer is not a state.
 function statusOf(body) {
   if (!STATES.has(body?.status)) return null;

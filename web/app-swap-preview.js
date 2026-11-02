@@ -310,6 +310,11 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     quantumIntroNodes().forEach(node => { node.hidden = false; });
   }
 
+  // The privacy text of the pair, with the warning of a live route.
+  function privacyFor(from, to) {
+    return privacy(from.symbol === 'ZEC' || to.symbol === 'ZEC')
+      + (liveRoute() ? ' ' + (fromZec() ? ZEC_SWAP_PRIVACY : SWAP_PRIVACY) : '');
+  }
   function update() {
     const s = model.value, from = swapAsset(s.from), to = swapAsset(s.to);
     root.dataset.swapPhase = s.phase;
@@ -330,8 +335,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     settingValue.textContent = s.slippageBps / 100 + '%';
     presets.forEach((b, i) => b.setAttribute('aria-pressed', String(SWAP_SLIPPAGES[i] === s.slippageBps)));
     [privacyHead.textContent, privacyLine.textContent] = privacyNote(from, to);
-    privacyText.textContent = privacy(from.symbol === 'ZEC' || to.symbol === 'ZEC')
-      + (liveRoute() ? ' ' + (fromZec() ? ZEC_SWAP_PRIVACY : SWAP_PRIVACY) : '');
+    privacyText.textContent = privacyFor(from, to);
     headTag.querySelector('.swap-tag-text').textContent = liveRoute() ? SWAP_TAG : LIVE_TAG;
     subtitle.textContent = source.live ? LIVE_SUBTITLE : QUOTE_SUBTITLE;
     drawPayout();
@@ -353,7 +357,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
       + (source.threshold || 'Approval requirements will be shown with a selected wallet.');
     networkLine.textContent = (source.networks || 'Zcash Testnet · Solana Devnet')
       + '. NEAR Intents quotes are mainnet prices. ' + (source.live
-        ? 'Zigs runs a real swap from SOL to ZEC only.' : 'Zigs cannot run a swap here.');
+        ? 'Zigs runs a real swap between SOL and ZEC only.' : 'Zigs cannot run a swap here.');
   }
   function drawRetry(s) {
     root.querySelectorAll('.swap-retry').forEach((n) => n.remove());
@@ -606,6 +610,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     const waiting = !live.status || ['unknown', 'PENDING_DEPOSIT'].includes(live.status.status);
     const expired = model.swapExpired(), words = DEPOSIT_TEXT[live.from];
     depositCopy.hidden = expired || !waiting;
+    if (live.from === 'zec') depositCopy.disabled = !zecPay(live.swap);
     const tx = (name, list) => (list?.length ? [detail(name, list.map(addressText))] : []);
     depositState.replaceChildren(
       el('p', { class: 'swap-deposit-status', role: 'status' }, 'Status: ' + swapState(live)),
@@ -616,12 +621,17 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
         tx(words.txs[1], live.status?.destinationTxs)));
   }
   // From SOL, the person copies the address and pays from a wallet outside Zigs. From ZEC, the
-  // button opens Send with the payment of the deposit.
+  // button opens Send with the payment of the deposit, from the open wallet only when the swap pays
+  // that wallet: the person can open another wallet while the deposit shows.
+  function zecPay(w) {
+    const z = source.zec;
+    return z?.pay && z.recipient === w.recipient && z.refundTo === w.refundTo ? z.pay : null;
+  }
   function depositAction(live) {
-    const w = live.swap, pay = source.zec?.pay;
+    const w = live.swap;
     if (live.from !== 'zec') return copyBtn(w.depositAddress, 'Copy address', 'swap-secondary');
-    return button('Propose the payment', 'swap-primary', () => pay?.(w),
-      { disabled: !pay, 'data-key': 'swap-propose' });
+    return button('Propose the payment', 'swap-primary', () => zecPay(w)?.(w),
+      { disabled: !zecPay(w), 'data-key': 'swap-propose' });
   }
   function buildDeposit(live) {
     const w = live.swap, words = DEPOSIT_TEXT[live.from];
@@ -650,9 +660,10 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
       button('Close', 'swap-secondary', () => model.closeSwap(),
         { 'data-key': 'swap-close-deposit' }));
   }
-  // A change of any of these closes the dialogs and drops the quote.
-  const where = (c) => [c.id, c.threshold, c.networks, c.payout?.address, c.zec?.recipient,
-    c.zec?.refundTo].join('\n');
+  // A change of any of these closes the dialogs and drops the quote. The addresses of a swap from
+  // ZEC count only on that route.
+  const where = (c) => [c.id, c.threshold, c.networks, c.payout?.address,
+    ...(fromZec() ? [c.zec?.recipient, c.zec?.refundTo] : [])].join('\n');
   return { element: root, model, setContext(next) {
     if (where(source) !== where(next)) {
       closeModal(); resetQuantumFlow(); model.stale();

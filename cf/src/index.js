@@ -520,20 +520,17 @@ async function groupSocket(req, env, url) {
   return env.STORE.get(env.STORE.idFromName("g:" + gid)).fetch(fwd);
 }
 
+// The NEAR Intents routes that take a small JSON body.
+const NEAR_POSTS = new Map([["/near/quote", nearQuote], ["/near/swap", nearSwap],
+  ["/near/swap-zec", nearSwapZec]]);
+
 async function route(req, env, ctx) {
   const url = new URL(req.url);
   if (url.pathname === "/ws") return groupSocket(req, env, url);
   if (url.pathname.startsWith("/lwd/")) return lwd(req, env, url);
   if (url.pathname === "/zns") return zns(req, ctx);
-  if (url.pathname === "/near/quote") {
-    return nearQuote(req, env, { key: clientKey(req), readBody: smallBody });
-  }
-  if (url.pathname === "/near/swap") {
-    return nearSwap(req, env, { key: clientKey(req), readBody: smallBody });
-  }
-  if (url.pathname === "/near/swap-zec") {
-    return nearSwapZec(req, env, { key: clientKey(req), readBody: smallBody });
-  }
+  const nearPost = NEAR_POSTS.get(url.pathname);
+  if (nearPost) return nearPost(req, env, { key: clientKey(req), readBody: smallBody });
   if (url.pathname === "/near/status") return nearStatus(req, env, url, { key: clientKey(req) });
   if (url.pathname === "/" || url.pathname === "/index.html") {
     const page = await env.ASSETS.fetch(new URL("/index.html", url));

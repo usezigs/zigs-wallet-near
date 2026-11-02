@@ -20,9 +20,11 @@ export const SWAP_MARGIN_MS = 30 * 60_000;
 const NOTE_HEAD = "ZEC to SOL swap through NEAR Intents. Pay before ";
 const LATE = "The deposit address of this swap closes in less than 30 minutes. A late deposit "
   + "can be lost.";
-const LATE_SEND = LATE + " This browser does not send the payment. Cancel it.";
+const LATE_SEND = LATE + " This browser does not send the payment. The wallet can send again when "
+  + "the payment expires.";
 
-/** The note of the payment of a swap with the deadline `iso`: 74 characters (the field takes 80). */
+/** The note of the payment of a swap with the deadline `iso`: 74 characters (the field takes
+ * 80). */
 export const swapNote = (iso) => NOTE_HEAD + new Date(iso).toISOString() + ".";
 
 /** The deadline (ms) of a payment whose note marks a swap, else null. */
@@ -54,7 +56,7 @@ export function plainSolAddress() {
   try {
     const ag = solTools.agreement(c);
     return ag.state === "agree" ? solTools.base58(ag.done.groupKey) : null;
-  } catch { return null; }
+  } catch { return null; }   // a key setup that the helpers cannot read has no address yet
 }
 
 const REASONS = [
@@ -120,11 +122,14 @@ function mismatch(status, own, p, payBy) {
     [status.status !== "PENDING_DEPOSIT",
       "NEAR Intents does not wait for a deposit at this address."],
     [s.from !== "zec" || s.to !== "sol", "This address is not for a swap from ZEC to SOL."],
+    [s.plain !== true, "The swap has another form than the one that Zigs asks for: an app fee, "
+      + "another slippage or another type of address."],
     [s.recipient !== own.recipient,
       "The swap pays another Solana address than the one of this wallet."],
     [s.refundTo !== own.refundTo,
       "The swap refunds to another address than the transparent address of this wallet."],
-    [s.amountIn !== String(p.amount), "The swap takes another amount than this payment."],
+    [!Number.isSafeInteger(p.amount) || s.amountIn !== String(p.amount),
+      "The swap takes another amount than this payment."],
     [Date.parse(s.deadline) !== payBy, "The deadline of the swap is not the one in the note."],
   ].find(([bad]) => bad);
   return wrong ? wrong[1] : null;

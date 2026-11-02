@@ -328,6 +328,17 @@ function nearStatusSound(json, address) {
 // another form stays behind.
 const NEAR_ADDRESS = /^[0-9A-Za-z]{20,400}$/;
 const nearKeyOf = (id) => [...NEAR_ASSETS].find(([, asset]) => asset.id === id)?.[0];
+// True when the request of a swap has the form that nearSwapRequest sends. A proposer can ask
+// NEAR Intents for a quote with the addresses of the group and an app fee or a wide slippage.
+function nearPlainAsk(ask) {
+  const fees = ask.appFees;
+  return [ask.dry === false, ask.swapType === "EXACT_INPUT", ask.depositType === "ORIGIN_CHAIN",
+    ask.refundType === "ORIGIN_CHAIN", ask.recipientType === "DESTINATION_CHAIN",
+    NEAR_SLIPPAGE.includes(ask.slippageTolerance),
+    fees === undefined || (Array.isArray(fees) && fees.length === 0),
+    NEAR_SWAP_NONE.every((k) => !(k in ask))].every(Boolean);
+}
+
 function nearStatusSwap(response) {
   const { quote, quoteRequest: ask } = response;
   if (!ask || typeof ask !== "object") return undefined;
@@ -338,6 +349,7 @@ function nearStatusSwap(response) {
     recipient: address(ask.recipient), refundTo: address(ask.refundTo),
     amountIn: NEAR_INTEGER.test(quote.amountIn) ? quote.amountIn : undefined,
     deadline: Number.isNaN(payBy) ? undefined : new Date(payBy).toISOString(),
+    plain: nearPlainAsk(ask),
   };
 }
 
