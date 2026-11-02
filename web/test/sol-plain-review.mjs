@@ -502,6 +502,53 @@ step("a tampered message gives one row for each broken rule");
 }
 step("a mint that is not the pinned mint is refused");
 
+// ── Tampered sends: another amount in the message, and one more instruction ──
+// The intent is what the people approve; a message that says more or other than the intent is
+// refused, and the screen shows no row to approve.
+{
+  const keys = keysOf("mainnet");
+  const pins = plainPins({ cluster: "mainnet" }, keys.group, PAYER);
+  // The v1 message (wasm-sol/src/v1.rs): a copy of the last instruction is appended.
+  const withCopyOfLast = (message) => {
+    const buf = Buffer.from(message);
+    const [mask, count, keys32] = [buf.readUInt32LE(4), buf[40], buf[41]];
+    const configs = (mask & 3 ? 8 : 0) + [4, 8, 16].filter((bit) => mask & bit).length * 4;
+    const heads = 42 + 32 * keys32 + configs;
+    const payloads = heads + 4 * count;
+    const size = (i) => buf[heads + 4 * i + 1] + buf.readUInt16LE(heads + 4 * i + 2);
+    const last = payloads + Array.from({ length: count - 1 }, (_, i) => size(i))
+      .reduce((a, b) => a + b, 0);
+    const out = Buffer.concat([buf.subarray(0, payloads), buf.subarray(heads + 4 * (count - 1),
+      payloads), buf.subarray(payloads), buf.subarray(last)]);
+    out[40] = count + 1;
+    return out;
+  };
+  const cases = [
+    ["s2-send-sol", Buffer.concat([Buffer.from("02000000", "hex"), u64le(LAMPORTS)]), LAMPORTS],
+    ["s3-send-usdc", u64le(UNITS), UNITS],
+  ];
+  for (const [shape, needle, amount] of cases) {
+    const v = vector("mainnet-" + shape);
+    const intent = intentOf(shape, keys);
+    const chain = await readChain(c, workerOf(decodeChain(v.chain)), intent, pins);
+    const control = reviewText(c, v.msg, intent, pins, chain);
+    assert.equal(control.kind, "accepted", "control: the message of " + shape + " is accepted");
+    const at = v.msg.indexOf(needle);
+    assert.ok(at > 0 && v.msg.indexOf(needle, at + 1) < 0, "the amount occurs once: " + shape);
+    const more = Buffer.from(v.msg);
+    Buffer.from(u64le(amount + 1n)).copy(more, at + needle.length - 8);
+    const richer = reviewText(c, more, intent, pins, chain);
+    assert.equal(richer.kind, "refused", "an amount changed in the message is refused: " + shape);
+    assert.ok(ruleIds(richer).includes("plain-data"), "the data rule names it: " + shape);
+    assert.ok(!canApprove(richer) && screenRows(richer).length === 0, "and shows no row");
+    const extra = reviewText(c, withCopyOfLast(v.msg), intent, pins, chain);
+    assert.equal(extra.kind, "refused", "one more instruction is refused: " + shape);
+    assert.ok(ruleIds(extra).includes("plain-instruction-count"), "the count rule: " + shape);
+    assert.ok(!canApprove(extra) && screenRows(extra).length === 0, "and shows no row");
+  }
+}
+step("a message with another amount or one more instruction is refused");
+
 // ── Every vector, through the screen model ──
 const labelled = new Set();
 for (const name of names) {

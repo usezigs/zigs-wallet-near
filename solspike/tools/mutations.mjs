@@ -192,6 +192,30 @@ const EXAMINE_RETURN =
   "  return canApprove(review) ? { step: \"review\", review, run } : stopped(review, seat);\n";
 const BLOCKHASH_CALL = "  const { blockhash } = await worker.call(\"blockhash\");\n";
 const CONFIRM_CALL = "worker.call(\"confirm\", { signature: txId })";
+// Propose and approve a send (sol-plain-sessions.mjs). One patch for each mutant and file.
+const SOL_PLAIN_SESSIONS = ["node", "web/test/sol-plain-sessions.mjs"];
+const PLAIN_PROPOSE = "web/sol/plain/propose.js";
+const PLAIN_APPROVE = "web/sol/plain/approve.js";
+const PLAIN_SESSIONS = "web/sol/plain/sessions.js";
+const PLAIN_CONTROL_JS = "web/sol/plain/control.js";
+const sessionMutant = (id, what, [file, from, to], detect) =>
+  mutant(id, what, SOL_PLAIN_SESSIONS, [patch(file, from, to)], { detect, ms: 240000 });
+const PUBLISH_COMMIT = `  const entry = await approvalOnce(c, seat, ss.id, review.digest, make);
+  if (entry.digest !== review.digest) throw new Error(OTHER_BYTES);
+  unchanged(c, opened, ss);
+  const rel = \`\${SESSIONS}/\${ss.id}/commits/\${seat}\`;
+  const fields = { commitments: entry.commitments, digest: entry.digest, at: Date.now() };
+  const doc = await c.host.signedDoc(c.gid, rel, seat, fields);
+  await c.host.sdb.doc(c.base + "/" + rel).set(doc);
+`;
+const PROPOSE_SIGN = "  const feeSig = sign(c, seat, { message, intent, pins, chain });\n";
+const PROPOSE_GUARD = `  const stop = await settledBlock(c);
+  if (stop) throw new Error(stop);
+  stillOpen(c, opened);
+  if (heldIndexes(c.sessions, seat).has(k)) throw new Error(TAKEN);
+` + PROPOSE_SIGN;
+const NONCE_RETURN = "  return ready && authority === groupKey ? "
+  + "hexOfBytes(data.subarray(VALUE_AT, VALUE_END)) : null;\n";
 // The tab and the rows of the plain wallet (sol-plain-view.mjs), its load (sol-plain-load.mjs).
 const SOL_PLAIN_VIEW = ["node", "web/test/sol-plain-view.mjs"];
 const SOL_PLAIN_LOAD = ["node", "web/test/sol-plain-load.mjs"];
@@ -980,7 +1004,7 @@ export const MUTATIONS = [
     uncalled('fetch("/sol/" + "config.json")'),
     /sol\/plain\/control\.js asks the server for a file/),
   plainMutant("PL-forged-start", "the plain controller counts documents with no valid signature",
-    [PLAIN_CONTROL, "filterSol(c.raw, c.host.checkIn(c.gid),", 'filterSol(c.raw, () => "yes",'],
+    [PLAIN_CONTROL, "filterSol(c.raw, check, onBad)", 'filterSol(c.raw, () => "yes", onBad)'],
     /a start document changed after the signature counts/),
   plainMutant("PL-drift-share", "a pool key share runs on a plain wallet",
     [SOL_CEREMONY_JS, "!!s.r2secret || !!s.keyPackage)", "!!s.r2secret)"],
@@ -1157,9 +1181,9 @@ export const MUTATIONS = [
         + "  } catch (e) {\n    worker.close();\n    throw e;\n  }\n  c.worker = worker;\n"
         + "  return worker;"],
     /the close stopped the Worker that was still in init/),
-  readsMutant("PL-start-dead", "a Worker that failed init stays on the controller",
-    [PLAIN_CONTROL, "    if (c.worker === worker) c.worker = null;\n", ""],
-    /The Solana worker was closed/),
+  sessionMutant("PL-start-dead", "a Worker that failed init stays on the controller",
+    [PLAIN_CONTROL_JS, "    if (c.worker === worker) c.worker = null;\n", ""],
+    /a Worker that failed init is not kept/),
   readsMutant("PL-catch-opened", "a read cut by a close writes its error into the record",
     [PLAIN_CONTROL, "    if (c.opened !== opened) return;\n", ""], /leaves no error/),
   readsMutant("PL-limit-policy", "the policy check of the start has no time limit",
@@ -1806,6 +1830,140 @@ export const MUTATIONS = [
   directMutant("PL-approve-lines", "an accepted answer with no line can be confirmed",
     [PLAIN_DIRECT, "return canApprove(review) ?", "return review.kind === \"accepted\" ?"],
     /The checker answered with lines that Zigs cannot show\./),
+  sessionMutant("PL-payer-field", "the payer comes from a field of the proposal",
+    [PLAIN_APPROVE, "  const payer = payerOf(c, ss);\n",
+      "  const payer = ss.payer ?? payerOf(c, ss);\n"],
+    /The fee signature of device 1 does not fit it/),
+  sessionMutant("PL-feesig-skip", "the fee signature of the proposer is not verified",
+    [PLAIN_APPROVE, "  if (!c.W.sol_fee_verify(payer, message, ss.feeSig)) {\n",
+      "  if (false) {\n"],
+    /a random signature/),
+  sessionMutant("PL-save-after", "the commit is published before the nonces are saved",
+    [PLAIN_APPROVE, PUBLISH_COMMIT, `  const entry = await make();
+  const rel = \`\${SESSIONS}/\${ss.id}/commits/\${seat}\`;
+  const fields = { commitments: entry.commitments, digest: entry.digest, at: Date.now() };
+  const doc = await c.host.signedDoc(c.gid, rel, seat, fields);
+  await c.host.sdb.doc(c.base + "/" + rel).set(doc);
+  await approvalOnce(c, seat, ss.id, review.digest, async () => entry);
+`],
+    /the nonces were in the secret of seat 2 when the commit was written/),
+  sessionMutant("PL-digest-pool", "the digest is the pool digest",
+    [PLAIN_APPROVE, "c.W.sol_plain_digest(pins, message)", "c.W.sol_digest(\"devnet\", message)"],
+    /the saved entry is for the plain digest/),
+  sessionMutant("PL-review-skip", "approval goes on after a refusal of the checker",
+    [PLAIN_APPROVE,
+      "  if (!canApprove(review)) return { ok: false, why: stopText(review), review };\n", ""],
+    /a message with another recipient/),
+  sessionMutant("PL-screen-field", "the recipient row comes from the intent bytes",
+    [PLAIN_APPROVE, "  const rows = screenRows(review);\n",
+      "  const rows = screenRows(review).map((r) => (r.name !== \"recipient\" ? r : { ...r, value: "
+        + "Array.from(intent.subarray(37, 69), (b) => b.toString(16).padStart(2, \"0\"))"
+        + ".join(\"\") }));\n"],
+    /the rows are the lines of the checker/),
+  sessionMutant("PL-k-collision", "an open session does not hold its nonce index",
+    [PLAIN_SESSIONS,
+      "      .filter((ss) => ss.by === seat && !ENDED.has(ss.status) && showable(ss))\n",
+      "      .filter(() => false)\n"],
+    /index 0 is held by an open session: the next one/),
+  sessionMutant("PL-showable-all", "showable accepts any intent",
+    [PLAIN_SESSIONS, "  isSendIntent(ss?.intent) &&\n", ""], /not one that this app can show/),
+  sessionMutant("PL-nonce-other-bytes", "a saved approval of other bytes is published",
+    [PLAIN_APPROVE, "  if (entry.digest !== review.digest) throw new Error(OTHER_BYTES);\n", ""],
+    /The saved approval is for other bytes/),
+  sessionMutant("PL-sign-refused", "the key is asked to sign a refused message",
+    [PLAIN_PROPOSE, "  if (!canApprove(review)) throw new Error(stopText(review));\n", ""],
+    /The checker refused this/),
+  sessionMutant("PL-k-highest", "the highest index is taken and not the lowest",
+    [PLAIN_PROPOSE, "  for (const [k, account] of accounts.entries()) {\n",
+      "  for (const [k, account] of [...accounts.entries()].reverse()) {\n"],
+    /k 0, the nonce value of the account/),
+  sessionMutant("PL-nonce-authority", "a nonce account of another authority is taken",
+    [PLAIN_PROPOSE, NONCE_RETURN,
+      "  return ready ? hexOfBytes(data.subarray(VALUE_AT, VALUE_END)) : null;\n"],
+    /only an initialised account of the group counts/),
+  sessionMutant("PL-nonce-state", "a nonce account that is not initialised is taken",
+    [PLAIN_PROPOSE,
+      "  const ready = state[0] === NONCE_VERSION && state[1] === NONCE_INITIALISED;\n",
+      "  const ready = true;\n"],
+    /only an initialised account of the group counts/),
+  sessionMutant("PL-nonce-owner", "a nonce account of another program is taken",
+    [PLAIN_PROPOSE, "  if (!account || account.owner !== SYSTEM_PROGRAM) return null;\n",
+      "  if (!account) return null;\n"],
+    /only an initialised account of the group counts/),
+  sessionMutant("PL-nonce-size", "a nonce account of another size is taken",
+    [PLAIN_PROPOSE, "  if (data?.length !== NONCE_LEN) return null;\n",
+      "  if (!data) return null;\n"],
+    /only an initialised account of the group counts/),
+  sessionMutant("PL-units-decimals", "the typed USDC amount has 9 decimals",
+    [PLAIN_PROPOSE, "const units = unitsOf(amount, DECIMALS[asset]);",
+      "const units = unitsOf(amount, 9);"],
+    /at most 6 decimals, for example 12\\.5/),
+  sessionMutant("PL-units-fraction", "an amount may have more decimals than the asset",
+    [PLAIN_PROPOSE, "(m[2] ?? \"\").length > decimals", "(m[2] ?? \"\").length > 20"],
+    /is no amount/),
+  sessionMutant("PL-held-seat", "an open session of another seat holds the index",
+    [PLAIN_SESSIONS, "      .filter((ss) => ss.by === seat && ", "      .filter((ss) => "],
+    /the nonce accounts are the ones of the proposing seat/),
+  sessionMutant("PL-dup-tie", "two proposals of one time end by the order of the store",
+    [PLAIN_SESSIONS, " || (a.id < b.id ? -1 : 1);\n", ";\n"],
+    /of two of one time the smaller id stands/),
+  sessionMutant("PL-dup-skip", "two proposals on one nonce account both stand",
+    [PLAIN_SESSIONS, "  endDuplicates(out.sessions);\n", ""], /one stands/),
+  sessionMutant("PL-unsigned-field", "an unsigned field of the document reaches the session",
+    [PLAIN_SESSIONS, "  const ss = { ...fields, id, by: d.by, status: \"collecting\" };\n",
+      "  const ss = { ...d, ...fields, id, by: d.by, status: \"collecting\" };\n"],
+    /an unsigned field never reaches the session/),
+  sessionMutant("PL-guard-session", "a proposal that changed while it was checked is approved",
+    [PLAIN_APPROVE, "  if (!sameProposal(c.sessions, ss)) return CHANGED;\n", ""],
+    /The proposal changed/),
+  sessionMutant("PL-guard-open", "a wallet that closed during a step does not stop it",
+    [PLAIN_DIRECT, "  const why = c.opened === opened ? block(c) : CLOSED;\n",
+      "  const why = block(c);\n"],
+    /The wallet closed during this step/),
+  sessionMutant("PL-guard-propose", "a proposal goes on after the wallet closed during the read",
+    [PLAIN_PROPOSE,
+      "  const chain = await readChain(c, worker, intent, pins);\n  stillOpen(c, opened);\n",
+      "  const chain = await readChain(c, worker, intent, pins);\n"],
+    /The wallet closed during this step/),
+  sessionMutant("PL-taken-guard", "a proposal is written although another one took the index",
+    [PLAIN_PROPOSE, "  if (heldIndexes(c.sessions, seat).has(k)) throw new Error(TAKEN);\n", ""],
+    /the other tab saw it before it wrote/),
+  sessionMutant("PL-propose-sign-early", "the key signs before the last guard of a proposal",
+    [PLAIN_PROPOSE, PROPOSE_GUARD, PROPOSE_SIGN + PROPOSE_GUARD.replace(PROPOSE_SIGN, "")],
+    /the tab told to propose again signed nothing/),
+  sessionMutant("PL-status-gate", "a session that ended can be approved",
+    [PLAIN_APPROVE,
+      "  return now.status === \"collecting\" ? null : (now.error ?? NOT_COLLECTING);\n",
+      "  return null;\n"],
+    /Propose it again/),
+  sessionMutant("PL-status-stale", "the status of the copy of the caller counts, not the page's",
+    [PLAIN_APPROVE, "  const now = c.sessions.find((s) => s.id === ss.id);\n",
+      "  const now = ss;\n"],
+    /a stale copy of a session that ended/),
+  sessionMutant("PL-leak-share", "the log line of an approval holds the key share",
+    [PLAIN_APPROVE, "commitment published`);",
+      "commitment published ${solOf(c.host, c.gid, seat).keyPackage.signing_share}`);"],
+    /holds a secret of seat/),
+  sessionMutant("PL-leak-nonce", "the log line of an approval holds the nonces",
+    [PLAIN_APPROVE, "commitment published`);",
+      "commitment published ${JSON.stringify(entry.nonces)}`);"],
+    /holds a secret of seat/),
+  sessionMutant("PL-error-key", "the error of the wasm in a commitment is shown",
+    [PLAIN_APPROVE, "  } catch {\n    throw new Error(NO_COMMITMENT);\n",
+      "  } catch (e) {\n    throw new Error(String(e?.message ?? e));\n"],
+    /This device could not make its signing commitment/),
+  sessionMutant("PL-flight", "each caller of ensureWorker starts a Worker",
+    [PLAIN_CONTROL_JS, "  if (!c.started) {\n", "  if (true) {\n"],
+    /three callers during the start ask for the policy once/),
+  sessionMutant("PL-flight-retry", "a failed start of the Worker is kept",
+    [PLAIN_CONTROL_JS, "      if (c.started === start) c.started = null;\n", ""],
+    /the next caller starts again/),
+  sessionMutant("PL-sessions-watch", "the sessions of the wallet are not watched",
+    [PLAIN_CONTROL_JS, "  watchSessions(c, gid, base);\n}\n", "}\n"], /timeout: the documents/),
+  sessionMutant("PL-commits-watch", "the commits of a session are not watched",
+    [PLAIN_CONTROL_JS, "  syncWatches(c);\n", ""], /timeout: the commit of seat 2/),
+  sessionMutant("PL-announce-done", "the end of a proposal is not said",
+    [PLAIN_CONTROL_JS, "    c.host.announce(SAYS[name][1]);\n", ""], /Send proposed\./),
   viewMutant("PL-setup-copy", "the idle setup title is a paragraph of the ready card",
     [PLAIN_VIEW, "el(\"h4\", {}, SETUP_TITLE)", "el(\"p\", {}, SETUP_TITLE)"],
     /the forgedFee card has at most 70 own words/),

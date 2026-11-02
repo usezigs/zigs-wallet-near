@@ -22,6 +22,7 @@ FAST="optional-passkey demo-check chain-fallback chat backup-check graph persona
   signed util account qr
   sol-docs sol-transfer sol-wasm mainnet-on mempool sol-plain-app sol-plain-reads
   sol-plain-view sol-plain-load sol-plain-security sol-plain-review sol-plain-direct
+  sol-plain-sessions
   smoke help contrast overview setup-stage approvals recovery security-dashboard
   payment-model
   plain-worker

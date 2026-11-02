@@ -90,7 +90,8 @@ TESTS=(messaging-presentation messaging-cost-review messaging-account-view premi
   vault util qr shim shim-status
   lwd zns near-quote
   sol-config sol-docs sol-ceremony sol-plain-ceremony sol-plain-app sol-plain-reads
-  sol-plain-view sol-plain-load sol-plain-security sol-plain-review sol-plain-direct sol-app
+  sol-plain-view sol-plain-load sol-plain-security sol-plain-review sol-plain-direct
+  sol-plain-sessions sol-app
   sol-wasm
   sol-sessions
   sol-limits
