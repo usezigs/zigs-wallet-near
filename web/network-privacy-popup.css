@@ -1,13 +1,9 @@
 /* Compact modal over the existing app. Demo only: nothing here shows a protected state. */
 body:has(#privacy-demo-popup[open]) { overflow:hidden; }
 .pp-header-status { display:flex; justify-content:flex-end; align-items:center; min-width:0; margin-left:auto; }
-.home-masthead:has(>.pp-header-status) { flex-wrap:wrap; }
-.wallet-topbar:has(>.pp-header-status) { grid-template-columns:minmax(0,1fr) auto auto auto; }
-#panel-settings>.preferences-heading:has(>.pp-header-status) { grid-template-columns:minmax(0,1fr) auto; }
-.preferences-heading:has(>.pp-header-status)>:is(h1,p) { grid-column:1; }
-.preferences-heading>.pp-header-status { grid-column:2; grid-row:1/3; }
-.section-heading:has(>.pp-header-status) { position:relative; padding-right:180px; }
-.section-heading>.pp-header-status { position:absolute; top:0; right:0; }
+/* The one place of the chip: above the side footer, between the logo and Menu on a phone. */
+.side-privacy { display:flex; flex-shrink:0; padding-inline:10px; }
+.side-privacy>.pp-header-status { justify-content:flex-start; margin-left:0; }
 .pp-status { position:relative; display:inline-flex; align-items:center; gap:8px; max-width:100%;
   padding:7px 11px; border:1px solid var(--line); border-radius:999px; background:var(--panel); color:var(--muted);
   font:400 13px/1.4 var(--sans); text-align:start; cursor:pointer; }
@@ -132,12 +128,7 @@ body:has(#privacy-demo-popup[open]) { overflow:hidden; }
 .pp-status:focus-visible,.privacy-demo-popup :is(button,summary,a):focus-visible { outline:3px solid var(--focus); outline-offset:4px; }
 @media(max-width:760px) {
   .pp-status { padding:6px 8px; gap:5px; font-size:13px; }
-  .wallet-topbar:has(>.pp-header-status) { grid-template-columns:minmax(0,1fr) auto; }
-  .wallet-topbar>.pp-header-status { grid-column:1/-1; grid-row:3; justify-self:end; }
-  #panel-settings>.preferences-heading:has(>.pp-header-status) { grid-template-columns:minmax(0,1fr); }
-  .preferences-heading>.pp-header-status { grid-column:1; grid-row:auto; justify-self:end; }
-  .section-heading:has(>.pp-header-status) { padding-right:0; }
-  .section-heading>.pp-header-status { position:static; }
+  .side-privacy { padding-inline:0; }
   .privacy-demo-popup { padding:22px; }
   .pp-popup-top { margin-bottom:24px; }
 }

@@ -272,6 +272,17 @@ function placeWalletHeader(app, header) {
   if (header) app.prepend(header);
 }
 
+// The tab names the drawn page. The lock, loading and home views have no panel: "Zigs".
+const PANEL = '[data-key^="panel-"]';
+const PAGE_NAMES = { overview: "Overview", approvals: "Approvals", activity: "Activity",
+  recipients: "Address book", swap: "Swap", messages: "Messages", members: "Devices",
+  recovery: "Security", settings: "Settings", solana: "Solana" };
+export function pageTitle(view, pending) {
+  const panel = view.matches(PANEL) ? view : view.querySelector(PANEL);
+  const name = PAGE_NAMES[panel?.dataset.key.slice("panel-".length)];
+  return (pending ? "(" + pending + ") " : "") + (name ? name + " · Zigs" : "Zigs");
+}
+
 export function draw() {
   const shell = document.querySelector(".shell"), app = document.getElementById("app");
   const snap = focusSnapshot(shell);
@@ -279,10 +290,10 @@ export function draw() {
   renderSide();
   const pending = state.groups.reduce((n, g) => n + toApprove(g.id).length + solPending(g.id)
     + unreadIn(g.id), 0) + Object.keys(chats.list).reduce((n, cid) => n + unreadIn(cid), 0);
-  document.title = pending ? "(" + pending + ") Zigs" : "Zigs";
   const form = saveFormState(app);
   if (lockedVault) { closeSetupQr(); closeNetworkPrivacy(); closeHowZigsWorks(); }
   const view = pageView(), top = lockedVault ? [] : layers();
+  document.title = pageTitle(view, pending);
   const header = selectedWalletHeader(app, view);
   if (typingMessage(app, [view, ...top])) {
     placeWalletHeader(app, header); presentWalletMarble(document); return;

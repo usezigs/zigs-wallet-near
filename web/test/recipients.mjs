@@ -120,6 +120,40 @@ view.recipientsView();
 assert.equal(t.state.gid, gidBefore);
 const walk = (node) => [node, ...(node?.children || []).flatMap(walk)];
 const find = (node, id) => walk(node).find((n) => n?.id === id);
+
+// Each workspace page root is a region that its h1 names, and the tab title names the page.
+{
+  const shell = await import("../app-shell.js");
+  const { pageTitle } = await import("../app-loop.js");
+  const PANEL = '[data-key^="panel-"]';
+  // The stub window has every name; Settings reads the permission of the alerts.
+  globalThis.Notification = { permission: "default" };
+  const pages = { "Address book": view.recipientsView(), Approvals: shell.approvalsWorkspace(),
+    Activity: shell.activityWorkspace(), Security: shell.recoveryWorkspace(),
+    Settings: shell.settingsWorkspace(), Messages: shell.chatsWorkspace() };
+  delete globalThis.Notification;
+  for (const [name, root] of Object.entries(pages)) {
+    assert.equal(root.attrs.role, "region", name + ": the page root is a region");
+    const h1 = walk(root).find((n) => n?.tagName === "H1");
+    assert.ok(h1.id, name + ": the h1 has an id");
+    assert.equal(root.attrs["aria-labelledby"], h1.id, name + ": the h1 names the region");
+    assert.equal(root.attrs["aria-label"], undefined, name + ": no copy of the h1 text");
+    Object.assign(root, { matches: (q) => q === PANEL, dataset: { key: root.attrs["data-key"] } });
+    assert.equal(pageTitle(root, 0), name + " · Zigs", name + ": the tab names the page");
+  }
+  // A wallet page holds its panel in a section; lock, loading and home views hold none.
+  const holder = (key) => ({ matches: () => false,
+    querySelector: (q) => (q === PANEL && key ? { dataset: { key } } : null) });
+  assert.equal(pageTitle(holder("panel-members"), 2), "(2) Devices · Zigs",
+    "the count of waiting items stays in front");
+  assert.equal(pageTitle(holder(null), 0), "Zigs", "a view with no panel keeps the bare name");
+  assert.equal(pageTitle(holder(null), 3), "(3) Zigs");
+  const keys = ["overview", "approvals", "activity", "recipients", "swap", "messages", "members",
+    "recovery", "settings", "solana"];
+  const titles = new Set(keys.map((k) => pageTitle(holder("panel-" + k), 0)));
+  assert.equal(titles.size, keys.length, "each page has its own tab title");
+  assert.ok(!titles.has("Zigs"), "and no page falls back to the bare name");
+}
 Object.assign(t.state, { gid: "wallet", g: { n: 2, t: 2, network: "testnet" },
   wallet: { address: "utest1other" }, seats: {} });
 Object.assign(t.ui, { send: true, sendReview: null, sendMove: null, after: null, note: "Note stays",

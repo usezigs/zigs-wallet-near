@@ -41,7 +41,7 @@
   background:var(--messages-surface); font:var(--font-meta); }
 .messages-search>.symbol { position:absolute; left:12px; width:16px; height:16px; color:var(--muted); pointer-events:none; }
 .messages-search input { width:100%; min-width:0; min-height:48px; padding:10px 10px 10px 36px;
-  border:0; background:transparent; box-shadow:none; font-size:13px; }
+  border:0; background:transparent; box-shadow:none; }
 .messages-search:focus-within { outline:2px solid var(--focus); outline-offset:2px; }
 .messages-workspace .messages-search input:focus-visible { outline:none; }
 .messages-inbox-list { display:grid; align-content:start; gap:6px; min-width:0; }
@@ -374,7 +374,6 @@
 @media(max-width:760px) {
   .messages-workspace { gap:16px; }
   .messages-heading { flex-wrap:wrap; gap:12px; }
-  .messages-heading h1 { font-size:27px; }
   .messages-heading p { font-size:13px; line-height:19px; }
   .messages-toolbar { justify-content:space-between; width:100%; }
   .messages-learn { padding-inline:0; }

@@ -112,12 +112,13 @@ button { font: inherit; color: inherit; }
 .dot.busy { background:transparent; border:1.5px solid var(--accent); border-right-color:transparent; }
 /* Menu shows on a phone only (see the 760 px rules). */
 .btn.wallet-menu { display: none; }
-/* A section or the page that takes the focus after a pick needs no frame: it is no control. */
-#app:focus, section[tabindex="-1"]:focus { outline: none; }
+/* A section or the page that takes the focus after a pick needs no frame: it is no control.
+   Error callouts that take the focus keep their ring, so this names page roots only. */
+#app:focus, section[tabindex="-1"]:focus, [data-key^="panel-"]:focus { outline: none; }
 .side-note { font: var(--font-notice); color: var(--muted); }
 .side-note a { color: var(--muted); }
 .app-foot { display: none; font: var(--font-notice); color: var(--muted); }
-.app-foot a { color: var(--muted); }
+.app-foot a { display: inline-flex; align-items: center; min-height: 48px; color: var(--muted); }
 .main { min-width: 0; padding: 24px var(--layout-gutter) 32px; }
 /* The status line while the browser is offline (showOffline in app-loop.js). */
 #offline:not(:empty) { width: 100%; max-width: var(--content-width); margin: 0 auto 24px; }
@@ -955,7 +956,7 @@ body { margin:0; background:var(--bg); color:var(--text); font:var(--font-body);
 @media(min-width:761px) { .side { min-height:0; overflow-y:auto; scrollbar-width:thin; } .side>.logo,.side-foot { flex-shrink:0; } #side-nav { min-height:160px; } }
 @media(max-width:760px) {
  .side { height:auto; min-height:calc(72px + env(safe-area-inset-top,0px)); flex-wrap:wrap; gap:12px; }
- .logo { flex:1 1 10em; min-width:0; flex-wrap:wrap; }
+ .logo { flex:1 1 auto; min-width:0; flex-wrap:wrap; }
  .main { padding-inline:20px; }
  .card-pad,.asset-card { padding:var(--panel-pad); }
  .page { gap:20px; }
@@ -963,6 +964,8 @@ body { margin:0; background:var(--bg); color:var(--text); font:var(--font-body);
  .overview-hero { padding:24px; }
  .setup-diagram { padding:20px 12px; }
 }
+/* The logo, the Tor chip and Menu share one row: at 360 px and less the logo shows its mark. */
+@media(max-width:360px) { .logo-word { display:none; } }
 @media(prefers-reduced-transparency:reduce) { .side,.surface-chrome,.side.menu-open #side-nav,.action-bar { background:var(--panel); backdrop-filter:none; -webkit-backdrop-filter:none; } }
 @supports not (backdrop-filter:blur(1px)) { .side,.surface-chrome,.side.menu-open #side-nav,.action-bar { background:var(--panel); } }
 @media(forced-colors:active) {
@@ -983,6 +986,8 @@ body { margin:0; background:var(--bg); color:var(--text); font:var(--font-body);
 .overview-approvals>.page { gap:20px; }
 .settings-group { display:grid; gap:20px; padding-top:28px; border-top:1px solid var(--line); }
 .recipients-page { display:grid; gap:var(--page-gap); width:100%; max-width:var(--content-width); margin-inline:auto; min-width:0; }
+/* The workspace lists share the width of Settings. A wallet page keeps the full width. */
+#app>:is(#panel-approvals,#panel-activity,#panel-recovery,.recipients-page) { max-width:1120px; }
 .recipients-page>.card { display:grid; gap:20px; padding:28px; }
 .recipients-page h1 { font:var(--font-page); letter-spacing:-.02em; }
 .recipient-list { display:grid; gap:0; min-width:0; }
@@ -2369,7 +2374,6 @@ h1,h2,h3 { letter-spacing:-.025em; }
   .lobby-home .welcome-brand { justify-self:center; max-width:220px; }
 }
 @media(max-width:760px) {
-  .shell:has(.lobby-home)>.side>.logo { flex:1 1 auto; }
   .main { padding-inline:16px; }
   .main:has(.lobby-home) { padding-top:20px; padding-bottom:16px; }
   .lobby-home .welcome-main { grid-template-columns:minmax(0,1fr); gap:16px; }

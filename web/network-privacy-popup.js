@@ -5,7 +5,7 @@ import { CAMOUFLAGE_MS, privacyCamouflage } from "./network-privacy-camouflage.j
 export const PILL_TEXT = "Tor · Preview";
 export const DEMO_NOTE = "Preview only. No Tor connection is created; traffic stays direct.";
 export const TITLES = {
-  offer: "Make your connection private.", connecting: "Establishing a private route.",
+  offer: "See how a private route works.", connecting: "Establishing a private route.",
   camouflage: "Blend into the network.", success: "A little more privacy.",
 };
 const STEPS = ["Starting Tor", "Loading network state", "Establishing a private circuit",
@@ -153,13 +153,13 @@ export function installPrivacyPopup() {
     "aria-atomic": "true" });
   document.body.append(dialog, announcement);
 
+  // One place: the slot of the side panel (between the logo and Menu on a phone). Wallet setup
+  // hides the side panel (app.css), so the setup header takes the chip there.
   function mount(root) {
-    const app = root.querySelector("#app");
-    if (!app) return;
-    const host = app.querySelector(".home-masthead") || app.querySelector(".wallet-topbar")
-      || app.querySelector(".preferences-heading, .workspace-heading, .messages-heading, "
-        + ".swap-heading, .section-heading")
-      || app.querySelector("header, .page-head, .launch-card, .lock-card");
+    const app = root.querySelector("#app"), slot = root.querySelector("#privacy-slot");
+    if (!app || !slot) return;
+    const guided = app.querySelector(".guided-setup, .guided-plan");
+    const host = guided ? app.querySelector("header.guided-header") : slot;
     if (host && dock.parentElement !== host) host.append(dock);
   }
   function stop() { epoch++; clearTimeout(timer); timer = null; }

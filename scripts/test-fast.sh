@@ -21,7 +21,7 @@ FAST="optional-passkey demo-check chain-fallback chat backup-check graph persona
   requests shim shim-status
   signed util account qr
   sol-docs sol-transfer sol-wasm mainnet-on mempool
-  smoke help contrast overview setup-stage approvals recovery security-dashboard
+  smoke help contrast orientation overview setup-stage approvals recovery security-dashboard
   payment-model
   plain-worker
   cf/test/gate sol-nonce-tabs nonce-locks no-storage"

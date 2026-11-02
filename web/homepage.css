@@ -111,19 +111,6 @@
   --sunk:#11171f; --raised:#26303d; --bad:#f5a1a9;
 }
 .lobby-home .home-hero .join .input { color:#f3f5f7; background:#0e151e; border-color:#6c7c90; }
-/* Clearly labelled policy illustration; never live authorization progress. */
-.home-threshold {
-  position:absolute; right:24px; bottom:24px; z-index:3; margin:0;
-  width:246px; max-width:calc(100% - 32px); padding:16px;
-  border:1px solid #68738266; border-radius:16px; background:#171d24; color:#b9c2cd;
-  box-shadow:inset 0 1px 0 #e6edf70a,0 10px 28px -14px #000b;
-}
-.home-threshold-title { margin:0; color:#c4cdd7; font:600 13px/1.5 var(--sans); }
-.home-threshold-nodes { display:flex; gap:32px; align-items:center; margin:10px 0; }
-.home-threshold-node { position:relative; display:grid; place-items:center; width:28px; height:28px; border:1px solid #566272; border-radius:50%; background:#252d37; color:#c4cdd7; font:500 13px/1 var(--mono); }
-.home-threshold-node+.home-threshold-node::before { content:""; position:absolute; right:calc(100% + 8px); width:18px; height:1px; background:#536374; }
-.home-threshold-example { border-color:var(--home-accent); color:var(--home-accent); background:color-mix(in srgb,var(--home-accent) 16%,#191919); box-shadow:inset 0 0 0 2px #a8c7ea12; }
-.home-threshold figcaption { font:400 13px/1.4 var(--sans); color:#bac3ce; }
 /* Returning visitors reach real wallet cards in the initial viewport. */
 .lobby-home .welcome-returning .welcome-main { min-height:260px; padding:0; }
 .lobby-home .welcome-returning .welcome-intro { min-height:260px; max-width:630px; padding:32px 40px; gap:14px; }
@@ -212,7 +199,6 @@
     background:linear-gradient(180deg,transparent 170px,#090c1044 240px,#090c10 342px),
       linear-gradient(90deg,#090c1077,transparent 70%);
   }
-  .welcome-returning .home-threshold { position:relative; inset:auto; margin:0 24px 20px auto; }
   .lobby-home .welcome-returning .home-hero h1 { font-size:40px; }
 }
 @media(hover:hover) and (pointer:fine) {
@@ -240,12 +226,6 @@
   .lobby-home .welcome-actions>.btn { width:auto; flex:1 1 max-content; padding:12px 14px; font-size:13px; gap:10px; }
   .lobby-home .welcome-secondary-actions { gap:0 16px; }
   .lobby-home .welcome-secondary-actions>.btn { font-size:13px; }
-  .home-threshold { width:218px; padding:12px; border-radius:14px; }
-  .home-threshold-title { font-size:13px; }
-  .home-threshold-nodes { gap:24px; margin:7px 0; }
-  .home-threshold-node { width:21px; height:21px; font-size:13px; }
-  .home-threshold-node+.home-threshold-node::before { width:12px; right:calc(100% + 6px); }
-  .home-threshold figcaption { font-size:13px; }
   /* Returning visitors keep a compact scene above their wallet launchers. */
   .lobby-home .welcome-returning .welcome-main { min-height:190px; }
   .lobby-home .welcome-returning .welcome-brand { width:220px; height:220px; right:-36px; top:0; }
@@ -253,7 +233,6 @@
   .welcome-returning .home-hero::after {
     background:linear-gradient(90deg,#090c10 0%,#090c10f0 29%,#090c1044 66%,transparent);
   }
-  .welcome-returning .home-threshold { position:relative; inset:auto; margin:0 16px 16px auto; }
   .lobby-home .welcome-returning .home-hero h1 { font-size:clamp(28px,7.8vw,34px); line-height:1.07; }
   .lobby-home .welcome-returning .home-hero .welcome-title-accent { display:block; }
   .lobby-home .welcome-returning .welcome-summary { font-size:13px; line-height:1.6; max-width:22ch; }
@@ -290,15 +269,6 @@
 @media(max-width:1000px) {
   .lobby-home .welcome-new .welcome-main { display:grid; grid-template-columns:minmax(0,1fr); }
   .lobby-home .welcome-new .welcome-intro { grid-area:2/1; min-height:0; padding-top:12px; }
-  .welcome-new .home-threshold {
-    position:relative; inset:auto; grid-area:1/1; justify-self:end; margin:208px 18px 0 16px;
-  }
-}
-@media(max-width:760px) {
-  .welcome-new .home-threshold { margin:184px 16px 0; }
-}
-@media(max-width:360px) {
-  .welcome-new .home-threshold { margin-top:154px; }
 }
 @media(prefers-reduced-motion:reduce), (update:slow) {
   .lobby-home .home-hero-art { animation:none!important; opacity:1!important; }
@@ -308,19 +278,15 @@
 @media(forced-colors:active) {
   .main:has(.lobby-home),.lobby-home .welcome .welcome-main,
   .lobby-home .welcome-wallet-list .wallet-vault-card,.lobby-home .welcome-actions>.btn,
-  .home-threshold,.home-environment,.lobby-home .home-hero .join {
+  .home-environment,.lobby-home .home-hero .join {
     color:CanvasText; background:Canvas; border-color:CanvasText; box-shadow:none;
   }
   .lobby-home .welcome .welcome-brand { display:none; }
   .home-hero::before,.home-hero::after { display:none!important; }
-  .welcome .home-threshold { position:relative; inset:auto; margin:0 24px 24px auto; }
   .lobby-home .welcome .welcome-main { min-height:0; }
   .lobby-home .welcome .welcome-intro { min-height:0; max-width:none; padding:28px; }
-  .lobby-home .home-hero :is(h1,p,.welcome-title-accent),.home-threshold figcaption { color:CanvasText; }
+  .lobby-home .home-hero :is(h1,p,.welcome-title-accent) { color:CanvasText; }
   .lobby-home .home-hero .btn,.lobby-home .welcome .btn { color:ButtonText; border:1px solid ButtonText; }
-  .home-threshold-node { color:CanvasText; background:Canvas; border-color:CanvasText; }
-  .home-threshold-example { border:2px solid Highlight; }
-  .home-threshold-node+.home-threshold-node::before { background:CanvasText; }
   .lobby-home .home-hero .btn:focus-visible,.lobby-home .welcome .btn:focus-visible { outline-color:Highlight; }
 }
 
@@ -338,7 +304,6 @@
   .lobby-empty .welcome-new .welcome-main { display:block; }
   .lobby-empty .welcome-new .welcome-intro { padding:32px 24px; min-height:500px; }
   .lobby-empty .welcome-new .welcome-brand { right:-120px; top:0; }
-  .lobby-empty .welcome-new .home-threshold { position:absolute; inset:auto 16px 16px auto; margin:0; }
   .lobby-empty .welcome-new .home-hero::after {
     background:linear-gradient(90deg,#090c10 0%,#090c10e8 38%,#090c1077 66%,transparent);
   }
@@ -349,7 +314,6 @@
   .lobby-empty .welcome-new .welcome-main { min-height:0; gap:0; }
   .lobby-empty .welcome-new .welcome-intro { padding:18px; min-height:0; gap:12px; }
   .lobby-empty .welcome-new .welcome-brand { width:300px; height:300px; top:0; right:-100px; opacity:.4; }
-  .lobby-empty .welcome-new .home-threshold { position:relative; inset:auto; justify-self:start; margin:0 18px 14px; }
   .lobby-empty .welcome-new .home-hero::after {
     background:linear-gradient(90deg,#090c10ee,#090c1099 64%,#090c1066);
   }
@@ -362,7 +326,6 @@
 
 @media (max-width:360px) {
   .lobby-empty .welcome-new .welcome-intro { padding:14px; gap:10px; }
-  .lobby-empty .welcome-new .home-threshold { margin-bottom:10px; }
   .main:has(.lobby-empty) #app { gap:8px; }
   .main:has(.lobby-empty) .app-foot { margin-top:0; line-height:1.4; }
 }

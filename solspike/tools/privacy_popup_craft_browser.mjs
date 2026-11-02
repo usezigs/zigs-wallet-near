@@ -158,8 +158,8 @@ try {
   check(!await popup.isVisible(), "the preview stays optional on arrival");
   const before = await page.evaluate(() => JSON.stringify({ ...localStorage }));
   await status.click();
-  check(await popup.getByRole("heading", { name: "Make your connection private.", exact: true })
-    .isVisible(), "the earlier benefit-led headline is restored");
+  check(await popup.getByRole("heading", { name: "See how a private route works.", exact: true })
+    .isVisible(), "the headline says what the preview shows");
   await matrix(); await keyboardAndExit(); await constrainedDisplays(); await motionReview();
   check(before === await page.evaluate(() => JSON.stringify({ ...localStorage })),
     "all preview flows leave browser storage unchanged");
