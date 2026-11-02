@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
   ageText, createZecPrice, formatUsdBalance, pendingShortcut, portfolioView, PRICE_FRESH_MS,
-  PRICE_MAX_MS, PRICE_RETRY_MS, solRow, zecInProgress, zecTotal, zecUsd,
+  PRICE_MAX_MS, PRICE_RETRY_MS, plainRow, solRow, zecInProgress, zecTotal, zecUsd,
 } from "../overview-model.js";
 import { NearIntentsSwapProvider } from "../near-intents-swap-provider.js";
 import { describeOrb } from "../wallet-identity.js";
@@ -77,6 +77,24 @@ assert.equal(synced("saved sync of slot 9", true), "resync");
 assert.equal(solRow({ on: true, setup: ready, balance: null, sync: { text: "", busy: true } })
   .state, "syncing", "a first sync runs");
 console.log("ok  the SOL row");
+
+// The SOL and USDC rows of a served mainnet wallet: the state of its Solana part, then the read.
+assert.deepEqual(plainRow("sol", { notAdded: true }), { state: "none", text: "Not added" },
+  "a wallet with no start document is not added");
+assert.equal(plainRow("sol", { loading: true, setup: null }).state, "loading");
+assert.equal(plainRow("usdc", { loading: false, setup: null }).state, "idle");
+assert.deepEqual(plainRow("sol", { setup: { status: "running" } }),
+  { state: "setup", text: "Setting up" }, "no balance while the seats set up");
+assert.equal(plainRow("usdc", { setup: { status: "differs" } }).state, "differs");
+const read = { rows: { sol: { state: "ready", text: "1 SOL", amount: "1", unit: "SOL" },
+  usdc: { state: "off", text: "Not enabled" } } };
+const readyOf = (asset, data) => plainRow(asset, { setup: { status: "ready" }, read: data });
+assert.equal(readyOf("sol", read).text, "1 SOL", "the SOL row shows the read");
+assert.equal(readyOf("usdc", read).state, "off", "and the USDC row shows its own state");
+assert.deepEqual(readyOf("sol", null), { state: "reading", text: "Reading…" },
+  "no read yet: not zero");
+assert.equal(plainRow("sol", { setup: { status: "new" } }).state, "unknown");
+console.log("ok  the plain rows");
 
 assert.equal(pendingShortcut({ zec: 0, sol: 0 }), null, "nothing pending, no shortcut");
 assert.equal(pendingShortcut({}), null, "no counts, no shortcut");

@@ -40,17 +40,21 @@ import { helpView } from "./app-help.js";
 import {
   sol, solActivity, solBackup, solBalance, solError, solFile, solLoad, solLoading,
   solActivityWaits, solLoadingCount, solOlderCount, solOn, solPending, solPendingRows, solSetup,
-  solNotAdded, solObserveOverview, solSync, solTab,
+  solNotAdded, solObserveOverview, solSync, solTab, plainAdded, plainLoading, plainNotAdded,
+  plainRead, plainSetup, plainShown, plainSol, plainTab,
 } from "./app-sol.js";
 import {
-  createZecPrice, formatUsdBalance, pendingShortcut, portfolioView, solRow, zecInProgress, zecTotal,
+  createZecPrice, formatUsdBalance, pendingShortcut, plainRow, portfolioView, solRow, zecInProgress,
+  zecTotal,
 } from "./overview-model.js";
 import { NearIntentsSwapProvider } from "./near-intents-swap-provider.js";
 import { icon, sculptedIcon } from "./app-icons.js";
 import { beginGuided, guidedEnabled, guidedState } from "./app-guided-setup.js";
 import { descriptionOf, setWalletDescription } from "./wallet-description.js";
 import { securityExplanation } from "./app-tutorial.js";
-import { privacyBadge, solBalancePrivacy, SOL_EXPOSURE } from "./privacy-language.js";
+import {
+  PLAIN_EXPOSURE, privacyBadge, solBalancePrivacy, SOL_EXPOSURE,
+} from "./privacy-language.js";
 import { securityDashboard } from "./app-security-dashboard.js";
 import { SharedControlVisual } from "./app-approval-visualization.js";
 import { sharedControl } from "./app-shared-control.js";
@@ -163,6 +167,7 @@ export function walletSections() {
     ["members", "Devices"], ["recovery", "Security"], ["settings", "Settings"],
   ];
   if (solOn()) sections.push(["solana", "Solana", countBadge(solPending(), "to approve", "attn")]);
+  else if (plainShown()) sections.push(["solana", "Solana"]);
   return sections;
 }
 
@@ -178,11 +183,15 @@ const BODIES = {
   members: () => membersTab(), recovery: () => securityRecoveryTab(), settings: () => settingsTab(),
   solana: () => el("div", { class: "sol-wallet-presentation" },
     el("div", { class: "wallet-sol-identity" }, walletMark(state.g, 96),
-      el("span", { class: "small muted" }, "Shared wallet · Solana Devnet")), solTab()),
+      el("span", { class: "small muted" }, "Shared wallet · " + solNetwork())),
+    plainShown() ? plainTab() : solTab()),
 };
 
 // The small line above the title of a section; the others read "This wallet".
 const LEAD = { settings: "Wallet and app preferences", solana: "Solana Devnet" };
+const PLAIN_NETWORK = "Solana Mainnet";
+const solNetwork = () => (plainShown() ? PLAIN_NETWORK : LEAD.solana);
+const leadOf = (id) => (id === "solana" ? solNetwork() : LEAD[id] ?? "This wallet");
 const EXPLANATION = { members: "device", messages: "chats", solana: "overview" };
 const pageHeading = (id, label) => id === "settings"
   ? el("header", { class: "preferences-heading" }, el("h2", {}, label),
@@ -198,7 +207,7 @@ const pageHeading = (id, label) => id === "settings"
     el("h2", {}, label),
     el("p", { class: "muted" }, "Manage how your wallet is secured, approved and recovered."))
   : el("div", { class: "page-heading" },
-  el("span", { class: "label" }, LEAD[id] ?? "This wallet"), el("h2", {}, label),
+  el("span", { class: "label" }, leadOf(id)), el("h2", {}, label),
   securityExplanation(EXPLANATION[id] ?? id));
 
 export function walletView(head, why) {
@@ -308,8 +317,9 @@ function demoTotal() {
 }
 
 // A mainnet wallet shows no value, and no $0.00, until it knows the balance and the price.
-// ponytail: only ZEC counts. SOL and USDC join when the plain Solana mainnet wallet lands; the
-// SOL and USDC rows of a testnet wallet are Devnet or Demo and never count.
+// ponytail: only ZEC counts. No price source exists for SOL; the note of a served plain wallet says
+// that SOL and USDC are not in the total. The rows of a testnet wallet are Devnet or Demo.
+const TOTAL_ZEC_ONLY = " SOL and USDC are not in this total.";
 function liveTotal(view) {
   const { value } = view;
   return [el("p", { class: "portfolio-value", role: "img", "aria-label": view.label,
@@ -318,11 +328,12 @@ function liveTotal(view) {
     el("span", { class: "portfolio-decimals", "aria-hidden": "true" }, value.fraction)]
     : el("span", { "aria-hidden": "true" }, "—")),
   el("p", { class: "portfolio-network-note", id: "usd-note" }, view.note,
-    view.facts ? ". " + view.facts : null)];
+    view.facts ? ". " + view.facts : null, plainShown() ? "." + TOTAL_ZEC_ONLY : null)];
 }
 
 const demoBadge = () => el("span", { class: "badge plain demo-badge" }, "Demo");
 
+const SEND_LATER = "Send is not available yet";
 // HTML disclosures keep their own keyboard and dismissal behavior. Asset choices open the
 // existing forms, with the same validation, blockers and payment handlers as the asset cards.
 function assetActionPicker(action) {
@@ -339,14 +350,18 @@ function assetActionPicker(action) {
   el("span", { class: "asset-choice-copy" }, el("strong", {}, title),
     el("span", { class: "small muted", id: "choose-" + action + "-" + id }, detail)),
   el("span", { class: "chev", "aria-hidden": "true" }, icon("chevronRight")));
+  // A served plain wallet receives; it sends in a later version.
+  const plainChoice = (id, title) => choose(id, title, sending ? SEND_LATER : PLAIN_NETWORK
+    + " · shows the address", sending, sending ? null : openSolanaReceive);
   return el("details", { class: "overview-action-picker" },
     el("summary", { class: "btn" + (sending ? " primary" : "") }, icon(action), label),
     el("div", { class: "asset-choices" }, el("p", { class: "label" }, label + " · choose an asset"),
       choose("zec", "ZEC", why || "Zcash " + netName(state.g) + " · shielded", !!why, zec),
-      choose("sol", "SOL", solOn() ? "Solana Devnet · opens this wallet’s Solana tools"
-        : "Unavailable for this wallet", !solOn(),
-      () => sending ? openSolanaControl("sol-send-to") : openSolanaReceive()),
-      choose("usdc", "USDC", "Demo row · unavailable; do not deposit", true, null)));
+      plainShown() ? plainChoice("sol", "SOL") : choose("sol", "SOL", solOn()
+        ? "Solana Devnet · opens this wallet’s Solana tools" : "Unavailable for this wallet",
+      !solOn(), () => sending ? openSolanaControl("sol-send-to") : openSolanaReceive()),
+      plainShown() ? plainChoice("usdc", "USDC")
+        : choose("usdc", "USDC", "Demo row · unavailable; do not deposit", true, null)));
 }
 
 function overviewTransactions() {
@@ -431,7 +446,10 @@ export const SOL_STAYS = "If this wallet has a Solana part, it does not move thi
  * documents say that it has none (solNotAdded). Before they arrive the sentence shows: it holds
  * with or without a Solana part.
  */
-export const solStays = () => (solOn() && !solNotAdded() ? " " + SOL_STAYS : "");
+export const solStays = () => (solOn() && !solNotAdded() ? " " + SOL_STAYS : plainStays());
+export const PLAIN_STAYS = "SOL and USDC do not move this way. They stay at the Solana address of "
+  + "this wallet, and a device that is left out keeps its key share.";
+const plainStays = () => (plainAdded() ? " " + PLAIN_STAYS : "");
 const movePayment = () => state.sessions.find((x) => x.move === state.g.movedTo && !x.error
   && !ended(x));
 
@@ -695,6 +713,7 @@ const SOL_NOTE = {
 
 // The SOL row: the private balance of the last sync, or the state of the Solana part.
 function solAsset() {
+  if (plainShown()) return plainAsset("sol");
   const row = solRow({ on: solOn(), error: solError, loading: !!(sol || solLoading),
     setup: solSetup(), balance: solBalance(), sync: solSync() });
   if (!row) return el("section", { class: "card card-pad asset-card asset-row asset-unavailable", "aria-labelledby": "asset-sol" },
@@ -731,6 +750,7 @@ function solAsset() {
 }
 
 function usdcAsset() {
+  if (plainShown()) return plainAsset("usdc");
   return el("section", { class: "card card-pad asset-card asset-row asset-unavailable", "aria-labelledby": "asset-usdc" },
     el("div", { class: "asset-row-main" },
     el("div", { class: "asset-position" }, assetHead("usdc", "USDC", "Solana Devnet"),
@@ -745,6 +765,32 @@ function usdcAsset() {
       el("p", { id: "usdc-shielding-note" }, "No shielded or unshielded USDC balance is available. Shield and Unshield are unavailable."),
     ]));
 }
+
+// The SOL or USDC row of a served plain wallet: the balance of the last read, or the state of its
+// Solana part. It has no Shield and Unshield (no pool), and its details say what is public.
+const PLAIN_STATUS = { stale: "Update failed · old balance", off: "Comes with sending" };
+function plainAsset(id) {
+  const row = plainRow(id, { notAdded: plainNotAdded(), loading: !!(plainSol || plainLoading),
+    setup: plainSetup(), read: plainRead() });
+  const bad = row.state === "bad";
+  const status = bad ? row.text : PLAIN_STATUS[row.state];
+  const amount = row.amount ? unitAmount(row.amount, row.unit)
+    : el("p", { class: "asset-balance unknown" }, bad ? "Unavailable" : row.text);
+  return el("section", { class: "card card-pad asset-card asset-row asset-state-" + row.state,
+    "aria-labelledby": "asset-" + id },
+  el("div", { class: "asset-row-main" },
+    el("div", { class: "asset-position" }, assetHead(id, id.toUpperCase(), PLAIN_NETWORK),
+      privacyBadge(el, "public")),
+    el("div", { class: "asset-balance-block" }, el("span", { class: "label" }, "Wallet balance"),
+      amount, status ? el("p", { class: "asset-row-status small" + (bad ? " asset-row-warning"
+        : " muted"), role: "status" }, status) : null)),
+  assetNote(id, "Solana details", [el("p", {}, PLAIN_EXPOSURE),
+    plainRead()?.error ? el("p", {}, plainRead().error) : null]));
+}
+
+// An exact amount in the size of the ZEC amount, with its unit.
+const unitAmount = (amount, unit) => el("span", { class: "money xl", role: "img",
+  "aria-label": amount + " " + unit }, amount, el("span", { class: "cur" }, unit));
 
 // An exact SOL text ("0.0025 SOL") in the size of the ZEC amount, with the unit and the sign as
 // money() shows them.
@@ -1055,7 +1101,7 @@ const lostNote = (ids) => ids.length ? el("p", { class: "row-note" }, ids.length
 const openSolana = () => { ui.tab = "solana"; render(); };
 const openSolanaReceive = () => {
   ui.tab = "solana";
-  if (sol) focusAfter("sol-receive", true);
+  if (sol || plainSol) focusAfter("sol-receive", true);
   render();
 };
 // Form controls already present in the loaded Solana view use the render loop’s normal keys.

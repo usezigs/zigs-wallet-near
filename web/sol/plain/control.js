@@ -12,6 +12,7 @@ import * as W from "../wasm/sol_wasm.js";
 import { walletOf } from "../wallet.js";
 import { PLAIN_WORKER_POLICY } from "./guard.js";
 import { readBalances } from "./reads.js";
+import { plainSetup, plainView, readTexts } from "./view.js";
 
 const LOG_MAX = 200;
 // Helius allows few calls: one read job at a time, and one read of a wallet in 30 s, also after a
@@ -29,7 +30,9 @@ const START_MS = 20_000; // the limit of each step of the start of the Worker
 
 // What belongs to the open wallet. The host, the wasm and the read records outlive it.
 let opens = 0;
-const unread = () => ({ at: null, sol: null, usdc: null, fees: {}, error: "", next: 0 });
+const unread = () => ({
+  at: null, sol: null, usdc: null, usdcError: "", fees: {}, error: "", next: 0,
+});
 const blank = () => ({
   opened: ++opens,
   gid: null,
@@ -132,6 +135,7 @@ async function ensureWorker(c) {
 }
 
 // A failed read keeps the old balances, shows its error and waits READ_GAP_MS before the next one.
+// A timer wakes the reactor when the gap ends, after a good read too: the next read comes from it.
 async function readJob(c, opened, groupKey) {
   const record = c.balances;
   record.next = Date.now() + READ_GAP_MS;
@@ -142,8 +146,8 @@ async function readJob(c, opened, groupKey) {
   } catch (e) {
     if (c.opened !== opened) return;
     Object.assign(record, { error: String(e?.message ?? e), next: Date.now() + READ_GAP_MS });
-    setTimeout(() => c.host.refilter(), READ_GAP_MS + 100);
   }
+  setTimeout(() => c.host.refilter(), Math.max(0, record.next - Date.now()) + 100);
   c.host.render();
 }
 
@@ -165,11 +169,27 @@ function react(c) {
   readIfDue(c);
 }
 
+const settled = (c) => COLLECTIONS.every((name) => c.loaded[name]);
+// Null until the documents of the wallet arrived. A start that still waits for its signature check
+// is not "not started" yet.
+const setupOf = (c) => {
+  if (!settled(c)) return null;
+  const setup = plainSetup(c);
+  return setup.status === "not started" && c.wait > 0 ? null : setup;
+};
+// Does the Solana part count seat i (its soldone document)? Null while that is not known.
+const madeOf = (c, i) => {
+  if (!settled(c)) return null;
+  return c.docs.soldone[i] ? true : c.wait > 0 ? null : false;
+};
+
 /** Loads the wasm and returns the controller of the plain Solana wallet. */
 export async function attach(host) {
   await W.default();
   const c = { host: { ...host, mode: "plain" }, W, reads: new Map(), ...blank() };
   c.refresh = () => refresh(c); // restoreSolana reads the documents again while it waits
+  // A hidden tab reads nothing: a pass of the reactor runs the read that came due meanwhile.
+  globalThis.document?.addEventListener("visibilitychange", () => host.refilter());
   // The page does nothing to the chain until a screen shows the wallet and calls observe.
   const observe = (gid) => {
     if (gid !== c.gid || gid !== c.host.state.gid) return;
@@ -184,5 +204,9 @@ export async function attach(host) {
     react: () => react(c),
     add: () => addSolana(c),
     observe,
+    view: (act, actions) => plainView(c, act, { ...actions, add: () => addSolana(c) }),
+    setup: () => setupOf(c),
+    made: (i) => madeOf(c, i),
+    read: () => readTexts(c),
   };
 }

@@ -21,7 +21,7 @@ import {
   changePersonal, personal, personalDamaged, personalEnv, restoreAccount,
 } from "./app-account.js";
 import { once, render } from "./app-loop.js";
-import { solRestore, solSetup } from "./app-sol.js";
+import { solReady, solRestore } from "./app-sol.js";
 import { heldApprovals } from "./app-payments.js";
 import { checkBackupPayload, checkSavedBackup } from "./backup-check.js";
 import { markBackupChecked, reportBackupSaved } from "./app-guided-setup.js";
@@ -215,7 +215,7 @@ function backupCheckExpected(gid, seat, chain) {
   }
   if (chain === "zec") return J(backupText(seat));
   const s = sec(gid, seat)?.sol;
-  if (chain !== "sol" || solSetup()?.status !== "ready" || !s?.keyPackage
+  if (chain !== "sol" || !solReady() || !s?.keyPackage
       || !s.solSeed || !s.groupKey || s.aborted) {
     throw new Error("Wait for this device’s Solana address checks before checking its Solana recovery file.");
   }

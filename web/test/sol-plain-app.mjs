@@ -173,6 +173,22 @@ step("the ceremony runs from the page loop");
 }
 step("a wallet switch closes the plain controller");
 
+// ── A wallet list and back, and an answer of the probe that comes later ──
+{
+  const ctl = t.plainSol.ctl;
+  t.openGroup(null);
+  assert.equal(ctl.gid, null, "the wallet list closes the plain controller");
+  t.openGroup(added);
+  await waitFor("the watch of the wallet starts again", () => ctl.gid === added);
+  // Nothing but the answer of the probe runs the pass that opens the wallet.
+  t.resetSolStart();
+  probe(200);
+  t.refilter();
+  await waitFor("the pass after the answer of the probe", () => ctl.gid === added);
+  assert.equal(mainnetConfig.calls, 1, "the page asked once");
+}
+step("the watch starts again after the wallet list, and the answer of the probe runs a pass");
+
 // ── The backup file and the restore know the label ──
 {
   const c = t.plainSol.ctl;
@@ -197,7 +213,24 @@ step("a wallet switch closes the plain controller");
   await refuses({ cluster: "mainnet" }, /not a Zigs Solana backup/);
   await refuses({ cluster: "mainnet-beta" }, /not a Zigs Solana backup/);
   assert.deepEqual(solOf(added, 2), {}, "no refused file stored anything");
-  await t.applyBackup(good, true);
+  // A restore that comes before the probe answered waits for the answer.
+  probe(200);
+  let release;
+  const held = new Promise((done) => void (release = done));
+  const asking = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    if (String(url) === "/sol/config-mainnet.json") await held;
+    return asking(url, init);
+  };
+  let settled = false;
+  const restoring = t.applyBackup(good, true);
+  restoring.then(() => void (settled = true), () => void (settled = true));
+  await sleep(300);
+  assert.equal(settled, false, "a restore before the answer of the probe waits for it");
+  assert.equal(t.ui.plainServed, null, "the probe is out");
+  release();
+  await restoring;
+  globalThis.fetch = asking;
   const part = solOf(added, 2);
   assert.equal(part.cluster, PLAIN, "a restored seat keeps the plain label");
   assert.equal(part.restored, true);
@@ -210,6 +243,28 @@ step("a wallet switch closes the plain controller");
   assert.equal(config.calls, 0);
 }
 step("the backup file, the restore and the words know the label");
+
+// ── A plain file restores while a testnet wallet is open; an unlisted wallet refuses ──
+{
+  const file = JSON.parse(backupText(t.plainSol.ctl.host, added, 3));
+  const listed = structuredClone(t.state.g);
+  t.openGroup(testnet);
+  await waitFor("the testnet wallet", () => t.state.gid === testnet && t.state.g);
+  delete t.sec(added, 3).sol;
+  await t.putSec(added, 3, {});
+  const pool = config.calls;
+  await assert.rejects(t.applyBackup(file, true), /does not know this wallet yet/,
+    "a plain file of a wallet that is not listed refuses at once");
+  assert.equal(t.sol, null, "and the pool did not load");
+  assert.equal(config.calls, pool, "nor did the page ask for its config");
+  assert.equal(t.state.gid, testnet, "and the open wallet stays");
+  t.state.groups = [{ ...listed, id: added }];
+  await t.applyBackup(file, true);
+  assert.equal(solOf(added, 3).cluster, PLAIN, "a listed plain wallet restores from any wallet");
+  assert.equal(t.state.gid, added, "and the restore opened it");
+  t.state.groups = [];
+}
+step("a plain file restores while another wallet is open, and an unlisted wallet refuses");
 
 // ── The pool controller refuses a plain file and keeps its words ──
 {

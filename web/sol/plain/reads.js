@@ -56,9 +56,19 @@ export function amountText(units, decimals) {
   return String(n / scale) + (frac ? "." + frac : "");
 }
 
+// A bad or frozen USDC account must not hide the SOL balances: its error shows on its row only.
+function usdcRead(account) {
+  try {
+    return { usdc: tokenAmount(account), usdcError: "" };
+  } catch (e) {
+    return { usdc: null, usdcError: e.message };
+  }
+}
+
 /**
- * The balances of the group `groupKey` (hex) in base units, as BigInts: { sol, usdc, fees }. `fees`
- * maps each seat that published a fee key to its lamports. `usdc` is null until USDC is enabled.
+ * The balances of the group `groupKey` (hex) in base units, as BigInts: { sol, usdc, usdcError,
+ * fees }. `fees` maps each seat that published a fee key to its lamports. `usdc` is null until USDC
+ * is enabled, and also when `usdcError` names a bad account.
  */
 export async function readBalances(c, worker, groupKey) {
   const balance = (hex) => worker.call("balance", { address: base58(hex) });
@@ -71,7 +81,7 @@ export async function readBalances(c, worker, groupKey) {
   ]);
   return {
     sol: BigInt(sol.lamports),
-    usdc: tokenAmount(held.accounts[0]),
+    ...usdcRead(held.accounts[0]),
     fees: Object.fromEntries(seats.map((seat, n) => [seat, BigInt(fees[n].lamports)])),
   };
 }

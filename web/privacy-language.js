@@ -35,3 +35,5 @@ export const ZEC_EXPOSURE = "Zcash shields recipient addresses and amounts on ch
 export const SOL_EXPOSURE = "Solana Devnet hides a private payment’s amount on chain, but the "
   + "payee’s owner key and paying fee addresses are public. Deposits and withdrawals expose "
   + "amounts and addresses. Prover and service disclosures apply in Solana details.";
+export const PLAIN_EXPOSURE = "Solana mainnet shows every balance and payment of this wallet to "
+  + "everyone. Helius sees your IP address and the address of this wallet.";

@@ -16,6 +16,7 @@ import { COLLECTIONS, base58 } from "../sol/docs.js";
 import { publishedFee } from "../sol/fee.js";
 import { attach } from "../sol/plain/control.js";
 import { GENESIS, PLAIN_WORKER_POLICY, base58Bytes, checkCommand } from "../sol/plain/guard.js";
+import { readTexts } from "../sol/plain/view.js";
 import { enableTokenIntent, plainPins } from "../sol/plain/intent.js";
 import { DECIMALS, amountText, tokenAmount, usdcAddress } from "../sol/plain/reads.js";
 import { config, loadRig, mainnetConfig, sleep, storage } from "./sol-rig.mjs";
@@ -195,6 +196,7 @@ Date.now = () => realNow() + skew;
 const later = (ms) => void (skew += ms);
 const calls = (cmd) => sent.filter((m) => m.cmd === cmd).length;
 const text = (units, decimals) => amountText(units, decimals);
+const texts = () => readTexts(c);
 const reset = () => {
   requests.length = 0;
   sent.length = 0;
@@ -217,7 +219,11 @@ const readDone = async (record, before) => {
 const snapshot = () => ({ at: c.balances.at, error: c.balances.error });
 // ── A mainnet wallet whose seats agree (the plain ceremony ends) ──
 const gid = await rig.wallet({ name: "Reads", network: "mainnet", n: 3, k: 2 });
-const plain = await attach(t.solHost());
+const refiltered = []; // the time of each call of host.refilter by the controller
+const plain = await attach({ ...t.solHost(), refilter: () => {
+  refiltered.push(Date.now());
+  t.refilter();
+} });
 const c = plain.ctl;
 // The strings under `root` (keys of objects and maps too) that hold the key. Bytes are skipped.
 const entriesOf = (v) => {
@@ -279,6 +285,7 @@ const ata = usdcAddress(c, groupKey);
 chain.lamports.set(groupAddress, "1500000000");
 chain.lamports.set(feeAddresses[0], "5000000");
 chain.lamports.set(feeAddresses[2], "123456789");
+const TOKEN = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 const TOKEN_DATA = Buffer.alloc(165);
 TOKEN_DATA.writeBigUInt64LE(12_345_678n, 64);
 TOKEN_DATA[108] = 1;
@@ -486,6 +493,60 @@ step("a wallet is read once in 30 s, never in a hidden tab, and one job at a tim
 }
 step("a failed read keeps the old balance and waits 30 s");
 
+// ── A timer wakes the reactor when the gap ends, also after a good read ──
+{
+  const timers = [];
+  const realSetTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = (fn, ms, ...rest) => {
+    if (ms <= 29_000 || ms > 30_300) return realSetTimeout(fn, ms, ...rest);
+    timers.push({ fn, ms });
+    return 0;
+  };
+  try {
+    later(31_000);
+    const before = snapshot();
+    plain.observe(gid);
+    await readDone(c.balances, before);
+    assert.equal(c.balances.error, "", "a good read");
+    assert.equal(timers.length, 1, "a good read sets one timer for the end of its gap");
+    const woke = refiltered.length;
+    later(30_200);
+    timers[0].fn();
+    assert.equal(refiltered.length, woke + 1, "the timer asks the page for a pass");
+    const reads = calls("balance");
+    const next = snapshot();
+    plain.react();
+    await readDone(c.balances, next);
+    assert.ok(calls("balance") > reads, "that pass reads again, after a good read");
+    // A failed read sets its timer too.
+    later(31_000);
+    answers.balance = () => {
+      throw new Error("Error: balance: Helius is not answering.");
+    };
+    const failing = snapshot();
+    plain.observe(gid);
+    await readDone(c.balances, failing);
+    assert.equal(timers.length, 3, "a failed read sets a timer for the end of its gap");
+    assert.ok(timers.every(({ ms }) => ms > 29_000 && ms <= 30_300), "of about 30 s");
+    answers.balance = balanceAnswer;
+  } finally {
+    globalThis.setTimeout = realSetTimeout;
+  }
+  // The pool asks for a pass when the tab shows again; so does the plain wallet.
+  const listeners = [];
+  const real = globalThis.document;
+  globalThis.document = new Proxy(real, { get: (target, key) => key === "addEventListener"
+    ? (type, fn) => listeners.push([type, fn]) : target[key] });
+  let asked = 0;
+  await attach({ ...t.solHost(), refilter: () => void asked++ });
+  globalThis.document = real;
+  assert.deepEqual(listeners.map(([type]) => type), ["visibilitychange"],
+    "the controller listens for visibilitychange");
+  listeners[0][1]();
+  assert.equal(asked, 1, "a tab that shows again asks for a pass");
+}
+step("a timer wakes a shown wallet after every read, and a tab that shows again asks for a pass");
+
 // ── Amounts above 2^53 stay exact; a System-owned USDC address means not enabled ──
 {
   later(31_000);
@@ -503,16 +564,45 @@ step("a failed read keeps the old balance and waits 30 s");
   plain.observe(gid);
   await readDone(c.balances, next);
   assert.equal(c.balances.usdc, null, "no account: not enabled");
-  later(31_000);
-  chain.accounts.set(ata, { owner: "Stake11111111111111111111111111111111111111", lamports: "1",
-    executable: false, data: TOKEN_DATA.toString("base64") });
-  const odd = snapshot();
-  plain.observe(gid);
-  await readDone(c.balances, odd);
-  assert.match(c.balances.error, /not an initialised token account/, "an odd account fails");
-  assert.equal(c.balances.sol, 18446744073709551615n, "and the SOL stays");
 }
 step("amounts stay exact and a System-owned USDC address means not enabled");
+
+// ── A bad USDC account is an error of the USDC row and hides no other balance ──
+{
+  const frozen = Buffer.from(TOKEN_DATA);
+  frozen[108] = 2;
+  const stake = { owner: "Stake11111111111111111111111111111111111111", lamports: "1",
+    executable: false, data: TOKEN_DATA.toString("base64") };
+  for (const [what, account] of [["an odd owner", stake],
+    ["a frozen account", { ...stake, owner: TOKEN, data: frozen.toString("base64") }]]) {
+    later(31_000);
+    chain.lamports.set(groupAddress, "7");
+    chain.lamports.set(feeAddresses[0], "9");
+    chain.accounts.set(ata, account);
+    const odd = snapshot();
+    plain.observe(gid);
+    await readDone(c.balances, odd);
+    assert.equal(c.balances.error, "", what + " fails no read");
+    assert.match(c.balances.usdcError, /not an initialised token account/, what + " is a USDC err");
+    assert.equal(c.balances.usdc, null, what + " gives no USDC amount");
+    assert.equal(c.balances.sol, 7n, "the SOL is read with " + what);
+    assert.equal(c.balances.fees[1], 9n, "and so is a fee balance");
+    assert.equal(texts().rows.sol.text, "0.000000007 SOL", "the SOL row shows its amount");
+    assert.deepEqual(texts().rows.usdc,
+      { state: "bad", text: c.balances.usdcError }, "the USDC row shows the error");
+  }
+  later(31_000);
+  chain.lamports.set(feeAddresses[0], "5000000");
+  chain.accounts.set(ata, { owner: TOKEN, lamports: "2039280", executable: false,
+    data: TOKEN_DATA.toString("base64") });
+  const good = snapshot();
+  plain.observe(gid);
+  await readDone(c.balances, good);
+  assert.equal(c.balances.usdcError, "", "a good account clears the USDC error");
+  assert.equal(texts().rows.usdc.text, "12.345678 USDC");
+  chain.lamports.set(groupAddress, "18446744073709551615");
+}
+step("a bad USDC account shows on its row and hides no other balance");
 
 // ── A Worker of another cluster is not used ──
 {

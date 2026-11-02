@@ -216,6 +216,15 @@ of the network gives it. The page decodes the token account for display only (th
 again before any signature). One read job runs at a time, a wallet is read once in 30 s, a hidden tab
 reads nothing, and a failed read keeps the old balances and waits 30 s. A step of the start that
 takes more than 20 s ends the read. A close of the wallet closes a Worker that is still in init.
+A timer wakes the page when the gap ends, after a good read too, and a tab that shows again asks
+for a pass. A bad or frozen USDC account is an error of the USDC row only: the SOL and fee balances
+still show.
+
+The Solana tab of a served mainnet wallet (`web/sol/plain/view.js`) shows the start card (device 1
+only), the progress of the seats, then the address (base58 of the agreed group key), Copy, the
+explorer link (no cluster parameter), the SOL and USDC balances, the fee addresses of this browser
+and the backup rows. Overview shows the SOL and USDC rows. Send is not available in this version.
+The Change devices texts say that the SOL and USDC stay at the Solana address.
 
 **3.9 Known limits of the plain wallet (P1).**
 
