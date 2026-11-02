@@ -64,6 +64,8 @@ const blank = () => ({
   sessWait: 0,
   watching: new Map(),
   tries: new Map(),
+  fails: new Map(),
+  refused: new Map(),
   signedSeen: new Map(),
 });
 

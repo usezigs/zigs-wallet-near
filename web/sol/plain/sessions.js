@@ -101,7 +101,9 @@ function endDuplicates(sessions) {
 // A send that landed used its nonce: every other session that waits on that account and value
 // ends, also a signed one. This reads signed documents only, so a node that lags ends nothing.
 function endSuperseded(sessions) {
-  const used = new Set(sessions.filter((ss) => ss.status === "sent").map(accountOf));
+  const used = new Set(
+    sessions.filter((ss) => ss.status === "sent" && showable(ss)).map(accountOf),
+  );
   for (const ss of sessions.filter(open)) {
     if (used.has(accountOf(ss))) Object.assign(ss, { status: "failed", error: SUPERSEDED });
   }
@@ -127,7 +129,7 @@ const present = (name, d) =>
 // The sent mark must name the transaction that the signatures give: the first signature is the
 // id. The fee key signs first, then the group (web/sol/sessions.js sentMatches).
 const sentMatches = (f) =>
-  SIGNATURE.test(f.signature) && SIGNATURE.test(f.feeSig) && f.txId === base58(f.feeSig);
+  fits(f.signature, SIGNATURE) && fits(f.feeSig, SIGNATURE) && f.txId === base58(f.feeSig);
 
 // The verdict of one part ("yes", "no" or "wait"): the part before it must count, and the sent mark
 // must name the transaction.
@@ -192,8 +194,18 @@ function addSession(out, [id, d], { raw, check, onBad, twin }) {
   if (!ss) return;
   const twinned = !ENDED.has(ss.status) && twin(ss.by);
   if (twinned) Object.assign(ss, { status: "failed", error: TWIN_FEE });
-  out.sessions.push(ss);
   readBelow(out, { raw, id, check, onBad });
+  out.sessions.push(ss);
+}
+
+// A document that makes the reader throw is a bad document, not a stop of every device.
+function tryAdd(out, entry, how) {
+  try {
+    addSession(out, entry, how);
+  } catch {
+    out.bad++;
+    how.onBad(SESSIONS + "/" + entry[0] + " unreadable");
+  }
 }
 
 /**
@@ -207,7 +219,7 @@ function addSession(out, [id, d], { raw, check, onBad, twin }) {
 export function filterSessions(raw, check, onBad, twin = () => false) {
   const out = { sessions: [], commits: {}, shares: {}, bad: 0, wait: 0 };
   const how = { raw, check, onBad, twin };
-  for (const entry of Object.entries(raw[SESSIONS] ?? {})) addSession(out, entry, how);
+  for (const entry of Object.entries(raw[SESSIONS] ?? {})) tryAdd(out, entry, how);
   endSuperseded(out.sessions);
   endDuplicates(out.sessions);
   out.sessions.sort((a, b) => num(b.createdAt) - num(a.createdAt));

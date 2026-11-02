@@ -8,10 +8,13 @@
 // failed publish publishes the same share again); the aggregate verifies; the transaction is the
 // message, the fee signature and the group signature; the order is status, simulate, send,
 // confirm; a late device finds a landed transaction and sends nothing; a refusal at share time,
-// a commitment that the package does not name and three failed tries end the session; a send with
-// an unknown result is no failed try; a hung call ends its step; a wallet that closes or a session
-// that ends stops a step before the send; the nonces of an ended session are dropped; the pool
-// controller and the plain controller never touch each other's sessions; no secret leaves.
+// a commitment that the package does not name and three refusals end the session; every other error
+// (transport, a hang, a 429, a bad answer, a failed read or write) is no failed try, and a session
+// whose transaction landed is never ended; a hung call ends its step; a wallet that closes or a
+// session that ends stops a step before the send; the nonces of an ended session are dropped; a
+// hostile document stops no device; the pool controller and the plain controller never touch each
+// other's sessions; no secret leaves. The fake Worker answers errors as the real one does
+// (`Error: <method>: <text>`, worker.js), because the page reads those texts.
 // Run: node web/test/sol-plain-sign.mjs   (Node 26)
 import assert from "node:assert/strict";
 import {
@@ -40,6 +43,7 @@ import { loadRig, mainnetConfig, sleep } from "./sol-rig.mjs";
 
 const rig = await loadRig();
 const { t, data, waitFor } = rig;
+LIMITS.backoff = 60; // the wait after an error with no known result, in ms
 const step = (name) => console.log("ok  " + name);
 const path = (gid, rel) => `groups/${gid}/${rel}`;
 const hex = (bytes) => Buffer.from(bytes).toString("hex");
@@ -116,7 +120,7 @@ function simulate({ tx }) {
 }
 function send({ tx }) {
   if (world.sendError) throw new Error(world.sendError);
-  if (!world.passed.has(tx)) throw new Error("send: these bytes did not pass a simulation");
+  if (!world.passed.has(tx)) throw new Error("send: these bytes did not pass a simulation in 30 s");
   world.sends.push(tx);
   world.sendTimes.push(Date.now());
   const id = base58(hex(parts(tx).sigs[0]));
@@ -141,7 +145,7 @@ const answers = {
 // A call to the Worker. A command that the table does not know fails.
 const call = async (cmd, args = {}) => {
   checkCommand(cmd, args);
-  calls.push({ cmd, args: structuredClone(args) });
+  calls.push({ cmd, args: structuredClone(args), at: Date.now() });
   if (world.failing === cmd) throw new Error(`${cmd}: Helius is not answering.`);
   if (!answers[cmd]) throw new Error(`the Worker is asked for ${cmd}`);
   await world.hold?.(cmd, args);
@@ -163,7 +167,7 @@ globalThis.Worker = class {
   postMessage({ id, cmd, args }) {
     const reply = (message) => queueMicrotask(() => this.onmessage({ data: { id, ...message } }));
     call(cmd, args).then((result) => reply({ ok: true, result }),
-      (e) => reply({ ok: false, error: String(e.message) }));
+      (e) => reply({ ok: false, error: `${e.name}: ${e.message}` }));
   }
   terminate() {}
 };
@@ -429,10 +433,17 @@ step("S2 end to end: package at two commits, two shares, aggregate, send, sent m
 {
   const before = { shares: count("sol_plain_sign_share"), sends: world.sends.length,
     writes: writes.length, calls: calls.length };
+  let leases = 0;
+  rig.hook.lease = () => {
+    leases++;
+    return true;
+  };
   for (let i = 0; i < 8; i++) {
     plain.react();
     await sleep(40);
   }
+  rig.hook.lease = () => true;
+  assert.equal(leases, 0, "an ended session takes no lease");
   assert.equal(count("sol_plain_sign_share"), before.shares);
   assert.equal(world.sends.length, before.sends);
   assert.equal(writes.length, before.writes, "nothing was written");
@@ -599,13 +610,17 @@ step("a commitment that is not the one of the saved nonces ends the session, nev
   let release;
   const held = new Promise((r) => { release = r; });
   world.hold = async (cmd) => { if (cmd === "genesis") await held; };
+  const reads = () => names().filter((n) => n === "genesis").length;
+  const seen = reads(); // the approvals read the chain too: wait for a read after the hold
   await pump("the package", () => doc(id).package !== undefined);
-  await pump("a share step reads", () => names().includes("genesis"), 5000);
+  await pump("a share step reads", () => reads() > seen, 5000);
   const entry = solOf(3).nonces[id];
   const other = JSON.parse(W.sol_nonces(JSON.stringify(solOf(3).keyPackage), entry.digest));
   const rel = `solsessions/${id}/commits/3`;
   await c.host.sdb.doc(base + "/" + rel).set(await c.host.signedDoc(gid, rel, 3,
     { commitments: other.commitments, digest: entry.digest, at: Date.now() }));
+  await waitFor("the new commit is here", () => (c.refresh(),
+    c.commits[id]?.[3]?.commitments === other.commitments), 5000);
   release();
   await pump("the session ends after a commit changed", becomes(id, "failed"));
   assert.match((await session(id)).error, /The package differs from the commits\./);
@@ -615,7 +630,88 @@ step("a commitment that is not the one of the saved nonces ends the session, nev
 }
 step("a share is made only for the commitments that the package names");
 
-// ── Three failed tries end the session ──
+// ── A share is not made while a commit of the package cannot be verified here ──
+{
+  reset();
+  const { id } = await newSend([2, 3]);
+  let release;
+  const held = new Promise((r) => { release = r; });
+  world.hold = async (cmd) => { if (cmd === "genesis") await held; };
+  const reads = () => names().filter((n) => n === "genesis").length;
+  const seen = reads();
+  await pump("the package", () => doc(id).package !== undefined);
+  await pump("a share step is held at the chain read", () => reads() > seen, 5000);
+  const rel = path(gid, `solsessions/${id}/commits/3`);
+  const commit = data.get(rel);
+  data.delete(rel); // this device cannot verify the commit of seat 3 now
+  rig.notify();
+  await waitFor("the commit is gone", () => (c.refresh(), !c.commits[id]?.[3]), 5000);
+  release();
+  for (let i = 0; i < 12; i++) {
+    plain.react();
+    await sleep(40);
+  }
+  assert.equal(count("sol_plain_sign_share"), 0, "no share while a commit of the package is gone");
+  assert.equal(writes.filter((w) => w.kind === "share").length, 0);
+  world.hold = null;
+  data.set(rel, commit); // the commit comes back with the next snapshot
+  rig.notify();
+  await pump("sent", becomes(id, "sent"));
+}
+step("a share waits until every commit of the package is verified here");
+
+// ── Three seats commit before the package: it names two ──
+{
+  reset();
+  const { id } = await newSend([1, 2, 3]);
+  await pump("sent with three commits", becomes(id, "sent"));
+  const fin = await session(id);
+  assert.deepEqual(fin.signers, [1, 2], "the package names t seats, the lowest ones");
+  assert.equal(count("sol_plain_sign_share"), 2);
+}
+step("the package names t commits when more are here");
+
+// ── A refused share whose failure write fails is written again ──
+{
+  reset();
+  const { id, k } = await newSend([2, 3]);
+  let denied = 0;
+  hooks.push((p, value) => {
+    if (p.endsWith("solsessions/" + id) && "error" in value && denied++ < 2) {
+      throw new Error("the store is down");
+    }
+  });
+  setNonce(1, k, 9);
+  await pump("the session ends although two writes failed", becomes(id, "failed"));
+  assert.ok(denied >= 3, "the end was written again after the failures");
+  assert.match((await session(id)).error, /^A device did not sign: /);
+  assert.equal(c.refused.has(id), false, "and forgotten once it is read back");
+  for (const seat of [2, 3]) assert.equal(solOf(seat).nonces?.[id], undefined);
+}
+step("a failure that could not be written is written again");
+
+// ── A session that another device ended while this device lands the transaction ──
+{
+  reset();
+  const { id } = await newSend([2, 3]);
+  let release;
+  const held = new Promise((r) => { release = r; });
+  world.hold = async (cmd) => { if (cmd === "confirm") await held; };
+  await pump("the wait for the result", () => names().includes("confirm"));
+  await writePart(c, id, "failure", { error: "Not sent: ended elsewhere." }, { seat: 3 });
+  await pump("the session is failed", becomes(id, "failed"));
+  release();
+  await pump("a landed send stays landed", becomes(id, "sent"));
+  assert.equal(doc(id).txId, base58(doc(id).feeSig), "the sent mark is written");
+  assert.equal(world.sends.length, 1);
+  world.hold = null;
+}
+step("a send that landed gets its sent mark although another device ended the session");
+
+// ── Three refusals end the session, unless the transaction is on the chain ──
+const sendCalls = () => calls.filter((x) => x.cmd === "send").length;
+const statusCalls = () => calls.filter((x) => x.cmd === "status").length;
+const REFUSAL = "sendTransaction: RPC error -32002: Transaction simulation failed";
 {
   reset();
   const { id } = await newSend([2, 3]);
@@ -631,21 +727,88 @@ step("a share is made only for the commitments that the package names");
   }
   assert.equal(calls.filter((x) => x.cmd === "simulate").length, 3, "and no fourth");
   reset();
-  // A refusal of the node at the send counts as well.
+  // A refusal of the node at the send counts as well. The page reads the text of the Worker:
+  // "Error: sendTransaction: RPC error ..." (worker.js names the RPC method).
   const second = await newSend([2, 3]);
-  world.sendError = "send: RPC error -32002: Transaction simulation failed";
+  world.sendError = REFUSAL;
   await pump("the session ends after a refusal of the node", becomes(second.id, "failed"));
-  assert.equal(calls.filter((x) => x.cmd === "send").length, 3);
+  assert.equal(sendCalls(), 3);
   assert.match((await session(second.id)).error, /^Not sent: .*RPC error -32002/);
+  // The refusal of the Worker itself (the bytes were not simulated) counts too.
+  reset();
+  const guarded = await newSend([2, 3]);
+  world.passed.clear();
+  const realSim = answers.simulate;
+  answers.simulate = () => ({ err: null, unitsConsumed: null, loadedAccountsDataSize: null,
+    logs: [] });
+  await pump("the session ends after the Worker refused", becomes(guarded.id, "failed"));
+  assert.match((await session(guarded.id)).error, /^Not sent: .*these bytes did not pass/);
+  answers.simulate = realSim;
 }
-step("three failed tries end the session with a text");
+step("three refusals end the session with a text");
 
-// ── A send with no known result is no failed try; the next pass reads the status first ──
+// ── The third refusal reads the status first; a landed transaction ends nothing ──
+{
+  reset();
+  const { id, ss } = await newSend([2, 3]);
+  const txId = base58(ss.feeSig);
+  const real = answers.send;
+  answers.send = () => {
+    // The third refusal comes while another device lands the same bytes.
+    if (sendCalls() === 3) world.landed.set(txId, { status: "confirmed", slot: "31", err: null });
+    throw new Error(REFUSAL);
+  };
+  await pump("sent although the third refusal came late", becomes(id, "sent"));
+  assert.equal(sendCalls(), 3, "three refusals");
+  assert.equal(doc(id).error, undefined, "no failure part: the transaction is on the chain");
+  assert.deepEqual([(await session(id)).slot, (await session(id)).outcome], ["31", "confirmed"]);
+  // A status that cannot be read at the third refusal writes no failure either.
+  reset();
+  const next = await newSend([2, 3]);
+  answers.send = () => {
+    throw new Error(REFUSAL);
+  };
+  let looks = 0;
+  answers.status = ({ signatures }) => {
+    if (sendCalls() >= 3 && looks++ < 3) throw new Error("status: Too many Helius calls.");
+    return { statuses: signatures.map((s) => world.landed.get(s) ?? unseen) };
+  };
+  await pump("three looks fail", () => looks >= 3);
+  assert.equal(await status(next.id), "signed", "an unreadable status ends nothing");
+  assert.equal(doc(next.id).error, undefined);
+  await pump("the session ends once the status shows none", becomes(next.id, "failed"));
+  assert.match((await session(next.id)).error, /^Not sent: .*RPC error -32002/);
+  answers.send = real;
+  answers.status = ({ signatures }) => ({
+    statuses: signatures.map((s) => world.landed.get(s) ?? unseen),
+  });
+}
+step("the third refusal ends nothing while the transaction may be on the chain");
+
+// ── The node says that the bytes were processed: the transaction is on the chain ──
+{
+  reset();
+  const { id } = await newSend([2, 3]);
+  const real = answers.send;
+  answers.send = (args) => {
+    real(args);
+    throw new Error("sendTransaction: RPC error -32002: This transaction has already been"
+      + " processed");
+  };
+  await pump("sent after already processed", becomes(id, "sent"));
+  answers.send = real;
+  assert.equal(c.tries.get(id), undefined, "that is no refusal");
+  assert.deepEqual([(await session(id)).outcome, (await session(id)).slot], ["confirmed", "4242"]);
+  assert.equal(world.sends.length, 1);
+}
+step("a send that the node already has goes on to the confirm and writes the sent mark");
+
+// ── A send with no known result is no failed try, however many come ──
 {
   reset();
   const { id, ss } = await newSend([2, 3]);
   // The send breaks in transport. The node had the bytes and the transaction landed.
-  world.sendError = "send: the request failed (fetch failed)";
+  world.sendError = "sendTransaction: the request failed (fetch failed)";
   await pump("the first send", () => names().includes("send"));
   await pump("the announcement", () => announced.some((w) => w.startsWith("Not confirmed yet")),
     5000);
@@ -655,47 +818,123 @@ step("three failed tries end the session with a text");
   "the id and the words 'not confirmed yet' are shown");
   assert.equal(await status(id), "signed", "the session goes on");
   world.landed.set(txId, { status: "confirmed", slot: "55", err: null });
-  const sends = calls.filter((x) => x.cmd === "send").length;
+  const sends = sendCalls();
   await pump("sent", becomes(id, "sent"));
-  assert.ok(calls.filter((x) => x.cmd === "send").length <= sends + 1,
-    "the next pass read the status and sent nothing more");
+  assert.ok(sendCalls() <= sends + 1, "the next pass read the status and sent nothing more");
   world.sendError = null;
   assert.equal((await session(id)).slot, "55");
   // Four transport errors in a row end nothing.
   reset();
   const next = await newSend([2, 3]);
-  world.sendError = "send: Helius is not answering.";
-  await pump("four sends", () => calls.filter((x) => x.cmd === "send").length >= 4);
+  world.sendError = "sendTransaction: Helius is not answering.";
+  await pump("four sends", () => sendCalls() >= 4);
   assert.equal(await status(next.id), "signed", "transport errors are no failed tries");
-  // The wait ends with no answer: unknown is no failure either.
+  assert.equal(c.tries.get(next.id), undefined);
   world.sendError = null;
+  await pump("sent", becomes(next.id, "sent"));
+  // The wait ends with no answer: unknown is no failure either.
+  reset();
+  const waits = await newSend([2, 3]);
   world.confirmAnswer = { status: "unknown", slot: "", err: null };
   world.sendLands = false;
-  const before = calls.filter((x) => x.cmd === "confirm").length;
-  await pump("four waits", () => calls.filter((x) => x.cmd === "confirm").length >= before + 4);
-  assert.equal(await status(next.id), "signed", "an unknown result is no failed try");
+  await pump("four waits", () => calls.filter((x) => x.cmd === "confirm").length >= 4);
+  assert.equal(await status(waits.id), "signed", "an unknown result is no failed try");
   world.confirmAnswer = null;
   world.sendLands = true;
-  await pump("sent", becomes(next.id, "sent"));
+  await pump("sent", becomes(waits.id, "sent"));
   assert.deepEqual(leaks(), []);
 }
 step("a transport error after the send and an unknown result are no failed tries");
 
+// ── A send that landed, then the status cannot be read: the session is not ended ──
+{
+  const saved = { ...LIMITS };
+  LIMITS.call = 150;
+  for (const fault of ["fails", "hangs"]) {
+    reset();
+    const { id, ss } = await newSend([2, 3]);
+    const real = answers.send;
+    answers.send = (args) => {
+      real(args); // the node took the bytes, and the answer was lost
+      throw new Error("sendTransaction: the request failed (fetch failed)");
+    };
+    await pump("the first send", () => sendCalls() >= 1);
+    answers.send = real;
+    if (fault === "fails") world.failing = "status";
+    else world.hold = (cmd) => (cmd === "status" ? new Promise(() => {}) : undefined);
+    const asked = statusCalls();
+    await pump("four looks", () => statusCalls() >= asked + 4);
+    assert.equal(await status(id), "signed", "a status that " + fault + " ends nothing");
+    assert.equal(doc(id).error, undefined, "and no failure part was written");
+    assert.equal(c.tries.get(id), undefined, "and no try was counted");
+    assert.ok(world.landed.has(base58(ss.feeSig)), "control: the transaction is on the chain");
+    world.failing = world.hold = null;
+    await pump("sent", becomes(id, "sent"));
+    assert.equal(world.sends.length, 1, "the bytes went out once");
+    assert.equal((await session(id)).slot, "4242");
+  }
+  Object.assign(LIMITS, saved);
+}
+step("a send that landed is never ended by a status that fails or hangs");
+
+// ── A 429 on the read-only calls is no failed try ──
+{
+  reset();
+  const { id } = await newSend([2, 3]);
+  const real = answers.simulate;
+  const times = [];
+  answers.simulate = () => {
+    times.push(Date.now());
+    throw new Error("simulate: Too many Helius calls. Wait a minute.");
+  };
+  await pump("four simulations", () => times.length >= 4);
+  const gaps = times.slice(1).map((at, i) => at - times[i]);
+  const first = LIMITS.backoff - 5; // a timer may fire a little early
+  assert.ok(gaps.every((gap, i) => gap >= first * 2 ** i), "each wait doubles: " + gaps);
+  assert.equal(await status(id), "signed", "a 429 on simulate ends nothing");
+  assert.equal(doc(id).error, undefined);
+  assert.equal(world.sends.length, 0);
+  answers.simulate = real;
+  await pump("sent", becomes(id, "sent"));
+  assert.equal(c.fails.has("send:" + id), false, "a success resets the count");
+}
+step("a 429 on simulate is no failed try and the step waits longer each time");
+
 // ── An answer of the Worker that is not the status of one transaction ──
 {
   const real = answers.status;
-  for (const list of [[unseen, unseen], [{}], []]) {
+  const odd = [[unseen, unseen], [{}], [], [{ status: "weird", slot: "5", err: null }],
+    [{ status: "unknown", slot: "", err: null }], [{ status: "confirmed", slot: "", err: null }],
+    [{ status: "confirmed", slot: 5, err: null }]];
+  for (const list of odd) {
     reset();
     const { id } = await newSend([2, 3]);
     answers.status = () => ({ statuses: list });
-    await pump("the session ends after a bad status list", becomes(id, "failed"));
-    assert.match((await session(id)).error,
-      /^Not sent: The Worker answered with data that Zigs cannot use\./);
+    await pump("two looks", () => statusCalls() >= 2);
+    assert.equal(await status(id), "signed", "ends nothing: " + JSON.stringify(list));
+    assert.equal(doc(id).error, undefined);
+    assert.equal(doc(id).txId, undefined, "and writes no sent mark");
     assert.equal(world.sends.length, 0, "nothing was sent");
+    assert.equal(c.tries.get(id), undefined, "and no try was counted");
+    answers.status = real;
+    await pump("sent", becomes(id, "sent"));
   }
-  answers.status = real;
+  // A confirm that answers a word of its own is refused too: no sent mark with that word.
+  reset();
+  const { id } = await newSend([2, 3]);
+  world.sendLands = false;
+  let asked = 0;
+  answers.confirm = () => (asked++ < 2 ? { status: "weird", slot: "5", err: null }
+    : { status: "pending", slot: "5", err: null });
+  await pump("three waits", () => asked >= 3);
+  assert.equal(await status(id), "signed");
+  assert.equal(doc(id).txId, undefined, "no sent mark for a word that is no result");
+  answers.confirm = ({ signature }) => world.landed.get(signature) ?? world.confirmAnswer
+    ?? { status: "unknown", slot: "", err: null };
+  world.sendLands = true;
+  await pump("sent", becomes(id, "sent"));
 }
-step("a status list of another size or shape is refused, and counts as a failed try");
+step("a status or confirm answer with another word or no slot is refused and writes no mark");
 
 // ── A hung call ends its step ──
 {
@@ -711,7 +950,7 @@ step("a status list of another size or shape is refused, and counts as a failed 
     5000);
   await pump("sent", becomes(id, "sent"));
   assert.ok(calls.filter((x) => x.cmd === "status").length >= 2, "the next pass asked again");
-  assert.equal(c.tries.get(id), 1, "a hang is one failed try");
+  assert.equal(c.tries.get(id), undefined, "a hang is no failed try");
   // A confirm that hangs after the send: the id is shown, nothing is sent again.
   reset();
   const next = await newSend([2, 3]);
@@ -1019,8 +1258,149 @@ step("the length guard of freeNonce, canWriteAs at approval and the wait for the
     const pool = readSolSession(done.id, document, () => "yes").ss;
     assert.equal(only(document).status, pool.status, "a part counts as it does in the pool");
   }
+  // A signed proposal can hold any value in a field. The reader must not throw on it, and a
+  // sent part with a signature that is no text does not count.
+  const T = { toString: 1 };
+  for (const intent of [7, null, undefined, {}, T, ["0f"]]) {
+    const hostile = filterSessions({ solsessions: { evil: { ...full, intent }, [done.id]: full } },
+      () => "yes", () => {});
+    assert.deepEqual(hostile.sessions.map((x) => x.id).sort(), [done.id, "evil"].sort());
+  }
+  assert.equal(only({ ...full, signature: T }).status, "signed", "an object is no signature");
+  assert.equal(only({ ...full, feeSig: T }).status, "signed", "and no fee signature");
+  // A document that makes the check throw is a bad document, and the others are still read.
+  const heard2 = [];
+  const throwing = filterSessions({ solsessions: { evil: { ...full, by: 9 }, [done.id]: full } },
+    (_rel, by) => {
+      if (by === 9) throw new Error("boom");
+      return "yes";
+    }, (what) => heard2.push(what));
+  assert.deepEqual(throwing.sessions.map((x) => x.id), [done.id]);
+  assert.deepEqual([throwing.bad, heard2], [1, ["solsessions/evil unreadable"]]);
 }
 step("a session is its signed parts in order; a sent mark names the transaction");
+
+// ── A hostile document stops no device ──
+{
+  reset();
+  const T = { toString: 1 };
+  const touch = async (n = 6) => {
+    for (let i = 0; i < n; i++) {
+      plain.react(); // it throws when a document breaks the reader or the reactor
+      await sleep(40);
+    }
+  };
+  const sig = "ab".repeat(64);
+  const good = { intent: "0f" + "00".repeat(80), message: "81" + "00".repeat(100), feeSig: sig,
+    createdAt: Date.now() };
+  const { id } = await newSend([2]);
+  // Unsigned documents: a writer that is no seat number must be refused, not throw.
+  const raws = [
+    ["solsessions/rawa", { ...good, by: T, sig: "x" }],
+    ["solsessions/rawb", { ...good, by: "2", sig: "x" }],
+    ["solsessions/rawc", { ...good, by: 2, sig: T }],
+    ["solsessions/rawd", { intent: T, message: T, feeSig: T, createdAt: T, by: 2, sig: "x" }],
+    [`solsessions/${id}/commits/3`, { commitments: "ab", digest: "x", by: T, sig: "x", at: 1 }],
+    [`solsessions/${id}/shares/3`, { share: "ab", digest: "x", by: T, sig: "x", at: 1 }],
+    ["solfee/4", { key: "ab", by: T, sig: "x" }],
+    ["soldkg1/4", { by: T, sig: "x" }],
+    ["solabort/4", { reason: "x", by: T, sig: "x" }],
+  ];
+  for (const [rel, value] of raws) {
+    await c.host.sdb.doc(base + "/" + rel).set(value);
+    rig.notify();
+    await touch(3);
+    data.delete(path(gid, rel));
+  }
+  const start = data.get(path(gid, "solstart/1"));
+  data.set(path(gid, "solstart/1"), { ...start, by: T });
+  rig.notify();
+  await touch(3);
+  data.set(path(gid, "solstart/1"), start);
+  rig.notify();
+  await touch(3);
+  // Signed documents with fields that are no text: a commit, a share, a package.
+  const entry = solOf(2).nonces[id];
+  const rel = `solsessions/${id}/commits/3`;
+  await c.host.sdb.doc(base + "/" + rel).set(await c.host.signedDoc(gid, rel, 3,
+    { commitments: T, digest: entry.digest, at: Date.now() }));
+  rig.notify();
+  await touch();
+  assert.equal(doc(id).package, undefined, "a commit without commitments is no commit");
+  await approvePlain(c, ensure, await session(id), 1); // two honest commits are enough
+  keep(1, id);
+  await pump("the package despite the hostile commit", () => doc(id).package !== undefined);
+  assert.deepEqual(doc(id).signers, [1, 2]);
+  hooks.push((p) => (p.endsWith(`${id}/shares/2`) ? new Promise(() => {}) : undefined));
+  await pump("the share of seat 1", () => doc(id, "/shares/1") !== undefined);
+  const shareRel = `solsessions/${id}/shares/2`;
+  data.set(path(gid, shareRel), await c.host.signedDoc(gid, shareRel, 2,
+    { share: T, digest: doc(id).digest, at: Date.now() }));
+  rig.notify();
+  await touch();
+  assert.equal(count("sol_aggregate"), 0, "a share that is no text is no share");
+  data.delete(path(gid, shareRel));
+  data.delete(path(gid, rel));
+  hooks.length = 0;
+  // A package whose signers are no seat numbers: the session ends, nobody throws.
+  reset();
+  const bent = await newSend([2]);
+  const digest = W.sol_plain_digest(pinsOf(1), bytesOfHex(bent.ss.message));
+  await writePart(c, bent.id, "package", { package: "{}", signers: [T, 3], digest }, { seat: 3 });
+  rig.notify();
+  await touch();
+  await pump("the session ends", becomes(bent.id, "failed"));
+  assert.match((await session(bent.id)).error, /^The signature shares did not combine: /);
+  // A sent session whose proposal holds no text for an intent: it stops nobody.
+  const evil = hexOfBytes(crypto.getRandomValues(new Uint8Array(16)));
+  await writeProposal(c, evil, { intent: 7, message: good.message, feeSig: sig,
+    createdAt: Date.now() }, 3);
+  await writePart(c, evil, "package", { package: "{}", signers: [2, 3], digest: "dd" },
+    { seat: 3 });
+  await writePart(c, evil, "signed", { signature: "cd".repeat(64) }, { seat: 3 });
+  await writePart(c, evil, "sent", { txId: base58(sig), slot: "1", outcome: "confirmed" },
+    { seat: 3 });
+  rig.notify();
+  await waitFor("the hostile session is read", () => (c.refresh(),
+    c.sessions.some((x) => x.id === evil && x.status === "sent")), 10000);
+  await touch();
+  const honest = await newSend([2, 3]);
+  await pump("an honest send still goes through", becomes(honest.id, "sent"));
+  data.delete(path(gid, "solsessions/" + evil));
+  rig.notify();
+}
+step("a document with hostile fields stops no device");
+
+// ── A session whose step throws starves no other session ──
+{
+  reset();
+  const honest = await newSend([2, 3]);
+  // The newer send comes first in the reactor. It has a nonce account of its own, and the
+  // account of the first one stays.
+  setNonce(1, nextK++);
+  const id2 = await asSeat(c, 1, () => proposeSend(c, ensure, typed("0.006")));
+  for (const seat of [2, 3]) {
+    await approvePlain(c, ensure, await session(id2), seat);
+    keep(seat, id2);
+  }
+  const broken = { id: id2, ss: await session(id2) };
+  assert.ok(broken.ss.createdAt >= honest.ss.createdAt);
+  const real = c.W.sol_plain_digest;
+  c.W = { ...c.W, sol_plain_digest: (pins, message) => {
+    if (hex(message) === broken.ss.message) throw new Error("this session breaks the step");
+    return real(pins, message);
+  } };
+  await pump("the other session is sent", becomes(honest.id, "sent"));
+  assert.equal(await status(broken.id), "collecting", "the broken session waits");
+  assert.ok(logs.some((l) => l.includes(`session ${broken.id} skipped: this session breaks`)),
+    "and its text is logged");
+  assert.equal(logs.filter((l) => l.includes(`session ${broken.id} skipped`)).length, 1,
+    "once");
+  c.W = { ...c.W, sol_plain_digest: real };
+  await pump("it goes on once it is whole", becomes(broken.id, "sent"));
+  for (const k of [honest.k, nextK - 1]) world.accounts.delete(nonceAddress(1, k));
+}
+step("a session that throws in its step is skipped and the others go on");
 
 // ── A package for other bytes ends the session ──
 {
@@ -1070,22 +1450,49 @@ step("a fee signature that does not fit ends the session before a share");
 }
 step("shares that do not combine end the session");
 
-// ── No secret in the text of a refused share ──
+// ── No secret in the text of a refused share: each secret alone, and the whole round ──
 {
-  reset();
-  const real = c.W.sol_plain_sign_share;
-  c.W = { ...c.W, sol_plain_sign_share: (...args) => {
-    throw new Error("the wasm echoes " + args[4]);
-  } };
-  const { id } = await newSend([2, 3]);
-  await pump("the session ends after an echo of the round", becomes(id, "failed"));
-  const text = (await session(id)).error;
-  assert.match(text, /^A device did not sign: the wasm echoes /);
-  assert.match(text, /\[hidden\]/, "the nonces and the key package are hidden");
-  assert.deepEqual(leaks(), [], "the text holds no part of a secret");
-  c.W = { ...c.W, sol_plain_sign_share: real };
+  const echoes = [["the whole round", (round) => JSON.stringify(round)],
+    ["the nonces", (round) => round.nonces],
+    ["the end of the nonces", (round) => round.nonces.slice(64)],
+    ["the key share", (round) => round.keyPackage.signing_share]];
+  for (const [name, pick] of echoes) {
+    reset();
+    const real = c.W.sol_plain_sign_share;
+    c.W = { ...c.W, sol_plain_sign_share: (...args) => {
+      throw new Error("the wasm echoes " + pick(JSON.parse(args[4])));
+    } };
+    const { id } = await newSend([2, 3]);
+    await pump("the session ends after an echo of " + name, becomes(id, "failed"));
+    const text = (await session(id)).error;
+    assert.match(text, /^A device did not sign: the wasm echoes /);
+    assert.match(text, /\[hidden\]/, name + " is hidden");
+    assert.deepEqual(leaks(), [], "the text holds no part of " + name);
+    c.W = { ...c.W, sol_plain_sign_share: real };
+  }
 }
 step("the text of a refused share holds no nonce and no key share");
+
+// ── A chain read that fails: the share step waits longer each time ──
+{
+  reset();
+  const { id } = await newSend([2, 3]);
+  const seats = c.host.localSeats;
+  c.host.localSeats = () => [2]; // one signer asks, so every genesis call is one try
+  world.failing = "genesis";
+  const reads = () => calls.filter((x) => x.cmd === "genesis" && x.at > t0);
+  const t0 = Date.now();
+  await pump("four chain reads", () => reads().length >= 4);
+  const gaps = reads().slice(1).map((x, i) => x.at - reads()[i].at);
+  const first = LIMITS.backoff - 5;
+  assert.ok(gaps.every((gap, i) => gap >= first * 2 ** i),
+    "each wait of the chain read doubles: " + gaps);
+  assert.equal(await status(id), "signing", "and a failed read ends nothing");
+  world.failing = null;
+  c.host.localSeats = seats;
+  await pump("sent", becomes(id, "sent"));
+}
+step("a failed chain read of the share step waits longer each time");
 
 // ── A hung chain read and a slow wait ──
 {

@@ -100,6 +100,7 @@ function partGate(gid, part, known) {
   const { rel, by, sig, need } = part;
   if (!signing || !Z) return "wait";
   if (typeof sig !== "string" || sig.length > SIG_MAX || rel.length > REL_MAX) return "no";
+  if (!Number.isInteger(by)) return "no";
   const pk = part.pk ?? signPins[skey(gid, by)];
   const gate = writerCheck(by, need, seatCount(gid), pk, known);
   return gate === "check" ? { pk } : gate;

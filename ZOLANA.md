@@ -272,13 +272,20 @@ message, then the fee signature, then the group signature. The proposing seat se
 browser holds that seat. Another device waits 30 s after it saw the session signed. The sender reads
 `status` for the id (the base58 of the fee signature) first. A transaction that landed is not sent
 again. Else it simulates the bytes, sends the same bytes and waits for the result. Each call of the
-Worker has a time limit. Three failed tries (an error at any step before the send, or a refusal of
-the node at the send) end the session with a text. A send that fails in transport, and a wait with
-no answer, are no failed tries: the page shows the id and "not confirmed yet", and the next pass
-reads the status again. A refusal
+Worker has a time limit. Three refusals end the session with a text: a simulation that fails, a
+refusal of the node at the send (`sendTransaction: RPC error`, or the Worker refusing bytes that did
+not pass a simulation), or a group signature that is not valid. Before it writes the end, the
+sender reads the status once more: a transaction on the chain, or a status that cannot be read,
+ends nothing. Every other error is no try: a hang, a 429 or a 5xx, a failed read or write, a send
+that fails in transport, a wait with no answer, and an answer with a word or a slot that the Worker
+never gives (it gives none, pending, confirmed, finalized and failed). The step waits 3 s, then twice
+as long each time up to a minute, and keeps its key meanwhile. The page shows the id and "not
+confirmed yet" when a send may have gone out, and the next pass reads the status again. A refusal
 of the checker at share time, a commitment that is not the saved one, shares that do not combine
-and a fee signature that does not fit end the session with a text. The nonces of an ended session
-are dropped. A session ends when a send on the same nonce account landed, and when two proposals
+and a fee signature that does not fit end the session with a text. A refusal whose end could not be
+written is written again. The nonces of an ended session are dropped. A document that cannot be
+read is left out, and a session whose step throws is skipped (logged once), so no document stops
+another session. A session ends when a send on the same nonce account landed, and when two proposals
 stand on one account. A fee key that two seats show ends the open proposals of both. A proposal time
 must be a whole number above 0 and at most a day ahead of the clock of the device.
 
