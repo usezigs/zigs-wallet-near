@@ -22,7 +22,8 @@ import { requestOf } from "./app-payreq.js";
 import { nameOf, recentNote, registry, resolveRecipient, zecName } from "./zns.js";
 import { focusAfter, render } from "./app-loop.js";
 import {
-  capNote, capUnknownNote, FAUCET_TEXT, movedNote, receiveLimit, receiveWhat, SOL_STAYS,
+  capNote, capUnknownNote, FAUCET_TEXT, movedNote, plainStays, receiveLimit, receiveWhat,
+  SOL_STAYS,
 } from "./app-wallet.js";
 import { solOn } from "./app-sol.js";
 import { recipientSelect } from "./app-recipients.js";
@@ -822,7 +823,7 @@ function moveDialog() {
   el("p", { class: "small muted" }, "This requests " + state.g.t
     + " approvals; it does not move funds yet."
     + (moveLeaves(curChain()?.bal) ? " " + MOVE_REST : "")
-    + (solOn() ? " " + SOL_STAYS : "")),
+    + (solOn() ? " " + SOL_STAYS : plainStays())),
   securityExplanation("payment-review"),
   ...privacyNotes(true),
   el("p", { class: "small faint" }, EXPIRY_NOTE),

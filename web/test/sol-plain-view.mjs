@@ -5,8 +5,8 @@
 // wallet gets the Solana section, the start card (device 1 only), the setup states, the address of
 // the agreed group key with Copy and the explorer link, the SOL and USDC balances, the fee and
 // backup rows; the rows of Overview are real, Receive works and Send says "not available yet";
-// Change devices warns that the funds stay; a plain seat gets the backup dialog, its file state
-// and the saved-file check.
+// Change devices warns that the funds stay, also in the dialog that moves the Zcash funds; a plain
+// seat gets the backup dialog, its file state and the saved-file check; the probe keeps no key.
 // Run: node web/test/sol-plain-view.mjs   (Node 26)
 import assert from "node:assert/strict";
 import { agreement } from "../sol/ceremony.js";
@@ -15,8 +15,21 @@ import { publishedFee } from "../sol/fee.js";
 import { PLAIN_WORKER_POLICY } from "../sol/plain/guard.js";
 import { usdcAddress } from "../sol/plain/reads.js";
 import { plainView, readTexts } from "../sol/plain/view.js";
-import { PLAIN_EXPOSURE } from "../privacy-language.js";
-import { config, loadRig, mainnetConfig } from "./sol-rig.mjs";
+import { config, loadRig, mainnetConfig, sleep } from "./sol-rig.mjs";
+
+// The words of the tab, as people read them. A change of a word is a change of this file.
+const FACTS = "Real money. Balances and payments are public. The code is not audited. You can "
+  + "lose money. You cannot send funds out of this wallet in this version.";
+const START_NOTE = "Helius sees your IP address and this wallet’s address. Funding a device’s "
+  + "fee address links it to this wallet.";
+const RECEIVE_ONLY = "Receive only SOL and USDC on Solana mainnet here. Tokens from other "
+  + "networks can be lost.";
+const FEE_NOTE = "Fee addresses are needed when sending starts.";
+const EXPLORER_NOTE = "The explorer sees this address and your IP address.";
+const EXPOSURE = "Solana mainnet shows every balance and payment of this wallet to everyone. "
+  + "Helius sees your IP address and the address of this wallet.";
+const FUNDS_STAY = "Funds already sent to this address stay there.";
+const STAYS = "SOL and USDC do not move this way. They stay at the Solana address of this wallet";
 
 const rig = await loadRig();
 const { t, data, waitFor } = rig;
@@ -29,9 +42,12 @@ const path = (gid, rel) => `groups/${gid}/${rel}`;
 // ── The fakes: the policy answer, the Worker and the chain ──
 const chain = { lamports: new Map(), accounts: new Map() };
 const rigFetch = globalThis.fetch;
-globalThis.fetch = async (url, init) => String(url) === "/sol/plain/worker.js"
-  ? new Response("//", { headers: { "content-security-policy": PLAIN_WORKER_POLICY } })
-  : rigFetch(url, init);
+globalThis.fetch = async (url, init) => ({
+  "/sol/plain/worker.js": () => new Response("//",
+    { headers: { "content-security-policy": PLAIN_WORKER_POLICY } }),
+  "/near/quote": () => Response.json({ amountIn: "100000000", amountOut: "1232971711",
+    minAmountOut: "1" }),
+})[String(url)]?.() ?? rigFetch(url, init);
 globalThis.Worker = class {
   postMessage({ id, cmd, args }) {
     const result = {
@@ -55,6 +71,7 @@ class Rec extends Node {
   append(...kids) { this.kids.push(...kids); }
 }
 const text = (n) => n.text ?? n.kids.map(text).join("");
+const texts = (n) => (n.text === undefined ? n.kids.flatMap(texts) : [n.text]);
 const all = (n, test) => [...(test(n) ? [n] : []), ...(n.kids ?? []).flatMap((k) => all(k, test))];
 const one = (n, test) => all(n, test)[0];
 const mark = (n, name) => one(n, (x) => x.attrs?.["data-sol"] === name);
@@ -79,6 +96,9 @@ const draw = (tab) => built(() => {
   return t.walletView(null, null);
 });
 const click = (node) => node.on.click({ preventDefault() {}, currentTarget: {} });
+// Every text and attribute value of a tree, for the checks of what it must not hold.
+const everything = (n) => n.text ?? JSON.stringify(n.attrs) + n.kids.map(everything).join("");
+const KEY = /api-key|helius-rpc|not-a-real-key/;
 const ids = () => t.walletSections().map(([id]) => id);
 
 // ── The states of a read: one row for each asset, and no error hides another balance ──
@@ -94,7 +114,12 @@ const ids = () => t.walletSections().map(([id]) => id);
   assert.deepEqual(rows({}).usdc,
     { state: "ready", amount: "12.345678", unit: "USDC", text: "12.345678 USDC" });
   assert.equal(rows({ sol: 0n }).sol.text, "0 SOL", "a SOL balance of zero is a balance");
-  assert.deepEqual(rows({ usdc: null }).usdc, { state: "off", text: "Not enabled" });
+  assert.deepEqual(rows({ usdc: null }).usdc, { state: "off", text: "No USDC yet" });
+  const big = 2n ** 64n - 1n;
+  assert.equal(rows({ sol: big }).sol.text, "18446744073.709551615 SOL", "an amount above 2^53");
+  assert.equal(rows({ usdc: big }).usdc.text, "18446744073709.551615 USDC");
+  assert.equal(rows({ usdc: 9007199254740993n }).usdc.text, "9007199254.740993 USDC",
+    "an amount that a Number rounds");
   assert.equal(rows({ error: "late" }).sol.state, "stale", "a failed update marks the old value");
   const bad = rows({ usdc: null, usdcError: "The account is bad." });
   assert.deepEqual(bad.usdc, { state: "bad", text: "The account is bad." },
@@ -135,6 +160,7 @@ Object.assign(mainnetConfig, { status: 200, calls: 0 });
 delete t.ui.plainServed;
 const gid = await rig.wallet({ name: "Plain", network: "mainnet" });
 await waitFor("the answer of the probe", () => t.ui.plainServed === true);
+assert.equal(await t.plainAnswer, undefined, "the promise of the probe keeps no body");
 await waitFor("the start documents", () => t.plainNotAdded());
 assert.deepEqual(ids(), [...SECTIONS, "solana"], "a served wallet gets a Solana section, last");
 assert.equal(t.solStays(), "", "a wallet without a start document names no Solana part");
@@ -150,13 +176,21 @@ assert.equal(t.solStays(), "", "a wallet without a start document names no Solan
   assert.match(text(draw("solana")), /Loading Solana…/, "the tab loads the plain controller");
   await waitFor("the plain controller", () => t.plainSol?.ctl.gid === gid
     && COLLECTIONS.every((name) => t.plainSol.ctl.loaded[name]));
+  const c = t.plainSol.ctl;
+  for (const [what, change] of [["before the documents arrived", { loaded: {} }],
+    ["while a start document waits for its signature check", { wait: 1 }]]) {
+    const kept = Object.fromEntries(Object.keys(change).map((k) => [k, c[k]]));
+    Object.assign(c, change);
+    const early = draw("solana");
+    Object.assign(c, kept);
+    assert.match(text(early), /Loading Solana…/, "the tab waits " + what);
+    assert.equal(mark(early, "add"), undefined, "and has no Add Solana button " + what);
+  }
   const tab = draw("solana");
   assert.equal(text(mark(tab, "status")), "not started");
-  assert.match(text(tab), /Real money on Solana mainnet\. Balances and payments are public\. /);
-  assert.match(text(tab), /Send is not available yet\. The code is not audited\./);
-  assert.match(text(tab), /Helius sees your IP address/);
+  assert.equal(text(mark(tab, "facts")), FACTS, "the start card shows the facts");
+  assert.equal(text(mark(tab, "start-note")), START_NOTE, "and the note that people accept");
   assert.ok(mark(tab, "add"), "device 1 sees the Add Solana button");
-  const c = t.plainSol.ctl;
   const others = { ...c, host: { ...c.host, localSeats: () => [2, 3] } };
   const sees = built(() => plainView(others, (fn) => fn, { add() {} }));
   assert.equal(mark(sees, "add"), undefined, "the other devices have no start button");
@@ -192,8 +226,21 @@ step("a served wallet gets the Solana section, and only device 1 gets the start 
   const stopped = same({ host });
   assert.equal(text(mark(stopped, "status")), "stopped");
   assert.match(text(mark(stopped, "stopped")), /left.*create a new wallet/);
+  assert.equal(mark(stopped, "stopped").attrs.role, "alert", "the stop text is an alert");
   assert.ok(mark(stopped, "new-wallet"));
-  assert.equal(mark(stopped, "address"), undefined, "no address when the part stopped");
+  assert.ok(mark(stopped, "address"),
+    "a part that stopped after the seats agreed still shows the address of the funds");
+  assert.equal(text(mark(stopped, "address")), base58(agreement(c).done.groupKey));
+  assert.ok(mark(stopped, "balance-sol") && mark(stopped, "balance-usdc"), "and their balances");
+  assert.equal(text(mark(stopped, "funds-stay")), FUNDS_STAY);
+  assert.equal(mark(stopped, "copy-address"), undefined, "with no Copy");
+  assert.equal(mark(stopped, "explorer"), undefined, "and no link");
+  assert.equal(mark(stopped, "backup-1"), undefined, "and no backup");
+  const keysDiffer = { ...c.docs, soldone: { ...c.docs.soldone, 2: forged } };
+  const stoppedAndDiffer = same({ host, docs: keysDiffer });
+  assert.equal(text(mark(stoppedAndDiffer, "status")), "stopped");
+  assert.equal(mark(stoppedAndDiffer, "address"), undefined, "no address when the keys differ");
+  assert.equal(mark(stoppedAndDiffer, "funds-stay"), undefined);
   const lie = { ...c.docs.solfee[2], key: "11".repeat(32) };
   const forgedFee = same({ docs: { ...c.docs, solfee: { ...c.docs.solfee, 2: lie } } });
   assert.match(text(forgedFee), /fee document of device 2 does not show the key/);
@@ -226,10 +273,19 @@ const readFrom = async (tab) => {
   return draw("solana");
 };
 {
+  // Only Overview shows: the tab drew the wallet before, so the wallet is not watched now and no
+  // read job runs. A read can come only from the Overview draw.
+  c.watched = false;
+  await waitFor("no read job", () => !t.busy.has("sol:read"));
   await readFrom("overview");
   assert.equal(c.balances.sol, 1_500_000_000n, "Overview alone starts the read");
   const tab = await readFrom("solana");
   assert.equal(text(mark(tab, "status")), "ready");
+  const marks = all(tab, (n) => n.attrs?.["data-sol"]).map((n) => n.attrs["data-sol"]);
+  assert.ok(marks.indexOf("facts") < marks.indexOf("balance-sol")
+    && marks.indexOf("facts") < marks.indexOf("address"), "the warning comes before the address");
+  assert.equal(text(mark(tab, "facts")), FACTS, "the ready card shows the facts");
+  assert.ok(text(tab).includes(RECEIVE_ONLY), "the address says what it takes");
   assert.equal(text(mark(tab, "address")), address, "the full address of the group key");
   assert.equal(keyOfBase58(text(mark(tab, "address"))), done.groupKey, "and it is that key");
   assert.equal(text(mark(tab, "balance-sol")), "1.5 SOL");
@@ -237,16 +293,23 @@ const readFrom = async (tab) => {
   assert.equal(text(mark(tab, "fee-balance-1")), "0.005 SOL");
   assert.equal(text(mark(tab, "fee-balance-2")), "0 SOL");
   for (const i of [1, 2, 3]) assert.equal(text(mark(tab, "fee-address-" + i)), fee(i));
-  assert.match(text(tab), /Send only SOL and USDC to this address\./);
-  assert.match(text(tab), /Real money on Solana mainnet\./);
-  assert.match(text(tab), /Send is not available yet\./);
-  assert.match(text(tab), /The code is not audited\./);
+  assert.ok(text(tab).includes(FEE_NOTE), "the fee addresses say when they are needed");
+  assert.ok(one(tab, (n) => n.className === "privacy-badge privacy-public"),
+    "the tab says Public");
+  assert.ok(one(tab, (n) => n.className === "label" && text(n) === "Solana Mainnet"),
+    "the lead line names the network");
+  assert.ok(one(tab, (n) => text(n) === "Shared wallet · Solana Mainnet"), "and so does the name");
+  assert.doesNotMatch(text(tab), /Devnet/, "a mainnet tab names no Devnet");
+  assert.doesNotMatch(texts(tab).join(" | "),
+    /\b(cap|capped|private|privacy|anonymous|shielded?)\b/i, "and no word of a cap or of privacy");
+  assert.doesNotMatch(everything(tab), KEY, "and holds no key");
   const link = mark(tab, "explorer");
   assert.equal(link.attrs.href, "https://explorer.solana.com/address/" + address,
     "the explorer link is the address page");
   assert.doesNotMatch(link.attrs.href, /cluster=/, "the link has no cluster parameter");
   assert.match(link.attrs.rel, /noopener/);
-  assert.match(text(tab), /The explorer sees this address and your IP address\./);
+  assert.equal(link.attrs.target, "_blank", "and opens in a new tab, as its hidden text says");
+  assert.ok(text(tab).includes(EXPLORER_NOTE), "the link says who sees what");
   assert.ok(one(tab, (n) => n.attrs?.["data-key"] === "sol-receive"), "Receive can take the focus");
   const labelled = all(tab, (n) => n.tag === "button" || n.tag === "a");
   assert.ok(labelled.every((n) => text(n).trim() !== "" || n.attrs["aria-label"]),
@@ -263,6 +326,14 @@ const readFrom = async (tab) => {
   assert.equal(copied, address, "Copy copies the whole address");
   assert.equal(button.textContent, "Copied", "a copy says Copied");
   assert.equal(button["aria-label"], "Copied", "and so does its name");
+  await sleep(1700);
+  assert.equal(button.textContent, "Copy", "and goes back to Copy");
+  await mark(draw("solana"), "copy-fee-2").on.click({ currentTarget: button });
+  assert.equal(copied, fee(2), "the Copy of a fee address copies that fee address");
+  const lone = built(() => plainView({ ...c, host: { ...c.host, localSeats: () => [2] } },
+    (fn) => fn, {}));
+  assert.ok(mark(lone, "fee-address-2"), "a device lists its own fee address");
+  assert.equal(mark(lone, "fee-address-1"), undefined, "and no fee address of another device");
   Object.defineProperty(globalThis, "navigator", { configurable: true,
     value: { clipboard: { writeText: async () => { throw new Error("denied"); } } } });
   await mark(draw("solana"), "copy-address").on.click({ currentTarget: button });
@@ -290,7 +361,21 @@ step("the tab shows the address of the group key, Copy, the explorer link, the b
   assert.match(text(asset(rows, "sol")), /1\.5SOL/);
   assert.doesNotMatch(text(asset(rows, "sol")), /not usable/);
   assert.match(text(asset(rows, "usdc")), /Unavailable.*not usable/);
-  Object.assign(record, { usdcError: "", error: "Helius is not answering." });
+  const NO_USDC = "You can receive USDC now; sending it comes later.";
+  Object.assign(record, { usdcError: "" });
+  const none = draw("solana");
+  assert.equal(text(mark(none, "balance-usdc")), "No USDC yet", "no USDC account yet");
+  assert.ok(text(none).includes(NO_USDC), "the tab says that USDC can arrive");
+  assert.match(text(asset(draw("overview"), "usdc")), new RegExp("No USDC yet.*" + NO_USDC));
+  Object.assign(record, { usdc: 9_007_199_254_740_993n, sol: 18_446_744_073_709_551_615n });
+  const exact = draw("solana");
+  assert.equal(text(mark(exact, "balance-sol")), "18446744073.709551615 SOL",
+    "an amount above 2^53 shows exactly");
+  assert.equal(text(mark(exact, "balance-usdc")), "9007199254.740993 USDC");
+  const big = draw("overview");
+  assert.match(text(asset(big, "sol")), /18446744073\.709551615SOL/, "so does the Overview row");
+  assert.match(text(asset(big, "usdc")), /9007199254\.740993USDC/);
+  Object.assign(record, { sol: 1_500_000_000n, error: "Helius is not answering." });
   assert.equal(text(mark(draw("solana"), "read-error")), "Helius is not answering.");
   assert.match(text(asset(draw("overview"), "sol")), /1\.5SOL.*Update failed/);
   Object.assign(record, { error: "", usdc: 12_345_678n });
@@ -304,7 +389,10 @@ step("a bad USDC account and a failed update stay on their own rows");
   assert.match(text(asset(tree, "usdc")), /^USDCSolana Mainnet.*Public.*12\.345678USDC/,
     "the USDC row is real");
   assert.doesNotMatch(text(asset(tree, "sol")), /Unavailable|Demo/);
-  assert.match(text(asset(tree, "sol")), new RegExp(PLAIN_EXPOSURE.slice(0, 40)));
+  for (const id of ["sol", "usdc"]) {
+    assert.ok(text(asset(tree, id)).includes(EXPOSURE), id + " row says what Solana mainnet shows");
+  }
+  assert.doesNotMatch(everything(tree), KEY, "and holds no key");
   for (const id of ["sol", "usdc"]) {
     const shield = all(asset(tree, id), (n) => n.tag === "button" && /shield/i.test(text(n)));
     assert.equal(shield.length, 0, id + " row has no Shield and no Unshield");
@@ -317,9 +405,27 @@ step("a bad USDC account and a failed update stay on their own rows");
   choice(tree, "Receive", "usdc").on.click();
   assert.deepEqual([t.ui.tab, t.wantFocus?.key], ["solana", "sol-receive"]);
   assert.match(text(tree), /SOL and USDC are not in this total\./, "the total says what it lacks");
+  t.setChain({ gid, bal: { spendable: 100_000_000, pending: 0, height: 1 }, received: [],
+    sent: new Set(), cw: null });
+  const note = () => text(one(draw("overview"), (n) => n.attrs?.id === "usd-note"));
+  await waitFor("the price", () => /spread/.test(note()));
+  assert.ok(note().endsWith("a swap can give another amount. SOL and USDC are not in this total."),
+    "the note with a price has one full stop between its sentences");
+  t.setChain(null);
   assert.equal(t.solFile(1)?.saved, false, "solFile reads a plain seat");
-  assert.match(t.solStays(), /SOL and USDC do not move this way\./, "Change devices warns");
-  assert.match(t.solStays(), /stay at the Solana address of this wallet/);
+  assert.ok(t.solStays().includes(STAYS), "Change devices warns");
+  const move = () => text(built(() => t.sendDialog()));
+  const { g } = t.state;
+  const movedTo = g.movedTo;
+  g.movedTo = "M".repeat(20);
+  Object.assign(t.ui, { send: true, sendMove: { gid, after: null } });
+  try {
+    assert.ok(move().includes(STAYS), "so does the dialog that moves the Zcash funds");
+  } finally {
+    Object.assign(t.ui, { send: false, sendMove: null });
+    g.movedTo = movedTo;
+  }
+  assert.match(text(asset(tree, "usdc")), /Wallet balance.*12\.345678.*USDC/);
 }
 step("the rows of Overview are real, Receive works and Send says it is not available yet");
 
@@ -327,7 +433,7 @@ step("the rows of Overview are real, Receive works and Send says it is not avail
 {
   assert.deepEqual(t.solUnsaved(), [1, 2, 3], "no seat saved a Solana file yet");
   const tab = draw("solana");
-  assert.match(text(mark(tab, "backup-state-1")), /Device 1: backup not saved/);
+  assert.match(text(mark(tab, "backup-state-1")), /^Device 1: no backup file yet/);
   assert.equal(mark(tab, "check-1"), undefined, "no saved file to check yet");
   await click(mark(tab, "backup-1"));
   assert.match(t.ui.backup?.words.title ?? "", /Back up the Solana part of device 1/,
@@ -339,7 +445,7 @@ step("the rows of Overview are real, Receive works and Send says it is not avail
   assert.deepEqual(t.solUnsaved(), [2, 3], "a saved file leaves the list");
   assert.deepEqual(t.solFile(1), { saved: true, restored: false });
   const saved = draw("solana");
-  assert.match(text(mark(saved, "backup-state-1")), /Device 1: backup saved/);
+  assert.match(text(mark(saved, "backup-state-1")), /Device 1: file saved\. Test it with Check/);
   await click(mark(saved, "check-1"));
   assert.deepEqual([t.ui.backup?.check, t.ui.backup?.chain, t.ui.backup?.seat],
     [true, "sol", 1], "the check of the saved file opens for a plain seat");

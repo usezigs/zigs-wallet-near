@@ -328,7 +328,8 @@ function liveTotal(view) {
     el("span", { class: "portfolio-decimals", "aria-hidden": "true" }, value.fraction)]
     : el("span", { "aria-hidden": "true" }, "—")),
   el("p", { class: "portfolio-network-note", id: "usd-note" }, view.note,
-    view.facts ? ". " + view.facts : null, plainShown() ? "." + TOTAL_ZEC_ONLY : null)];
+    view.facts ? ". " + view.facts : null,
+    plainShown() ? (view.facts ? "" : ".") + TOTAL_ZEC_ONLY : null)];
 }
 
 const demoBadge = () => el("span", { class: "badge plain demo-badge" }, "Demo");
@@ -449,7 +450,7 @@ export const SOL_STAYS = "If this wallet has a Solana part, it does not move thi
 export const solStays = () => (solOn() && !solNotAdded() ? " " + SOL_STAYS : plainStays());
 export const PLAIN_STAYS = "SOL and USDC do not move this way. They stay at the Solana address of "
   + "this wallet, and a device that is left out keeps its key share.";
-const plainStays = () => (plainAdded() ? " " + PLAIN_STAYS : "");
+export const plainStays = () => (plainAdded() ? " " + PLAIN_STAYS : "");
 const movePayment = () => state.sessions.find((x) => x.move === state.g.movedTo && !x.error
   && !ended(x));
 
@@ -768,22 +769,27 @@ function usdcAsset() {
 
 // The SOL or USDC row of a served plain wallet: the balance of the last read, or the state of its
 // Solana part. It has no Shield and Unshield (no pool), and its details say what is public.
-const PLAIN_STATUS = { stale: "Update failed · old balance", off: "Comes with sending" };
+const PLAIN_STATUS = { stale: "Update failed · old balance",
+  off: "You can receive USDC now; sending it comes later." };
+// The amount of a plain row: the balance with its unit, or the state as a text.
+function plainAmount(row) {
+  if (row.amount) return unitAmount(row.amount, row.unit);
+  const word = row.state === "bad" ? "Unavailable" : row.text;
+  return el("p", { class: "asset-balance unknown" }, word);
+}
 function plainAsset(id) {
   const row = plainRow(id, { notAdded: plainNotAdded(), loading: !!(plainSol || plainLoading),
     setup: plainSetup(), read: plainRead() });
   const bad = row.state === "bad";
   const status = bad ? row.text : PLAIN_STATUS[row.state];
-  const amount = row.amount ? unitAmount(row.amount, row.unit)
-    : el("p", { class: "asset-balance unknown" }, bad ? "Unavailable" : row.text);
   return el("section", { class: "card card-pad asset-card asset-row asset-state-" + row.state,
     "aria-labelledby": "asset-" + id },
   el("div", { class: "asset-row-main" },
     el("div", { class: "asset-position" }, assetHead(id, id.toUpperCase(), PLAIN_NETWORK),
       privacyBadge(el, "public")),
     el("div", { class: "asset-balance-block" }, el("span", { class: "label" }, "Wallet balance"),
-      amount, status ? el("p", { class: "asset-row-status small" + (bad ? " asset-row-warning"
-        : " muted"), role: "status" }, status) : null)),
+      plainAmount(row), status ? el("p", { class: "asset-row-status small"
+        + (bad ? " asset-row-warning" : " muted"), role: "status" }, status) : null)),
   assetNote(id, "Solana details", [el("p", {}, PLAIN_EXPOSURE),
     plainRead()?.error ? el("p", {}, plainRead().error) : null]));
 }

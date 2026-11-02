@@ -224,7 +224,10 @@ The Solana tab of a served mainnet wallet (`web/sol/plain/view.js`) shows the st
 only), the progress of the seats, then the address (base58 of the agreed group key), Copy, the
 explorer link (no cluster parameter), the SOL and USDC balances, the fee addresses of this browser
 and the backup rows. Overview shows the SOL and USDC rows. Send is not available in this version.
-The Change devices texts say that the SOL and USDC stay at the Solana address.
+The warning is the first block of the ready card. The tab says "Loading Solana…" until the Solana
+documents arrive. A part that stopped after the seats agreed still shows the address and the
+balances, with no Copy. The Change devices texts, also the dialog that moves the Zcash funds, say
+that the SOL and USDC stay at the Solana address. The probe of the config keeps no body.
 
 **3.9 Known limits of the plain wallet (P1).**
 

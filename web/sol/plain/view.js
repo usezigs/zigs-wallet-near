@@ -12,22 +12,26 @@ import { privacyBadge } from "../../privacy-language.js";
 import { DECIMALS, amountText } from "./reads.js";
 
 const NETWORK = "Solana Mainnet";
-const FACTS = "Real money on Solana mainnet. Balances and payments are public. Send is not "
-  + "available yet. The code is not audited.";
-const START_NOTE = "Helius sees your IP address and the address of this wallet. Each device pays "
-  + "fees from its own address, and funding it links that device to this wallet.";
+const FACTS = "Real money. Balances and payments are public. The code is not audited. You can "
+  + "lose money. You cannot send funds out of this wallet in this version.";
+const START_NOTE = "Helius sees your IP address and this wallet’s address. Funding a device’s "
+  + "fee address links it to this wallet.";
 const ONLY_DEVICE_1 = "Device 1 adds Solana.";
 const KEEP_OPEN = "Keep this page open until the setup ends.";
 const DO_NOT_USE = "Do not use the Solana part of this wallet.";
 const STOP_NEXT = "The Zcash part still works. To use Solana, create a new wallet.";
-const SEND_ONLY = "Send only SOL and USDC to this address.";
+const RECEIVE_ONLY = "Receive only SOL and USDC on Solana mainnet here. Tokens from other "
+  + "networks can be lost.";
+const FUNDS_STAY = "Funds already sent to this address stay there.";
 const EXPLORER = "https://explorer.solana.com/address/";
 const EXPLORER_NOTE = "The explorer sees this address and your IP address.";
-const FEE_NOTE = "Each device pays its fees from its own address. Fund it with real SOL.";
-const USDC_NOTE = "USDC turns on with sending.";
+const FEE_NOTE = "Fee addresses are needed when sending starts.";
+const USDC_NOTE = "You can receive USDC now; sending it comes later.";
+const BACKUP_SAVED = "file saved. Test it with Check saved file.";
+const BACKUP_NONE = "no backup file yet";
 const READING = "Reading…";
 const NOT_READ = "Not read";
-const NOT_ENABLED = "Not enabled";
+const NOT_ENABLED = "No USDC yet";
 const COPIED_MS = 1500;
 const TITLES = {
   unavailable: "Solana is not available", "not started": "Add Solana", running: "Setting up Solana",
@@ -130,10 +134,19 @@ function progress(c) {
   el("p", { class: "small" }, KEEP_OPEN)];
 }
 
-function stoppedCard(c) {
+// Funds that reached the address before the stop stay there: the address and the balances show,
+// with no Copy and no text that invites a deposit.
+function heldFunds(c, address) {
+  const { el } = c.host;
+  return [balances(c, readTexts(c)), el("div", { style: GRID }, ...addressLines(el, address),
+    el("p", { class: "small", "data-sol": "funds-stay" }, FUNDS_STAY))];
+}
+
+function stoppedCard(c, ag) {
   const { el } = c.host;
   return [el("div", { class: "callout bad", role: "alert", "data-sol": "stopped" },
     stopOf(c), " ", STOP_NEXT),
+  ...(ag.state === "agree" ? heldFunds(c, base58(ag.done.groupKey)) : []),
   el("div", {}, el("button", { class: "btn sm", type: "button", "data-sol": "new-wallet",
     onclick: c.host.newWallet }, "Create a new wallet"))];
 }
@@ -154,16 +167,17 @@ function balances(c, read) {
       read.error) : null);
 }
 
+const addressLines = (el, address) => [el("span", { class: "label" }, "Solana address"),
+  el("div", { class: "addr-full", "data-sol": "address" }, address)];
+
 function receive(c, address) {
   const { el } = c.host;
   const link = el("a", { class: "btn sm", href: EXPLORER + address, target: "_blank",
     rel: "noopener noreferrer", "data-sol": "explorer" }, "Open in explorer",
   el("span", { class: "sr-only" }, " (opens in a new tab)"));
   return el("div", { style: GRID, role: "group", "aria-label": "Receive SOL and USDC",
-    "data-key": "sol-receive", tabindex: "-1" },
-  el("span", { class: "label" }, "Solana address"),
-  el("div", { class: "addr-full", "data-sol": "address" }, address),
-  el("p", { class: "small" }, SEND_ONLY),
+    "data-key": "sol-receive", tabindex: "-1" }, ...addressLines(el, address),
+  el("p", { class: "small" }, RECEIVE_ONLY),
   el("div", { class: "row-actions" }, copyButton(c, address, "the Solana address", "copy-address"),
     link),
   el("p", { class: "small muted" }, EXPLORER_NOTE));
@@ -190,10 +204,11 @@ function fees(c, read) {
   const bad = seats.filter((i) => feeMismatch(c, i));
   const good = seats.filter((i) => !bad.includes(i));
   if (!seats.length) return null;
-  return el("div", { style: GRID }, el("h4", {}, "Fee addresses"),
+  return el("div", { style: GRID },
     ...bad.map((i) => el("p", { class: "small bad", role: "alert" }, mismatchText(i))),
-    good.length ? [el("p", { class: "small" }, FEE_NOTE),
-      el("dl", { class: "kv" }, ...feeRows(c, read, good))] : null);
+    good.length ? el("details", {}, el("summary", {}, "Fee addresses"),
+      el("p", { class: "small" }, FEE_NOTE), el("dl", { class: "kv" }, ...feeRows(c, read, good)))
+      : null);
 }
 
 function backupRow(c, act, actions, i) {
@@ -201,7 +216,7 @@ function backupRow(c, act, actions, i) {
   const part = solOf(c.host, c.gid, i);
   const holds = holdsShare(part);
   const state = !holds ? "no key share in this browser"
-    : part.backupSaved === true ? "backup saved" : "backup not saved";
+    : part.backupSaved === true ? BACKUP_SAVED : BACKUP_NONE;
   const button = (mark, label, name, onclick) => el("button", { class: "btn sm", type: "button",
     "data-sol": mark + "-" + i, "aria-label": name, onclick }, label);
   return el("div", { class: "row-actions", "data-sol": "backup-state-" + i },
@@ -230,7 +245,7 @@ function backup(c, act, actions) {
 
 function ready(c, act, actions, done) {
   const read = readTexts(c);
-  return [balances(c, read), receive(c, base58(done.groupKey)), facts(c), fees(c, read),
+  return [facts(c), balances(c, read), receive(c, base58(done.groupKey)), fees(c, read),
     backup(c, act, actions)];
 }
 
@@ -246,7 +261,7 @@ export function plainView(c, act, actions) {
     unavailable: () => [el("p", { class: "small" }, startBlock(c.host))],
     "not started": () => startCard(c, act, actions),
     running: () => progress(c),
-    stopped: () => stoppedCard(c),
+    stopped: () => stoppedCard(c, ag),
     differs: () => [el("div", { class: "callout bad", role: "alert" }, ag.why, " ", DO_NOT_USE)],
     ready: () => ready(c, act, actions, ag.done),
   }[status]();

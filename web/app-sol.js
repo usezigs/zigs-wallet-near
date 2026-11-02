@@ -57,13 +57,15 @@ export function solServed() {
 // Does this server serve the plain wallet? The same states as solServed. Only plainReact asks, so
 // a testnet wallet never does. The server answers 404 until SOL_MAINNET is "1". The page does not
 // keep the body. The answer changes what the reactor does, so it runs a pass.
-let plainAnswer = null; // the promise of the probe, for a restore that waits for it
+// The promise of the probe, for a restore that waits for it. It resolves with no value: the body
+// holds the Helius URL and its key.
+export let plainAnswer = null;
 export function plainServed() {
   if (ui.plainServed === undefined) {
     ui.plainServed = null;
     plainAnswer = globalThis.fetch("/sol/config-mainnet.json", { cache: "no-store" }).then((r) => {
       ui.plainServed = r.ok;
-      return r.text();
+      return r.text().then(() => undefined);
     }).catch(() => { if (ui.plainServed === null) ui.plainServed = false; }).finally(refilter);
   }
   return ui.plainServed === true;
@@ -373,12 +375,15 @@ const plainActions = {
   check: (i) => openBackupCheck(i, "sol"),
   restoreFile: (file) => restore(file),
 };
-/** The Solana tab of a plain wallet. It shows the wallet only while the controller follows it. */
+/**
+ * The Solana tab of a plain wallet. It shows the wallet only while the controller follows it and
+ * has its Solana documents.
+ */
 export function plainTab() {
   if (plainError) return loadFail(plainError, false);
   const loading = el("p", { class: "small" }, "Loading Solana…");
   if (!plainSol) return (plainLoad(), loading);
-  if (!plainHere()) return loading;
+  if (!plainSetup()) return loading;
   plainSol.observe(state.gid);
   return guard(plainSol.view, act, plainActions);
 }
