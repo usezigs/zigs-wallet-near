@@ -16,13 +16,14 @@ const object = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const text = (v, max) => typeof v === "string" && v.length > 0 && v.length <= max
   && v === v.trim() && !/[\u0000-\u001f\u007f]/.test(v);
 const fields = ["id", "name", "address", "asset", "network", "type"];
+// The public mainnet kinds are the SOL and USDC that a plain Solana wallet sends. USDC has no
+// other kind: there is no USDC on Devnet in this app.
+const mainnetPublic = (v) =>
+  ["SOL", "USDC"].includes(v.asset) && v.network === "mainnet" && v.type === "public";
 export const recipientKind = (v) => v.asset === "ZEC"
   ? v.type === "shielded" && ["testnet", "mainnet"].includes(v.network)
-  : v.asset === "SOL" && v.network === "devnet" && ["shielded", "public"].includes(v.type);
-// The reader knows the public mainnet kinds before any writer offers them, so a tab of this
-// version reads the book that a later version wrote. checkedRecipient refuses them until then.
-const readableKind = (v) => recipientKind(v)
-  || (["SOL", "USDC"].includes(v.asset) && v.network === "mainnet" && v.type === "public");
+  : mainnetPublic(v)
+    || (v.asset === "SOL" && v.network === "devnet" && ["shielded", "public"].includes(v.type));
 
 /** A strict versioned record. Unknown/damaged records must be kept, never replaced by empty. */
 export function readRecipients(value) {
@@ -34,7 +35,7 @@ export function readRecipients(value) {
   for (const r of value.entries) {
     if (!object(r) || Object.keys(r).some((k) => !fields.includes(k))
       || !/^[0-9a-f]{32}$/.test(r.id) || ids.has(r.id) || !text(r.name, 80)
-      || !text(r.address, 2048) || !readableKind(r)) {
+      || !text(r.address, 2048) || !recipientKind(r)) {
       throw new Error("The saved address book cannot be read. Its stored copy has been kept.");
     }
     ids.add(r.id);
@@ -58,7 +59,10 @@ export function checkedRecipient(value, normalizeZec) {
     }
     address = normalized;
   } else if (type === "public") {
-    if (!publicSolAddress(address)) throw new Error("Enter a public Solana address for withdrawals.");
+    if (!publicSolAddress(address)) {
+      throw new Error(network === "mainnet" ? "Enter a Solana address."
+        : "Enter a public Solana address for withdrawals.");
+    }
   } else {
     address = address.toLowerCase();
     if (!shieldedSolAddress(address)) throw new Error("Enter the full shielded Solana address (99 bytes).");

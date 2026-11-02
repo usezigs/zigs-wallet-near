@@ -51,13 +51,15 @@ proposer chooses one ([comparison](PRIVACY.md#on-chain)).
   a device adds SOL to the group with Add SOL: the fee address shows on chain next to the group.
   Read [ZOLANA.md](ZOLANA.md) first, then [PRIVACY.md](PRIVACY.md#solana-beta-helius-devnet).
 - Solana on mainnet (plain wallet): a mainnet wallet can add a plain Solana account that holds real
-  SOL and USDC. The group signs for it, but it is a normal account: it has no pool, no hosted prover
-  and no privacy, and every balance and payment is public on chain. The page reads balances through
-  `https://mainnet.helius-rpc.com`. Helius sees your IP address and the group address. The explorer
-  sees the address that you open. Cloudflare, the host, sees the connection data of each call, also
-  of the call for the Helius URL. It is not audited. The web app can receive; send comes
-  later. The server turns it on with `SOL_MAINNET`, which is `"0"` on production and on staging
-  until send passes QA ([ZOLANA.md](ZOLANA.md) 3.10,
+  SOL and USDC. The group signs for it: a send needs the same approvals as a Zcash payment. It is
+  a normal account: it has no pool, no hosted prover and no privacy, and every balance and payment
+  is public on chain. A proposal shows its recipient and amount to every device of the group. The
+  page reads balances and sends transactions through `https://mainnet.helius-rpc.com`. Helius sees
+  your IP address, the group address and each signed transaction. The explorer sees the address
+  that you open. Cloudflare, the host, sees the connection data of each call, also of the call for
+  the Helius URL. It is not audited. The web app can receive, send SOL and USDC, create a nonce
+  account and enable USDC. The server turns it on with `SOL_MAINNET`, which is `"0"` at the top
+  level (production) ([ZOLANA.md](ZOLANA.md) 3.10,
   [PRIVACY.md](PRIVACY.md#solana-mainnet-plain-wallet)).
 - The wallet follows chain reorganisations of up to 100 blocks
   ([how](PROTOCOL.md#6-receiving-and-sync)). After a deeper one, the web, iPhone and Mac apps
@@ -477,12 +479,12 @@ tab shows for version 3 wallets on testnet only. Build the Solana wasm with
 
 The plain Solana wallet on mainnet needs the secret `HELIUS_MAINNET_URL`: your Helius mainnet URL.
 The Worker gives it to the page at `/sol/config-mainnet.json`. The route answers 404 until the
-variable `SOL_MAINNET` in `cf/wrangler.jsonc` is `"1"`. It is `"0"` at the top level and in
-staging. Set the secret like the Devnet one (`npx wrangler secret put HELIUS_MAINNET_URL`, with
+variable `SOL_MAINNET` in `cf/wrangler.jsonc` is `"1"`. It is `"0"` at the top level (production).
+Set the secret like the Devnet one (`npx wrangler secret put HELIUS_MAINNET_URL`, with
 `--env staging` for staging), and allow only the origin of the page at Helius. Without the secret,
 the route answers 503. The plain wallet itself (`web/sol/plain/`, the Solana tab, the balances and
-the backup, ZOLANA.md 3.8 to 3.10) can receive and cannot send yet. Keep `SOL_MAINNET` at `"0"` in
-every config file, on production and on staging, until send passes QA.
+the backup, the sends, ZOLANA.md 3.8 to 3.10) can receive and send SOL and USDC. Keep
+`SOL_MAINNET` at `"0"` at the top level (production) until the owner turns the part on there.
 
 To try the beta by hand, make a testnet wallet, add the Solana part, and open the Solana tab. Each
 device that this browser holds shows **Your fee address**. Send Devnet SOL to it (the **Get Devnet

@@ -196,7 +196,7 @@ true, `replaceRecentBlockhash` false and no error. The Worker makes at most 8 ca
 second. The server gives `/sol/plain/*` its own policy (`PLAIN_WORKER_POLICY` in `guard.js`, and
 `plainWorkerPolicy` in `cf/src/index.js`; `cf/test/gate.mjs` checks that they agree). It serves
 `/sol/config-mainnet.json` behind the password gate. The route answers 404 until the var
-`SOL_MAINNET` is `"1"` (it is `"0"` at the top level and in staging). It answers 503 without the
+`SOL_MAINNET` is `"1"` (it is `"0"` at the top level, which is production). It answers 503 without the
 secret `HELIUS_MAINNET_URL`, and else `{ rpcUrl }` with `Cache-Control: no-store`. A Helius Secure
 URL (paid plan) has another host, so it needs a change of the pin in both files. A new module in
 `web/sol/plain` needs a name of lowercase letters, digits and hyphens: no other name answers when `SOL` is
@@ -222,9 +222,10 @@ still show.
 
 The Solana tab of a served mainnet wallet (`web/sol/plain/view.js`) shows the start card (device 1
 only), the progress of the seats, then the address (base58 of the agreed group key), Copy, the
-explorer link (no cluster parameter), the SOL and USDC balances, the fee addresses of this browser
-and the backup rows. Overview shows the SOL and USDC rows. Send is not available in this version.
-The warning is the first block of the ready card. The tab says "Loading Solana…" until the Solana
+explorer link (no cluster parameter), the SOL and USDC balances, the send form, the list of sends,
+the fee addresses of this browser and the backup rows. Overview shows the SOL and USDC rows, and
+its Send and Receive choices open the tab when the plain part is ready. The warning is the first
+block of the ready card. The tab says "Loading Solana…" until the Solana
 documents arrive. A part that stopped after the seats agreed still shows the address and the
 balances, with no Copy. The Change devices texts, also the dialog that moves the Zcash funds, say
 that the SOL and USDC stay at the Solana address. The probe of the config keeps no body.
@@ -242,8 +243,8 @@ next balance read and never from the result of a step. The fee key stays on the 
 gets the signed transaction only.
 
 A device can also propose a send of SOL (S2) or USDC (S3), and the other devices can approve it
-(`web/sol/plain/propose.js`, `approve.js`, `sessions.js`). The tab has no form for it yet. The
-session is the document `solsessions/<id>` with one signed part, the proposal: `intent`,
+(`web/sol/plain/propose.js`, `approve.js`, `sessions.js`). The tab has a form for it and a list of
+the sends (see below). The session is the document `solsessions/<id>` with one signed part, the proposal: `intent`,
 `message`, `feeSig` and `createdAt`. The commits sit below it, at the path and with the fields of
 the pool. The plain controller does not import the pool session module: `sessions.js` of the
 plain wallet reads the same path and the same signed fields. The one pool module that it shares is
@@ -258,7 +259,26 @@ leads to the nonces: they are saved with the plain digest before the commit is p
 saved approval of other bytes is refused. The nonces and the key share are never published.
 Two open proposals of one seat on one nonce account cannot both land: the earlier one stands and
 the later one ends with the text "Propose it again." A proposal and an approval have no age
-limit.
+limit, and no value limit applies to a send of SOL or USDC.
+
+The send form (`web/sol/plain/sendview.js`, checks in `sends.js`) takes the asset (USDC only while
+the last read shows the token account), the Solana address of the recipient and the amount. The
+amount is read as exact base units (SOL 9 decimals, USDC 6), with no float. The form refuses a
+zero, too many decimals, more than the balance read, a bad address, the group address and a USDC
+send before Enable USDC, with a text next to the field; it also refuses when the last read of the
+nonce accounts shows no free one. A refusal of the checker shows one line and the rules in a
+details element, and signs and writes nothing. The recipient can come from the Address book (kinds
+`SOL:mainnet:public` and `USDC:mainnet:public`). The list of sends shows each session with its
+title, its proposer and a chip: waiting for approvals, your approval, signing, signed, may have
+been sent (a signed send whose step met an error with no known result, with the transaction id and
+the explorer link), sent, failed on chain, failed and superseded. A row shows no recipient and no
+amount. Review reads the chain again for the proposal that the page holds now and shows the lines
+of the checker with the cost (fee plus rent, in SOL). Approve is there only after that review of
+the same proposal and seat, and the approval is refused when a fresh read gives other lines. The
+count of Approvals, its badge and the tab title count the proposals that a seat of this browser can
+approve. A status that another device wrote reaches `host.announce` once. The read job also reads
+the first 100 nonce accounts of the paying device (one more `accounts` call), and the setup area
+shows how many there are and how many no open send uses.
 
 The reactor of the plain controller (`web/sol/plain/sign.js`) finishes an approved send for the
 seats of this browser, with no click. At `t` commits for one digest (`sol_plain_digest`) a device
@@ -299,18 +319,22 @@ must be a whole number above 0 and at most a day ahead of the clock of the devic
 2. For the page step P4: a FROST key package carries no mode. The page must keep the mode (plain
    or pool) in the wallet record. The page must never pass a plain key package to a pool entry.
    Four controls hold this apart (3.10).
+3. A group signature of a send stays valid on chain until its nonce account advances, and it sits
+   in a session document that every device of the group reads. The page cannot cancel a send yet.
 
 **3.10 What the plain wallet shows and who sees what.** The plain wallet of a served mainnet wallet
 holds real SOL and USDC at the group address. It has no pool, no hosted prover and no privacy,
-and the code is not audited. Balances and payments are public on chain. The tab can receive.
-Send is off until it passes QA. The page asks the Worker for the mainnet cluster only, so the
-Worker reads through `https://mainnet.helius-rpc.com`. Helius sees the IP address, the app origin,
-the group address, its USDC account and the published fee addresses. The explorer sees the address
-that you open and the IP address, and only when you press Open in explorer. The server gives the
+and the code is not audited. Balances and payments are public on chain. The tab can receive and
+send SOL and USDC; a send needs the approvals of the group. A proposal holds the recipient and the
+amount, and every device of the group can read them. The page asks the Worker for the mainnet
+cluster only, so the Worker reads and sends through `https://mainnet.helius-rpc.com`. Helius sees
+the IP address, the app origin, the group address, its USDC account, the published fee addresses,
+the nonce accounts of the paying device and each signed transaction. The explorer sees the address
+or the transaction that you open and the IP address, and only when you press Open in explorer. The server gives the
 page the Helius URL at `/sol/config-mainnet.json` and serves it only when `SOL_MAINNET` is `"1"`.
 Cloudflare, the host, sees the connection data of each call, also of that call, and its Worker holds
-the URL (`HELIUS_MAINNET_URL`). `SOL_MAINNET` is `"0"` on production and on staging until send
-passes QA. The words are in PRIVACY.md (Solana mainnet plain wallet). The four controls of the
+the URL (`HELIUS_MAINNET_URL`). `SOL_MAINNET` is `"0"` at the top level, which is production. The
+words are in PRIVACY.md (Solana mainnet plain wallet). The four controls of the
 plain part:
 
 1. The label `mainnet-plain` (`web/sol/wallet.js`), derived from the confirmed network. The start

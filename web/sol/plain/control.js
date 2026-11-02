@@ -14,9 +14,13 @@ import { walletOf } from "../wallet.js";
 import { approvePlain, reviewSession } from "./approve.js";
 import { closeDirect, confirmDirect, startDirect } from "./direct.js";
 import { PLAIN_WORKER_POLICY } from "./guard.js";
+import { readHeld } from "./held.js";
 import { proposeSend } from "./propose.js";
 import { readBalances } from "./reads.js";
 import { ENDED, SESSIONS, SESSION_ID, feeShared, filterSessions } from "./sessions.js";
+import {
+  announceChanges, approveLooked, closeLook, pendingList, pendingRows, startLook,
+} from "./sends.js";
 import { limited, reactSessions } from "./sign.js";
 import { plainSetup, plainView, readTexts } from "./view.js";
 
@@ -40,7 +44,7 @@ const WATCH_MAX = 50;
 // What belongs to the open wallet. The host, the wasm and the read records outlive it.
 let opens = 0;
 const unread = () => ({
-  at: null, sol: null, usdc: null, usdcError: "", fees: {}, error: "", next: 0,
+  at: null, sol: null, usdc: null, usdcError: "", fees: {}, nonces: null, error: "", next: 0,
 });
 const blank = () => ({
   opened: ++opens,
@@ -58,6 +62,9 @@ const blank = () => ({
   watched: false,
   balances: unread(),
   direct: null,
+  form: { asset: "sol", error: null },
+  look: null,
+  said: null,
   sessions: [],
   commits: {},
   shares: {},
@@ -225,8 +232,12 @@ async function readJob(c, opened, groupKey) {
   record.next = Date.now() + READ_GAP_MS;
   try {
     const worker = await ensureWorker(c);
-    const read = await readBalances(c, worker, groupKey);
-    if (c.opened === opened) Object.assign(record, read, { at: Date.now(), error: "" });
+    // A failed read of the nonce accounts leaves the balances and the last count as they are.
+    const [read, held] = await Promise.all([readBalances(c, worker, groupKey),
+      readHeld(c, worker, groupKey).catch(() => null)]);
+    if (c.opened === opened) {
+      Object.assign(record, read, { at: Date.now(), error: "" }, held && { nonces: held });
+    }
   } catch (e) {
     if (c.opened !== opened) return;
     Object.assign(record, { error: String(e?.message ?? e), next: Date.now() + READ_GAP_MS });
@@ -249,6 +260,7 @@ function react(c) {
   if (!c.wallet || c.gid !== c.host.state.gid) return;
   refresh(c);
   syncWatches(c);
+  announceChanges(c);
   reactCeremony(c);
   reactAborts(c);
   reactSessions(c, () => ensureWorker(c));
@@ -272,6 +284,14 @@ const madeOf = (c, i) => {
   return c.docs.soldone[i] ? true : c.wait > 0 ? null : false;
 };
 
+// What the page asks of the proposals: `none` until the documents of the wallet arrived, else
+// `read` after the documents are read again (the page holds the reactor, see setupOf).
+const fresh = (c, read, none) => {
+  if (!settled(c)) return none;
+  refresh(c);
+  return read(c);
+};
+
 // Create nonce and Enable USDC (direct.js). One key lets one step run at a time, so a double click
 // is one action. The button of a step starts its review; Confirm and Cancel come from the review.
 const directActions = (c) => {
@@ -287,7 +307,8 @@ const directActions = (c) => {
 
 // Propose a send and approve one (propose.js, approve.js). One key lets one proposal, and one key
 // one approval, run at a time. The words go to the one live region of the page (host.announce); a
-// refusal or an error reaches the page as a banner with its text.
+// refusal or an error reaches the page as a banner with its text. A failed proposal also leaves
+// its text, and the review of a refusal, in c.form, which the form shows next to its fields.
 const SAYS = {
   propose: ["Checking the send…", "Send proposed."],
   approve: ["Checking the proposal…", "Approval sent."],
@@ -299,10 +320,40 @@ const sessionActions = (c) => {
     await step();
     c.host.announce(SAYS[name][1]);
   });
+  const propose = async (typed) => {
+    try {
+      await proposeSend(c, ensure, typed);
+      c.form.error = null;
+    } catch (e) {
+      c.form.error = { text: String(e?.message ?? e), review: e?.review };
+      throw e;
+    }
+  };
   return {
-    propose: (typed) => once("propose", () => proposeSend(c, ensure, typed)),
+    propose: (typed) => once("propose", () => propose(typed)),
     approve: (ss, seat) => once("approve", () => approvePlain(c, ensure, ss, seat)),
     review: (ss, seat) => reviewSession(c, ensure, ss, seat),
+  };
+};
+
+// What the Solana tab calls: the choice of the asset, the review of a proposal and the approval of
+// the proposal that was reviewed (sends.js). A failed review or approval stays on the screen of the
+// review as its text, and is announced; it is no banner.
+const viewActions = (c, sessions) => {
+  const ensure = () => ensureWorker(c);
+  const says = SAYS.approve;
+  return {
+    pick: (asset) => {
+      c.form = { asset, error: null };
+      c.host.render();
+    },
+    propose: sessions.propose,
+    review: (id, seat) => c.host.once("sol:look", () => startLook(c, ensure, id, seat)),
+    approve: (id, seat) => c.host.once("sol:approve", async () => {
+      c.host.announce(says[0]);
+      if (await approveLooked(c, ensure, id, seat)) c.host.announce(says[1]);
+    }),
+    close: () => closeLook(c),
   };
 };
 
@@ -320,16 +371,21 @@ export async function attach(host) {
     refresh(c);
     readIfDue(c);
   };
+  const sessions = sessionActions(c);
+  const shown = viewActions(c, sessions);
   return {
     ctl: c, // the state of the controller, for the tests
     open: (gid, base) => openGroup(c, gid, base),
     close: () => teardown(c),
     react: () => react(c),
     add: () => addSolana(c),
-    ...sessionActions(c),
+    ...sessions,
     observe,
-    view: (act, actions) =>
-      plainView(c, act, { ...actions, add: () => addSolana(c), ...directActions(c) }),
+    view: (act, actions) => plainView(c, act,
+      { ...actions, add: () => addSolana(c), ...directActions(c), ...shown }),
+    pick: shown.pick,
+    pending: () => fresh(c, (it) => pendingList(it).length, 0),
+    pendingRows: () => fresh(c, pendingRows, []),
     setup: () => setupOf(c),
     made: (i) => madeOf(c, i),
     read: () => readTexts(c),

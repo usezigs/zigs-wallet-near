@@ -54,24 +54,32 @@ export function unitsOf(text, decimals) {
   return units > 0n && units < U64 ? units : null;
 }
 
-// What the person typed, checked: { build(k, nonce) } for the intent. Nothing is read or signed.
-function typedSend({ asset, recipient, amount }) {
-  if (!Object.hasOwn(ASSETS, asset)) throw new Error(NO_ASSET);
+// The error of a typed value, with the field that holds it (a form shows the text next to it).
+const fieldError = (field, text) => Object.assign(new Error(text), { field });
+
+/**
+ * What the person typed, checked: { units, to, build }, where `units` are the whole base units (a
+ * BigInt), `to` the recipient (hex) and build(k, nonce) makes the intent. A text that is no asset,
+ * no address, or no amount in whole base units throws an error with `field` ("asset",
+ * "recipient" or "amount"). Nothing is read or signed.
+ */
+export function checkTyped({ asset, recipient, amount }) {
+  if (!Object.hasOwn(ASSETS, asset)) throw fieldError("asset", NO_ASSET);
   const { symbol, example, build } = ASSETS[asset];
   const to = keyOfBase58(String(recipient ?? "").trim());
-  if (to === null) throw new Error(NO_RECIPIENT);
+  if (to === null) throw fieldError("recipient", NO_RECIPIENT);
   const units = unitsOf(amount, DECIMALS[asset]);
   if (units === null) {
     const how = `with at most ${DECIMALS[asset]} decimals, for example ${example}`;
-    throw new Error(`Enter an amount of ${symbol} ${how}.`);
+    throw fieldError("amount", `Enter an amount of ${symbol} ${how}.`);
   }
-  return (k, nonce) => build(k, nonce, to, units);
+  return { units, to, build: (k, nonce) => build(k, nonce, to, units) };
 }
 
 // The stored nonce value (hex) of a nonce account that the group controls, or null: the System
 // program owns it, it has 80 bytes, version 1, state initialised, and the group key is its
 // authority (plain_chain.rs parse_nonce). It only picks an account: the checker judges it again.
-function nonceValue(account, groupKey) {
+export function nonceValue(account, groupKey) {
   if (!account || account.owner !== SYSTEM_PROGRAM) return null;
   const data = base64Bytes(account.data);
   if (data?.length !== NONCE_LEN) return null;
@@ -106,7 +114,7 @@ async function freeNonce(c, worker, { pins, groupKey, seat }) {
  * with a reason when both are in the store (sessions.js), so no nonce is spent twice.
  */
 export async function proposeSend(c, ensure, typed) {
-  const build = typedSend(typed);
+  const { build } = checkTyped(typed);
   const why = await settledBlock(c);
   if (why) throw new Error(why);
   const opened = c.opened;
@@ -123,7 +131,7 @@ export async function proposeSend(c, ensure, typed) {
   const chain = await readChain(c, worker, intent, pins);
   stillOpen(c, opened);
   const review = reviewText(c, message, intent, pins, chain);
-  if (!canApprove(review)) throw new Error(stopText(review));
+  if (!canApprove(review)) throw Object.assign(new Error(stopText(review)), { review });
   // A proposal that arrived meanwhile counts once its signature is checked. The key signs after.
   const stop = await settledBlock(c);
   if (stop) throw new Error(stop);

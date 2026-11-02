@@ -28,11 +28,11 @@ const HEX = /^([0-9a-f]{2})+$/;
 const SIGNATURE = /^[0-9a-f]{128}$/;
 const MAX_MESSAGE_HEX = 2 * 1232; // a transaction fits one packet
 const DAY_MS = 24 * 60 * 60 * 1000; // the most that a clock may run ahead of this one
-const SHARED = "Another proposal on the same nonce account came first. Propose it again.";
-const SUPERSEDED =
+export const SHARED = "Another proposal on the same nonce account came first. Propose it again.";
+export const SUPERSEDED =
   "Another send on the same nonce account landed first, so this one can never be sent. " +
   "Propose it again.";
-const TWIN_FEE = "Two devices show one fee address, so this proposal cannot be used.";
+export const TWIN_FEE = "Two devices show one fee address, so this proposal cannot be used.";
 const TITLES = { "send-sol": "Send SOL", "send-token": "Send token" };
 const num = (n) => (Number.isFinite(n) ? n : 0);
 

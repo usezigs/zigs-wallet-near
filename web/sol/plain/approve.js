@@ -20,6 +20,7 @@ const NOT_COLLECTING = "This proposal is not collecting approvals any more.";
 const CHANGED = "The proposal changed while Zigs checked it. Nothing was published.";
 const OTHER_BYTES = "The saved approval is for other bytes.";
 const NO_COMMITMENT = "This device could not make its signing commitment.";
+const NEW_LINES = "The lines of the checker changed since you looked. Review the proposal again.";
 
 // Why the copy `ss` that the caller holds may not be approved, or null: the page no longer holds
 // this proposal (the proposer wrote other bytes), or the session ended. The status of the page
@@ -97,14 +98,16 @@ function unchanged(c, opened, ss) {
 /**
  * Seat `seat` approves the proposal `ss`. A retry after a crash between the save and the publish
  * publishes the saved commitment again: the nonces are never made twice for one session, and a
- * saved approval of other bytes is refused (approvalOnce, nonces.js).
+ * saved approval of other bytes is refused (approvalOnce, nonces.js). `shown` are the rows that
+ * the person looked at: when the fresh read gives other rows, nothing is approved.
  */
-export async function approvePlain(c, ensure, ss, seat) {
+export async function approvePlain(c, ensure, ss, seat, shown = null) {
   const opened = c.opened;
   const why = (await settledBlock(c)) ?? approveBlock(c, ss, seat);
   if (why) throw new Error(why);
   const review = await reviewSession(c, ensure, ss, seat);
   if (!review.ok) throw new Error(review.why);
+  if (shown && JSON.stringify(shown) !== JSON.stringify(review.rows)) throw new Error(NEW_LINES);
   unchanged(c, opened, ss);
   const make = () => makeEntry(c, seat, review.digest);
   const entry = await approvalOnce(c, seat, ss.id, review.digest, make);

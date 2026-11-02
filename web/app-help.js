@@ -68,7 +68,7 @@ function stateFacts() {
     ["Zcash sync", syncWord(curChain())],
     ["Solana part", SOL_PART[solStatus()] ?? solUnreadWord()],
     ["Zcash payments to approve", toApprove(state.gid).length],
-    ...(plainShown() ? [] : solFacts([["Solana payments to approve", solCount(solPending)]])),
+    ...solFacts([["Solana payments to approve", solCount(solPending)]]),
     ["Memo reading", readsMemos(state.gid) ? "on" : "off"]];
 }
 

@@ -204,11 +204,16 @@ export const solSetup = () =>
   solOpenHere() && setupSummary ? fromSol("setup steps", setupOf, null) : null;
 // The Solana proposals that this browser can still approve, for wallet `gid`. The module follows
 // the open wallet only, so any other wallet counts 0.
-export const solPending = (gid = state.gid) =>
-  solOpenHere(gid) && pendingCount ? fromSol("approval count", pendingCount, 0) : 0;
+// A plain wallet counts the sends of its own part (plain/sends.js), a testnet wallet the pool.
+export const solPending = (gid = state.gid) => {
+  if (plainHere(gid)) return fromPlain("approval count", (p) => p.pending(), 0);
+  return solOpenHere(gid) && pendingCount ? fromSol("approval count", pendingCount, 0) : 0;
+};
 // Those proposals of the open wallet as rows ({id, title, by}), by the same rule as the count.
-export const solPendingRows = () =>
-  solOpenHere() && pendingRows ? fromSol("approval list", pendingRows, []) : [];
+export const solPendingRows = () => {
+  if (plainHere()) return fromPlain("approval list", (p) => p.pendingRows(), []);
+  return solOpenHere() && pendingRows ? fromSol("approval list", pendingRows, []) : [];
+};
 // The Solana rows of the Activity list of the open wallet (see activityRows of web/sol/view.js),
 // or null while the module or the Solana proposals of the wallet are not read.
 export const solActivity = () =>
@@ -350,6 +355,8 @@ function fromPlain(what, read, none) {
 // Null until the Solana documents of the wallet arrived (see solSetup).
 export const plainSetup = () =>
   (plainHere() ? fromPlain("setup steps", (p) => p.setup(), null) : null);
+// The Send choice of a plain wallet: the form takes this asset.
+export const plainPick = (asset) => plainSol?.pick(asset);
 // The texts of the last read of the balances (readTexts of web/sol/plain/view.js), or null.
 export const plainRead = () =>
   (plainHere() ? fromPlain("balances", (p) => p.read(), null) : null);
