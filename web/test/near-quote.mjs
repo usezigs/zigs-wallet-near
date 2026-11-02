@@ -486,8 +486,8 @@ const status = async (label, address = DEPOSIT, e = LIVE, init = {}) => {
     "utf8").replace(/^\s*\/\/.*$/gm, ""));
   assert.equal(config.vars.NEAR_LIVE, "0", "production stays off");
   assert.equal(config.env.staging.vars.NEAR_LIVE, "1", "staging is on");
-  assert.deepEqual([config.vars.SOL_MAINNET, config.env.staging.vars.SOL_MAINNET], ["0", "0"],
-    "SOL_MAINNET is unchanged");
+  assert.deepEqual([config.vars.SOL_MAINNET, config.env.staging.vars.SOL_MAINNET], ["0", "1"],
+    "SOL_MAINNET is off in production and on in staging");
   assert.ok(!JSON.stringify(config).includes("NEAR_API_KEY\":"), "the key is no var");
   step("the live routes answer 404 unless NEAR_LIVE is \"1\"; staging only is on");
 }

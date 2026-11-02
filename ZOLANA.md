@@ -196,7 +196,7 @@ true, `replaceRecentBlockhash` false and no error. The Worker makes at most 8 ca
 second. The server gives `/sol/plain/*` its own policy (`PLAIN_WORKER_POLICY` in `guard.js`, and
 `plainWorkerPolicy` in `cf/src/index.js`; `cf/test/gate.mjs` checks that they agree). It serves
 `/sol/config-mainnet.json` behind the password gate. The route answers 404 until the var
-`SOL_MAINNET` is `"1"` (it is `"0"` at the top level and in staging). It answers 503 without the
+`SOL_MAINNET` is `"1"` (it is `"0"` at the top level and `"1"` in staging). It answers 503 without the
 secret `HELIUS_MAINNET_URL`, and else `{ rpcUrl }` with `Cache-Control: no-store`. A Helius Secure
 URL (paid plan) has another host, so it needs a change of the pin in both files. A new module in
 `web/sol/plain` needs a name of lowercase letters, digits and hyphens: no other name answers when `SOL` is
@@ -273,15 +273,14 @@ limit. The signing rounds and the send come in a later step.
 
 **3.10 What the plain wallet shows and who sees what.** The plain wallet of a served mainnet wallet
 holds real SOL and USDC at the group address. It has no pool, no hosted prover and no privacy,
-and the code is not audited. Balances and payments are public on chain. The tab can receive.
-Send is off until it passes QA. The page asks the Worker for the mainnet cluster only, so the
+and the code is not audited. Balances and payments are public on chain. The tab can receive,
+create a nonce account and enable USDC. Send of SOL and USDC comes later. The page asks the Worker for the mainnet cluster only, so the
 Worker reads through `https://mainnet.helius-rpc.com`. Helius sees the IP address, the app origin,
 the group address, its USDC account and the published fee addresses. The explorer sees the address
 that you open and the IP address, and only when you press Open in explorer. The server gives the
 page the Helius URL at `/sol/config-mainnet.json` and serves it only when `SOL_MAINNET` is `"1"`.
 Cloudflare, the host, sees the connection data of each call, also of that call, and its Worker holds
-the URL (`HELIUS_MAINNET_URL`). `SOL_MAINNET` is `"0"` on production and on staging until send
-passes QA. The words are in PRIVACY.md (Solana mainnet plain wallet). The four controls of the
+the URL (`HELIUS_MAINNET_URL`). `SOL_MAINNET` is `"1"` on staging and `"0"` on production. The words are in PRIVACY.md (Solana mainnet plain wallet). The four controls of the
 plain part:
 
 1. The label `mainnet-plain` (`web/sol/wallet.js`), derived from the confirmed network. The start

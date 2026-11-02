@@ -27,7 +27,8 @@ is a bug: please report it.
   Helius runs the RPC, the indexer and the prover. It sees more than the light-wallet server does:
   it sees the amounts and recipients of each spend, because it builds the proof. Read
   [Solana beta](#solana-beta-helius-devnet) before you use it.
-- A mainnet wallet that has the plain Solana part (web app only, off until the server turns it on)
+- A mainnet wallet that has the plain Solana part (web app only; the server turns it on, and only
+  staging has it on)
   reads its balances through the Helius mainnet host. That part has no pool and no privacy: every
   balance and payment is public on chain. Helius sees your IP address and the group address, and
   the explorer sees the address that it opens. Read
@@ -546,9 +547,10 @@ server. A person who reads "private" may expect Zcash privacy. The Solana part g
 
 A mainnet wallet in the web app can add a plain Solana account ([ZOLANA.md](ZOLANA.md) 3.8 to
 3.10). It holds real SOL and USDC. It has no pool, no hosted prover and no privacy. The code is not
-audited. The page can receive and cannot send yet. The server serves the part only when the
-variable `SOL_MAINNET` is `"1"`. It is `"0"` on production and on staging, and it stays `"0"` until
-send passes QA.
+audited. The page can receive. It can also create a nonce account and enable USDC, which the fee
+address of one device pays. It cannot send SOL or USDC from the group address yet, so a deposit
+stays in the wallet until send comes. The server serves the part only when the variable
+`SOL_MAINNET` is `"1"`. It is `"1"` on staging and `"0"` on production.
 
 The group address and its USDC account are normal Solana accounts. Everyone can read every balance
 and every payment of them on chain and can link them to the group. Do not read Zcash privacy into
@@ -565,7 +567,8 @@ this part. The Solana tab says "Public" for this reason.
 The page reads the SOL of the group address, the USDC of its token account and the SOL of each
 published fee address. A visible tab reads at most once in 30 s. A hidden tab reads nothing. Each
 device pays fees from its own fee address, and funding that address links the device to this wallet
-on chain. The explorer link opens `https://explorer.solana.com/address/` and the address, in a new
+on chain. Create nonce and Enable USDC put the fee address of the device and the group address in
+one transaction, so the chain links them. The explorer link opens `https://explorer.solana.com/address/` and the address, in a new
 tab, with no cluster parameter.
 
 The Helius URL holds an API key. It is a secret of the Worker (`HELIUS_MAINNET_URL`). The server

@@ -212,7 +212,8 @@ let session = null;
 }
 
 // ── The plain Solana wallet: /sol/config-mainnet.json and the files of /sol/plain ──
-// SOL_MAINNET is the switch of the owner. It is off ("0") in cf/wrangler.jsonc, and the Devnet
+// SOL_MAINNET is the switch of the owner. It is off ("0") at the top level of cf/wrangler.jsonc
+// (production) and on ("1") in staging, and the Devnet
 // beta (/sol/config.json and the other files of /sol) answers as before.
 {
   const served = [];
@@ -245,7 +246,7 @@ let session = null;
   const wrangler = JSON.parse(readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8")
     .replace(/^\s*\/\/.*$/gm, ""));
   assert.equal(wrangler.vars.SOL_MAINNET, "0", "mainnet is off at the top level");
-  assert.equal(wrangler.env.staging.vars.SOL_MAINNET, "0", "and in staging");
+  assert.equal(wrangler.env.staging.vars.SOL_MAINNET, "1", "and on in staging");
   assert.equal(JSON.stringify(wrangler).includes("api-key"), false, "no key in the config");
 
   // The config route is 404 for everything but the string "1", with or without the secret.
