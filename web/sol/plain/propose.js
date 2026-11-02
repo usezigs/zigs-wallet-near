@@ -71,7 +71,7 @@ function typedSend({ asset, recipient, amount }) {
 // The stored nonce value (hex) of a nonce account that the group controls, or null: the System
 // program owns it, it has 80 bytes, version 1, state initialised, and the group key is its
 // authority (plain_chain.rs parse_nonce). It only picks an account: the checker judges it again.
-function nonceValue(account, groupKey) {
+export function nonceValue(account, groupKey) {
   if (!account || account.owner !== SYSTEM_PROGRAM) return null;
   const data = base64Bytes(account.data);
   if (data?.length !== NONCE_LEN) return null;

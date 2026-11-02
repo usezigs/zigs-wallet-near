@@ -274,8 +274,13 @@ browser holds that seat. Another device waits 30 s after it saw the session sign
 again. Else it simulates the bytes, sends the same bytes and waits for the result. Each call of the
 Worker has a time limit. Three refusals end the session with a text: a simulation that fails, a
 refusal of the node at the send (`sendTransaction: RPC error`, or the Worker refusing bytes that did
-not pass a simulation), or a group signature that is not valid. Before it writes the end, the
-sender reads the status once more: a transaction on the chain, or a status that cannot be read,
+not pass a simulation), or a group signature that is not valid. A refusal counts only while the
+nonce account of the message still holds the nonce value of the transaction (the sender reads it
+after the refusal, from the message and not from another field). A landing moves the nonce in the
+same moment, so a moved, missing or odd nonce account, or a refusal that names `BlockhashNotFound`
+or `AlreadyProcessed`, means that the transaction may be on the chain: the session waits and reads
+the status again, and only a status that finds the transaction ends it. Before it writes the end,
+the sender reads the status once more: a transaction on the chain, or a status that cannot be read,
 ends nothing. Every other error is no try: a hang, a 429 or a 5xx, a failed read or write, a send
 that fails in transport, a wait with no answer, and an answer with a word or a slot that the Worker
 never gives (it gives none, pending, confirmed, finalized and failed). The step waits 3 s, then twice

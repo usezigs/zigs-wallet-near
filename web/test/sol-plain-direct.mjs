@@ -537,7 +537,16 @@ step("a failed test run shows the text of the network and sends nothing");
   await sleep(150);
   assert.deepEqual(names(), ["simulate", "send", "confirm"], "a late click sends nothing again");
   assert.equal(world.sent.length, 2);
-  // A wait that fails after the send is not a failed send.
+  // The id stays: the next try of the kind reads its status first. The node shows the transaction.
+  assert.deepEqual([...c.unsure.keys()], ["createNonce"], "the id of an unknown result is kept");
+  const txId = base58(signatureOf(world.sent.at(-1)));
+  assert.equal(c.unsure.get("createNonce").txId, txId);
+  await start("create-nonce");
+  assert.deepEqual(names(), ["status"], "only the status is read, no second account is made");
+  assert.deepEqual([c.direct.step, c.direct.result?.status, c.direct.result?.txId],
+    ["done", "confirmed", txId], "the transaction that landed is shown");
+  assert.equal(c.unsure.size, 0, "and it is forgotten");
+  // A wait that fails after the send is not a failed send, and holds the next try back as well.
   await start("create-nonce");
   world.failing = "confirm";
   await click(mark(draw(), "confirm"));
@@ -545,6 +554,14 @@ step("a failed test run shows the text of the network and sends nothing");
   assert.equal(c.direct.step, "done");
   assert.equal(c.direct.result.status, "unknown", "the id is all that is known");
   assert.equal(world.sent.length, 3);
+  assert.equal(c.unsure.get("createNonce")?.txId, base58(signatureOf(world.sent.at(-1))));
+  world.status = NONE;
+  await start("create-nonce");
+  assert.deepEqual(names(), ["status"], "the status comes first");
+  assert.equal(c.direct.result.status, "maybe", "and the node does not show it yet");
+  world.status = null;
+  c.unsure.clear();
+  c.direct = null;
 }
 step("an unknown answer says not confirmed yet and sends nothing again");
 
@@ -1005,6 +1022,27 @@ step("Escape cancels, the buttons wait while a step reads or sends, USDC follows
   }
 }
 step("the live region stays and only its text changes");
+
+// ── A send that is still open when the wallet closes leaves no note in the next open ──
+{
+  const saved = LIMITS.call;
+  LIMITS.call = 300;
+  await start("create-nonce");
+  world.hold = { cmd: "send", wait: new Promise(() => {}) }; // the node never answers the send
+  const running = click(mark(draw(), "confirm"));
+  await waitFor("the send", () => calls.some((x) => x.cmd === "send"));
+  const opened = c.opened;
+  t.plainSol.close();
+  t.plainSol.open(gid, "groups/" + gid);
+  assert.notEqual(c.opened, opened, "control: the wallet opened again");
+  await running; // the call ends after LIMITS.call, in the new open
+  world.hold = null;
+  LIMITS.call = saved;
+  assert.equal(c.unsure.size, 0, "the note of the old open is not written into the new one");
+  await waitFor("the wallet again", () => COLLECTIONS.every((name) => c.loaded[name])
+    && agreement(c).state === "agree" && [1, 2, 3].every((i) => publishedFee(c, i)));
+}
+step("a note of one open is not written into the next open");
 
 // ── The wallet closes while a step reads: nothing is left behind ──
 {

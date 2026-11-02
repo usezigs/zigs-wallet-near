@@ -9,10 +9,11 @@
 //  - send: one device lands the transaction (the fee signature, then the group signature, after
 //    the message) and writes the sent mark. It reads the status first.
 // A session that cannot go on ends with a text, and the nonces of an ended session are dropped.
-// Only a definite refusal of the bytes counts as a failed try (three end the session), and not a
-// refusal soon after this tab sent the bytes: a status node may lag behind the node that
-// simulates. An error with no known result (a hang, a 429, a failed read or write) is no try: the
-// step waits and looks again.
+// Only a definite refusal of the bytes counts as a failed try (three end the session), and only
+// while the nonce account still holds the nonce value of the transaction: a landing moves the
+// nonce in the same moment, and a status node may lag behind. A session whose nonce moved ends
+// only when the status finds its transaction. An error with no known result (a hang, a 429, a
+// failed read or write) is no try: the step waits and looks again.
 // The nonce rules are in nonces.js. Nothing here reads or shows a nonce or a key share.
 import { agreement } from "../ceremony.js";
 import { base58 } from "../docs.js";
@@ -23,7 +24,8 @@ import { labelOf } from "../wallet.js";
 import { readChain } from "./chain.js";
 import { BAD_ANSWER, DONE, LIMITS, REFUSED, blockNow, stillOpen } from "./direct.js";
 import { toBase64 } from "./guard.js";
-import { bytesOfHex, join, plainPins } from "./intent.js";
+import { bytesOfHex, hexOfBytes, join, plainPins } from "./intent.js";
+import { nonceValue } from "./propose.js";
 import { canApprove, reviewText, stopText } from "./review.js";
 import { ENDED, SESSIONS, sameProposal, showable, titleOf, writePart } from "./sessions.js";
 
@@ -34,7 +36,22 @@ const SEND_TRIES = 3;
 const RETRY_MS = 3000;
 const BACKOFF_MAX_MS = 60_000;
 const STILL_THERE = /already.*processed|has already been/i;
+// What the network says of a nonce transaction whose nonce moved (a landing): the simulation names
+// the error and a refusal of the send gives its text (Agave: check_transactions and
+// check_status_cache).
+const MOVED = /BlockhashNotFound|Blockhash not found|AlreadyProcessed/i;
 const SIGNATURE = /^[0-9a-f]{128}$/;
+// The v1 message (wasm-sol/src/v1.rs): 0x81, the header (3), the config mask (4), the lifetime
+// (32), the instruction count, the address count, the addresses, the config values, the heads.
+const V1_PREFIX = 0x81;
+const KEY_BYTES = 32;
+const MASK_AT = 4;
+const LIFETIME_AT = 8;
+const COUNTS_AT = 40;
+const KEYS_AT = 42;
+const CONFIG_SIZES = [[0b11, 8], [0b100, 4], [0b1000, 4], [0b10000, 4]]; // [mask bit, bytes]
+const SYSTEM_KEY = "00".repeat(KEY_BYTES);
+const ADVANCE_NONCE = "04000000"; // the System instruction 4, as a u32
 const decimal = (v) => typeof v === "string" && /^[0-9]{1,20}$/.test(v);
 // The words of the Worker for a transaction: status gives this set, confirm gives DONE.
 const SEEN = new Set(["none", "pending", "confirmed", "finalized", "failed"]);
@@ -376,12 +393,12 @@ function sendSeat(c, ss) {
   return undefined;
 }
 
-function maybeSend(c, ss, ensure) {
+function maybeSend(c, ss, { ensure, group }) {
   const seat = sendSeat(c, ss);
   if (seat === undefined) return;
   launch(c, "send:" + ss.id, async () => {
     const worker = await ensure();
-    await sendSigned(c, ss, { seat, worker });
+    await sendSigned(c, ss, { seat, worker, group });
   });
 }
 
@@ -464,6 +481,7 @@ async function attemptSend(c, ss, { seat, worker }) {
 // The third refusal ends the session, unless the transaction may be on the chain: the status is
 // read once more, and a status that is not "none", or that cannot be read, writes no failure.
 async function countRefusal(c, ss, { e, was, worker }) {
+  opened(c, was);
   const tries = (c.tries.get(ss.id) ?? 0) + 1;
   c.tries.set(ss.id, tries);
   if (tries < SEND_TRIES) return;
@@ -471,14 +489,70 @@ async function countRefusal(c, ss, { e, was, worker }) {
   if (seen.status === "none") await failSession(c, ss, "Not sent: " + errorText(e), was);
 }
 
-// The bytes of this session may have gone out from this tab lately. A status node that lags still
-// says "none" and the nonce has moved on, so a refusal in that time is no proof of a failed send.
+// The nonce transaction of a session, from its message (the part of the transaction that both
+// signatures cover), never from another field of the document: the nonce account (base58) and
+// the nonce value (hex). It is the first instruction, System AdvanceNonceAccount, and the lifetime
+// field of the v1 message (wasm-sol/src/v1.rs). null for any other message. Exported for the test.
+export function nonceOf(ss) {
+  const m = bytesOfHex(ss.message);
+  const ix = m.length >= KEYS_AT && m[0] === V1_PREFIX ? firstIx(m) : null;
+  const ok = ix?.program === SYSTEM_KEY && ix.data === ADVANCE_NONCE;
+  return ok ? { account: base58(ix.account), value: ix.lifetime } : null;
+}
+
+// The first instruction of a v1 message `m`, or null when the bytes are too short for it.
+function firstIx(m) {
+  const [ixs, keys] = [m[COUNTS_AT], m[COUNTS_AT + 1]];
+  const config = CONFIG_SIZES.reduce((n, [bit, size]) => n + (m[MASK_AT] & bit ? size : 0), 0);
+  const heads = KEYS_AT + KEY_BYTES * keys + config;
+  const body = heads + 4 * ixs;
+  const [program, count, size] = [m[heads], m[heads + 1], m[heads + 2] + 256 * m[heads + 3]];
+  const whole = ixs > 0 && count > 0 && body + count + size <= m.length;
+  if (!whole || Math.max(program, m[body]) >= keys) return null;
+  const keyAt = (i) => hexOfBytes(m.subarray(KEYS_AT + KEY_BYTES * i).subarray(0, KEY_BYTES));
+  return {
+    program: keyAt(program),
+    account: keyAt(m[body]),
+    data: hexOfBytes(m.subarray(body + count, body + count + size)),
+    lifetime: hexOfBytes(m.subarray(LIFETIME_AT, COUNTS_AT)),
+  };
+}
+
+// True while the nonce account still holds the nonce value of the transaction, so that it has not
+// landed (a landing moves the nonce in the same moment). A moved, missing or odd account is false.
+// A read that fails throws.
+async function nonceKept(worker, ss, group) {
+  const point = nonceOf(ss);
+  if (!point) return false;
+  const { accounts } = await worker.call("accounts", { addresses: [point.account] });
+  if (!Array.isArray(accounts) || accounts.length !== 1) throw new Error(BAD_ANSWER);
+  return nonceValue(accounts[0], group) === point.value;
+}
+
+const changed = (ss) =>
+  new Unconfirmed(
+    `The nonce account of this payment changed, so transaction ${base58(ss.feeSig)} may have `
+    + "been sent. Zigs waits for the network to show the result.",
+  );
+
+// The bytes of this session may have gone out from this tab lately. A refusal in that time proves
+// nothing even when a node still shows the old nonce.
 const lately = (c, ss) => Date.now() - (c.went.get(ss.id) ?? -Infinity) < LIMITS.grace;
 
-// Only a refusal counts as a failed try, and not when the bytes may have gone out lately. Every
-// other error leaves the result unknown: the step waits (holdOff) and the next pass reads the
-// status first. A step that halts does neither.
-async function sendSigned(c, ss, { seat, worker }) {
+// The error to wait with, or null when the error is a failed try. Only a refusal can be one: it
+// must not name a moved nonce, must not come soon after a send, and the nonce account must still
+// hold the value of the transaction. A moved nonce is the sign of a landing, whatever the status
+// node says: the session waits for a status that finds the transaction.
+async function holdFor(c, ss, { e, worker, group }) {
+  if (!(e instanceof Refused)) return e;
+  if (MOVED.test(e.message)) return changed(ss);
+  if (lately(c, ss)) return e;
+  return (await nonceKept(worker, ss, group)) ? null : changed(ss);
+}
+
+// A failed try counts. Every other error leaves the result unknown: the step waits (holdOff) and
+// the next pass reads the status first. A step that halts does neither.
+async function sendSigned(c, ss, { seat, worker, group }) {
   const was = c.opened,
     how = { key: "send:" + ss.id, was };
   try {
@@ -486,9 +560,10 @@ async function sendSigned(c, ss, { seat, worker }) {
     c.fails.delete(how.key);
   } catch (e) {
     if (e instanceof Halt || c.opened !== was) throw e;
-    if (!(e instanceof Refused) || lately(c, ss)) await holdOff(c, e, how);
+    const hold = await holdFor(c, ss, { e, worker, group }).catch((f) => f);
+    if (hold) await holdOff(c, hold, how);
     else await countRefusal(c, ss, { e, was, worker }).catch((f) => holdOff(c, f, how));
-    throw e;
+    throw hold ?? e;
   }
 }
 
@@ -514,10 +589,10 @@ function stepSession(c, ss, { ensure, group }) {
   if (c.refused.has(ss.id)) return endAgain(c, ss);
   const ctx = contextOf(c, ss, group);
   if (!ctx) return;
-  if (ss.package === undefined) return maybePackage(c, ss, ctx);
+  if (ss.status === "collecting") return maybePackage(c, ss, ctx);
   signMine(c, ss, { ctx, ensure });
   if (!ss.signature) return maybeAggregate(c, ss);
-  maybeSend(c, ss, ensure);
+  maybeSend(c, ss, { ensure, group });
 }
 
 // One session that makes a step throw must not stop the others: its text is logged once.

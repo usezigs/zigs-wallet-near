@@ -271,11 +271,18 @@ export function sign(c, seat, { message, intent, pins, chain }) {
   }
 }
 
+// The id of a send with no known result stays: the next try of this kind reads its status first.
+// A wallet that closed and opened meanwhile (c.opened changed) gets no note.
+function remember(c, was, { state, txId }) {
+  if (c.opened === was) c.unsure.set(state.kind, { txId, seat: state.seat, at: Date.now() });
+}
+
 // Signs, simulates, sends the bytes that passed, and waits for the id. Returns the result.
 async function send(c, state, ensure) {
   const why = block(c);
   if (why) throw new Error(why);
   const { seat, run } = state;
+  const was = c.opened;
   const signature = sign(c, seat, run);
   const tx = toBase64(join(run.message, bytesOfHex(signature)));
   const worker = await ensure();
@@ -288,12 +295,12 @@ async function send(c, state, ensure) {
     await worker.call("send", { tx });
   } catch (e) {
     if (REFUSED.test(textOf(e))) throw e;
-    // The node may have the bytes. The id stays, and the next try of this kind reads its status.
-    c.unsure.set(state.kind, { txId, seat, at: Date.now() });
+    remember(c, was, { state, txId }); // the node may have the bytes
     return { status: "maybe", slot: "", txId };
   }
   // The bytes are sent now. A wait that fails is not a failed send: the id is all that is known.
   const seen = await worker.call("confirm", { signature: txId }).catch(() => UNSEEN);
+  if (seen.status === UNSEEN.status) remember(c, was, { state, txId });
   return { status: seen.status, slot: seen.slot, txId };
 }
 
