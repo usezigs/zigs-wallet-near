@@ -47,6 +47,7 @@ const METHODS: &[(&str, Method)] = &[
     ("walletCreate", |a| wallet_create(s(a, 0)?, s(a, 1)?)),
     ("walletVerify", |a| wallet_verify(s(a, 0)?, s(a, 1)?)),
     ("normalizeAddress", |a| normalize_address(s(a, 0)?)),
+    ("payeeAddress", |a| payee_address(s(a, 0)?)),
     ("skCommit", |a| ceremony::sk_commit(s(a, 0)?, n(a, 1)?, s(a, 2)?, s(a, 3)?)),
     ("dkgEcho", |a| ceremony::dkg_echo(s(a, 0)?, s(a, 1)?)),
     ("vaultSk", |a| ceremony::vault_sk(s(a, 0)?, s(a, 1)?, s(a, 2)?)),
@@ -176,6 +177,16 @@ mod tests {
         assert!(ffi("noSuchMethod", json!([]))["err"].as_str().unwrap().contains("unknown"));
         assert!(ffi("dkgPart1", json!(["1", 2, 2]))["err"].is_string());
         assert!(ffi("dkgPart1", json!([1, 2, 2]))["ok"].is_string());
+    }
+
+    /// The iPhone and Mac apps pair a transparent payee with `payeeAddress`, as the web app does.
+    #[test]
+    fn payee_address_is_in_the_table() {
+        let t1 = "t1Hsc1LR8yKnbbe3twRp88p6vFfC5t7DLbs";
+        assert_eq!(ffi("payeeAddress", json!([t1]))["ok"], t1);
+        assert!(error_of("normalizeAddress", json!([t1])).contains("not a unified address"));
+        assert!(error_of("payeeAddress", json!(["tex1s2rt77ggv6q989lr49rkgzmh5slsksa9khdgte"]))
+            .contains("ZIP 320"));
     }
 
     #[test]

@@ -135,7 +135,7 @@ struct RecipientCheck {
             paid.map { $0.count == 1 && model.normalized(a) == $0[0].who }
         }
         self.init(payees: ss.doc["payees"] as? [Doc] ?? [], paid: paid,
-                  total: wholeZat(ss.doc["amount"]), norm: model.normalized, intoNew: into)
+                  total: wholeZat(ss.doc["amount"]), norm: model.payeeNormalized, intoNew: into)
     }
 
     /// The outputs of `inspect` that pay someone other than this wallet.
