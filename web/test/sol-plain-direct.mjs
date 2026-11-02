@@ -111,9 +111,11 @@ globalThis.Worker = class {
   }
   terminate() {}
 };
-// The calls of the step, without the reads of the balances (one account list of one address).
-const steps = () => calls.filter((x) => x.cmd !== "balance"
-  && !(x.cmd === "accounts" && x.args.addresses.length === 1));
+// The calls of the step, without the reads of the balances: the balances, the account list of one
+// address, and the list of the nonce accounts, which the read makes right after its balance calls.
+const steps = () => calls.filter((x, i) => x.cmd !== "balance"
+  && !(x.cmd === "accounts" && x.args.addresses.length === 1)
+  && !(x.cmd === "accounts" && calls[i - 1]?.cmd === "balance"));
 const names = () => steps().map((x) => x.cmd);
 
 // ── The page text, with a recorder in place of the document ──
@@ -235,14 +237,18 @@ const rowsOf = (tree) => {
   const cells = list.kids.map(text);
   return Array.from({ length: cells.length / 2 }, (_, i) => [cells[2 * i], cells[2 * i + 1]]);
 };
-// The checker writes fee and rent in lamports; the tab adds the SOL form after them.
-const checkerRows = (run) => W.plain_check_message(run.message, run.intent, run.pins, run.chain)
-  .split("\n").slice(1).map((line) => {
-    const at = line.indexOf(" ");
-    const [name, value] = [line.slice(0, at), line.slice(at + 1)];
-    return [LABEL_OF[name], /^(fee|rent)$/.test(name) ? `${value} (${Number(value) / 1e9} SOL)`
-      : value];
-  });
+// The checker writes fee and rent in lamports; the tab adds the SOL form after them, the Action in
+// words, and a row for the cost (fee plus rent, in SOL) after the rent.
+const ACTION_OF = { "create-nonce": "Create nonce account", "enable-token": "Enable USDC" };
+const checkerRows = (run) => {
+  const lines = W.plain_check_message(run.message, run.intent, run.pins, run.chain)
+    .split("\n").slice(1).map((line) => [line.slice(0, line.indexOf(" ")),
+      line.slice(line.indexOf(" ") + 1)]);
+  const value = (name) => lines.find(([n]) => n === name)[1];
+  return lines.flatMap(([name, text]) => [[LABEL_OF[name], /^(fee|rent)$/.test(name)
+    ? `${text} (${Number(text) / 1e9} SOL)` : ACTION_OF[text] ?? text],
+  ...(name === "rent" ? [["Cost (fee + rent)", `${(+value("fee") + +text) / 1e9} SOL`]] : [])]);
+};
 // A node of the step that is a live region. The page says the step through host.announce.
 const silent = (tree) => all(mark(tree, "send-setup") ?? tree,
   (n) => /^(status|alert)$/.test(n.attrs?.role ?? "")).length;
@@ -303,10 +309,13 @@ let first;
   assert.deepEqual(said, ["Reading the chain…"], "the review says nothing: the focus goes to it");
   assert.equal(silent(tab2), 0, "no node of the step is a live region: the redraw would repeat it");
   assert.deepEqual(rowsOf(tab2).map(([label]) => label),
-    ["Action", "Network", "Fee lamports", "Rent lamports", "Fee payer", "Wallet"]);
+    ["Action", "Network", "Fee lamports", "Rent lamports", "Cost (fee + rent)", "Fee payer",
+      "Wallet"]);
   assert.equal(rowsOf(tab2).find(([label]) => label === "Fee payer")[1], base58(fee(1)),
     "the fee payer is the fee address of device 1");
   assert.match(text(mark(tab2, "direct-signs")), /^Device 1 signs and pays\.$/);
+  assert.equal(rowsOf(tab2).find(([label]) => label === "Action")[1], "Create nonce account",
+    "the Action is in words");
   const order = all(screen, (n) => ["h4", "dl", "button"].includes(n.tag)).map((n) => n.tag);
   assert.deepEqual(order, ["h4", "dl", "button", "button"], "the rows come before the buttons");
   assert.deepEqual(all(screen, (n) => n.tag === "button").map(text), ["Confirm", "Cancel"]);
@@ -415,6 +424,16 @@ step("Cancel gives the focus back, a blockhash is read for each action, and the 
   const screen = mark(tab, "direct-stopped");
   assert.ok(screen, "the screen shows the refusal");
   sound(tab);
+  assert.equal(text(mark(tab, "direct-refused")), "The checker refused this.", "one line first");
+  const why = mark(tab, "direct-why");
+  assert.deepEqual([why.tag, why.attrs.open], ["details", undefined],
+    "the rules are in a closed details element");
+  assert.ok(all(why, (n) => n.attrs?.["data-sol"] === "rule-plain-nonce-account").length === 1,
+    "and the details element holds them");
+  assert.match(text(why.kids[0]), /^Reasons \(\d+\)$/);
+  const parts = all(screen, (n) => ["direct-refused", "direct-why", "direct-nothing"]
+    .includes(n.attrs?.["data-sol"])).map((n) => n.attrs["data-sol"]);
+  assert.deepEqual(parts, ["direct-refused", "direct-why", "direct-nothing"], "in this order");
   const rule = mark(tab, "rule-plain-nonce-account");
   assert.ok(rule, "one row for the rule");
   assert.equal(text(rule.kids[0]), W.plain_rule_list().split("\n")
@@ -562,7 +581,8 @@ step("the secret of the fee key is in no call, log, banner, state or tree");
   assert.equal(text(mark(tree, "direct-title")), "Enable USDC");
   assert.deepEqual(rowsOf(tree), checkerRows(c.direct.run));
   assert.deepEqual(rowsOf(tree).map(([label]) => label),
-    ["Action", "Network", "Mint", "Fee lamports", "Rent lamports", "Fee payer", "Wallet"]);
+    ["Action", "Network", "Mint", "Fee lamports", "Rent lamports", "Cost (fee + rent)",
+      "Fee payer", "Wallet"]);
   assert.equal(rowsOf(tree).find(([label]) => label === "Rent lamports")[1],
     `${RENTS[2]} (${Number(RENTS[2]) / 1e9} SOL)`, "the rent of a token account is shown, in SOL");
   assert.ok(rowsOf(tree).find(([label]) => label === "Mint")[1].startsWith("EPjFWdd5"));
@@ -576,9 +596,14 @@ step("the secret of the fee key is in no call, log, banner, state or tree");
   const signature = signatureOf(simulate.args.tx);
   assert.ok(W.sol_fee_verify(fee(1), c.direct.run.message, signature));
   assert.equal(c.direct.step, "done");
+  assert.deepEqual(t.wantFocus, { key: "sol-direct-enableUsdc", force: true });
   assert.ok(text(mark(draw(), "direct-result")).startsWith("Enable USDC: Confirmed, device 1. "));
   await settle();
-  assert.ok(mark(draw(), "enable-usdc"), "the send result does not turn Enable USDC off");
+  const done = draw();
+  assert.equal(mark(done, "enable-usdc"), undefined, "a confirmed Enable USDC leaves its button");
+  assert.equal(mark(done, "direct-explorer").attrs["data-key"], "sol-direct-enableUsdc",
+    "so the focus key is on the link of the result, which stays");
+  assert.ok(mark(done, "create-nonce"), "Create nonce stays");
   world.accounts.set(ata, account("2039280", TOKEN_PROGRAM, tokenData()));
   await read();
   assert.equal(c.balances.usdc, 0n);

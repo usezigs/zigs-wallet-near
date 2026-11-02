@@ -492,6 +492,10 @@ assert.doesNotMatch(html, /Beta:|>Beta<|Not audited\./,
 assert.match(html, /A private Solana payment hides its amount, but its payee is public\./,
   "the description says that a private Solana payment hides its amount");
 assert.equal(html.match(/hides its amount/g)?.length, 1, "and no other line makes the claim");
+assert.match(html, /A mainnet wallet can also send SOL and USDC from a plain Solana account, which is public/,
+  "the description says that a mainnet wallet sends SOL and USDC, in public");
+assert.doesNotMatch(html, /plain Solana account[^.]*(private|hides|shielded)/,
+  "and makes no claim of privacy for it");
 assert.doesNotMatch(html, /A Solana payment hides/, "a Solana deposit shows its amount");
 console.log("ok  the page texts name Zcash and Solana Devnet");
 console.log("mainnet-on: ok");

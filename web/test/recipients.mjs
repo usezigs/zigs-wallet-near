@@ -24,11 +24,23 @@ for (const value of [
   { ...zec, network: "mainnet" }, { ...zec, type: "public" }, { ...zec, asset: "USDC" },
   { ...sol, address: pub.address }, { ...pub, address: sol.address },
   { ...sol, network: "mainnet" }, { ...zec, name: "bad\nlabel" },
-  // The reader knows the public mainnet kinds; the writer offers none of them yet.
-  { ...pub, network: "mainnet" }, { ...pub, asset: "USDC", network: "mainnet" },
+  // USDC has no Devnet or Testnet kind, and no kind but the public one.
+  { ...pub, asset: "USDC" }, { ...pub, asset: "USDC", network: "testnet" },
+  { ...pub, asset: "USDC", type: "shielded", network: "mainnet" },
+  { ...pub, network: "mainnet", address: sol.address },
 ]) assert.throws(() => checkedRecipient(value, normalize), /Enter|Choose/);
 assert.deepEqual(checkedRecipient(sol, normalize), sol);
 assert.deepEqual(checkedRecipient(pub, normalize), pub);
+// SOL and USDC on mainnet: the public Solana address that a plain wallet sends to.
+for (const asset of ["SOL", "USDC"]) {
+  const plain = { ...pub, name: asset + " plain", asset, network: "mainnet" };
+  assert.deepEqual(checkedRecipient(plain, normalize), plain, asset + " on mainnet is written");
+  assert.deepEqual(checkedRecipient({ ...plain, name: " " + plain.name + " " }, normalize), plain);
+  assert.throws(() => checkedRecipient({ ...plain, address: "1".repeat(31) }, normalize),
+    /Enter a Solana address\./, asset + " mainnet: a bad address is refused");
+}
+assert.throws(() => checkedRecipient({ ...pub, address: "1".repeat(31) }, normalize),
+  /Enter a public Solana address for withdrawals\./, "the Devnet text stays");
 for (const text of ["", "0".repeat(32), "1".repeat(31), "1".repeat(32), "1".repeat(33),
   ...Array.from({ length: 100 }, (_, i) => base58(i.toString(16).padStart(64, "0"))),
   ...Array.from({ length: 50 }, () => base58(Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("hex")))]) {

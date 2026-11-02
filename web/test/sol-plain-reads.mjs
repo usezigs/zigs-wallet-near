@@ -383,9 +383,13 @@ reset();
   assert.ok(balances.every((a) => Object.keys(a).join() === "address"), "balance holds an address");
   assert.deepEqual(balances.map((a) => a.address).sort(), [groupAddress, ...feeAddresses].sort(),
     "the group and the three published fee addresses");
-  assert.deepEqual(sent.filter((m) => m.cmd === "accounts").map((m) => m.args),
-    [{ addresses: [ata] }], "the USDC account that the wasm names");
-  assert.equal(sent.length, 1 + 1 + 1 + 3, "init, group, USDC account and three fee addresses");
+  const accounts = sent.filter((m) => m.cmd === "accounts").map((m) => m.args);
+  assert.deepEqual(accounts[0], { addresses: [ata] }, "the USDC account that the wasm names");
+  assert.equal(accounts.length, 2, "and one read of the nonce accounts of the paying device");
+  assert.equal(new Set(accounts[1].addresses).size, 100, "the first 100 addresses, all different");
+  assert.equal(sent.length, 1 + 1 + 1 + 1 + 3,
+    "init, group, USDC account, nonce accounts and three fee addresses");
+  assert.deepEqual(c.balances.nonces, { seat: 1, have: 0, ks: [] }, "no nonce account on chain");
   const b = c.balances;
   assert.equal(text(b.sol, DECIMALS.sol), "1.5", "the SOL of the group");
   assert.equal(text(b.usdc, DECIMALS.usdc), "12.345678", "the USDC of the group");

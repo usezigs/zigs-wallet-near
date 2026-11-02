@@ -36,6 +36,8 @@ assert.match(servers, /by timing\. On mainnet, the Solana part is a plain accoun
   "the servers answer names the plain part after the Devnet sentences");
 assert.match(servers, /Helius sees your IP address and the address of this wallet, and the expl/,
   "the servers answer names the explorer");
+assert.match(servers, /When you send, Helius also sees the signed transaction\.$/,
+  "and that Helius sees a send");
 const networks = HELP.find(([question]) => /networks/.test(question))[1];
 assert.ok(networks.startsWith("Zigs uses Zcash testnet or mainnet, and Solana Devnet. "
   + "Testnet and Devnet use test coins. Mainnet uses real ZEC: it is a beta, it is not audited, "
@@ -44,7 +46,12 @@ assert.match(networks, /a mainnet wallet also has a Solana part\. It is a plain 
   "the networks answer names the plain part");
 assert.match(networks, /real SOL and USDC, with no privacy and no hosted prover\./,
   "the networks answer says what the plain part lacks");
-assert.match(networks, /Sending comes later\./, "and that it cannot send yet");
+assert.doesNotMatch(networks, /comes later|cannot send|not available yet/,
+  "no claim that it cannot send");
+assert.match(networks, /no hosted prover\. A send needs the same approvals as a Zcash payment\./,
+  "the networks answer says that a send needs approvals");
+assert.match(networks, /Every device of the group sees its recipient and amount\./,
+  "and who sees the recipient and the amount");
 const backup = HELP.find(([question]) => /backup file/.test(question))[1];
 assert.match(backup, /download folder\. Zigs does not know where/, "the place is not known");
 assert.match(backup, /two files and two passphrases/, "a Solana part is a second file");
