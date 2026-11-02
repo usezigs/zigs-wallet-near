@@ -171,15 +171,18 @@ function react(c) {
 
 const settled = (c) => COLLECTIONS.every((name) => c.loaded[name]);
 // Null until the documents of the wallet arrived. A start that still waits for its signature check
-// is not "not started" yet.
+// is not "not started" yet. Both reads refresh first: the page holds the reactor while signing is
+// not ready, so c.docs and c.wait may be older than the stored documents.
 const setupOf = (c) => {
   if (!settled(c)) return null;
+  refresh(c);
   const setup = plainSetup(c);
   return setup.status === "not started" && c.wait > 0 ? null : setup;
 };
 // Does the Solana part count seat i (its soldone document)? Null while that is not known.
 const madeOf = (c, i) => {
   if (!settled(c)) return null;
+  refresh(c);
   return c.docs.soldone[i] ? true : c.wait > 0 ? null : false;
 };
 

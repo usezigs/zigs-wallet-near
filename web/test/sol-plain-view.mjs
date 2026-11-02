@@ -194,15 +194,23 @@ assert.equal(t.solStays(), "", "a wallet without a start document names no Solan
   await waitFor("the plain controller", () => t.plainSol?.ctl.gid === gid
     && COLLECTIONS.every((name) => t.plainSol.ctl.loaded[name]));
   const c = t.plainSol.ctl;
-  for (const [what, change] of [["before the documents arrived", { loaded: {} }],
-    ["while a start document waits for its signature check", { wait: 1 }]]) {
-    const kept = Object.fromEntries(Object.keys(change).map((k) => [k, c[k]]));
-    Object.assign(c, change);
-    const early = draw("solana");
-    Object.assign(c, kept);
+  const waits = (what, early) => {
     assert.match(text(early), /Loading Solana…/, "the tab waits " + what);
     assert.equal(mark(early, "add"), undefined, "and has no Add Solana button " + what);
-  }
+  };
+  const { loaded, raw, host } = c;
+  c.loaded = {};
+  const before = draw("solana");
+  c.loaded = loaded;
+  waits("before the documents arrived", before);
+  // The page holds the reactor while the checks of signatures wait: the controller kept the
+  // documents of its last pass, which had no start document. The start document is stored, and
+  // its check waits.
+  c.raw = { ...raw, solstart: { 1: { by: 1, sig: "x", cluster: "mainnet-plain" } } };
+  c.host = { ...host, checkIn: () => () => "wait" };
+  const held = draw("solana");
+  Object.assign(c, { raw, host });
+  waits("while a start document waits for its signature check", held);
   const tab = draw("solana");
   assert.equal(text(mark(tab, "status")), "not started");
   assert.equal(text(mark(tab, "facts")), FACTS, "the start card shows the facts");
@@ -245,7 +253,8 @@ step("a served wallet gets the Solana section, and only device 1 gets the start 
   assert.equal(mark(differs, "address"), undefined, "no address when the keys differ");
   const stop = "Solana setup stopped: a seat left. Do not use the Solana part of this wallet.";
   const host = { ...c.host, sec: () => ({ sol: { aborted: stop } }) };
-  const stopped = same({ host });
+  const read = { ...c.balances, at: 1, sol: 1_500_000_000n, usdc: 12_345_678n };
+  const stopped = same({ host, balances: read });
   assert.equal(text(mark(stopped, "status")), "stopped");
   assert.match(text(mark(stopped, "stopped")), /left.*create a new wallet/);
   assert.equal(mark(stopped, "stopped").attrs.role, "alert", "the stop text is an alert");
@@ -253,7 +262,8 @@ step("a served wallet gets the Solana section, and only device 1 gets the start 
   assert.ok(mark(stopped, "address"),
     "a part that stopped after the seats agreed still shows the address of the funds");
   assert.equal(text(mark(stopped, "address")), base58(agreement(c).done.groupKey));
-  assert.ok(mark(stopped, "balance-sol") && mark(stopped, "balance-usdc"), "and their balances");
+  assert.equal(text(mark(stopped, "balance-sol")), "1.5 SOL", "and the balances that were read");
+  assert.equal(text(mark(stopped, "balance-usdc")), "12.345678 USDC");
   assert.equal(text(mark(stopped, "funds-stay")), FUNDS_STAY);
   const own = bodyWords(stopped) - wordsIn(stop);
   assert.ok(own <= BUDGET.stopped,
@@ -261,6 +271,13 @@ step("a served wallet gets the Solana section, and only device 1 gets the start 
   assert.equal(mark(stopped, "copy-address"), undefined, "with no Copy");
   assert.equal(mark(stopped, "explorer"), undefined, "and no link");
   assert.equal(mark(stopped, "backup-1"), undefined, "and no backup");
+  const early = same({ host, docs: { ...c.docs, soldone: { 1: c.docs.soldone[1] } } });
+  assert.equal(text(mark(early, "status")), "stopped", "a stop before the seats agreed");
+  assert.match(text(mark(early, "stopped")), /left.*create a new wallet/);
+  for (const name of ["address", "funds-stay", "balance-sol"]) {
+    assert.equal(mark(early, name), undefined, "has no " + name);
+  }
+  assert.ok(mark(early, "new-wallet"), "and keeps the button of the new wallet");
   const keysDiffer = { ...c.docs, soldone: { ...c.docs.soldone, 2: forged } };
   const stoppedAndDiffer = same({ host, docs: keysDiffer });
   assert.equal(text(mark(stoppedAndDiffer, "status")), "stopped");
@@ -271,6 +288,14 @@ step("a served wallet gets the Solana section, and only device 1 gets the start 
   assert.match(text(forgedFee), /fee document of device 2 does not show the key/);
   assert.equal(mark(forgedFee, "fee-address-2"), undefined, "a wrong fee key is no address");
   assert.ok(mark(forgedFee, "fee-address-1"), "the other fee addresses show");
+  const alerts = (tree) => all(tree, (n) => n.attrs?.role === "alert");
+  assert.equal(alerts(forgedFee).length, 1, "the wrong fee key has an alert");
+  assert.equal(all(forgedFee, (n) => n.tag === "details").flatMap(alerts).length, 0,
+    "and it is not inside the closed fee details");
+  const liar = (i) => [i, { ...c.docs.solfee[i], key: "11".repeat(32) }];
+  const noFee = same({ docs: { ...c.docs, solfee: Object.fromEntries([1, 2, 3].map(liar)) } });
+  assert.equal(alerts(noFee).length, 3, "every wrong fee key has its alert");
+  assert.equal(one(noFee, (n) => n.tag === "details"), undefined, "when all are wrong, no details");
   const away = same({ host: { ...c.host, netConfirmed: () => "testnet" } });
   assert.equal(text(mark(away, "status")), "unavailable");
 }
@@ -454,6 +479,18 @@ step("a bad USDC account and a failed update stay on their own rows");
   t.setChain(null);
   assert.equal(t.solFile(1)?.saved, false, "solFile reads a plain seat");
   assert.ok(t.solStays().includes(STAYS), "Change devices warns");
+  {
+    // The reactor is held: the controller kept documents of an older pass, with no Solana part.
+    const kept = c.docs;
+    c.docs = Object.fromEntries(COLLECTIONS.map((name) => [name, {}]));
+    try {
+      assert.equal(t.plainSol.made(1), true, "made reads the stored documents");
+      assert.ok(t.solStays().includes(STAYS), "also when the documents of the pass are old");
+      assert.equal(text(mark(draw("solana"), "status")), "ready", "and so does the tab");
+    } finally {
+      c.docs = kept;
+    }
+  }
   const move = () => text(built(() => t.sendDialog()));
   const { g } = t.state;
   const movedTo = g.movedTo;

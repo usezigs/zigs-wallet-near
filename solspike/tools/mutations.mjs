@@ -183,6 +183,8 @@ const OVERVIEW_TEST = ["node", "web/test/overview.mjs"];
 const PLAIN_VIEW = "web/sol/plain/view.js";
 const WALLET_JS = "web/app-wallet.js";
 const MODEL_JS = "web/overview-model.js";
+const FEE_ALERT = 'el("p", { class: "small bad", role: "alert" }, mismatchText(i))';
+const FEE_DETAILS = 'el("details", {}, el("summary", {}, "Fee addresses"),';
 const viewMutant = (id, what, [file, from, to], detect, run = SOL_PLAIN_VIEW) =>
   mutant(id, what, run, [patch(file, from, to)], { detect, ms: 240000 });
 const POOL_AND_REGISTRY =
@@ -1172,6 +1174,19 @@ export const MUTATIONS = [
   viewMutant("PL-fee-mismatch", "a fee key that the key share does not give shows as an address",
     [PLAIN_VIEW, "const bad = seats.filter((i) => feeMismatch(c, i));", "const bad = [];"],
     /fee document of device 2/),
+  viewMutant("PL-fee-alert-in-details", "the alert of a wrong fee key is inside the closed details",
+    [PLAIN_VIEW, `...bad.map((i) => ${FEE_ALERT}),\n    good.length ? ${FEE_DETAILS}`,
+      `good.length ? ${FEE_DETAILS} ...bad.map((i) => ${FEE_ALERT}),`],
+    /not inside the closed fee details/),
+  viewMutant("PL-stopped-wait", "a stop before the seats agreed reads a group key that is absent",
+    [PLAIN_VIEW, 'ag.state === "agree" ? heldFunds', 'ag.state !== "differ" ? heldFunds'],
+    /reading 'groupKey'/),
+  viewMutant("PL-setup-refresh", "the setup of the controller reads the documents of an old pass",
+    [PLAIN_CONTROL, "  refresh(c);\n  const setup =", "  const setup ="],
+    /the tab waits while a start document waits/),
+  viewMutant("PL-made-refresh", "the seat read of the controller uses the documents of an old pass",
+    [PLAIN_CONTROL, "  refresh(c);\n  return c.docs.soldone", "  return c.docs.soldone"],
+    /made reads the stored documents/),
   viewMutant("PL-sol-hides", "a USDC error replaces the SOL row",
     [PLAIN_VIEW, 'const bad = asset === "usdc" ? r.usdcError : "";', "const bad = r.usdcError;"],
     /a bad USDC account leaves the SOL row alone/),
