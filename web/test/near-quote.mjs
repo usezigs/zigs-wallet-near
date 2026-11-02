@@ -818,15 +818,16 @@ const status = async (label, address = DEPOSIT, e = LIVE, init = {}) => {
   // the two deadlines, and `plain` says that the request has the form that the Worker sends. A
   // field of another form stays behind.
   const quoted = (ask, quote = {}) => () => Response.json({ status: "PENDING_DEPOSIT",
-    quoteResponse: { quote: { depositAddress: T1, amountIn: "200000", deadline: hours(6),
-      ...quote }, quoteRequest: { dry: false, swapType: "EXACT_INPUT", slippageTolerance: 100,
-      originAsset: ID.zec, depositType: "ORIGIN_CHAIN", destinationAsset: ID.sol,
+    quoteResponse: { quote: { depositAddress: T1, amountIn: "200000", amountOut: "133000",
+      deadline: hours(6), ...quote }, quoteRequest: { dry: false, swapType: "EXACT_INPUT",
+      slippageTolerance: 100, originAsset: ID.zec, depositType: "ORIGIN_CHAIN",
+      destinationAsset: ID.sol,
       refundType: "ORIGIN_CHAIN", recipientType: "DESTINATION_CHAIN", recipient: REFUND,
       refundTo: T3, deadline: hours(5), ...ask } } });
   reply = quoted({});
   assert.deepEqual((await json(await status("the swap of a deposit", T1))).swap, { from: "zec",
-    to: "sol", recipient: REFUND, refundTo: T3, amountIn: "200000", deadline: hours(5),
-    plain: true });
+    to: "sol", recipient: REFUND, refundTo: T3, amountIn: "200000", amountOut: "133000",
+    deadline: hours(5), plain: true });
   for (const [what, ask, plain] of [["no app fee", { appFees: [] }, true],
     ["an app fee", { appFees: [{ recipient: "x.near", fee: 9000 }] }, false],
     ["a slippage of 99 %", { slippageTolerance: 9900 }, false],
@@ -838,7 +839,7 @@ const status = async (label, address = DEPOSIT, e = LIVE, init = {}) => {
     assert.equal((await json(await status(what, T1))).swap.plain, plain, what);
   }
   reply = quoted({ originAsset: "nep141:other.near", recipient: "<b>", refundTo: 7,
-    deadline: "soon" }, { amountIn: "1.5" });
+    deadline: "soon" }, { amountIn: "1.5", amountOut: "lots" });
   assert.deepEqual((await json(await status("odd swap fields", T1))).swap, { to: "sol",
     plain: true },
     "only the sound fields; a deadline that cannot be read gives no time to pay before");

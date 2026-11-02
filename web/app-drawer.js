@@ -27,7 +27,7 @@ import { outcomePanel } from "./outcome-seal.js";
 import { privacyNotice, ZEC_EXPOSURE } from "./privacy-language.js";
 import { icon } from "./app-icons.js";
 import { solStays } from "./app-wallet.js";
-import { swapDeadline } from "./app-swap-zec.js";
+import { swapDeadline, swapReview } from "./app-swap-zec.js";
 import { zecApprovalMotionValue } from "./app-motion.js";
 import { ApprovalVisualization } from "./app-approval-visualization.js";
 import { walletAvatarFor } from "./app-wallet-identity.js";
@@ -451,6 +451,13 @@ function transparentNote(ins, ss) {
   return el("p", { class: "small", "data-review": "transparent" },
     swapDeadline(ss.note) === null ? NOT_CHECKED : SWAP_CHECKED);
 }
+// What a swap payment is for: the deposit, the ZEC amount, and the SOL and the Solana address of
+// the quote.
+function swapBlock(ss) {
+  const lines = swapReview(ss);
+  return lines && el("div", { class: "small", "data-review": "swap" },
+    ...lines.map((line) => el("p", {}, line)));
+}
 
 function breakdown(ins, ss) {
   const t = decodedTotals(ins);
@@ -471,7 +478,7 @@ function breakdown(ins, ss) {
       ins.lines.filter(own).map((l) => row("Change back to this wallet", l.value, "neg"))),
     el("p", { class: "small faint" }, "Your browser decoded this from the transaction itself, "
       + "not from the proposer's description."),
-    transparentNote(ins, ss),
+    transparentNote(ins, ss), swapBlock(ss),
     ss.broadcastTxid ? null : el("p", { class: "small faint" }, ON_CHAIN_PUBLIC));
 }
 

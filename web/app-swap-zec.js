@@ -10,10 +10,11 @@ import { netName } from "./app-chain.js";
 import { render } from "./app-loop.js";
 import { openSend } from "./app-send.js";
 import { plainLoad, plainSol } from "./app-sol.js";
-import { said } from "./app-kit.js";
+import { fmtZec, said } from "./app-kit.js";
 import { log, state, ui } from "./app-state.js";
 import { groupTaddress } from "./app-taddress.js";
 import { payeeRows } from "./requests.js";
+import { SWAP_ASSETS, swapDecimal } from "./swap-preview-model.js";
 
 /** No device approves or sends a swap payment in this time before the deadline of its deposit. */
 export const SWAP_MARGIN_MS = 30 * 60_000;
@@ -183,6 +184,40 @@ export async function checkSwap(ss, provider = new NearIntentsSwapProvider(), ow
   }
   const why = await swapRefusal(ss, payBy, provider, own);
   if (why) throw new Error(why + " This browser did not approve.");
+}
+
+// The swap of the deposit address of each swap payment, read once for its review: null while the
+// read runs. The approval reads it again.
+const reviews = new Map();
+const SOL = SWAP_ASSETS.find((a) => a.key === "sol");
+
+function quoteLine(s, own) {
+  if (s === null) return "Reading the quote of NEAR Intents…";
+  if (s.to !== "sol" || !s.recipient || !/^\d+$/.test(s.amountOut ?? "")) {
+    return "NEAR Intents did not give a quote to SOL for this deposit address.";
+  }
+  const whose = own == null ? "" : s.recipient === own ? ", the Solana address of this wallet"
+    : ". That is not the Solana address of this wallet";
+  return "The quote of NEAR Intents pays about " + swapDecimal(s.amountOut, SOL)
+    + " SOL to the Solana address " + s.recipient + whose + ".";
+}
+
+/**
+ * The sentences of the review of the swap payment `ss`: what it pays to the deposit address, and
+ * what the quote of NEAR Intents for that address pays to which Solana address. Null for another
+ * payment. The first call starts the read, and the page draws again when it ends. `own` is the
+ * Solana address of this wallet; the tests give it.
+ */
+export function swapReview(ss, provider = new NearIntentsSwapProvider(), own = plainSolAddress()) {
+  const p = swapDeadline(ss.note) === null ? null : payeeOf(ss);
+  if (!p) return null;
+  if (!reviews.has(p.to)) {
+    reviews.set(p.to, null);
+    provider.swapStatus(p.to).then((st) => reviews.set(p.to, st?.swap ?? {}),
+      () => reviews.set(p.to, {})).finally(() => render());
+  }
+  return ["This payment pays " + fmtZec(p.amount) + " to the deposit address " + p.to
+    + " of NEAR Intents.", quoteLine(reviews.get(p.to), own)];
 }
 
 /** The reason not to send a swap payment: its deposit closes in less than 30 minutes. */

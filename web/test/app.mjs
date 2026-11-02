@@ -3023,6 +3023,12 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
           (x) => x.attrs?.["data-review"] === "transparent")[0] ?? { children: [] });
         assert.equal(tNote("ZEC to SOL swap through NEAR Intents"), NOT_CHECKED);
         assert.equal(tNote(swapNote("2030-01-01T00:00:00.000Z")), SWAP_CHECKED);
+        const deposit = { ...open("ht1", "PT"), note: swapNote("2030-01-02T00:00:00.000Z"),
+          payees: [{ to: "t1Hsc1LR8yKnbbe3twRp88p6vFfC5t7DLbs", amount: 200000 }] };
+        const swapText = textOf(all(t.sessionLayer(deposit),
+          (x) => x.attrs?.["data-review"] === "swap")[0] ?? { children: [] });
+        assert.match(swapText, /^This payment pays 0\.002 ZEC to the deposit address t1Hsc1LR8/,
+          "the review of a swap names the deposit, the amount and the quote");
         assert.equal(all(t.sessionLayer(open("hd2", "PA")),
           (x) => x.attrs?.["data-review"] === "transparent").length, 0, "no transparent payee");
         assert.match(oldOne.head, /^Payment expiredNo device can send it now\./,

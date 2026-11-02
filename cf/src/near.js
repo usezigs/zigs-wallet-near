@@ -348,6 +348,7 @@ function nearStatusSwap(response) {
     from: nearKeyOf(ask.originAsset), to: nearKeyOf(ask.destinationAsset),
     recipient: address(ask.recipient), refundTo: address(ask.refundTo),
     amountIn: NEAR_INTEGER.test(quote.amountIn) ? quote.amountIn : undefined,
+    amountOut: NEAR_INTEGER.test(quote.amountOut) ? quote.amountOut : undefined,
     deadline: Number.isNaN(payBy) ? undefined : new Date(payBy).toISOString(),
     plain: nearPlainAsk(ask),
   };

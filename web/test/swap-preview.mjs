@@ -374,7 +374,7 @@ async function reviewed(pro, clock = fakeClock()) {
     originTxs: ['s1'], destinationTxs: ['z1'], refundReason: undefined, amountOut: '133100',
     swap: { plain: false } });
   const swapFields = { from: 'zec', to: 'sol', recipient: 'R', refundTo: 'T', amountIn: '5',
-    deadline: '2026-10-28T18:00:00.000Z' };
+    amountOut: '133000', deadline: '2026-10-28T18:00:00.000Z' };
   answer = () => Response.json({ status: 'PENDING_DEPOSIT',
     swap: { ...swapFields, amountIn: 5, extra: 'x' } });
   const { amountIn: _skip, ...textOnly } = swapFields;
@@ -1149,7 +1149,7 @@ try {
 }
 // ── The check of each approving device for a swap payment from ZEC (web/app-swap-zec.js) ──
 {
-  const { checkSwap, SWAP_MARGIN_MS, swapDeadline, swapNote, swapSendRefusal } =
+  const { checkSwap, SWAP_MARGIN_MS, swapDeadline, swapNote, swapReview, swapSendRefusal } =
     await import('../app-swap-zec.js');
   const T1 = 't1Hsc1LR8yKnbbe3twRp88p6vFfC5t7DLbs', T3 = 't3Vz22vK5z2LcKEdg16Yv4FFneEL1zg9ojd';
   const payBy = Date.now() + 5 * 3600_000, iso = new Date(payBy).toISOString();
@@ -1169,6 +1169,23 @@ try {
     return { status, swap };
   } });
   const ss = { note, payees: [{ to: T1, amount: 200000 }] };
+  // The review shows the deposit, the ZEC amount, and the SOL and the Solana address of the quote.
+  const quoted = { ...swapOk, amountOut: '133000000' };
+  const PAYS = 'This payment pays 0.002 ZEC to the deposit address ' + T1 + ' of NEAR Intents.';
+  assert.deepEqual(swapReview(ss, near(quoted), REFUND), [PAYS,
+    'Reading the quote of NEAR Intents…']);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(swapReview(ss, near(quoted), REFUND), [PAYS, 'The quote of NEAR Intents pays '
+    + 'about 0.133 SOL to the Solana address ' + REFUND + ', the Solana address of this wallet.']);
+  assert.match(swapReview(ss, near(quoted), DEPOSIT)[1], /That is not the Solana address of this/);
+  assert.equal(asked.length, 1, 'the review reads the quote once for each deposit address');
+  const other = { note, payees: [{ to: T3, amount: 5 }] };
+  swapReview(other, { swapStatus: async () => { throw new Error('down'); } }, REFUND);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(swapReview(other, near(quoted), REFUND)[1],
+    'NEAR Intents did not give a quote to SOL for this deposit address.');
+  assert.equal(swapReview({ note: 'Rent', payees: ss.payees }, near(quoted), REFUND), null);
+  asked.length = 0;
   await checkSwap(ss, near(swapOk), own);
   assert.deepEqual(asked, [T1], 'the device asks for the swap of the payee address');
   await checkSwap({ note: 'Rent', payees: ss.payees }, near(swapOk), own);

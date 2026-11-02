@@ -36,10 +36,11 @@ export const ZEC_SWAP_PRIVACY = 'To open the swap, Zigs sends the amount, the So
   + 'this wallet and its transparent refund address to NEAR Intents through the Zigs server. The '
   + 'payment leaves the shielded pool: the chain shows the deposit address and the amount to '
   + 'everyone, and NEAR Intents links the deposit to the two addresses of the wallet.';
-export const ZEC_REFUND = 'A refund goes to the transparent address of this wallet. Zigs cannot '
-  + 'move funds from this address yet, and no real swap has tested a refund to it.';
+export const ZEC_REFUND = 'A refund goes to the transparent address of this wallet. The devices '
+  + 'of the wallet can move it to the shielded address from Receive. No real swap has tested a '
+  + 'refund to this address.';
 export const ZEC_AGREE = 'I understand that this swap moves real funds, that its payment is '
-  + 'public, and that a refund goes to an address that Zigs cannot move funds from yet.';
+  + 'public, and that a refund goes to a public transparent address of this wallet.';
 const ZEC_EXPIRED = 'The deposit address is no longer active. Do not propose or send a payment '
   + 'to it.';
 const ZEC_PROPOSE = 'The payment needs the approvals of this wallet. Each device asks NEAR '
@@ -76,7 +77,7 @@ const SWAP_STATES = Object.freeze({
 const ZEC_STATES = Object.freeze({
   SUCCESS: 'Done. NEAR Intents sent the SOL to the Solana address of this wallet.',
   REFUNDED: 'Refunded. NEAR Intents sent the ZEC back to the transparent address of this wallet. '
-    + 'Zigs cannot move funds from it yet.',
+    + 'Move it to the shielded address from Receive.',
 });
 const swapState = (live) => (!live.status ? 'Asking NEAR Intents for the state of the swap…'
   : (live.from === 'zec' && ZEC_STATES[live.status.status]) || SWAP_STATES[live.status.status]);

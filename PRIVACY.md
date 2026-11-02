@@ -180,11 +180,13 @@ The app downloads compact blocks and finds the wallet's notes on the device. The
   does not apply. The server also sees the transaction that carries each message that the account
   sends, and the moment it is sent. The server does not see the text of any message, because the
   text is encrypted for the recipient.
-- the transparent address of the group (`GetAddressUtxos`), with your IP address (on testnet,
-  our server sees the app Worker), the first time Receive shows it after the wallet opens. The
-  page asks for that one address
-  and reads at most 100 of its unspent outputs. So the server can link this IP address to the
-  group's transparent address and to its balance.
+- the transparent address of the group (`GetAddressUtxos`), with your IP address, the first time
+  Receive shows it after the wallet opens. On mainnet, the page asks ChainSafe's server
+  (`zcash-mainnet.chainsafe.dev`) directly, so ChainSafe sees the address with your IP address.
+  On testnet, the Zigs server sees the app Worker, and the ChainSafe backup
+  (`zcash-testnet.chainsafe.dev`) sees your IP address. The page asks for that one address and
+  reads at most 100 of its unspent outputs. So the server can link this IP address to the group's
+  transparent address and to its balance.
 
 While it serves blocks, it does not learn which notes or outputs are yours: every wallet
 downloads the same blocks. The fetch for a memo is the exception. The app asks for a transaction
@@ -425,7 +427,8 @@ What stays visible:
 **Status:** built for staging.zigs.app, behind `NEAR_LIVE`. No real swap from ZEC has run yet. A
 mainnet wallet pays ZEC with a group payment to a deposit address of NEAR Intents. NEAR Intents
 pays SOL to the plain Solana address of the same wallet. A refund goes to the transparent address
-of the group (`t3`), from which **Zigs cannot move funds yet**.
+of the group (`t3`). The devices of the wallet move a refund from there to the shielded address
+(see the transparent address of the group above).
 
 How a live swap from ZEC works:
 
@@ -438,17 +441,19 @@ How a live swap from ZEC works:
 - **Propose the payment** opens Send with the deposit address, the exact amount and a note that
   marks the payment as this swap. The person proposes it as any other payment.
 - Each device that approves the payment reads `/near/status` for the deposit address. The Worker
-  now also passes the swap of that address: the assets, the two addresses, the amount in and the
-  deadline. The device approves only when NEAR Intents waits for a deposit of the exact amount, for
-  a swap from ZEC to SOL that pays the Solana address of this wallet, refunds to its transparent
-  address and ends at the deadline in the note, with 30 minutes left. This check trusts the Worker
-  and NEAR Intents. It does not check the signature of the quote.
+  now also passes the swap of that address: the assets, the two addresses, the amount in, the
+  quoted amount out and the deadline. The review of the payment shows the deposit address, the ZEC
+  amount, and the SOL amount and the Solana address of the quote. The device approves only when
+  NEAR Intents waits for a deposit of the exact amount, for a swap from ZEC to SOL that pays the
+  Solana address of this wallet, refunds to its transparent address and ends at the deadline in
+  the note, with 30 minutes left. This check trusts the Worker and NEAR Intents. It does not check
+  the signature of the quote.
 - No device sends the payment in the last 30 minutes before the deadline: a late deposit can be
   lost.
 
 | Party | What it learns |
 |---|---|
-| NEAR Intents (`1click.chaindefuser.com`) | The amount, the Solana address and the transparent address of the wallet, linked to the deposit address. Each approving device makes it read the swap again. It sees the Worker, not your IP address |
+| NEAR Intents (`1click.chaindefuser.com`) | The amount, the Solana address and the transparent address of the wallet, linked to the deposit address. Each device that opens the review of the payment, and each device that approves it, makes it read the swap again. It sees the Worker, not your IP address |
 | App Worker | The IP address of each device that opens or checks the swap, the amount and both addresses. It keeps no log. The same Worker runs the group server, so its operator can link a check of a swap to the group socket of that device |
 | Zcash observers | The payment to the deposit address and its amount: a transparent output. The spent notes and the change stay shielded |
 | Solana observers | The payout to the Solana address of the wallet |
