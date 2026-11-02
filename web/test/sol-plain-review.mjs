@@ -5,9 +5,11 @@
 // must equal their bytes, and the checker must answer with their text. The Worker is a fake that
 // runs checkCommand of guard.js on every call and answers from the chain of a vector. It shows:
 // the encoders equal the Rust ones; readChain asks only for the addresses of plain_reads, the
-// genesis hash and the three rents; the screen shows the lines of the checker one for one and
-// builds nothing from the intent; a refusal gives one row for each rule; an error gives no way to
-// approve. Run: node web/test/sol-plain-review.mjs   (Node 26)
+// genesis hash and the three rents, and writes the genesis hash, the rents and the account fields
+// (executable flag, data, lamports above 2^53) as the Worker gave them; the screen shows the lines
+// of the checker one for one, with the labels of this file, and builds nothing from the intent; a
+// refusal gives one row for each rule; an error gives no way to approve.
+// Run: node web/test/sol-plain-review.mjs   (Node 26)
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { base58, keyOfBase58 } from "../sol/docs.js";
@@ -87,17 +89,21 @@ const viewOf = (account) =>
   };
 
 /**
- * A fake plain Worker that answers from a decoded chain. `log` keeps every call. `genesis` and
- * `skip` change the answer: another genesis hash, and the roles whose account is not given.
+ * A fake plain Worker that answers from a decoded chain. `log` keeps every call. `genesis`, `skip`
+ * and `rents` change the answer: another genesis hash, the roles whose account is not given, and
+ * the rents by place (0, 80, 165 bytes) that differ from the chain.
  */
-function workerOf(decoded, { genesis, skip = [] } = {}) {
+function workerOf(decoded, { genesis, skip = [], rents = [] } = {}) {
   const log = [];
   const table = new Map(
     decoded.reads.filter((r) => !skip.includes(r.role)).map((r) => [base58(hex(r.key)), r.account]),
   );
   const answers = {
     genesis: () => ({ genesis: genesis ?? base58(hex(decoded.genesis)) }),
-    rent: ({ space }) => ({ lamports: String(decoded.rents[RENT_SPACES.indexOf(space)]) }),
+    rent: ({ space }) => {
+      const at = RENT_SPACES.indexOf(space);
+      return { lamports: String(rents[at] ?? decoded.rents[at]) };
+    },
     accounts: ({ addresses }) => ({
       accounts: addresses.map((a) => viewOf(table.get(a) ?? null)),
     }),
@@ -135,6 +141,21 @@ const intentOf = (shape, { recipient }) =>
 const answerLines = (answer) => answer.split("\n").slice(1);
 const ruleIds = (review) => refusalRows(review).map((row) => row.id);
 const statements = new Map(W.plain_rule_list().split("\n").map((l) => l.split("\t")));
+// The label of each name of an accepted answer. It is written out here on purpose, so that a
+// change of a label in web/sol/plain/review.js is a change of this table too.
+const LABEL_OF = {
+  intent: "Action",
+  cluster: "Network",
+  recipient: "To",
+  amount: "Amount",
+  units: "Base units",
+  symbol: "Token",
+  mint: "Mint",
+  fee: "Fee lamports",
+  rent: "Rent lamports",
+  payer: "Fee address",
+  group: "Wallet address",
+};
 
 // ── The encoders equal the Rust encoders; the chain and the checker follow ──
 for (const cluster of ["devnet", "mainnet"]) {
@@ -177,8 +198,6 @@ step("the encoders, the chain bundle and the round trip equal the Rust vectors (
   const v = vector("mainnet-s3-send-usdc");
   const intent = intentOf("s3-send-usdc", keys);
   const worker = workerOf(decodeChain(v.chain));
-  const attack = "Attack1111111111111111111111111111111111111";
-  const proposal = { intent: hex(intent), pins: hex(pins), reads: [attack] };
   await readChain(c, worker, intent, pins);
   const rows = W.plain_reads(intent, pins).split("\n").map((row) => row.split("\t"));
   const wanted = rows.map((row) => row[2]);
@@ -196,7 +215,6 @@ step("the encoders, the chain bundle and the round trip equal the Rust vectors (
   const asked = worker.log.find((x) => x.cmd === "accounts").args.addresses;
   assert.deepEqual(asked, wanted, "the accounts read are the addresses of plain_reads, in order");
   assert.ok(asked.length <= 100);
-  assert.ok(!asked.some((a) => proposal.reads.includes(a)), "an address of a proposal is not read");
   assert.ok(
     !asked.includes(base58(hex(intent.slice(5, 37)))),
     "the nonce value of the intent is not read as an address",
@@ -222,6 +240,61 @@ step("readChain reads only the addresses of plain_reads");
   assert.ok(!canApprove(review) && screenRows(review).length === 0);
 }
 step("the genesis hash of the chain bundle is the Worker's answer");
+
+// ── A Worker that shows another rent: the checker refuses the pin ──
+{
+  const keys = keysOf("mainnet");
+  const pins = plainPins({ cluster: "mainnet" }, keys.group, PAYER);
+  const decoded = decodeChain(vector("mainnet-s2-send-sol").chain);
+  const intent = intentOf("s2-send-sol", keys);
+  const message = W.plain_compile_message(intent, pins);
+  for (const [at, space] of RENT_SPACES.entries()) {
+    const rents = [];
+    rents[at] = decoded.rents[at] + 1n;
+    const chain = await readChain(c, workerOf(decoded, { rents }), intent, pins);
+    const review = reviewText(c, message, intent, pins, chain);
+    assert.equal(review.kind, "refused", `a rent that the pin does not hold is refused: ${space}`);
+    assert.deepEqual(ruleIds(review), ["plain-rent-pin"], `the rent of ${space} bytes`);
+    const shown = decoded.rents.map((rent, i) => (i === at ? rent + 1n : rent)).join(", ");
+    assert.ok(refusalRows(review)[0].detail.startsWith(`rent (${shown}),`),
+      "the detail shows the rents that the Worker gave, in the order of the spaces");
+    assert.ok(!canApprove(review) && screenRows(review).length === 0);
+  }
+}
+step("the rents of the chain bundle are the Worker's answers");
+
+// ── The account of the recipient, as the Worker gave it ──
+{
+  const keys = keysOf("mainnet");
+  const pins = plainPins({ cluster: "mainnet" }, keys.group, PAYER);
+  const decoded = decodeChain(vector("mainnet-s2-send-sol").chain);
+  const intent = intentOf("s2-send-sol", keys);
+  const message = W.plain_compile_message(intent, pins);
+  const bytes = (length) => Uint8Array.from({ length }, (_, i) => i & 255);
+  const system = { lamports: 1n, owner: new Uint8Array(32), executable: false, data: bytes(0) };
+  const seen = async (change) => {
+    const account = { ...system, ...change };
+    const reads = decoded.reads.map((r) => (r.role === "recipient" ? { ...r, account } : r));
+    const chain = await readChain(c, workerOf({ ...decoded, reads }), intent, pins);
+    assert.ok(same(chain, encodeChain({ ...decoded, reads })), "the account is written as given");
+    return reviewText(c, message, intent, pins, chain);
+  };
+  for (const lamports of [2n ** 53n + 1n, 2n ** 64n - 1n]) {
+    const review = await seen({ lamports });
+    assert.equal(review.kind, "accepted", `lamports above 2^53 are kept: ${lamports}`);
+  }
+  for (const [what, change] of [
+    ["an executable account", { executable: true }],
+    ["one byte of data", { data: bytes(1) }],
+    ["300 bytes of data", { data: bytes(300) }],
+  ]) {
+    const review = await seen(change);
+    assert.equal(review.kind, "refused", `a System recipient with ${what} is refused`);
+    assert.deepEqual(ruleIds(review), ["plain-recipient-owner"], what);
+    assert.ok(!canApprove(review));
+  }
+}
+step("the account of the recipient reaches the checker as the Worker gave it");
 
 // ── The screen shows the checker's lines, whatever the intent says ──
 {
@@ -283,6 +356,7 @@ step("the screen shows only the lines of the checker");
   assert.equal(refused.kind, "refused");
   assert.ok(!canApprove(refused), "a refusal gives no way to approve");
   assert.deepEqual(screenRows(refused), [], "a refusal gives no recipient, amount or mint row");
+  assert.ok(!canApprove(ask("refused")), "a refusal with no rule line gives no way to approve");
 }
 step("an error and a refusal give no way to approve and no rows");
 
@@ -340,6 +414,27 @@ step("a missing read is an error with no way to approve");
     assert.ok(row.statement && row.statement !== row.detail && row.detail, "id, statement, detail");
   }
   assert.ok(!canApprove(two) && screenRows(two).length === 0);
+  // One rule that fails on two instructions: the data of AdvanceNonce and of the transfer.
+  const twice = Buffer.from(v.msg);
+  const advance = Buffer.from("04000000", "hex");
+  const transfer = Buffer.concat([Buffer.from("02000000", "hex"), u64le(LAMPORTS)]);
+  for (const needle of [advance, transfer]) {
+    const at = twice.indexOf(needle);
+    assert.ok(at > 0 && twice.indexOf(needle, at + 1) < 0, "the instruction data occurs once");
+    twice[at] ^= 1;
+  }
+  const both = reviewText(c, twice, intent, pins, chain);
+  assert.deepEqual(ruleIds(both), ["plain-data", "plain-data"], "one row for each instruction");
+  assert.deepEqual(
+    refusalRows(both).map((row) => row.detail.split(":")[0]),
+    ["instruction 0", "instruction 1"],
+    "the two rows keep their own detail",
+  );
+  assert.deepEqual(
+    refusalRows(both).map((row) => `${row.id}\t${row.detail}`),
+    answerLines(W.plain_check_message(twice, intent, pins, chain)),
+    "the rows equal the lines of the checker",
+  );
   // The early rules of the wallet stop the others: a payer equal to the group key alone, and with
   // a wrong genesis hash.
   const bad = plainPins({ cluster: "mainnet" }, keys.group, keys.group);
@@ -355,6 +450,7 @@ step("a missing read is an error with no way to approve");
 step("a tampered message gives one row for each broken rule");
 
 // ── Every vector, through the screen model ──
+const labelled = new Set();
 for (const name of names) {
   const v = vector(name);
   const review = reviewText(c, v.msg, v.intent, v.pins, v.chain);
@@ -364,6 +460,13 @@ for (const name of names) {
   assert.equal(canApprove(review), kind === "accepted", `only accepted can be approved: ${name}`);
   if (kind === "accepted") {
     assert.deepEqual(screenRows(review).map((r) => `${r.name} ${r.value}`), lines, name);
+    const named = lines.map((line) => line.split(" ")[0]);
+    assert.deepEqual(
+      screenRows(review).map((r) => [r.name, r.label]),
+      named.map((n) => [n, LABEL_OF[n]]),
+      `the labels of ${name}`,
+    );
+    named.forEach((n) => labelled.add(n));
   } else if (kind === "refused") {
     assert.deepEqual(ruleIds(review), lines.map((l) => l.split("\t")[0]), name);
     for (const row of refusalRows(review)) {
@@ -373,6 +476,7 @@ for (const name of names) {
     assert.equal(review.text, head.slice(6), name);
   }
 }
+assert.deepEqual([...labelled].sort(), Object.keys(LABEL_OF).sort(), "the vectors use each label");
 step("the screen model follows every native answer");
 
 // ── readChain and encodeChain refuse what they cannot encode ──
@@ -411,6 +515,14 @@ step("the screen model follows every native answer");
     return { accounts: answer.accounts.map((a) => (a ? { ...a, owner: "1" } : a)) };
   };
   await rejects(readChain(c, noOwner, intent, pins), /no readable account/, "a short owner");
+  const hole = workerOf(decoded);
+  const inner3 = hole.call;
+  hole.call = async (cmd, args) => {
+    const answer = await inner3(cmd, args);
+    return cmd === "accounts" ? { accounts: answer.accounts.map((a) => a ?? undefined) } : answer;
+  };
+  await rejects(readChain(c, hole, intent, pins), /no readable account/,
+    "an entry that is missing is no absent account");
   const base = { genesis: decoded.genesis, rents: decoded.rents, reads: decoded.reads };
   const account = decoded.reads[0].account;
   const bad = (change, pattern, what) =>
@@ -425,6 +537,8 @@ step("the screen model follows every native answer");
   bad({ reads: [{ ...decoded.reads[0], account: { ...account, lamports: -1n } }] },
     /lamports of the payer does not fit/, "negative lamports");
   bad({ reads: Array.from({ length: 101 }, () => decoded.reads[0]) }, /bad rents or reads/);
+  const hundred = Array.from({ length: 100 }, () => decoded.reads[0]);
+  assert.doesNotThrow(() => encodeChain({ ...base, reads: hundred }), "100 reads are the limit");
   const row = `payer\t${"11".repeat(32)}`;
   const stub = { plain_reads: () => Array.from({ length: 101 }, () => row).join("\n") };
   await rejects(readChain({ W: stub }, workerOf(decoded), intent, pins), /too many reads/,
@@ -433,6 +547,43 @@ step("the screen model follows every native answer");
   await rejects(readChain({ W: wrongRole }, workerOf(decoded), intent, pins), /named the role/);
 }
 step("readChain and encodeChain refuse what they cannot encode");
+
+// ── encodeChain on the edges that no vector holds ──
+{
+  // The hex of PlainChain::encode (wasm-sol/src/plain_chain.rs) for this chain, made with an
+  // example of the crate: byte i of fill(seed, n) is (seed + 7 i) mod 256.
+  const fill = (seed, length) => Uint8Array.from({ length }, (_, i) => (seed + 7 * i) & 255);
+  const account = (lamports, owner, executable, data) => ({ lamports, owner, executable, data });
+  const edge = {
+    genesis: fill(9, 32),
+    rents: [0x0102030405060708n, 2n ** 53n + 1n, 0n],
+    reads: [
+      { role: "recipient", key: fill(1, 32),
+        account: account(2n ** 64n - 1n, fill(40, 32), true, fill(5, 300)) },
+      { role: "dest", key: fill(2, 32), account: null },
+      { role: "payer", key: fill(3, 32),
+        account: account(2n ** 53n + 1n, fill(41, 32), false, new Uint8Array(0)) },
+    ],
+  };
+  const rust = [
+    "0910171e252c333a41484f565d646b727980878e959ca3aab1b8bfc6cdd4dbe20807060504030201010000000000",
+    "20000000000000000000030401080f161d242b323940474e555c636a71787f868d949ba2a9b0b7bec5ccd3da01ff",
+    "ffffffffffffff282f363d444b525960676e757c838a91989fa6adb4bbc2c9d0d7dee5ecf3fa01012c010000050c",
+    "131a21282f363d444b525960676e757c838a91989fa6adb4bbc2c9d0d7dee5ecf3fa01080f161d242b323940474e",
+    "555c636a71787f868d949ba2a9b0b7bec5ccd3dae1e8eff6fd040b121920272e353c434a51585f666d747b828990",
+    "979ea5acb3bac1c8cfd6dde4ebf2f900070e151c232a31383f464d545b626970777e858c939aa1a8afb6bdc4cbd2",
+    "d9e0e7eef5fc030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dce3eaf1f8ff060d14",
+    "1b222930373e454c535a61686f767d848b9299a0a7aeb5bcc3cad1d8dfe6edf4fb020910171e252c333a41484f56",
+    "5d646b727980878e959ca3aab1b8bfc6cdd4dbe2e9f0f7fe050c131a21282f363d444b525960676e757c838a9198",
+    "9fa6adb4bbc2c9d0d7dee5ecf3fa01080f161d242b3206020910171e252c333a41484f565d646b727980878e959c",
+    "a3aab1b8bfc6cdd4db0001030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dc010100",
+    "0000000020002930373e454c535a61686f767d848b9299a0a7aeb5bcc3cad1d8dfe6edf4fb020000000000",
+  ].join("");
+  assert.equal(rust.length, 2 * 549, "the Rust chain holds 549 bytes");
+  assert.equal(hex(encodeChain(edge)), rust,
+    "encodeChain equals the Rust encoder: executable, 300 bytes of data, lamports above 2^53");
+}
+step("encodeChain equals the Rust encoder on the edges of an account");
 
 // ── The encoders: the tags, the limits, the kinds ──
 {
@@ -450,6 +601,12 @@ step("readChain and encodeChain refuse what they cannot encode");
   assert.throws(() => sendSolIntent(0, NONCE, key, 2n ** 64n), /the amount does not fit/);
   assert.throws(() => sendSolIntent(2 ** 32, NONCE, key, 1n), /k does not fit/);
   assert.throws(() => sendTokenIntent(0, NONCE, 256, key, 1n), /the token does not fit/);
+  assert.throws(() => sendTokenIntent(0, NONCE, 0, key, 2n ** 64n), /the amount does not fit/);
+  assert.throws(() => createNonceIntent(2 ** 32, BLOCKHASH), /k does not fit/);
+  assert.throws(() => cancelIntent(2 ** 32, NONCE), /k does not fit/);
+  for (const intent of [createNonceIntent(7, BLOCKHASH), cancelIntent(7, NONCE)]) {
+    assert.deepEqual(Array.from(intent.slice(1, 5)), [7, 0, 0, 0], "k is written");
+  }
   assert.throws(() => enableTokenIntent(-1, BLOCKHASH), /the token does not fit/);
   const badKeys = ["", "ab", key.slice(1), key + "00", key.toUpperCase(), "zz".repeat(32), null];
   for (const bad of badKeys) {
