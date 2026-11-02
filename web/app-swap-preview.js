@@ -107,7 +107,8 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   const model = new SwapPreviewModel(provider, update, clock);
   const liveRoute = () => !!source.live && model.value.from === SOL_ID && model.value.to === ZEC_ID;
   const root = el('div', { class: 'page swap-page', id: 'panel-swap',
-    'data-key': 'panel-swap', tabindex: '-1' });
+    'data-key': 'panel-swap', tabindex: '-1', role: 'region',
+    'aria-labelledby': 'swap-page-title' });
   const pay = el('input', { id: 'swap-amount', class: 'swap-amount', type: 'text',
     inputmode: 'decimal', autocomplete: 'off', spellcheck: 'false', placeholder: '0.00',
     'aria-label': 'Amount you pay', 'aria-describedby': 'swap-error',
@@ -187,7 +188,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   }));
   root.append(el('header', { class: 'swap-heading' },
     el('div', { class: 'swap-topline' }, headTag),
-    el('h1', {}, 'Swap'), subtitle),
+    el('h1', { id: 'swap-page-title' }, 'Swap'), subtitle),
   el('div', { class: 'swap-mode-tabs', role: 'tablist', 'aria-label': 'Swap pages' }, modeTabs),
   el('div', { class: 'swap-panel', id: 'swap-panel-private', role: 'tabpanel',
     'aria-labelledby': 'swap-tab-private', tabindex: '0' },

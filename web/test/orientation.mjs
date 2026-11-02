@@ -81,6 +81,22 @@ for (const [file, sel] of [["settings-experience.css", ".preference-control .inp
   ["messaging.css", ".messages-search input"]]) {
   assert.doesNotMatch(bodyOf(rules(read(file)), sel), /font-size/, sel + " keeps the 16 px");
 }
+// The Swap page follows the same rules: the title token, 16 px fields (the refund address and
+// the asset search), a dialog heading that fits 320 px, and a focus ring on the deposit screen.
+const swap = rules(read("swap-preview.css"));
+assert.ok(!swap.some((r) => r.sel.split(/,\s*/).includes(".swap-heading h1")
+  && /font-size/.test(r.body)), "the Swap title takes its size from the token");
+assert.ok(has(swap, ".swap-search", /font:400 16px\//), "the swap fields are 16 px");
+assert.ok(has(swap, ".swap-modal-heading>div", /min-width:0/)
+  && has(swap, ".swap-modal-heading .swap-preview-tag", /white-space:normal/),
+"a long tag wraps, so the close button stays inside the swap dialog");
+// Specificity as one number (ids, classes, types), enough for the selectors compared here.
+const weight = (sel) => [/#[\w-]+/g, /\.[\w-]+|\[[^\]]*\]|:[\w-]+/g, /(?:^|[\s>+~])[a-z]+/g]
+  .reduce((sum, re) => sum * 100 + (sel.replace(/"[^"]*"/g, "").match(re) ?? []).length, 0);
+const ring = swap.find((r) => /\.swap-deposit:focus$/.test(r.sel)
+  && /outline:2px solid var\(--focus\)/.test(r.body));
+assert.ok(ring && weight(ring.sel) > weight('section[tabindex="-1"]:focus'),
+  "the deposit screen shows its focus ring over the no-frame rule of app.css");
 // The About Zigs link of a phone is a 48 px target. The desktop link sits inside a sentence.
 assert.ok(has(app, ".app-foot a", /min-height: 48px/), "About Zigs is 48 px high");
 // No markup builds the threshold figure of the old home page, so its rules are gone.

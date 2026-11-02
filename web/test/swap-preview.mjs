@@ -747,6 +747,11 @@ try {
   const swap = createSwapPreview(context, pro, clock);
   const root = swap.element;
   const view = () => text(root);
+  // The page root is a region that its h1 names, as the other pages (app-shell.js).
+  assert.equal(root.getAttribute('role'), 'region', 'the swap page root is a region');
+  const swapTitle = walk(root, (n) => n.tag === 'h1');
+  assert.deepEqual(swapTitle.map((n) => [n.id, text(n)]),
+    [[root.getAttribute('aria-labelledby'), 'Swap']], 'the h1 Swap names the swap page root');
   assert.equal(LIVE_TAG, 'Quotes only', 'the live tag says Quotes only');
   assert.ok(view().includes(LIVE_TAG), 'the swap page carries the live tag');
   assert.match(view(), /Live prices from NEAR Intents on mainnet\. Zigs cannot run a swap, so no funds move\./,
