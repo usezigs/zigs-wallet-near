@@ -1,0 +1,356 @@
+// The Solana tab and the Overview rows of a served plain wallet (web/sol/plain/view.js,
+// app-sol.js, app-wallet.js, overview-model.js) against the real page modules and the real wasm
+// (sol-rig.mjs). Worker and the policy answer are fakes: the balances come from a table. It shows:
+// a mainnet wallet that the server does not serve, and a testnet wallet, look as before; a served
+// wallet gets the Solana section, the start card (device 1 only), the setup states, the address of
+// the agreed group key with Copy and the explorer link, the SOL and USDC balances, the fee and
+// backup rows; the rows of Overview are real, Receive works and Send says "not available yet";
+// Change devices warns that the funds stay; a plain seat gets the backup dialog, its file state
+// and the saved-file check.
+// Run: node web/test/sol-plain-view.mjs   (Node 26)
+import assert from "node:assert/strict";
+import { agreement } from "../sol/ceremony.js";
+import { COLLECTIONS, base58, keyOfBase58 } from "../sol/docs.js";
+import { publishedFee } from "../sol/fee.js";
+import { PLAIN_WORKER_POLICY } from "../sol/plain/guard.js";
+import { usdcAddress } from "../sol/plain/reads.js";
+import { plainView, readTexts } from "../sol/plain/view.js";
+import { PLAIN_EXPOSURE } from "../privacy-language.js";
+import { config, loadRig, mainnetConfig } from "./sol-rig.mjs";
+
+const rig = await loadRig();
+const { t, data, waitFor } = rig;
+const step = (name) => console.log("ok  " + name);
+const realNow = Date.now;
+let skew = 0;
+Date.now = () => realNow() + skew; // the gap of 30 s between two reads passes at once
+const path = (gid, rel) => `groups/${gid}/${rel}`;
+
+// ── The fakes: the policy answer, the Worker and the chain ──
+const chain = { lamports: new Map(), accounts: new Map() };
+const rigFetch = globalThis.fetch;
+globalThis.fetch = async (url, init) => String(url) === "/sol/plain/worker.js"
+  ? new Response("//", { headers: { "content-security-policy": PLAIN_WORKER_POLICY } })
+  : rigFetch(url, init);
+globalThis.Worker = class {
+  postMessage({ id, cmd, args }) {
+    const result = {
+      init: () => ({ cluster: args.cluster }),
+      balance: () => ({ lamports: chain.lamports.get(args.address) ?? "0" }),
+      accounts: () => ({ accounts: args.addresses.map((a) => chain.accounts.get(a) ?? null) }),
+    }[cmd]();
+    queueMicrotask(() => this.onmessage({ data: { id, ok: true, result } }));
+  }
+  terminate() {}
+};
+
+// ── The page text, with a recorder in place of the document ──
+class Rec extends Node {
+  constructor(tag) {
+    super();
+    Object.assign(this, { tag, kids: [], attrs: {}, on: {}, style: {} });
+  }
+  setAttribute(k, v) { this.attrs[k] = String(v); }
+  addEventListener(k, v) { this.on[k] = v; }
+  append(...kids) { this.kids.push(...kids); }
+}
+const text = (n) => n.text ?? n.kids.map(text).join("");
+const all = (n, test) => [...(test(n) ? [n] : []), ...(n.kids ?? []).flatMap((k) => all(k, test))];
+const one = (n, test) => all(n, test)[0];
+const mark = (n, name) => one(n, (x) => x.attrs?.["data-sol"] === name);
+const asset = (n, id) => one(n, (x) => x.attrs?.["aria-labelledby"] === "asset-" + id);
+const choice = (n, action, id) => one(n, (x) => x.tag === "button"
+  && x.attrs?.["aria-describedby"] === "choose-" + action.toLowerCase() + "-" + id);
+const recording = (document) => new Proxy(document, { get: (o, k) => ({
+  createElement: (tag) => new Rec(tag), createElementNS: (_ns, tag) => new Rec(tag),
+  createTextNode: (value) => ({ text: value }),
+})[k] ?? o[k] });
+function built(build) {
+  const before = globalThis.document;
+  globalThis.document = recording(before);
+  try {
+    return build();
+  } finally {
+    globalThis.document = before;
+  }
+}
+const draw = (tab) => built(() => {
+  t.ui.tab = tab;
+  return t.walletView(null, null);
+});
+const click = (node) => node.on.click({ preventDefault() {}, currentTarget: {} });
+const ids = () => t.walletSections().map(([id]) => id);
+
+// ── The states of a read: one row for each asset, and no error hides another balance ──
+{
+  const record = (change) => readTexts({ balances: { at: 5, sol: 1_500_000_000n, usdc: 12_345_678n,
+    usdcError: "", fees: { 2: 5_000_000n }, error: "", ...change } });
+  const rows = (change) => record(change).rows;
+  assert.deepEqual(rows({ at: null, sol: null, usdc: null }).sol,
+    { state: "reading", text: "Reading…" });
+  assert.deepEqual(rows({ at: null, error: "x" }).usdc, { state: "failed", text: "Not read" });
+  assert.deepEqual(rows({}).sol,
+    { state: "ready", amount: "1.5", unit: "SOL", text: "1.5 SOL" });
+  assert.deepEqual(rows({}).usdc,
+    { state: "ready", amount: "12.345678", unit: "USDC", text: "12.345678 USDC" });
+  assert.equal(rows({ sol: 0n }).sol.text, "0 SOL", "a SOL balance of zero is a balance");
+  assert.deepEqual(rows({ usdc: null }).usdc, { state: "off", text: "Not enabled" });
+  assert.equal(rows({ error: "late" }).sol.state, "stale", "a failed update marks the old value");
+  const bad = rows({ usdc: null, usdcError: "The account is bad." });
+  assert.deepEqual(bad.usdc, { state: "bad", text: "The account is bad." },
+    "a bad USDC account is an error of the USDC row");
+  assert.equal(bad.sol.text, "1.5 SOL", "a bad USDC account leaves the SOL row alone");
+  assert.deepEqual(record({}).fees, { 2: "0.005" }, "a fee balance is a text of SOL");
+}
+step("each asset has its own row state, and a USDC error stays on the USDC row");
+
+// ── A mainnet wallet that the server does not serve, and a testnet wallet, as before ──
+mainnetConfig.status = 404;
+await rig.wallet({ name: "Off", network: "mainnet" });
+await waitFor("the answer of the probe", () => t.ui.plainServed === false);
+const SECTIONS = ["overview", "approvals", "activity", "messages", "members", "recovery",
+  "settings"];
+assert.deepEqual(ids(), SECTIONS, "an unserved mainnet wallet has no Solana section");
+{
+  const tree = draw("overview");
+  assert.match(text(asset(tree, "sol")), /Unavailable.*Do not send SOL to the Zcash address/);
+  assert.match(text(asset(tree, "usdc")), /^USDCSolana DevnetDemo/);
+  assert.equal(choice(tree, "Receive", "sol").attrs.disabled, "");
+  assert.equal(one(tree, (n) => n.attrs?.["data-sol"]), undefined, "no plain element");
+  assert.equal(t.solStays(), "", "and Change devices names no Solana part");
+}
+await rig.wallet({ name: "Test" });
+assert.deepEqual(ids(), [...SECTIONS, "solana"], "a testnet wallet keeps its Solana section");
+{
+  const tree = draw("overview");
+  assert.doesNotMatch(text(asset(tree, "sol")), /Mainnet|Public/, "the SOL row is the Devnet row");
+  assert.match(text(asset(tree, "usdc")), /^USDCSolana DevnetDemo/);
+  assert.equal(choice(tree, "Receive", "sol").attrs.disabled, undefined);
+  assert.equal(mainnetConfig.calls, 1, "only the mainnet wallet asked the server");
+}
+step("an unserved mainnet wallet and a testnet wallet look as before");
+
+// ── A served wallet that has no Solana part yet ──
+Object.assign(mainnetConfig, { status: 200, calls: 0 });
+delete t.ui.plainServed;
+const gid = await rig.wallet({ name: "Plain", network: "mainnet" });
+await waitFor("the answer of the probe", () => t.ui.plainServed === true);
+await waitFor("the start documents", () => t.plainNotAdded());
+assert.deepEqual(ids(), [...SECTIONS, "solana"], "a served wallet gets a Solana section, last");
+assert.equal(t.solStays(), "", "a wallet without a start document names no Solana part");
+{
+  const tree = draw("overview");
+  for (const id of ["sol", "usdc"]) {
+    assert.match(text(asset(tree, id)), /Not added/, id + " row of a wallet with no Solana part");
+  }
+  assert.equal(t.plainSol, null, "Overview loads no module");
+  assert.equal(t.sol, null);
+}
+{
+  assert.match(text(draw("solana")), /Loading Solana…/, "the tab loads the plain controller");
+  await waitFor("the plain controller", () => t.plainSol?.ctl.gid === gid
+    && COLLECTIONS.every((name) => t.plainSol.ctl.loaded[name]));
+  const tab = draw("solana");
+  assert.equal(text(mark(tab, "status")), "not started");
+  assert.match(text(tab), /Real money on Solana mainnet\. Balances and payments are public\. /);
+  assert.match(text(tab), /Send is not available yet\. The code is not audited\./);
+  assert.match(text(tab), /Helius sees your IP address/);
+  assert.ok(mark(tab, "add"), "device 1 sees the Add Solana button");
+  const c = t.plainSol.ctl;
+  const others = { ...c, host: { ...c.host, localSeats: () => [2, 3] } };
+  const sees = built(() => plainView(others, (fn) => fn, { add() {} }));
+  assert.equal(mark(sees, "add"), undefined, "the other devices have no start button");
+  assert.match(text(sees), /Device 1 adds Solana\./);
+  assert.equal(t.sol, null, "the plain tab loads no pool code");
+  assert.equal(config.calls, 0);
+}
+step("a served wallet gets the Solana section, and only device 1 gets the start button");
+
+// ── The button writes the start; the seats set up; the tab shows each state ──
+{
+  t.ui.tab = "members";
+  const add = mark(draw("solana"), "add");
+  t.ui.tab = "members";
+  await click(add);
+  assert.ok(data.get(path(gid, "solstart/1")), "the Add Solana button wrote the start document");
+  await waitFor("agreement", () => agreement(t.plainSol.ctl).state === "agree"
+    && [1, 2, 3].every((i) => publishedFee(t.plainSol.ctl, i)));
+  const c = t.plainSol.ctl;
+  const same = (change) => built(() => plainView({ ...c, ...change }, (fn) => fn, {}));
+  const running = same({ docs: { ...c.docs, soldone: { 1: c.docs.soldone[1] } } });
+  assert.equal(text(mark(running, "status")), "running");
+  assert.match(text(mark(running, "seat-1")), /Device 1: key ready/);
+  assert.match(text(running), /Keep this page open/);
+  assert.equal(mark(running, "address"), undefined, "no address before the seats agree");
+  const forged = { ...c.docs.soldone[2], groupKey: "00".repeat(32) };
+  const differs = same({ docs: { ...c.docs, soldone: { ...c.docs.soldone, 2: forged } } });
+  assert.equal(text(mark(differs, "status")), "differs");
+  assert.match(text(differs), /different Solana keys.*Do not use the Solana part/);
+  assert.equal(mark(differs, "address"), undefined, "no address when the keys differ");
+  const stop = "Solana setup stopped: a seat left. Do not use the Solana part of this wallet.";
+  const host = { ...c.host, sec: () => ({ sol: { aborted: stop } }) };
+  const stopped = same({ host });
+  assert.equal(text(mark(stopped, "status")), "stopped");
+  assert.match(text(mark(stopped, "stopped")), /left.*create a new wallet/);
+  assert.ok(mark(stopped, "new-wallet"));
+  assert.equal(mark(stopped, "address"), undefined, "no address when the part stopped");
+  const lie = { ...c.docs.solfee[2], key: "11".repeat(32) };
+  const forgedFee = same({ docs: { ...c.docs, solfee: { ...c.docs.solfee, 2: lie } } });
+  assert.match(text(forgedFee), /fee document of device 2 does not show the key/);
+  assert.equal(mark(forgedFee, "fee-address-2"), undefined, "a wrong fee key is no address");
+  assert.ok(mark(forgedFee, "fee-address-1"), "the other fee addresses show");
+  const away = same({ host: { ...c.host, netConfirmed: () => "testnet" } });
+  assert.equal(text(mark(away, "status")), "unavailable");
+}
+step("the tab shows the setup, the start and each stop");
+
+// ── The address, Copy, the explorer link, the balances, the fee and backup rows ──
+const c = t.plainSol.ctl;
+const done = agreement(c).done;
+const address = base58(done.groupKey);
+const fee = (i) => base58(publishedFee(c, i));
+const ata = usdcAddress(c, done.groupKey);
+chain.lamports.set(address, "1500000000");
+chain.lamports.set(fee(1), "5000000");
+const token = Buffer.alloc(165);
+token.writeBigUInt64LE(12_345_678n, 64);
+token[108] = 1;
+chain.accounts.set(ata, { owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", lamports: "2039280",
+  executable: false, data: token.toString("base64") });
+// A screen shows the wallet and a read follows, when its gap has passed.
+const readFrom = async (tab) => {
+  const before = c.balances.at;
+  skew += 31_000;
+  draw(tab);
+  await waitFor("the read from " + tab, () => c.balances.at !== before, 20000);
+  return draw("solana");
+};
+{
+  await readFrom("overview");
+  assert.equal(c.balances.sol, 1_500_000_000n, "Overview alone starts the read");
+  const tab = await readFrom("solana");
+  assert.equal(text(mark(tab, "status")), "ready");
+  assert.equal(text(mark(tab, "address")), address, "the full address of the group key");
+  assert.equal(keyOfBase58(text(mark(tab, "address"))), done.groupKey, "and it is that key");
+  assert.equal(text(mark(tab, "balance-sol")), "1.5 SOL");
+  assert.match(text(mark(tab, "balance-usdc")), /^12\.345678 USDC$/);
+  assert.equal(text(mark(tab, "fee-balance-1")), "0.005 SOL");
+  assert.equal(text(mark(tab, "fee-balance-2")), "0 SOL");
+  for (const i of [1, 2, 3]) assert.equal(text(mark(tab, "fee-address-" + i)), fee(i));
+  assert.match(text(tab), /Send only SOL and USDC to this address\./);
+  assert.match(text(tab), /Real money on Solana mainnet\./);
+  assert.match(text(tab), /Send is not available yet\./);
+  assert.match(text(tab), /The code is not audited\./);
+  const link = mark(tab, "explorer");
+  assert.equal(link.attrs.href, "https://explorer.solana.com/address/" + address,
+    "the explorer link is the address page");
+  assert.doesNotMatch(link.attrs.href, /cluster=/, "the link has no cluster parameter");
+  assert.match(link.attrs.rel, /noopener/);
+  assert.match(text(tab), /The explorer sees this address and your IP address\./);
+  assert.ok(one(tab, (n) => n.attrs?.["data-key"] === "sol-receive"), "Receive can take the focus");
+  const labelled = all(tab, (n) => n.tag === "button" || n.tag === "a");
+  assert.ok(labelled.every((n) => text(n).trim() !== "" || n.attrs["aria-label"]),
+    "every button and link has a name");
+  assert.equal(mark(tab, "copy-address").attrs["aria-label"], "Copy the Solana address");
+  assert.equal(mark(tab, "address").attrs?.contenteditable, undefined);
+}
+{
+  let copied = null;
+  Object.defineProperty(globalThis, "navigator", { configurable: true,
+    value: { clipboard: { writeText: async (value) => { copied = value; } } } });
+  const button = { textContent: "Copy", setAttribute(k, v) { this[k] = v; } };
+  await mark(draw("solana"), "copy-address").on.click({ currentTarget: button });
+  assert.equal(copied, address, "Copy copies the whole address");
+  assert.equal(button.textContent, "Copied", "a copy says Copied");
+  assert.equal(button["aria-label"], "Copied", "and so does its name");
+  Object.defineProperty(globalThis, "navigator", { configurable: true,
+    value: { clipboard: { writeText: async () => { throw new Error("denied"); } } } });
+  await mark(draw("solana"), "copy-address").on.click({ currentTarget: button });
+  assert.equal(button.textContent, "Select and copy", "a refused copy says what to do");
+}
+{
+  const was = c.gid;
+  c.gid = "x".repeat(20);
+  const other = draw("solana");
+  c.gid = was;
+  assert.match(text(other), /Loading Solana…/, "the tab shows only the wallet that it follows");
+  assert.equal(mark(other, "address"), undefined);
+}
+step("the tab shows the address of the group key, Copy, the explorer link, the balances and fees");
+
+// ── A bad USDC account and a failed update stay on their own rows ──
+{
+  const record = c.balances;
+  Object.assign(record, { usdc: null, usdcError: "The USDC account is not usable." });
+  const tab = draw("solana");
+  assert.equal(text(mark(tab, "balance-sol")), "1.5 SOL", "the SOL balance shows");
+  assert.equal(text(mark(tab, "fee-balance-1")), "0.005 SOL", "so does a fee balance");
+  assert.equal(text(mark(tab, "balance-usdc")), "The USDC account is not usable.");
+  const rows = draw("overview");
+  assert.match(text(asset(rows, "sol")), /1\.5SOL/);
+  assert.doesNotMatch(text(asset(rows, "sol")), /not usable/);
+  assert.match(text(asset(rows, "usdc")), /Unavailable.*not usable/);
+  Object.assign(record, { usdcError: "", error: "Helius is not answering." });
+  assert.equal(text(mark(draw("solana"), "read-error")), "Helius is not answering.");
+  assert.match(text(asset(draw("overview"), "sol")), /1\.5SOL.*Update failed/);
+  Object.assign(record, { error: "", usdc: 12_345_678n });
+}
+step("a bad USDC account and a failed update stay on their own rows");
+
+// ── The Overview rows are real, Receive works, Send waits ──
+{
+  const tree = draw("overview");
+  assert.match(text(asset(tree, "sol")), /^SOLSolana Mainnet.*Public.*1\.5SOL/, "the SOL row");
+  assert.match(text(asset(tree, "usdc")), /^USDCSolana Mainnet.*Public.*12\.345678USDC/,
+    "the USDC row is real");
+  assert.doesNotMatch(text(asset(tree, "sol")), /Unavailable|Demo/);
+  assert.match(text(asset(tree, "sol")), new RegExp(PLAIN_EXPOSURE.slice(0, 40)));
+  for (const id of ["sol", "usdc"]) {
+    const shield = all(asset(tree, id), (n) => n.tag === "button" && /shield/i.test(text(n)));
+    assert.equal(shield.length, 0, id + " row has no Shield and no Unshield");
+  }
+  for (const id of ["sol", "usdc"]) {
+    assert.equal(choice(tree, "Send", id).attrs.disabled, "", id + " Send waits");
+    assert.match(text(choice(tree, "Send", id)), /Send is not available yet/);
+    assert.equal(choice(tree, "Receive", id).attrs.disabled, undefined, id + " Receive works");
+  }
+  choice(tree, "Receive", "usdc").on.click();
+  assert.deepEqual([t.ui.tab, t.wantFocus?.key], ["solana", "sol-receive"]);
+  assert.match(text(tree), /SOL and USDC are not in this total\./, "the total says what it lacks");
+  assert.equal(t.solFile(1)?.saved, false, "solFile reads a plain seat");
+  assert.match(t.solStays(), /SOL and USDC do not move this way\./, "Change devices warns");
+  assert.match(t.solStays(), /stay at the Solana address of this wallet/);
+}
+step("the rows of Overview are real, Receive works and Send says it is not available yet");
+
+// ── The backup of a plain seat: dialog, file state, saved-file check ──
+{
+  assert.deepEqual(t.solUnsaved(), [1, 2, 3], "no seat saved a Solana file yet");
+  const tab = draw("solana");
+  assert.match(text(mark(tab, "backup-state-1")), /Device 1: backup not saved/);
+  assert.equal(mark(tab, "check-1"), undefined, "no saved file to check yet");
+  await click(mark(tab, "backup-1"));
+  assert.match(t.ui.backup?.words.title ?? "", /Back up the Solana part of device 1/,
+    "the backup dialog of a plain seat");
+  assert.equal(t.sol, null, "the backup dialog loaded no pool code");
+  assert.equal(config.calls, 0);
+  t.ui.backup = null;
+  await t.putSec(gid, 1, { sol: { ...t.sec(gid, 1).sol, backupSaved: true } });
+  assert.deepEqual(t.solUnsaved(), [2, 3], "a saved file leaves the list");
+  assert.deepEqual(t.solFile(1), { saved: true, restored: false });
+  const saved = draw("solana");
+  assert.match(text(mark(saved, "backup-state-1")), /Device 1: backup saved/);
+  await click(mark(saved, "check-1"));
+  assert.deepEqual([t.ui.backup?.check, t.ui.backup?.chain, t.ui.backup?.seat],
+    [true, "sol", 1], "the check of the saved file opens for a plain seat");
+  t.ui.backup = null;
+  const part = t.sec(gid, 3).sol;
+  delete t.sec(gid, 3).sol;
+  assert.deepEqual(t.solFile(3), { saved: false, missing: true }, "a seat with no key share");
+  assert.match(text(mark(draw("solana"), "backup-state-3")), /no key share in this browser/);
+  t.sec(gid, 3).sol = part;
+}
+step("a plain seat gets the backup dialog and its file state");
+
+console.log("sol-plain-view: ok");
+process.exit(0);
