@@ -176,6 +176,13 @@ const READS_JS = "web/sol/plain/reads.js";
 const INIT_CALL = 'worker.call("init", { cluster: wallet.cluster, rpcUrl })';
 const readsMutant = (id, what, [file, from, to], detect) =>
   mutant(id, what, SOL_PLAIN_READS, [patch(file, from, to)], { detect, ms: 240000 });
+// The wire format, the chain bundle and the checker screen (sol-plain-review.mjs).
+const SOL_PLAIN_REVIEW = ["node", "web/test/sol-plain-review.mjs"];
+const PLAIN_INTENT = "web/sol/plain/intent.js";
+const PLAIN_CHAIN = "web/sol/plain/chain.js";
+const PLAIN_REVIEW = "web/sol/plain/review.js";
+const reviewMutant = (id, what, patches, detect) =>
+  mutant(id, what, SOL_PLAIN_REVIEW, patches.map((x) => patch(...x)), { detect, ms: 240000 });
 // The tab and the rows of the plain wallet (sol-plain-view.mjs), its load (sol-plain-load.mjs).
 const SOL_PLAIN_VIEW = ["node", "web/test/sol-plain-view.mjs"];
 const SOL_PLAIN_LOAD = ["node", "web/test/sol-plain-load.mjs"];
@@ -1499,6 +1506,61 @@ export const MUTATIONS = [
     [PLAIN_VIEW, 'const DO_NOT_USE = "Do not use the Solana part of this wallet.";',
       'const DO_NOT_USE = "Do not use the Solana part of this wallet." + " word".repeat(40);'],
     /the differs card has at most 15 own words/),
+  // The wire format, the chain bundle and the checker screen of the plain intents.
+  reviewMutant("PL-chain-order", "encodeChain writes the rents in the other order",
+    [[PLAIN_CHAIN, "...rents.map((rent) => u64le(rent, \"a rent\"))",
+      "...[...rents].reverse().map((rent) => u64le(rent, \"a rent\"))"]],
+    /readChain equals the Rust chain bundle/),
+  reviewMutant("PL-pins-mode", "plainPins writes the mode byte of the pool",
+    [[PLAIN_INTENT, "const MODE_PLAIN = 1;", "const MODE_PLAIN = 2;"]],
+    /the pins equal the Rust pins/),
+  reviewMutant("PL-screen-source", "the recipient row comes from the intent and not the checker",
+    [[PLAIN_REVIEW, "    const lines = body.map((line) => ({ line, ...nameValue(line) }));\n",
+      "    const lines = body.map((line) => ({ line, ...nameValue(line) }));\n"
+        + "    for (const l of lines) {\n      if (l.name === \"recipient\") "
+        + "l.value = Buffer.from(intent.slice(37, 69)).toString(\"hex\");\n    }\n"]],
+    /the rows equal the lines of the checker one for one/),
+  reviewMutant("PL-first-only", "the screen shows the first refused rule only",
+    [[PLAIN_REVIEW, "rules: body.map(rule)", "rules: body.slice(0, 1).map(rule)"]],
+    /a changed recipient names the rules of the account table/),
+  reviewMutant("PL-error-as-accepted", "an error answer shows as accepted",
+    [[PLAIN_REVIEW, 'if (head === "accepted") {',
+      'if (head === "accepted" || head.startsWith("error")) {']],
+    /neither accepted nor refused is an error/),
+  reviewMutant("PL-error-approve", "an error answer leaves a way to approve",
+    [[PLAIN_REVIEW, 'export const canApprove = (review) => review.kind === "accepted";',
+      'export const canApprove = (review) => review.kind !== "refused";']],
+    /an error gives no way to approve/),
+  reviewMutant("PL-rule-text", "the statement of a rule row is the detail of the checker",
+    [[PLAIN_REVIEW, 'statement: statements.get(id) ?? "", detail }',
+      "statement: detail, detail }"]],
+    /the statement is the text of plain_rule_list/),
+  reviewMutant("PL-other-hidden", "a name that the page does not know is left out of the rows",
+    [[PLAIN_REVIEW, "  return review.lines.map(({ name, value, line }) =>",
+      "  return review.lines.filter(({ name }) => Object.hasOwn(LABELS, name))\n"
+        + "    .map(({ name, value, line }) =>"]],
+    /no line of the checker is left out/),
+  reviewMutant("PL-reads-proposal", "readChain also reads an address that the intent carries",
+    [[PLAIN_CHAIN, "const addresses = rows.map(({ hex }) => base58(hex));",
+      "const addresses = [...rows.map(({ hex }) => base58(hex)),\n"
+        + "    base58(Buffer.from(intent.slice(5, 37)).toString(\"hex\"))];"]],
+    /another number of accounts/),
+  reviewMutant("PL-genesis-skip", "readChain writes the pinned genesis hash, not the Worker's",
+    [[PLAIN_CHAIN, "genesis: bytes58(genesis),",
+      'genesis: bytes58(pins[0] === 1 ? "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"\n'
+        + '    : "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d"),']],
+    /the genesis hash of the Worker is not a constant/),
+  reviewMutant("PL-absent-present", "an absent account is written as an account with no lamports",
+    [[PLAIN_CHAIN, "if (account === null) return Uint8Array.of(0);",
+      "if (account === null) return join([1], u64le(0), new Uint8Array(32), [0], u32le(0));"]],
+    /readChain equals the Rust chain bundle/),
+  reviewMutant("PL-uint-wrap", "an integer above its size wraps and does not throw",
+    [[PLAIN_INTENT, "if (n < 0n || n >= 1n << BigInt(8 * size)) {", "if (false) {"]],
+    /a rent above u64/),
+  reviewMutant("PL-kind-length", "kindOfIntent names an intent of any length",
+    [[PLAIN_INTENT, "return name !== undefined && hex.length === size * 2 ? name : null;",
+      "return name ?? null;"]],
+    /no kind for 0d/),
   mutant("W-share-check", "the restore does not ask the wasm if the key share fits", SOL_APP,
     [patch("web/sol/backup.js", SHARE_CALL, "false &&")], /AssertionError/),
   mutant("P3-ps", "the sampling ps counts", only("^P3"),
