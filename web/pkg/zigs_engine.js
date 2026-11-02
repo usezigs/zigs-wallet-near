@@ -110,23 +110,19 @@ export class ChainWallet {
     }
     /**
      * A move of the payments `coins` (the `utxos` of `transparentUtxos`) of the group address to
-     * the shielded address of this wallet. `t`, `keys` and `key_package` give the group script,
-     * as for `p2shAddress`. Returns `{"pczt", "value", "fee", "inputs"}`. Each seat checks and
-     * signs it with `sweepSign`, and one finishes it with `sweepFinish`.
+     * the shielded address of this wallet. `group` is JSON {t, keys, key_package} (the group
+     * script, as for `p2shAddress`). Returns `{"pczt", "value", "fee", "inputs"}`. Each seat
+     * checks and signs it with `sweepSign`, and one finishes it with `sweepFinish`.
      * @param {string} coins
-     * @param {number} t
-     * @param {string[]} keys
-     * @param {string} key_package
+     * @param {string} group
      * @returns {Promise<string>}
      */
-    createSweep(coins, t, keys, key_package) {
+    createSweep(coins, group) {
         const ptr0 = passStringToWasm0(coins, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passArrayJsValueToWasm0(keys, wasm.__wbindgen_malloc);
+        const ptr1 = passStringToWasm0(group, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len1 = WASM_VECTOR_LEN;
-        const ptr2 = passStringToWasm0(key_package, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len2 = WASM_VECTOR_LEN;
-        const ret = wasm.chainwallet_createSweep(this.__wbg_ptr, ptr0, len0, t, ptr1, len1, ptr2, len2);
+        const ret = wasm.chainwallet_createSweep(this.__wbg_ptr, ptr0, len0, ptr1, len1);
         return ret;
     }
     /**
@@ -1445,48 +1441,45 @@ export function start() {
 
 /**
  * @param {string} pczt
- * @param {number} t
- * @param {string[]} keys
- * @param {string} key_package
+ * @param {string} group
  * @param {string} fvk
  * @param {string} net
  * @returns {string}
  */
-export function sweepCheck(pczt, t, keys, key_package, fvk, net) {
-    let deferred7_0;
-    let deferred7_1;
+export function sweepCheck(pczt, group, fvk, net) {
+    let deferred6_0;
+    let deferred6_1;
     try {
         const ptr0 = passStringToWasm0(pczt, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passArrayJsValueToWasm0(keys, wasm.__wbindgen_malloc);
+        const ptr1 = passStringToWasm0(group, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len1 = WASM_VECTOR_LEN;
-        const ptr2 = passStringToWasm0(key_package, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr2 = passStringToWasm0(fvk, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len2 = WASM_VECTOR_LEN;
-        const ptr3 = passStringToWasm0(fvk, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr3 = passStringToWasm0(net, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len3 = WASM_VECTOR_LEN;
-        const ptr4 = passStringToWasm0(net, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len4 = WASM_VECTOR_LEN;
-        const ret = wasm.sweepCheck(ptr0, len0, t, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4);
-        var ptr6 = ret[0];
-        var len6 = ret[1];
+        const ret = wasm.sweepCheck(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
+        var ptr5 = ret[0];
+        var len5 = ret[1];
         if (ret[3]) {
-            ptr6 = 0; len6 = 0;
+            ptr5 = 0; len5 = 0;
             throw takeFromExternrefTable0(ret[2]);
         }
-        deferred7_0 = ptr6;
-        deferred7_1 = len6;
-        return getStringFromWasm0(ptr6, len6);
+        deferred6_0 = ptr5;
+        deferred6_1 = len5;
+        return getStringFromWasm0(ptr5, len5);
     } finally {
-        wasm.__wbindgen_free(deferred7_0, deferred7_1, 1);
+        wasm.__wbindgen_free(deferred6_0, deferred6_1, 1);
     }
 }
 
 /**
  * @param {string} pczt
  * @param {string} signatures
+ * @param {number} t
  * @returns {string}
  */
-export function sweepFinish(pczt, signatures) {
+export function sweepFinish(pczt, signatures, t) {
     let deferred4_0;
     let deferred4_1;
     try {
@@ -1494,7 +1487,7 @@ export function sweepFinish(pczt, signatures) {
         const len0 = WASM_VECTOR_LEN;
         const ptr1 = passStringToWasm0(signatures, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len1 = WASM_VECTOR_LEN;
-        const ret = wasm.sweepFinish(ptr0, len0, ptr1, len1);
+        const ret = wasm.sweepFinish(ptr0, len0, ptr1, len1, t);
         var ptr3 = ret[0];
         var len3 = ret[1];
         if (ret[3]) {
@@ -1511,40 +1504,36 @@ export function sweepFinish(pczt, signatures) {
 
 /**
  * @param {string} pczt
- * @param {number} t
- * @param {string[]} keys
- * @param {string} key_package
+ * @param {string} group
  * @param {string} fvk
  * @param {string} net
  * @param {number} tip
  * @returns {string}
  */
-export function sweepSign(pczt, t, keys, key_package, fvk, net, tip) {
-    let deferred7_0;
-    let deferred7_1;
+export function sweepSign(pczt, group, fvk, net, tip) {
+    let deferred6_0;
+    let deferred6_1;
     try {
         const ptr0 = passStringToWasm0(pczt, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passArrayJsValueToWasm0(keys, wasm.__wbindgen_malloc);
+        const ptr1 = passStringToWasm0(group, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len1 = WASM_VECTOR_LEN;
-        const ptr2 = passStringToWasm0(key_package, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr2 = passStringToWasm0(fvk, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len2 = WASM_VECTOR_LEN;
-        const ptr3 = passStringToWasm0(fvk, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr3 = passStringToWasm0(net, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len3 = WASM_VECTOR_LEN;
-        const ptr4 = passStringToWasm0(net, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len4 = WASM_VECTOR_LEN;
-        const ret = wasm.sweepSign(ptr0, len0, t, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, tip);
-        var ptr6 = ret[0];
-        var len6 = ret[1];
+        const ret = wasm.sweepSign(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, tip);
+        var ptr5 = ret[0];
+        var len5 = ret[1];
         if (ret[3]) {
-            ptr6 = 0; len6 = 0;
+            ptr5 = 0; len5 = 0;
             throw takeFromExternrefTable0(ret[2]);
         }
-        deferred7_0 = ptr6;
-        deferred7_1 = len6;
-        return getStringFromWasm0(ptr6, len6);
+        deferred6_0 = ptr5;
+        deferred6_1 = len5;
+        return getStringFromWasm0(ptr5, len5);
     } finally {
-        wasm.__wbindgen_free(deferred7_0, deferred7_1, 1);
+        wasm.__wbindgen_free(deferred6_0, deferred6_1, 1);
     }
 }
 
@@ -2093,17 +2082,17 @@ function __wbg_get_imports() {
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
         __wbindgen_generic_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1878, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1879, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_731503a097e03799___convert__closures_____invoke___wasm_bindgen_731503a097e03799___JsValue__core_f0fd674eaa06beef___result__Result_____wasm_bindgen_731503a097e03799___JsError___true_);
             return ret;
         },
         __wbindgen_generic_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 833, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 834, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_731503a097e03799___convert__closures_____invoke___wasm_bindgen_731503a097e03799___JsValue______true_);
             return ret;
         },
         __wbindgen_generic_0000000000000003: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 801, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 802, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_731503a097e03799___convert__closures_____invoke_______true_);
             return ret;
         },

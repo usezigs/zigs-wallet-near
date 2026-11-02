@@ -1443,12 +1443,15 @@ column "Writer". A document with another `by` is ignored.
   (`web/app-sweep.js`, `wasm/src/p2sh.rs`). Each holds `v` (1).
   - `sweep/proposal` holds `pczt`: the move, built by the chain wallet of the proposer
     (`createSweep`). A new proposal replaces the old one.
-  - `sweep/<i>` holds `txid`, `key` and `signatures`. Seat `i` writes it after its engine checks
-    the move (`sweepSign`): one DER signature with the sighash type for each input.
+  - `sweep/<i>` holds `digest`, `key` and `signatures`. Seat `i` writes it after its engine
+    checks the move (`sweepSign`): one DER signature with the sighash type for each input.
+    `digest` is the BLAKE2b-256 hash (personal `Zigs_SweepMove01`) of the PCZT text: the txid does
+    not cover the value and the script of each input.
   - `sweep/sent` holds the `txid` of the move that a device sent.
   - A reader shows the amounts of its own check (`sweepCheck`), never a field of a document. It
-    counts only the signatures whose `txid` is the one of its check, and `sweepFinish` refuses a
-    signature that does not verify.
+    counts the distinct keys of the approvals whose `digest` is the one of its check.
+    `sweepFinish` skips a set that does not verify or that names another key than its signer, and
+    refuses before the proof when fewer than t sets verify.
 - A reader takes names and identities only from a seat document that verifies. So a holder of the
   link cannot rename a seat or copy the identity of another.
 - A seat chooses its own name, and two seats can use one name. So the apps show the seat number

@@ -171,7 +171,7 @@ impl Coin {
 
 /// The ZIP 317 fee of a transaction with `inputs` P2SH inputs of `size` bytes and `actions`
 /// Ironwood actions: the rule that the builder applies.
-fn sweep_fee(inputs: usize, size: usize, actions: usize) -> R<u64> {
+pub(crate) fn sweep_fee(inputs: usize, size: usize, actions: usize) -> R<u64> {
     let sizes = std::iter::repeat_n(InputSize::Known(size), inputs);
     let fee = zip317::FeeRule::standard()
         .fee_required(&Network::MainNetwork, BlockHeight::from_u32(0), sizes, [], 0, 0, 0, actions)
@@ -181,7 +181,7 @@ fn sweep_fee(inputs: usize, size: usize, actions: usize) -> R<u64> {
 
 /// The size of one input of the group script in a transaction, with `t` signatures of the
 /// largest size (ZIP 317).
-fn input_size(redeem: &Redeem) -> R<usize> {
+pub(crate) fn input_size(redeem: &Redeem) -> R<usize> {
     p2sh_input_serialized_len(&redeem.clone().weaken())
         .ok_or_else(|| "the group script is no multisig script".to_string())
 }
@@ -269,6 +269,9 @@ fn sweep_inputs(p: &Pczt, (address, redeem): &(TransparentAddress, Redeem)) -> R
             if *input.sighash_type() != SighashType::ALL {
                 return Err(fail("signs less than the whole transaction"));
             }
+            if !input.partial_signatures().is_empty() {
+                return Err(fail("carries signatures already"));
+            }
             sum.0 += 1;
             sum.1 = sum.1.checked_add(input.value().into_u64()).ok_or_else(|| fail("overflows"))?;
         }
@@ -332,6 +335,11 @@ fn check_sweep(
     ensure(p.transparent().outputs().is_empty(), "a move has no transparent output")?;
     let (inputs, total) = sweep_inputs(p, script)?;
     let (_, value, actions) = sweep_output(p, fvk)?;
+    // More inputs or padded actions would raise the fee that the miners get.
+    ensure(inputs <= MAX_SWEEP_INPUTS, &format!("a move spends at most {MAX_SWEEP_INPUTS} \
+        payments, not {inputs}"))?;
+    ensure(actions == SWEEP_ACTIONS, &format!("a move has {SWEEP_ACTIONS} shielded actions, \
+        not {actions}"))?;
     let fee = sweep_fee(inputs, input_size(&script.1)?, actions)?;
     let paid = total.checked_sub(value);
     let paid_text = paid.map_or("less than 0".into(), |f| f.to_string());
@@ -340,40 +348,63 @@ fn check_sweep(
     Ok(Swept { inputs, total, value, fee })
 }
 
+/// The group of a move, as JSON {t, keys, key_package} from the page: `t`, `keys` and the key
+/// package of one seat of this device, as for `p2sh_address`.
+#[derive(Deserialize)]
+pub(crate) struct Group {
+    pub(crate) t: u32,
+    pub(crate) keys: Vec<String>,
+    pub(crate) key_package: String,
+}
+
+impl Group {
+    pub(crate) fn script(&self, net: &Network) -> R<(TransparentAddress, Redeem)> {
+        group_script(self.t, &self.keys, &self.key_package, net)
+    }
+}
+
+fn group_of(json: &str) -> R<Group> {
+    serde_json::from_str(json).map_err(|_| "the group is no JSON {t, keys, key_package}".into())
+}
+
+/// The digest of the PCZT text of a move. An approval names it: the txid does not cover the value
+/// and the script of each input (ZIP 244), and a move with other values could keep the txid.
+fn move_digest(pczt: &str) -> String {
+    let h = blake2b_simd::Params::new().hash_length(32).personal(b"Zigs_SweepMove01")
+        .hash(pczt.as_bytes());
+    hex::encode(h.as_bytes())
+}
+
 /// The keys of a check: the PCZT, the group script and the viewing key of the wallet.
 fn sweep_parts(
-    pczt: &str, group: (u32, &[String], &str), fvk: &str, net: &str,
+    pczt: &str, group: &Group, fvk: &str, net: &str,
 ) -> R<(Pczt, (TransparentAddress, Redeem), FullViewingKey, Network)> {
     let net = network(net)?;
-    let (t, keys, key_package) = group;
-    let script = group_script(t, keys, key_package, &net)?;
+    let script = group.script(&net)?;
     Ok((pczt_from_b64(pczt)?, script, parse_fvk(fvk)?, net))
 }
 
-/// The check of a sweep that each device runs before it signs, with the keys of the group (`t`,
-/// `keys`, `key_package` as for `p2sh_address`) and the viewing key of the wallet. Returns JSON
-/// {inputs, total, value, fee, txid, expiry_height}.
-pub fn sweep_check(
-    pczt: &str, group: (u32, &[String], &str), fvk: &str, net: &str,
-) -> R<String> {
+/// The check of a sweep that each device runs before it signs, with the group and the viewing key
+/// of the wallet. Returns JSON {inputs, total, value, fee, txid, digest, expiry_height}.
+pub fn sweep_check(pczt: &str, group: &Group, fvk: &str, net: &str) -> R<String> {
     let (p, script, fvk, net) = sweep_parts(pczt, group, fvk, net)?;
     let s = check_sweep(&p, &script, &fvk, net)?;
     Ok(json!({"inputs": s.inputs, "total": s.total, "value": s.value, "fee": s.fee,
-        "txid": super::txid_of(&p)?, "expiry_height": p.global().expiry_height()})
+        "txid": super::txid_of(&p)?, "digest": move_digest(pczt),
+        "expiry_height": p.global().expiry_height()})
     .to_string())
 }
 
 /// Checks the sweep (`sweep_check`) and its expiry against the chain height `tip`, then signs each
-/// input with the key of this seat. ZIP 244 binds each signature to the whole transaction and to
-/// the value and the script of every input, so the device needs no read of the payments. Returns
-/// JSON {key (hex), signatures: [hex, one per input: DER and the sighash type]}.
-pub fn sweep_sign(
-    pczt: &str, group: (u32, &[String], &str), fvk: &str, net: &str, tip: u32,
-) -> R<String> {
+/// input with the key of the seat of `group`. ZIP 244 binds each signature to the whole
+/// transaction and to the value and the script of every input, so the device needs no read of the
+/// payments. Returns JSON {digest, key (hex), signatures: [hex, one per input: DER and the sighash
+/// type]}.
+pub fn sweep_sign(pczt: &str, group: &Group, fvk: &str, net: &str, tip: u32) -> R<String> {
     let (p, script, fvk, net) = sweep_parts(pczt, group, fvk, net)?;
     let s = check_sweep(&p, &script, &fvk, net)?;
     super::expiry::check(&p, tip)?;
-    let sk = account_key(group.2, &net)?
+    let sk = account_key(&group.key_package, &net)?
         .derive_signing_key(zip32::Scope::External, NonHardenedChildIndex::ZERO);
     let key = sk.public_key().serialize();
     let mut signer = Signer::new(p).map_err(e("signer"))?;
@@ -389,50 +420,94 @@ pub fn sweep_sign(
         Ok(())
     };
     Verifier::new(signer.finish()).with_transparent(read).map_err(e("signatures"))?;
-    Ok(json!({"key": hex::encode(key), "signatures": sigs}).to_string())
+    Ok(json!({"digest": move_digest(pczt), "key": hex::encode(key), "signatures": sigs})
+        .to_string())
 }
 
-/// Adds the signatures of the seats (JSON [{key, signatures}], as `sweep_sign` gives them) to the
-/// sweep and finishes it: the proof, the script of each input and the transaction. A signature
-/// that does not verify fails with its key. Returns the JSON of `finalize`.
-pub fn sweep_finish(pczt: &str, signatures: &str) -> R<String> {
+/// Appends the signatures of one seat ({key, signatures}) to `signer`: one for each of the
+/// `inputs` inputs. A signature that is no DER signature of the whole transaction, or that does
+/// not verify, fails with its key and input.
+fn append_set(signer: &mut Signer, set: &Value, inputs: usize) -> R<()> {
+    let key = set["key"].as_str().unwrap_or("?");
+    let list = set["signatures"].as_array().filter(|l| l.len() == inputs);
+    let list = list.ok_or_else(|| format!("key {key} sent no signature for each input"))?;
+    for (i, sig) in list.iter().enumerate() {
+        let fail = |m: &str| format!("the signature of key {key} on input {i} {m}");
+        let bytes = sig.as_str().and_then(|h| hex::decode(h).ok());
+        let bytes = bytes.ok_or_else(|| fail("is no hex"))?;
+        let Some((&kind, der)) = bytes.split_last() else { return Err(fail("is empty")) };
+        let whole = fail("signs less than the whole transaction");
+        ensure(kind == SighashType::ALL.encode(), &whole)?;
+        let sig = secp256k1::ecdsa::Signature::from_der(der).map_err(|_| fail("is no DER"))?;
+        signer.append_transparent_signature(i, sig).map_err(|_| fail("does not verify"))?;
+    }
+    Ok(())
+}
+
+/// Checks that one seat's set ({key, signatures}) signs every one of the `inputs` inputs of `p`
+/// with the key that it names. A set that copies the signatures of another key fails.
+fn verified_set(p: &Pczt, set: &Value, inputs: usize) -> R<()> {
+    let mut trial = Signer::new(p.clone()).map_err(e("signer"))?;
+    append_set(&mut trial, set, inputs)?;
+    let text = set["key"].as_str().unwrap_or("?");
+    let key = hex::decode(text).ok().and_then(|k| <[u8; 33]>::try_from(k).ok());
+    let key = key.ok_or_else(|| format!("the key {text} of a signature set is no public key"))?;
+    let own = |b: &zcash_transparent::pczt::Bundle| -> Result<(), TransparentError<String>> {
+        let all = b.inputs().iter().all(|i| i.partial_signatures().contains_key(&key));
+        all.then_some(()).ok_or(TransparentError::Custom(String::new()))
+    };
+    Verifier::new(trial.finish()).with_transparent(own)
+        .map_err(|_| format!("the signatures of key {text} are not signatures of that key"))?;
+    Ok(())
+}
+
+/// Finishes the sweep with the signatures of `t` seats: the proof, the script of each input and
+/// the transaction. `signatures` is JSON [{key, signatures}], as `sweep_sign` gives them. A set
+/// that does not verify, or a second set of one key, is skipped, so one seat cannot block the
+/// others. Fewer than `t` good sets fail before the proof, with the reason of each bad set.
+/// Returns the JSON of `finalize`.
+pub fn sweep_finish(pczt: &str, signatures: &str, t: usize) -> R<String> {
     let sets: Vec<Value> =
         serde_json::from_str(signatures).map_err(|_| "the signatures are no JSON")?;
-    let mut signer = Signer::new(pczt_from_b64(pczt)?).map_err(e("signer"))?;
-    for set in &sets {
+    let p = pczt_from_b64(pczt)?;
+    let inputs = p.transparent().inputs().len();
+    let (mut good, mut keys, mut bad) = (vec![], HashSet::new(), vec![]);
+    for set in sets.iter().filter(|set| set["key"].is_string()) {
         let key = set["key"].as_str().unwrap_or("?");
-        let list = set["signatures"].as_array().ok_or("a seat sent no signature list")?;
-        for (i, sig) in list.iter().enumerate() {
-            let fail = |m: &str| format!("the signature of key {key} on input {i} {m}");
-            let bytes = sig.as_str().and_then(|h| hex::decode(h).ok());
-            let bytes = bytes.ok_or_else(|| fail("is no hex"))?;
-            let Some((&kind, der)) = bytes.split_last() else { return Err(fail("is empty")) };
-            let whole = fail("signs less than the whole transaction");
-            ensure(kind == SighashType::ALL.encode(), &whole)?;
-            let sig = secp256k1::ecdsa::Signature::from_der(der).map_err(|_| fail("is no DER"))?;
-            signer.append_transparent_signature(i, sig).map_err(|_| fail("does not verify"))?;
+        if good.len() == t || keys.contains(key) {
+            continue;
         }
+        match verified_set(&p, set, inputs) {
+            Ok(()) => { keys.insert(key); good.push(set); }
+            Err(why) => bad.push(why),
+        }
+    }
+    if good.len() < t {
+        return Err(format!("{} of the {t} signature sets that the move needs verify. {}",
+            good.len(), bad.join("; ")));
+    }
+    let mut signer = Signer::new(p).map_err(e("signer"))?;
+    for set in good {
+        append_set(&mut signer, set, inputs)?;
     }
     super::finalize(&pczt_to_b64(signer.finish())?)
 }
 
 #[wasm_bindgen(js_name = sweepCheck)]
-pub fn js_sweep_check(
-    pczt: &str, t: u32, keys: Vec<String>, key_package: &str, fvk: &str, net: &str,
-) -> Result<String, JsError> {
-    sweep_check(pczt, (t, &keys, key_package), fvk, net).map_err(|e| JsError::new(&e))
+pub fn js_sweep_check(pczt: &str, group: &str, fvk: &str, net: &str) -> Result<String, JsError> {
+    super::js(group_of(group).and_then(|g| sweep_check(pczt, &g, fvk, net)))
 }
 
 #[wasm_bindgen(js_name = sweepSign)]
 pub fn js_sweep_sign(
-    pczt: &str, t: u32, keys: Vec<String>, key_package: &str, fvk: &str, net: &str, tip: u32,
+    pczt: &str, group: &str, fvk: &str, net: &str, tip: u32,
 ) -> Result<String, JsError> {
-    sweep_sign(pczt, (t, &keys, key_package), fvk, net, tip).map_err(|e| JsError::new(&e))
+    super::js(group_of(group).and_then(|g| sweep_sign(pczt, &g, fvk, net, tip)))
 }
 
 #[wasm_bindgen(js_name = sweepFinish)]
-pub fn js_sweep_finish(pczt: &str, signatures: &str) -> Result<String, JsError> {
-    sweep_finish(pczt, signatures).map_err(|e| JsError::new(&e))
+pub fn js_sweep_finish(pczt: &str, signatures: &str, t: u32) -> Result<String, JsError> {
+    super::js(sweep_finish(pczt, signatures, t as usize))
 }
 
 #[cfg(test)]

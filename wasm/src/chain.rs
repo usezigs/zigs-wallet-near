@@ -967,12 +967,11 @@ fn anchor(s: &Inner) -> R<orchard::Anchor> {
 /// A move of payments of the group address to this wallet (`p2sh::build_sweep`). `coins` is the
 /// list of `transparentUtxos`. It expires as a group payment does. Returns JSON {pczt, value,
 /// fee, inputs}.
-async fn create_sweep(
-    state: &RefCell<Inner>, coins: &str, group: (u32, &[String], &str),
-) -> R<String> {
+async fn create_sweep(state: &RefCell<Inner>, coins: &str, group: &str) -> R<String> {
     let coins: Vec<p2sh::Coin> = serde_json::from_str(coins).map_err(e("payment list"))?;
+    let group: p2sh::Group = serde_json::from_str(group).map_err(e("group"))?;
     let net = state.borrow().net;
-    let script = p2sh::group_script(group.0, group.1, group.2, &net)?;
+    let script = group.script(&net)?;
     let endpoint = state.borrow().endpoint.clone();
     let tip = tip_of(&endpoint).await?;
     let mut s = state.borrow_mut();
@@ -1259,14 +1258,12 @@ impl ChainWallet {
     }
 
     /// A move of the payments `coins` (the `utxos` of `transparentUtxos`) of the group address to
-    /// the shielded address of this wallet. `t`, `keys` and `key_package` give the group script,
-    /// as for `p2shAddress`. Returns `{"pczt", "value", "fee", "inputs"}`. Each seat checks and
-    /// signs it with `sweepSign`, and one finishes it with `sweepFinish`.
+    /// the shielded address of this wallet. `group` is JSON {t, keys, key_package} (the group
+    /// script, as for `p2shAddress`). Returns `{"pczt", "value", "fee", "inputs"}`. Each seat
+    /// checks and signs it with `sweepSign`, and one finishes it with `sweepFinish`.
     #[wasm_bindgen(js_name = createSweep)]
-    pub async fn create_sweep(
-        &self, coins: String, t: u32, keys: Vec<String>, key_package: String,
-    ) -> Result<String, JsError> {
-        super::js(create_sweep(&self.0, &coins, (t, &keys, &key_package)).await)
+    pub async fn create_sweep(&self, coins: String, group: String) -> Result<String, JsError> {
+        super::js(create_sweep(&self.0, &coins, &group).await)
     }
 
     pub async fn broadcast(&self, tx_hex: String) -> Result<String, JsError> {

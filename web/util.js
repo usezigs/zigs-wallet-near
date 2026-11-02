@@ -308,7 +308,7 @@ const SLOW = {
     out.ms = Math.round(performance.now() - t0);
     return out;
   },
-  sweepFinish: (Z, pczt, signatures) => JSON.parse(Z.sweepFinish(pczt, signatures)),
+  sweepFinish: (Z, pczt, signatures, t) => JSON.parse(Z.sweepFinish(pczt, signatures, t)),
   backupSeal: (Z, pass, plain) => Z.backupSeal(passNormal(pass), plain),
   backupOpen: (Z, pass, sealed) => Z.backupOpen(passNormal(pass), sealed),
 };

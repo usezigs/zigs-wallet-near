@@ -159,7 +159,7 @@ export function groupTaddress() {
 export const taddressBalance = () => (balance && !balance.reading
   && balance.address === groupTaddress().address ? balance : null);
 
-/** Reads the balance of `address` from a light-wallet server of the open wallet. */
+/** Reads the balance of `address` from a light-wallet server of the open wallet, and gives it. */
 export async function readTaddressBalance(address) {
   const gid = state.gid;
   balance = { address, reading: true };
@@ -172,6 +172,7 @@ export async function readTaddressBalance(address) {
     log("the balance of the transparent address: " + said(e));
   }
   render();
+  return balance;
 }
 
 const PUBLIC_TEXT = (g) => "This address belongs to the group: a payment from it needs " + g.t
@@ -203,7 +204,7 @@ export function taddressSection() {
         el("div", { class: "addr-full" }, addrGroups(t.address)), balanceLine(t.address),
         el("div", { class: "dialog-actions" },
           copyBtn(t.address, "Copy transparent address", "btn")),
-        sweepPart(t.keys, taddressBalance())];
+        sweepPart(t.keys, taddressBalance(), () => readTaddressBalance(t.address))];
   return el("section", { class: "callout", "data-taddress": "section",
     style: "display:grid;gap:8px" }, head, ...body);
 }

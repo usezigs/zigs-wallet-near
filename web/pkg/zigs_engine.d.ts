@@ -36,11 +36,11 @@ export class ChainWallet {
     createSpend(payees: string, priority: boolean, after?: string | null): Promise<string>;
     /**
      * A move of the payments `coins` (the `utxos` of `transparentUtxos`) of the group address to
-     * the shielded address of this wallet. `t`, `keys` and `key_package` give the group script,
-     * as for `p2shAddress`. Returns `{"pczt", "value", "fee", "inputs"}`. Each seat checks and
-     * signs it with `sweepSign`, and one finishes it with `sweepFinish`.
+     * the shielded address of this wallet. `group` is JSON {t, keys, key_package} (the group
+     * script, as for `p2shAddress`). Returns `{"pczt", "value", "fee", "inputs"}`. Each seat
+     * checks and signs it with `sweepSign`, and one finishes it with `sweepFinish`.
      */
-    createSweep(coins: string, t: number, keys: string[], key_package: string): Promise<string>;
+    createSweep(coins: string, group: string): Promise<string>;
     /**
      * Transactions whose memos are not read yet: `[{"txid", "hash", "height"}, …]`. Pass `hash`
      * to `fetchTransaction`, then the result to `attachTransaction`.
@@ -210,11 +210,11 @@ export function splitMessage(text: string): string;
 
 export function start(): void;
 
-export function sweepCheck(pczt: string, t: number, keys: string[], key_package: string, fvk: string, net: string): string;
+export function sweepCheck(pczt: string, group: string, fvk: string, net: string): string;
 
-export function sweepFinish(pczt: string, signatures: string): string;
+export function sweepFinish(pczt: string, signatures: string, t: number): string;
 
-export function sweepSign(pczt: string, t: number, keys: string[], key_package: string, fvk: string, net: string, tip: number): string;
+export function sweepSign(pczt: string, group: string, fvk: string, net: string, tip: number): string;
 
 export function transparentUtxos(endpoint: string, address: string): Promise<string>;
 
@@ -251,7 +251,7 @@ export interface InitOutput {
     readonly chainwallet_broadcast: (a: number, b: number, c: number) => any;
     readonly chainwallet_createMessage: (a: number, b: number, c: number, d: number, e: number) => any;
     readonly chainwallet_createSpend: (a: number, b: number, c: number, d: number, e: number, f: number) => any;
-    readonly chainwallet_createSweep: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => any;
+    readonly chainwallet_createSweep: (a: number, b: number, c: number, d: number, e: number) => any;
     readonly chainwallet_memoNeeds: (a: number) => [number, number, number, number];
     readonly chainwallet_mempool: (a: number) => any;
     readonly chainwallet_new: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
@@ -300,9 +300,9 @@ export interface InitOutput {
     readonly skCommit: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
     readonly splitMessage: (a: number, b: number) => [number, number, number, number];
     readonly start: () => void;
-    readonly sweepCheck: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number, number, number];
-    readonly sweepFinish: (a: number, b: number, c: number, d: number) => [number, number, number, number];
-    readonly sweepSign: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number, number];
+    readonly sweepCheck: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
+    readonly sweepFinish: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+    readonly sweepSign: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number, number];
     readonly transparentUtxos: (a: number, b: number, c: number, d: number) => any;
     readonly vaultSk: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
     readonly walletCreate: (a: number, b: number, c: number, d: number) => [number, number, number, number];

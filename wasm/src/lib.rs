@@ -1809,6 +1809,24 @@ mod tests {
         assert_eq!(ins["fee"], json!(20_000));
     }
 
+    /// The highest fee counts the action of the transparent output: 10 times 15,000 zat passes,
+    /// though it is 15 times the fee of the two shielded actions alone. One zat more is refused.
+    #[test]
+    fn inspect_counts_the_transparent_action_in_the_highest_fee() {
+        use zcash_primitives::transaction::fees::fixed;
+        for (fee, ok) in [(150_000, true), (150_001, false)] {
+            let rule = fixed::FeeRule::non_standard(Zatoshis::from_u64(fee).unwrap());
+            let (pczt, key) = with_transparent(&rule, 1_000_000 - 100_000 - 40_000 - fee, &[]);
+            let out = inspect(&pczt, &key);
+            if ok {
+                assert_eq!(v(&out.unwrap())["fee"], json!(150_000));
+            } else {
+                let err = out.unwrap_err();
+                assert!(err.contains("Zigs pays at most 150000 zat"), "{err}");
+            }
+        }
+    }
+
     /// A transparent output must pay a P2PKH or a P2SH script: an OP_RETURN output is refused.
     #[test]
     fn inspect_refuses_another_transparent_script() {
@@ -2293,9 +2311,14 @@ mod tests {
         (packages, keys)
     }
 
-    fn sweep_script() -> (TransparentAddress, zcash_script::script::Redeem) {
+    /// The group with threshold `t` as seat `seat` (1 to 3) sees it.
+    fn sweep_group(t: u32, seat: usize) -> p2sh::Group {
         let (packages, keys) = sweep_seats();
-        p2sh::group_script(2, &keys, &packages[0], &Network::TestNetwork).unwrap()
+        p2sh::Group { t, keys, key_package: packages[seat - 1].clone() }
+    }
+
+    fn sweep_script() -> (TransparentAddress, zcash_script::script::Redeem) {
+        sweep_group(2, 1).script(&Network::TestNetwork).unwrap()
     }
 
     /// Payments of `values` to the group address, as `transparentUtxos` lists them.
@@ -2317,15 +2340,19 @@ mod tests {
         Ok((pczt_to_b64(p)?, value, fee, n))
     }
 
-    /// A sweep of one group payment of 1,000,000 zat that the test builds by hand: `pay` adds the
-    /// outputs, and `rule` is the fee rule.
+    type Spends = Vec<(orchard::Note, orchard::tree::MerklePath)>;
+
+    /// A sweep of `coins` group payments of 1,000,000 zat each that the test builds by hand: `pay`
+    /// adds the outputs, with a note of 50,000 zat of the wallet that it may spend, and `rule` is
+    /// the fee rule.
     fn forged_sweep(
         fvk: &FullViewingKey,
         rule: &zip317::FeeRule,
-        pay: impl FnOnce(&mut Builder<LocalNetwork, ()>),
+        coins: u8,
+        pay: impl FnOnce(&mut Builder<LocalNetwork, ()>, Spends),
     ) -> String {
         let (address, redeem) = sweep_script();
-        let (_, anchor) = incoming_notes(fvk, &[1], true).unwrap();
+        let (spends, anchor) = incoming_notes(fvk, &[50_000], true).unwrap();
         let terms = group_terms(1);
         let mut b = Builder::new(regtest(true), terms.target, BuildConfig::Standard {
             sapling_anchor: None,
@@ -2335,11 +2362,13 @@ mod tests {
             ironwood_padding: BundlePadding::DEFAULT,
         })
         .with_expiry_height(terms.expiry.unwrap());
-        let coin = zcash_transparent::bundle::TxOut::new(
-            Zatoshis::const_from_u64(1_000_000), address.script().into());
-        let at = zcash_transparent::bundle::OutPoint::new([1; 32], 0);
-        b.add_transparent_p2sh_input(redeem.weaken(), at, coin).unwrap();
-        pay(&mut b);
+        for i in 0..coins {
+            let coin = zcash_transparent::bundle::TxOut::new(
+                Zatoshis::const_from_u64(1_000_000), address.script().into());
+            let at = zcash_transparent::bundle::OutPoint::new([i + 1; 32], 0);
+            b.add_transparent_p2sh_input(redeem.clone().weaken(), at, coin).unwrap();
+        }
+        pay(&mut b, spends);
         let PcztResult { pczt_parts, .. } = b.build_for_pczt(rng(), rule).unwrap();
         let pczt = Creator::build_from_parts(pczt_parts).unwrap();
         pczt_to_b64(IoFinalizer::new(pczt).finalize_io(rng()).unwrap()).unwrap()
@@ -2348,16 +2377,17 @@ mod tests {
     /// Runs the script of each input of the raw transaction `raw` with the interpreter of the
     /// network. `unsigned` is its PCZT before the signatures and `values` the value of each input.
     fn scripts_verify(unsigned: &str, raw: &[u8], values: &[u64]) {
-        use zcash_script::{interpreter, script, signature::SignedOutputs};
         use zcash_protocol::consensus::BranchId;
+        use zcash_script::{interpreter, script, signature::SignedOutputs};
         use zcash_transparent::{address::Script, sighash::SighashType};
         let branch = BranchId::for_height(&regtest(true), BlockHeight::from_u32(TIP + 1));
         let tx = Transaction::read(raw, branch).unwrap();
         let effects = pczt_from_b64(unsigned).unwrap().into_effects().unwrap();
         let pre = PrecomputedSighashData::new_zip244(effects).unwrap();
         let bundle = tx.transparent_bundle().unwrap();
-        let (address, _) = sweep_script();
+        let (address, redeem) = sweep_script();
         let spk: Script = address.script().into();
+        let estimate = p2sh::input_size(&redeem).unwrap();
         assert_eq!(bundle.vin.len(), values.len());
         for (i, txin) in bundle.vin.iter().enumerate() {
             let value = Zatoshis::const_from_u64(values[i]);
@@ -2380,8 +2410,6 @@ mod tests {
             assert_eq!(run.eval(interpreter::Flags::all(), &checker), Ok(true), "input {i}");
             let mut bytes = vec![];
             txin.write(&mut bytes).unwrap();
-            let estimate = zcash_transparent::builder::p2sh_input_serialized_len(
-                &sweep_script().1.weaken()).unwrap();
             assert!(bytes.len() <= estimate, "input {i}: {} bytes, the fee pays {estimate}",
                 bytes.len());
         }
@@ -2391,29 +2419,38 @@ mod tests {
     fn p2sh_sweep_moves_the_group_payments_to_the_wallet() {
         let fvk = FullViewingKey::from(&random_sk());
         let fvk_hex = hex::encode(fvk.to_bytes());
-        let (packages, keys) = sweep_seats();
-        let group = |i: usize| (2u32, &keys[..], packages[i].as_str());
         // A payment of 1,000 zat adds more fee than value: it stays behind.
         let (pczt, value, fee, n) = sweep_of(&fvk, &[500_000, 1_000_000, 1_000]).unwrap();
         assert_eq!((n, fee, value), (2, 30_000, 1_470_000));
-        let check = v(&p2sh::sweep_check(&pczt, group(1), &fvk_hex, "testnet").unwrap());
+        let check =
+            v(&p2sh::sweep_check(&pczt, &sweep_group(2, 2), &fvk_hex, "testnet").unwrap());
         assert_eq!(check["inputs"], 2);
         assert_eq!((&check["total"], &check["value"], &check["fee"]),
             (&json!(1_500_000), &json!(1_470_000), &json!(30_000)));
         assert_eq!(check["expiry_height"], u32::from(group_terms(1).expiry.unwrap()));
-        let signs =
-            |i: usize| v(&p2sh::sweep_sign(&pczt, group(i), &fvk_hex, "testnet", TIP).unwrap());
-        let (first, third) = (signs(0), signs(2));
+        let signs = |seat: usize| {
+            v(&p2sh::sweep_sign(&pczt, &sweep_group(2, seat), &fvk_hex, "testnet", TIP).unwrap())
+        };
+        let (first, third) = (signs(1), signs(3));
         assert_eq!(first["signatures"].as_array().unwrap().len(), 2);
-        // The signatures of two seats on the wrong inputs do not verify.
+        assert_eq!(first["digest"], check["digest"], "the approval names the checked move");
+        // Bad sets fail before the proof: signatures on the wrong inputs, another sighash type, one
+        // seat alone, and one seat twice.
         let mut turned = first.clone();
         turned["signatures"].as_array_mut().unwrap().reverse();
-        let err = p2sh::sweep_finish(&pczt, &json!([turned]).to_string()).unwrap_err();
+        let mut weak = first.clone();
+        let sig = weak["signatures"][0].as_str().unwrap().to_string();
+        weak["signatures"][0] = json!(format!("{}02", &sig[..sig.len() - 2]));
+        let finish = |sets: Value| p2sh::sweep_finish(&pczt, &sets.to_string(), 2);
+        let err = finish(json!([turned, weak, third])).unwrap_err();
+        assert!(err.starts_with("1 of the 2 signature sets"), "{err}");
         assert!(err.contains("on input 0 does not verify"), "{err}");
-        // One seat cannot move the funds.
-        let err = p2sh::sweep_finish(&pczt, &json!([first]).to_string()).unwrap_err();
-        assert!(err.contains("MissingSignature"), "{err}");
-        let out = v(&p2sh::sweep_finish(&pczt, &json!([first, third]).to_string()).unwrap());
+        assert!(err.contains("signs less than the whole transaction"), "{err}");
+        let err = finish(json!([first, first])).unwrap_err();
+        assert!(err.starts_with("1 of the 2 signature sets"), "{err}");
+        // A seat that sends bad signatures, or copies the key of another, does not block the move.
+        let copied = json!({"key": third["key"], "signatures": first["signatures"]});
+        let out = v(&finish(json!([turned, copied, first, third])).unwrap());
         assert_eq!(out["txid"], check["txid"]);
         let raw = hex::decode(out["tx_hex"].as_str().unwrap()).unwrap();
         scripts_verify(&pczt, &raw, &[1_000_000, 500_000]);
@@ -2423,9 +2460,7 @@ mod tests {
     fn p2sh_sweep_refuses_another_move() {
         let fvk = FullViewingKey::from(&random_sk());
         let fvk_hex = hex::encode(fvk.to_bytes());
-        let (packages, keys) = sweep_seats();
-        let check =
-            |pczt: &str| p2sh::sweep_check(pczt, (2, &keys, &packages[0]), &fvk_hex, "testnet");
+        let check = |pczt: &str| p2sh::sweep_check(pczt, &sweep_group(2, 1), &fvk_hex, "testnet");
         let refused = |pczt: &str, why: &str| {
             let err = check(pczt).unwrap_err();
             assert!(err.contains(why), "{why}: {err}");
@@ -2440,33 +2475,51 @@ mod tests {
             let memo = MemoBytes::empty();
             b.add_ironwood_output::<zip317::FeeRule>(ovk.clone(), mine, z(value), memo).unwrap();
         };
-        let honest = forged_sweep(&fvk, &standard, |b| {
-            to_me(b, 980_000);
-        });
-        assert_eq!(v(&check(&honest).unwrap())["fee"], 20_000);
         let stranger = FullViewingKey::from(&random_sk()).address_at(0u32, Scope::External);
-        let to_both = forged_sweep(&fvk, &standard, |b| {
+        let to_stranger = |b: &mut Builder<LocalNetwork, ()>, value: u64| {
+            let memo = MemoBytes::empty();
+            b.add_ironwood_output::<zip317::FeeRule>(None, stranger, z(value), memo).unwrap();
+        };
+        let honest = forged_sweep(&fvk, &standard, 1, |b, _| to_me(b, 980_000));
+        assert_eq!(v(&check(&honest).unwrap())["fee"], 20_000);
+        let to_both = forged_sweep(&fvk, &standard, 1, |b, _| {
             to_me(b, 490_000);
-            b.add_ironwood_output::<zip317::FeeRule>(None, stranger, z(490_000), MemoBytes::empty())
-                .unwrap();
+            to_stranger(b, 490_000);
         });
         refused(&to_both, "pays another address than this wallet");
         let t1 = TransparentAddress::PublicKeyHash([7; 20]);
-        let out_too = forged_sweep(&fvk, &standard, |b| {
+        let out_too = forged_sweep(&fvk, &standard, 1, |b, _| {
             to_me(b, 970_000);
             b.add_transparent_output(&t1, z(10_000)).unwrap();
         });
         refused(&out_too, "no transparent output");
-        let rule = zip317::FeeRule::non_standard(z(5_001), zip317::GRACE_ACTIONS,
-            zip317::P2PKH_STANDARD_INPUT_SIZE, zip317::P2PKH_STANDARD_OUTPUT_SIZE).unwrap();
-        let dear = forged_sweep(&fvk, &rule, |b| {
-            to_me(b, 979_996);
+        // Two outputs of zero value pad the move to 3 actions and raise the fee by 5,000 zat.
+        let padded = forged_sweep(&fvk, &standard, 1, |b, _| {
+            to_me(b, 975_000);
+            to_stranger(b, 0);
+            to_stranger(b, 0);
         });
+        refused(&padded, "a move has 2 shielded actions, not 3");
+        let size = p2sh::input_size(&sweep_script().1).unwrap();
+        let fee = p2sh::sweep_fee(51, size, 2).unwrap();
+        let wide = forged_sweep(&fvk, &standard, 51, |b, _| to_me(b, 51_000_000 - fee));
+        refused(&wide, "a move spends at most 50 payments, not 51");
+        let spends = forged_sweep(&fvk, &standard, 1, |b, mut notes| {
+            let (note, path) = notes.remove(0);
+            b.add_ironwood_spend::<zip317::FeeRule>(fvk.clone(), note, path).unwrap();
+            to_me(b, 1_030_000);
+        });
+        refused(&spends, "spends a note");
+        let rule = |marginal| zip317::FeeRule::non_standard(z(marginal), zip317::GRACE_ACTIONS,
+            zip317::P2PKH_STANDARD_INPUT_SIZE, zip317::P2PKH_STANDARD_OUTPUT_SIZE).unwrap();
+        let dear = forged_sweep(&fvk, &rule(5_001), 1, |b, _| to_me(b, 979_996));
         refused(&dear, "a fee of 20004 zat, not the ZIP 317 fee of 20000 zat");
-        let other = p2sh::sweep_check(&honest, (3, &keys, &packages[0]), &fvk_hex, "testnet");
+        let cheap = forged_sweep(&fvk, &rule(4_999), 1, |b, _| to_me(b, 980_004));
+        refused(&cheap, "a fee of 19996 zat, not the ZIP 317 fee of 20000 zat");
+        let other = p2sh::sweep_check(&honest, &sweep_group(3, 1), &fvk_hex, "testnet");
         assert!(other.unwrap_err().contains("another address than the group address"));
         let late = u32::from(group_terms(1).expiry.unwrap());
-        let err = p2sh::sweep_sign(&honest, (2, &keys, &packages[0]), &fvk_hex, "testnet", late)
+        let err = p2sh::sweep_sign(&honest, &sweep_group(2, 1), &fvk_hex, "testnet", late)
             .unwrap_err();
         assert!(err.contains("expired"), "{err}");
     }

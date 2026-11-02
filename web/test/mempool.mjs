@@ -527,38 +527,47 @@ console.log("ok  no call for a hidden tab or a closed wallet; the 30 s call asks
 // stubs. The real engine takes the arguments of each call, and cargo tests the move itself.
 {
   const engine = await import("../app-engine.js");
-  const { groupTaddress, readTaddressBalance, taddressBalance, taddressSection } =
+  const { groupTaddress, readTaddressBalance, taddressSection } =
     await import("../app-taddress.js");
   const sweep = await import("../app-sweep.js");
-  const { signedDoc } = await import("../app-filter.js");
+  const { checkIn, signedDoc } = await import("../app-filter.js");
+  const { docFields } = await import("../signed.js");
   const sg = await rig.wallet({ name: "Sweep" });
   await rig.waitFor("the group address of the move", () => groupTaddress().address);
   const { address, keys } = groupTaddress();
-  const kp = JSON.stringify(t.sec(sg, 1).keyPackage), fvk = t.state.wallet.orchard_fvk;
-  for (const call of [() => Z.sweepCheck("AAAA", 2, keys, kp, fvk, "testnet"),
-    () => Z.sweepSign("AAAA", 2, keys, kp, fvk, "testnet", 100),
-    () => Z.sweepFinish("AAAA", "[]")]) {
+  const fvk = t.state.wallet.orchard_fvk;
+  const kp = JSON.stringify(t.sec(sg, 1).keyPackage);
+  const group = JSON.stringify({ t: 2, keys, key_package: kp });
+  for (const call of [() => Z.sweepCheck("AAAA", group, fvk, "testnet"),
+    () => Z.sweepSign("AAAA", group, fvk, "testnet", 100),
+    () => Z.sweepFinish("AAAA", "[]", 2)]) {
     assert.throws(call, /pczt parse/, "the engine reads the arguments and refuses the PCZT");
   }
   console.log("ok  the engine takes the arguments of the move and refuses a bad PCZT");
 
-  const before = engine.Z, calls = [], PCZT = "bW92ZQ==";
+  const before = engine.Z, calls = [], PCZT = "bW92ZQ==", PCZT2 = "bW92ZTI=";
   const ck = { inputs: 2, total: 15e7, value: 14997e4, fee: 30000, txid: "c3".repeat(32),
-    expiry_height: 5000 };
+    digest: "dg1", expiry_height: 5000 };
+  const checks = { [PCZT]: ck, [PCZT2]: { ...ck, txid: "e5".repeat(32), digest: "dg2" } };
   const utxo = (value, index) => ({ txid: "ab".repeat(32), index, value, height: 5 });
+  let listed = [utxo(1e8, 0), utxo(5e7, 1)];
+  const shown = () => textOf(drawn(() => taddressSection()));
+  const buttons = () => findAll(drawn(() => taddressSection()), (n) => n.tag === "button")
+    .map(textOf).filter((b) => !b.startsWith("Copy"));
+  const ofGroup = (g) => [JSON.parse(g).t, JSON.parse(g).keys.length];
   t.setZ({ ...before, latestHeight: async () => 100,
-    transparentUtxos: async () => JSON.stringify({ total: 15e7, utxos: [utxo(1e8, 0),
-      utxo(5e7, 1)], more: false }),
-    sweepCheck: (p, _t, _k, _kp, f) => {
-      if (p !== PCZT || f !== fvk) throw new Error("not a move to this wallet");
-      return JSON.stringify(ck);
+    transparentUtxos: async () => JSON.stringify({ total: 15e7, utxos: listed, more: false }),
+    sweepCheck: (p, g, f) => {
+      if (!checks[p] || f !== fvk || ofGroup(g).join() !== "2,3") throw new Error("not ours");
+      return JSON.stringify(checks[p]);
     },
-    sweepSign: (...args) => {
-      calls.push(["sign", args[6]]);
-      return JSON.stringify({ key: "key-" + calls.length, signatures: ["30"] });
+    sweepSign: (p, g, _f, _net, tip) => {
+      calls.push(["sign", tip]);
+      return JSON.stringify({ digest: checks[p].digest, key: "key-" + calls.length,
+        signatures: ["30"] });
     },
-    sweepFinish: (p, sigs) => {
-      calls.push(["finish", p, JSON.parse(sigs).map((s) => s.key)]);
+    sweepFinish: (p, sets, tt) => {
+      calls.push(["finish", p, JSON.parse(sets).map((s) => s.key), tt, buttons()]);
       return JSON.stringify({ tx_hex: "beef", txid: ck.txid });
     },
     ChainWallet: class {
@@ -566,59 +575,79 @@ console.log("ok  no call for a hidden tab or a closed wallet; the 30 s call asks
       free() {}
     } });
   const cw = new FakeWallet();
-  cw.createSweep = async (utxos, tt, k) => {
-    calls.push(["create", JSON.parse(utxos).length, tt, k.length]);
+  cw.createSweep = async (utxos, g) => {
+    calls.push(["create", JSON.parse(utxos).length, ...ofGroup(g)]);
     return JSON.stringify({ pczt: PCZT, value: ck.value, fee: ck.fee, inputs: 2 });
   };
   const c = { gid: sg, cw, url: server, net: NETWORKS.testnet, birthday: 1, ms: 0, error: null,
     bal: { height: 100, tip: 100, spendable: 0, pending: 0 }, received: [], sent: new Set(),
     syncing: false };
   t.setChain(c);
-  const shown = () => textOf(drawn(() => taddressSection()));
-  const buttons = () => findAll(drawn(() => taddressSection()), (n) => n.tag === "button")
-    .map(textOf).filter((b) => !b.startsWith("Copy"));
-  await readTaddressBalance(address);
+  const reread = () => readTaddressBalance(address);
+  await reread();
   assert.deepEqual(buttons(), ["Move to the shielded address"]);
   assert.match(shown(), /moves the funds to the shielded address of this wallet when 2 devices/);
-  await sweep.proposeSweep(keys, taddressBalance().utxos);
-  assert.deepEqual(calls.shift(), ["create", 2, 2, 3], "two payments, 2 of 3 keys");
-  assert.equal(rig.data.get(`groups/${sg}/sweep/proposal`).pczt, PCZT);
-  // A signature of an older move does not count, and does not go into the finish.
-  const old = await signedDoc(sg, "sweep/2", 2, { v: 1, txid: "d4".repeat(32), key: "old",
+  listed = [];
+  await assert.rejects(sweep.proposeSweep(keys, reread), /holds no payment now/,
+    "the proposal reads the payments again");
+  listed = [utxo(1e8, 0), utxo(5e7, 1)];
+  // An approval of another move does not count.
+  const old = await signedDoc(sg, "sweep/2", 2, { v: 1, digest: "old", key: "old",
     signatures: ["30"] });
   await rig.db.doc(`groups/${sg}/sweep/2`).set(old);
+  await sweep.proposeSweep(keys, reread);
+  assert.deepEqual(calls.splice(0), [["create", 2, 2, 3]], "two payments, 2 of 3 keys");
+  assert.equal(rig.data.get(`groups/${sg}/sweep/proposal`).pczt, PCZT);
   await rig.waitFor("the proposed move", () => /0 of 2 devices approved it/.test(shown()));
+  const verdict = () => checkIn(sg)("sweep/2", old.by, old.sig, docFields(old), 2);
+  await rig.waitFor("the check of the old approval", () => verdict() === "yes");
+  assert.match(shown(), /0 of 2 devices approved it/);
   assert.ok(shown().includes("A move of 1.4997 ZEC to the shielded address of this wallet spends 2 "
     + "payments of the transparent address. The network fee is 0.0003 ZEC."), shown());
   assert.deepEqual(buttons(), [1, 2, 3].map((i) => "Approve as device " + i));
   console.log("ok  a device proposes the move, and each device shows the amounts of its check");
 
-  await sweep.approveSweep(1, keys);
-  await sweep.approveSweep(3, keys);
+  await sweep.approveSweep(1, keys, "dg1");
+  const key1 = rig.data.get(`groups/${sg}/sweep/1`).key;
+  // Seat 2 copies the key of seat 1: one key counts once.
+  const copy = await signedDoc(sg, "sweep/2", 2, { v: 1, digest: "dg1", key: key1,
+    signatures: ["30"] });
+  await rig.db.doc(`groups/${sg}/sweep/2`).set(copy);
+  await rig.waitFor("the copied key", () => !buttons().includes("Approve as device 2"));
+  assert.match(shown(), /1 of 2 devices approved it/);
+  assert.deepEqual(buttons(), ["Approve as device 3"]);
+  await assert.rejects(sweep.sendSweep(keys, "dg1"), /needs 2 approvals/);
+  await assert.rejects(sweep.approveSweep(3, keys, "dg2"), /changed or expired/,
+    "a button acts only on the move that it shows");
+  await sweep.approveSweep(3, keys, "dg1");
   assert.deepEqual(calls.splice(0), [["sign", 100], ["sign", 100]], "signed at the fresh tip");
   await rig.waitFor("two approvals", () => /2 of 2 devices approved it/.test(shown()));
-  assert.deepEqual(buttons(), ["Approve as device 2", "Send the move"]);
-  const signers = [1, 3].map((i) => rig.data.get(`groups/${sg}/sweep/${i}`).key);
-  await sweep.sendSweep(keys);
-  assert.deepEqual(calls.splice(0), [["finish", PCZT, signers], ["broadcast", "beef"]]);
+  assert.deepEqual(buttons(), ["Send the move"]);
+  await assert.rejects(sweep.sendSweep(keys, "dg2"), /changed or expired/);
+  const key3 = rig.data.get(`groups/${sg}/sweep/3`).key;
+  await sweep.sendSweep(keys, "dg1");
+  assert.deepEqual(calls.splice(0), [["finish", PCZT, [key1, key1, key3], 2, []],
+    ["broadcast", "beef"]], "every approval goes to the finish, and Send hides during the proof");
   assert.equal(rig.data.get(`groups/${sg}/sweep/sent`).txid, ck.txid);
   await rig.waitFor("the sent move", () => /It was sent to the network/.test(shown()));
   assert.deepEqual(buttons(), [], "no new move for the payments that the sent move spends");
-  console.log("ok  two approvals send the move once, with their signatures only");
+  console.log("ok  two keys send the move once, and a copied key counts once");
 
   const bad = await signedDoc(sg, "sweep/proposal", 2, { v: 1, pczt: "b3RoZXI=" });
   await rig.db.doc(`groups/${sg}/sweep/proposal`).set(bad);
   await rig.waitFor("the refused move", () => /does not check/.test(shown()));
-  assert.match(shown(), /not a move to this wallet/);
+  assert.match(shown(), /not ours/);
   assert.deepEqual(buttons(), ["Move to the shielded address"]);
-  await assert.rejects(sweep.approveSweep(1, keys), /No move waits for an approval/);
+  await assert.rejects(sweep.approveSweep(1, keys, "dg1"), /changed or expired/);
   const again = await signedDoc(sg, "sweep/proposal", 1, { v: 1, pczt: PCZT });
   await rig.db.doc(`groups/${sg}/sweep/proposal`).set(again);
-  rig.data.delete(`groups/${sg}/sweep/sent`);
   c.bal.tip = 5000;
-  rig.notify();
+  await rig.waitFor("the sent move that expired", () => /It was sent/.test(shown()));
+  assert.deepEqual(buttons(), ["Move to the shielded address"], "a block did not hold the move");
+  const other = await signedDoc(sg, "sweep/proposal", 1, { v: 1, pczt: PCZT2 });
+  await rig.db.doc(`groups/${sg}/sweep/proposal`).set(other);
   await rig.waitFor("the expired move", () => /The proposed move expired/.test(shown()));
-  await assert.rejects(sweep.sendSweep(keys), /No move can be sent now/);
+  await assert.rejects(sweep.sendSweep(keys, "dg2"), /changed or expired/);
   assert.deepEqual(buttons(), ["Move to the shielded address"]);
   t.setChain(null);
   t.setZ(before);
