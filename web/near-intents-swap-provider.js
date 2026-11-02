@@ -1,10 +1,19 @@
 // NEAR Intents through the Zigs Worker (cf/src/near.js). /near/quote gives dry quotes of mainnet
-// prices: no funds move. /near/swap opens a live swap from SOL to ZEC with a deposit address, and
-// /near/status gives its state. The page never calls NEAR Intents itself.
+// prices: no funds move. /near/swap opens a live swap from SOL to ZEC with a deposit address,
+// /near/swap-zec one from ZEC to SOL, and /near/status gives the state. The page never calls NEAR
+// Intents itself.
 import { SWAP_ASSETS } from './swap-preview-model.js';
 
 const INTEGER = /^\d{1,40}$/;
 const SOL_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+// A transparent mainnet address of Zcash: the deposit address of a swap from ZEC. The engine checks
+// its checksum before a payment.
+const T_ADDRESS = /^t[13][1-9A-HJ-NP-Za-km-z]{33}$/;
+// The live route of each origin asset, and the form of its deposit address.
+const LIVE_ROUTES = Object.freeze({
+  sol: { path: '/near/swap', deposit: SOL_ADDRESS },
+  zec: { path: '/near/swap-zec', deposit: T_ADDRESS },
+});
 const MESSAGES = Object.freeze({
   'no-route': 'NEAR Intents has no route for this pair and amount. Try another pair or amount.',
   'busy': 'Too many quote requests from this network. Wait a minute, then refresh the quote.',
@@ -43,9 +52,9 @@ function quoteOf(body) {
 }
 
 // The live swap of an answer of the Worker, or null when it is not the swap that was asked for.
-function swapOf(body, ask) {
+function swapOf(body, ask, route) {
   const quote = quoteOf(body);
-  const sound = [quote?.amountIn === ask.amount, SOL_ADDRESS.test(body?.depositAddress),
+  const sound = [quote?.amountIn === ask.amount, route.deposit.test(body?.depositAddress),
     !Number.isNaN(Date.parse(body?.deadline)), body?.recipient === ask.recipient,
     body?.refundTo === ask.refundTo];
   if (!sound.every(Boolean)) return null;
@@ -108,11 +117,16 @@ export class NearIntentsSwapProvider {
     if (quote) return quote;
     throw res.status === 200 ? new NearQuoteError('unavailable') : refusal(res, body);
   }
-  /** A live swap from SOL to ZEC: the quote with its deposit address, deadline and addresses. */
-  async openSwap({ amountAtomic, slippageBps, recipient, refundTo }) {
+  /**
+   * A live swap from `from` ('sol' to ZEC, or 'zec' to SOL): the quote with its deposit address,
+   * deadline and addresses.
+   */
+  async openSwap({ from = 'sol', amountAtomic, slippageBps, recipient, refundTo }) {
+    const route = LIVE_ROUTES[from];
+    if (!route) throw new NearQuoteError('no-route');
     const ask = { amount: amountAtomic, recipient, refundTo, slippageBps };
-    const { res, body } = await this.call('/near/swap', ask);
-    const swap = res.status === 200 ? swapOf(body, ask) : null;
+    const { res, body } = await this.call(route.path, ask);
+    const swap = res.status === 200 ? swapOf(body, ask, route) : null;
     if (swap) return swap;
     throw res.status === 200 ? new NearQuoteError('unavailable') : swapRefusal(res, body);
   }

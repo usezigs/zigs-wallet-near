@@ -351,6 +351,22 @@ async function reviewed(pro, clock = fakeClock()) {
     answer = make;
     await assert.rejects(provider.openSwap(input), check, what);
   }
+  // A swap from ZEC asks /near/swap-zec and takes a transparent deposit address only.
+  const T1 = 't1Hsc1LR8yKnbbe3twRp88p6vFfC5t7DLbs', T3 = 't3Vz22vK5z2LcKEdg16Yv4FFneEL1zg9ojd';
+  const fromZec = { from: 'zec', amountAtomic: '200000', slippageBps: 100, recipient: REFUND,
+    refundTo: T3 };
+  const zecOpened = { ...opened, amountIn: '200000', depositAddress: T1, recipient: REFUND,
+    refundTo: T3 };
+  calls.length = 0;
+  answer = () => Response.json(zecOpened);
+  assert.equal((await provider.openSwap(fromZec)).depositAddress, T1);
+  assert.deepEqual([calls[0].url, JSON.parse(calls[0].init.body)], ['/near/swap-zec',
+    { amount: '200000', recipient: REFUND, refundTo: T3, slippageBps: 100 }]);
+  answer = () => Response.json({ ...zecOpened, depositAddress: DEPOSIT });
+  await assert.rejects(provider.openSwap(fromZec), (e) => e.code === 'unavailable',
+    'a Solana deposit address for a swap from ZEC');
+  answer = () => Response.json(opened);
+  await assert.rejects(provider.openSwap({ ...input, from: 'usdc' }), (e) => e.code === 'no-route');
   calls.length = 0;
   answer = () => Response.json({ status: 'SUCCESS', originTxs: ['s1', 5], destinationTxs: ['z1'],
     amountOut: '133100', refundedAmount: 'x', extra: 1 });
@@ -384,8 +400,8 @@ async function reviewed(pro, clock = fakeClock()) {
     'a payout over the room is refused before the ask');
   assert.equal(pro.log.open.length, 0, 'and NEAR Intents is not asked');
   assert.equal(await m.openSwap(where), true);
-  assert.deepEqual(pro.log.open, [{ amountAtomic: '17500000', slippageBps: 50, recipient: UA,
-    refundTo: REFUND }], 'the amount, the slippage and the two addresses');
+  assert.deepEqual(pro.log.open, [{ from: 'sol', amountAtomic: '17500000', slippageBps: 50,
+    recipient: UA, refundTo: REFUND }], 'the amount, the slippage and the two addresses');
   assert.deepEqual([m.value.live.swap, m.value.live.wallet, m.value.phase, m.value.swapError],
     [opened, 'Savings', 'QUOTE_READY', '']);
   await settle();
@@ -481,6 +497,13 @@ async function reviewed(pro, clock = fakeClock()) {
   slow.closeSwap(); release(opened);
   assert.deepEqual([await asked, slow.value.live], [false, null], 'a closed ask stays closed');
   let answer;
+  // A swap from ZEC pays SOL: no ZEC room applies, and the ask names the origin.
+  const zecPro = swapPro(), zm = new SwapPreviewModel(zecPro, () => {}, fakeClock());
+  await zm.update({ from: zec.id, to: sol.id, amount: '0.002' });
+  zm.review();
+  assert.equal(await zm.openSwap({ ...where, room: '0' }), true, 'no room check from ZEC');
+  assert.equal(zecPro.log.open[0].from, 'zec');
+  assert.equal(zm.value.live.from, 'zec');
   const reading = swapPro({ status: () => new Promise((r) => { answer = r; }) });
   const readClock = fakeClock(), r = await reviewed(reading, readClock);
   await r.openSwap(where);
@@ -947,8 +970,9 @@ try {
   assert.equal(go.disabled, true, 'the tick is needed');
   fire(agree, 'change', { target: { checked: true } });
   fire(go, 'click'); await settle(); await settle();
-  assert.deepEqual(pro.log.open, [{ amountAtomic: '17500000', slippageBps: 50, recipient: UA,
-    refundTo: REFUND }], 'the review asks with the payout and the trimmed refund address');
+  assert.deepEqual(pro.log.open, [{ from: 'sol', amountAtomic: '17500000', slippageBps: 50,
+    recipient: UA, refundTo: REFUND }],
+  'the review asks with the payout and the trimmed refund address');
   assert.equal(modal.open, false, 'the review closes');
   const deposit = root.querySelector('#swap-deposit');
   assert.equal(deposit.hidden, false, 'the deposit screen shows');

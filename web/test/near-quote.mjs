@@ -755,6 +755,71 @@ const status = async (label, address = DEPOSIT, e = LIVE, init = {}) => {
   step("/near/status asks GET with the address only and gives the state, hashes and amounts");
 }
 
+// ── /near/swap-zec: a live swap from ZEC to SOL, with a transparent refund and deposit ──
+{
+  const T1 = "t1Hsc1LR8yKnbbe3twRp88p6vFfC5t7DLbs", T3 = "t3Vz22vK5z2LcKEdg16Yv4FFneEL1zg9ojd";
+  const zecAsk = { amount: "200000", recipient: REFUND, refundTo: T3, slippageBps: 100 };
+  const fromZec = (label, body, e = LIVE) => post(label, body, {}, e, "/near/swap-zec");
+  const hours = (n) => minutes(n * 60);
+  const zecGood = (sent, edit) => liveGood(sent, (b) => {
+    Object.assign(b.quote, { depositAddress: T1, deadline: hours(6), timeWhenInactive: hours(7) });
+    edit?.(b);
+  });
+  for (const NEAR_LIVE of [undefined, "0", "true"]) {
+    const off = await fromZec("off " + NEAR_LIVE, zecAsk, { ...env, NEAR_LIVE });
+    assert.equal(off.status, 404, "/near/swap-zec is off unless NEAR_LIVE is 1");
+  }
+  reply = zecGood;
+  const res = await fromZec("live from ZEC", zecAsk);
+  assert.equal(res.status, 200);
+  assert.deepEqual(taken()[0].sent, {
+    dry: false, swapType: "EXACT_INPUT", slippageTolerance: 100, originAsset: ID.zec,
+    depositType: "ORIGIN_CHAIN", destinationAsset: ID.sol, amount: "200000", refundTo: T3,
+    refundType: "ORIGIN_CHAIN", recipient: REFUND, recipientType: "DESTINATION_CHAIN",
+    deadline: hours(6),
+  }, "the whole live request from ZEC, with a deadline of 6 hours");
+  const body = await json(res);
+  assert.deepEqual([body.depositAddress, body.recipient, body.refundTo, body.deadline],
+    [T1, REFUND, T3, hours(6)]);
+  for (const [what, ask] of [
+    ["a unified recipient", { ...zecAsk, recipient: UA }],
+    ["a t-address recipient", { ...zecAsk, recipient: T1 }],
+    ["a Solana refund", { ...zecAsk, refundTo: REFUND }],
+    ["a unified refund", { ...zecAsk, refundTo: UA }],
+    ["a testnet refund", { ...zecAsk, refundTo: "tmBsTi2xWTjUdEXnuTceL7fecEQKeWaPDJd" }],
+    ["a TEX refund", { ...zecAsk, refundTo: "tex1s2rt77ggv6q989lr49rkgzmh5slsksa9khdgte" }],
+    ["a refund of zero bytes", { ...zecAsk, refundTo: "t1" + "1".repeat(33) }],
+    ["a refund with a space", { ...zecAsk, refundTo: T3 + " " }],
+  ]) {
+    const out = await fromZec(what, ask);
+    assert.equal(out.status, 400, what + " gives 400");
+  }
+  assert.equal(calls.length, 0, "no call upstream for a refused swap from ZEC");
+  for (const [what, edit] of [
+    ["a Solana deposit address", (b) => { b.quote.depositAddress = DEPOSIT; }],
+    ["a unified deposit address", (b) => { b.quote.depositAddress = UA; }],
+    ["a deadline in 3 hours", (b) => { b.quote.deadline = hours(3); }],
+    ["another refund", (b) => { b.quoteRequest.refundTo = T1; }],
+    ["another origin", (b) => { b.quoteRequest.originAsset = ID.sol; }],
+    ["a memo", (b) => { b.quote.depositMemo = "1"; }],
+  ]) {
+    reply = (sent) => zecGood(sent, edit);
+    assert.equal((await fromZec(what, zecAsk)).status, 502, "the live check from ZEC: " + what);
+  }
+  reply = (sent) => zecGood(sent, (b) => { b.quote.deadline = hours(4.5); });
+  assert.equal((await fromZec("4.5 hours", zecAsk)).status, 200, "4.5 hours left pass");
+  reply = () => Response.json({ status: "PENDING_DEPOSIT",
+    quoteResponse: { quote: { depositAddress: T1 } } });
+  const st = await status("a transparent deposit address", T1);
+  assert.deepEqual([st.status, (await json(st)).status], [200, "PENDING_DEPOSIT"]);
+  assert.equal(taken().at(-1).url,
+    "https://1click.chaindefuser.com/v0/status?depositAddress=" + T1);
+  reply = good;
+  taken();
+  step("/near/swap-zec asks for a swap from ZEC with a transparent refund, checks a transparent "
+    + "deposit address and 4 hours left; /near/status takes a transparent deposit address");
+}
+
 // ── The limit per network counts the live routes too, before the body and the address ──
 {
   const keys = [];

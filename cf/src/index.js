@@ -2,7 +2,7 @@
 // pushes every change of that group to its connected members over a WebSocket.
 import { DurableObject } from "cloudflare:workers";
 import { gate, withCookie } from "./gate.js";
-import { nearQuote, nearStatus, nearSwap } from "./near.js";
+import { nearQuote, nearStatus, nearSwap, nearSwapZec } from "./near.js";
 
 const GROUP_ID = /^[0-9a-f]{20}$/;
 // The light-wallet servers in NETWORKS (web/app-chain.js) that the page calls itself. The page may
@@ -526,6 +526,9 @@ async function route(req, env, ctx) {
   }
   if (url.pathname === "/near/swap") {
     return nearSwap(req, env, { key: clientKey(req), readBody: smallBody });
+  }
+  if (url.pathname === "/near/swap-zec") {
+    return nearSwapZec(req, env, { key: clientKey(req), readBody: smallBody });
   }
   if (url.pathname === "/near/status") return nearStatus(req, env, url, { key: clientKey(req) });
   if (url.pathname === "/" || url.pathname === "/index.html") {
