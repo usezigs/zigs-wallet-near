@@ -674,11 +674,12 @@ export async function failSession(gid, ss, error) {
   const sig = await sigPart(gid, ss.id, "failure", { error });
   await sdb.doc(sessionPath(ss, gid)).update({ error, status: "failed", ...sig });
 }
-// ZIP 317 for a payment from up to `outputs` notes: one action per output, change included. A
+// ZIP 317 for a payment from up to `outputs` notes: one action per shielded output, change
+// included, and one more for each of the `transparent` payees (a P2PKH or P2SH output). A
 // priority payment pays PRIORITY_FACTOR times as much (the engine's cap).
 export const PRIORITY_FACTOR = 10;
-export const feeEstimate = (payees, priority = false) =>
-  5000 * Math.max(2, payees + 1) * (priority ? PRIORITY_FACTOR : 1);
+export const feeEstimate = (payees, priority = false, transparent = 0) =>
+  5000 * (Math.max(2, payees - transparent + 1) + transparent) * (priority ? PRIORITY_FACTOR : 1);
 
 export const sendBlocker = () => setupBlocker() || holdBlocker() || fundsBlocker(curChain().bal);
 

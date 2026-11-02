@@ -689,7 +689,9 @@ function inDialog(fn) {
 async function submitSend(rows, spendable, why, ev) {
   if (why) throw new Error(why);
   const run = sendRun, payees = readPayees(rows, await resolveNames(rows));
-  const need = payees.reduce((n, p) => n + p.amount, 0) + feeEstimate(payees.length, ui.priority);
+  const open = payees.filter((p) => transparentOnNetwork(p.to)).length;
+  const need = payees.reduce((n, p) => n + p.amount, 0)
+    + feeEstimate(payees.length, ui.priority, open);
   if (need > spendable) throw new Error(fundsText(spendable, need));
   const note = String(new FormData(ev.target).get("note") || "").trim();
   if (!ui.after) return openReview(payees, note, run);
@@ -706,7 +708,8 @@ export function sendDialog() {
   const rows = ui.pay;
   const fee = el("span", {}), total = el("span", { id: "s-total" });
   const sumUp = () => {
-    const f = feeEstimate(rows.length, ui.priority);
+    const open = rows.filter((r) => transparentOnNetwork(r.to)).length;
+    const f = feeEstimate(rows.length, ui.priority, open);
     fee.replaceChildren(money(f));
     total.replaceChildren(money(rows.reduce((n, r) => n + (toZat(r.amt) || 0), 0) + f));
   };
