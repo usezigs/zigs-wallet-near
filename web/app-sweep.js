@@ -78,12 +78,15 @@ function openMove(gid, keys) {
     expired: Number.isInteger(tip) && tip >= ck.expiry_height };
 }
 
+// A compressed secp256k1 key in the hex of `sweepSign`. One key in other letters would count twice.
+const KEY = /^0[23][0-9a-f]{64}$/;
+
 // The seats that approved the move with `digest`, in seat order. An approval of another move does
 // not count. The engine checks each signature when it finishes the move.
 function approvals(gid, digest) {
   return Array.from({ length: state.g.n }, (_, i) => i + 1).filter((i) => {
     const d = signed(gid, String(i), i);
-    return d?.digest === digest && isStr(d.key) && Array.isArray(d.signatures);
+    return d?.digest === digest && KEY.test(d.key) && Array.isArray(d.signatures);
   });
 }
 

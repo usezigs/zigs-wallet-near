@@ -427,7 +427,7 @@ pub fn sweep_sign(pczt: &str, group: &Group, fvk: &str, net: &str, tip: u32) -> 
 /// Appends the signatures of one seat ({key, signatures}) to `signer`: one for each of the
 /// `inputs` inputs. A signature that is no DER signature of the whole transaction, or that does
 /// not verify, fails with its key and input.
-fn append_set(signer: &mut Signer, set: &Value, inputs: usize) -> R<()> {
+pub(crate) fn append_set(signer: &mut Signer, set: &Value, inputs: usize) -> R<()> {
     let key = set["key"].as_str().unwrap_or("?");
     let list = set["signatures"].as_array().filter(|l| l.len() == inputs);
     let list = list.ok_or_else(|| format!("key {key} sent no signature for each input"))?;
@@ -445,8 +445,9 @@ fn append_set(signer: &mut Signer, set: &Value, inputs: usize) -> R<()> {
 }
 
 /// Checks that one seat's set ({key, signatures}) signs every one of the `inputs` inputs of `p`
-/// with the key that it names. A set that copies the signatures of another key fails.
-fn verified_set(p: &Pczt, set: &Value, inputs: usize) -> R<()> {
+/// with the key that it names, and gives that key. A set that copies the signatures of another
+/// key fails.
+fn verified_set(p: &Pczt, set: &Value, inputs: usize) -> R<[u8; 33]> {
     let mut trial = Signer::new(p.clone()).map_err(e("signer"))?;
     append_set(&mut trial, set, inputs)?;
     let text = set["key"].as_str().unwrap_or("?");
@@ -458,14 +459,14 @@ fn verified_set(p: &Pczt, set: &Value, inputs: usize) -> R<()> {
     };
     Verifier::new(trial.finish()).with_transparent(own)
         .map_err(|_| format!("the signatures of key {text} are not signatures of that key"))?;
-    Ok(())
+    Ok(key)
 }
 
 /// Finishes the sweep with the signatures of `t` seats: the proof, the script of each input and
 /// the transaction. `signatures` is JSON [{key, signatures}], as `sweep_sign` gives them. A set
-/// that does not verify, or a second set of one key, is skipped, so one seat cannot block the
-/// others. Fewer than `t` good sets fail before the proof, with the reason of each bad set.
-/// Returns the JSON of `finalize`.
+/// that does not verify, or a second set of one key (also in other hex letters), is skipped, so
+/// one seat cannot block the others. Fewer than `t` good sets fail before the proof, with the
+/// reason of each bad set. Returns the JSON of `finalize`.
 pub fn sweep_finish(pczt: &str, signatures: &str, t: usize) -> R<String> {
     let sets: Vec<Value> =
         serde_json::from_str(signatures).map_err(|_| "the signatures are no JSON")?;
@@ -473,12 +474,12 @@ pub fn sweep_finish(pczt: &str, signatures: &str, t: usize) -> R<String> {
     let inputs = p.transparent().inputs().len();
     let (mut good, mut keys, mut bad) = (vec![], HashSet::new(), vec![]);
     for set in sets.iter().filter(|set| set["key"].is_string()) {
-        let key = set["key"].as_str().unwrap_or("?");
-        if good.len() == t || keys.contains(key) {
-            continue;
+        if good.len() == t {
+            break;
         }
         match verified_set(&p, set, inputs) {
-            Ok(()) => { keys.insert(key); good.push(set); }
+            Ok(key) if keys.insert(key) => good.push(set),
+            Ok(_) => bad.push(format!("key {} signed twice", set["key"])),
             Err(why) => bad.push(why),
         }
     }

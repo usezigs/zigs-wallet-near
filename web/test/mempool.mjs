@@ -563,7 +563,7 @@ console.log("ok  no call for a hidden tab or a closed wallet; the 30 s call asks
     },
     sweepSign: (p, g, _f, _net, tip) => {
       calls.push(["sign", tip]);
-      return JSON.stringify({ digest: checks[p].digest, key: "key-" + calls.length,
+      return JSON.stringify({ digest: checks[p].digest, key: "02" + "a".repeat(63) + calls.length,
         signatures: ["30"] });
     },
     sweepFinish: (p, sets, tt) => {
@@ -592,15 +592,15 @@ console.log("ok  no call for a hidden tab or a closed wallet; the 30 s call asks
     "the proposal reads the payments again");
   listed = [utxo(1e8, 0), utxo(5e7, 1)];
   // An approval of another move does not count.
-  const old = await signedDoc(sg, "sweep/2", 2, { v: 1, digest: "old", key: "old",
+  const old = await signedDoc(sg, "sweep/2", 2, { v: 1, digest: "old", key: "03" + "d".repeat(64),
     signatures: ["30"] });
   await rig.db.doc(`groups/${sg}/sweep/2`).set(old);
   await sweep.proposeSweep(keys, reread);
   assert.deepEqual(calls.splice(0), [["create", 2, 2, 3]], "two payments, 2 of 3 keys");
   assert.equal(rig.data.get(`groups/${sg}/sweep/proposal`).pczt, PCZT);
   await rig.waitFor("the proposed move", () => /0 of 2 devices approved it/.test(shown()));
-  const verdict = () => checkIn(sg)("sweep/2", old.by, old.sig, docFields(old), 2);
-  await rig.waitFor("the check of the old approval", () => verdict() === "yes");
+  const verdict = (d) => checkIn(sg)("sweep/2", d.by, d.sig, docFields(d), 2);
+  await rig.waitFor("the check of the old approval", () => verdict(old) === "yes");
   assert.match(shown(), /0 of 2 devices approved it/);
   assert.ok(shown().includes("A move of 1.4997 ZEC to the shielded address of this wallet spends 2 "
     + "payments of the transparent address. The network fee is 0.0003 ZEC."), shown());
@@ -608,8 +608,15 @@ console.log("ok  no call for a hidden tab or a closed wallet; the 30 s call asks
   console.log("ok  a device proposes the move, and each device shows the amounts of its check");
 
   await sweep.approveSweep(1, keys, "dg1");
+  await rig.waitFor("the approval of seat 1", () => /1 of 2 devices approved it/.test(shown()));
   const key1 = rig.data.get(`groups/${sg}/sweep/1`).key;
-  // Seat 2 copies the key of seat 1: one key counts once.
+  // Seat 2 copies the key of seat 1, also in capital letters: one key counts once.
+  const upper = await signedDoc(sg, "sweep/2", 2, { v: 1, digest: "dg1", key: key1.toUpperCase(),
+    signatures: ["30"] });
+  await rig.db.doc(`groups/${sg}/sweep/2`).set(upper);
+  await rig.waitFor("the check of the capital key", () => verdict(upper) === "yes");
+  assert.match(shown(), /1 of 2 devices approved it/);
+  assert.deepEqual(buttons(), ["Approve as device 2", "Approve as device 3"]);
   const copy = await signedDoc(sg, "sweep/2", 2, { v: 1, digest: "dg1", key: key1,
     signatures: ["30"] });
   await rig.db.doc(`groups/${sg}/sweep/2`).set(copy);

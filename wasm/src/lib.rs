@@ -2446,14 +2446,28 @@ mod tests {
         assert!(err.starts_with("1 of the 2 signature sets"), "{err}");
         assert!(err.contains("on input 0 does not verify"), "{err}");
         assert!(err.contains("signs less than the whole transaction"), "{err}");
-        let err = finish(json!([first, first])).unwrap_err();
-        assert!(err.starts_with("1 of the 2 signature sets"), "{err}");
+        let upper = json!({"key": first["key"].as_str().unwrap().to_uppercase(),
+            "signatures": first["signatures"]});
+        for twice in [json!([first, first]), json!([first, upper])] {
+            let err = finish(twice).unwrap_err();
+            assert!(err.starts_with("1 of the 2 signature sets"), "{err}");
+            assert!(err.contains("signed twice"), "{err}");
+        }
         // A seat that sends bad signatures, or copies the key of another, does not block the move.
         let copied = json!({"key": third["key"], "signatures": first["signatures"]});
-        let out = v(&finish(json!([turned, copied, first, third])).unwrap());
+        let out = v(&finish(json!([turned, copied, first, upper, third])).unwrap());
         assert_eq!(out["txid"], check["txid"]);
         let raw = hex::decode(out["tx_hex"].as_str().unwrap()).unwrap();
         scripts_verify(&pczt, &raw, &[1_000_000, 500_000]);
+        // Another move has another digest, and a move that carries signatures gets no check.
+        let (other, ..) = sweep_of(&fvk, &[500_000, 1_000_000]).unwrap();
+        let other = v(&p2sh::sweep_check(&other, &sweep_group(2, 2), &fvk_hex, "testnet").unwrap());
+        assert_ne!(other["digest"], check["digest"]);
+        let mut signer = pczt::roles::signer::Signer::new(pczt_from_b64(&pczt).unwrap()).unwrap();
+        p2sh::append_set(&mut signer, &first, 2).unwrap();
+        let signed = pczt_to_b64(signer.finish()).unwrap();
+        let err = p2sh::sweep_check(&signed, &sweep_group(2, 2), &fvk_hex, "testnet").unwrap_err();
+        assert!(err.contains("carries signatures already"), "{err}");
     }
 
     #[test]

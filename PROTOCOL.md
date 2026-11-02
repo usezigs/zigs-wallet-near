@@ -1445,13 +1445,15 @@ column "Writer". A document with another `by` is ignored.
     (`createSweep`). A new proposal replaces the old one.
   - `sweep/<i>` holds `digest`, `key` and `signatures`. Seat `i` writes it after its engine
     checks the move (`sweepSign`): one DER signature with the sighash type for each input.
+    `key` is the compressed secp256k1 key of the seat in lower-case hex.
     `digest` is the BLAKE2b-256 hash (personal `Zigs_SweepMove01`) of the PCZT text: the txid does
     not cover the value and the script of each input.
   - `sweep/sent` holds the `txid` of the move that a device sent.
   - A reader shows the amounts of its own check (`sweepCheck`), never a field of a document. It
-    counts the distinct keys of the approvals whose `digest` is the one of its check.
-    `sweepFinish` skips a set that does not verify or that names another key than its signer, and
-    refuses before the proof when fewer than t sets verify.
+    counts the distinct keys of the approvals whose `digest` is the one of its check, and only a
+    key in the form above. `sweepFinish` skips a set that does not verify, that names another key
+    than its signer, or whose key (as bytes) signed already. It refuses before the proof when
+    fewer than t sets verify.
 - A reader takes names and identities only from a seat document that verifies. So a holder of the
   link cannot rename a seat or copy the identity of another.
 - A seat chooses its own name, and two seats can use one name. So the apps show the seat number
