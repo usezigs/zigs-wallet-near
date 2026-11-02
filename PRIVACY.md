@@ -45,8 +45,10 @@ is a bug: please report it.
   Worker asks for each quote. It sends the pair, the amount and the slippage, with sample addresses
   and no address of yours. NEAR Intents sees the Worker and not your IP address. A server with
   live swaps (staging only) also runs a real swap from SOL to ZEC: it sends the amount, the ZEC
-  address of the wallet and your refund address. Read [Swap quotes](#swap-quotes-near-intents)
-  and [Live swap from SOL to ZEC](#live-swap-from-sol-to-zec-staging-only).
+  address of the wallet and your refund address. It also runs a real swap from ZEC to SOL, which
+  a public payment of the wallet pays. Read [Swap quotes](#swap-quotes-near-intents),
+  [Live swap from SOL to ZEC](#live-swap-from-sol-to-zec-staging-only) and
+  [Live swap from ZEC to SOL](#live-swap-from-zec-to-sol-staging-only).
 - The Overview of a mainnet wallet (web app only) shows a USD total. It asks for the price of a
   fixed 1 ZEC from NEAR Intents, through the same route, about every 5 minutes while it shows, and
   at most once a minute after a failed call. The call holds no balance and no address. NEAR
@@ -308,8 +310,9 @@ What the app trusts, and what it checks:
 **Status:** live quotes. The Swap page of the web app shows prices from NEAR Intents (the 1Click
 API). The Overview of a mainnet wallet also uses one such quote, of a fixed 1 ZEC, to show a USD
 total. A quote moves no funds and makes no deposit address. A server with live swaps (the var
-`NEAR_LIVE`, on staging only) also runs a real swap from SOL to ZEC: read
-[Live swap from SOL to ZEC](#live-swap-from-sol-to-zec-staging-only).
+`NEAR_LIVE`, on staging only) also runs real swaps: read
+[Live swap from SOL to ZEC](#live-swap-from-sol-to-zec-staging-only) and
+[Live swap from ZEC to SOL](#live-swap-from-zec-to-sol-staging-only).
 
 How a quote works:
 
@@ -348,7 +351,7 @@ What stays visible:
 - The Swap page clears a quote older than 60 seconds. It asks for a new quote only after
   an action of yours: when you type, change the pair or the slippage, press **Refresh quote**, or
   leave the simulation with **Back to swap**.
-- A real swap from ZEC would leave the shielded pool. NEAR Intents takes ZEC only at a transparent
+- A real swap from ZEC leaves the shielded pool. NEAR Intents takes ZEC only at a transparent
   deposit address, which is public. NEAR Intents accepts a shielded address as the recipient of a
   swap to ZEC, but no real swap has tested this. The page says this next to the quote.
 - The basis of the shielded claim: a live dry quote accepted an Orchard-only unified address as
@@ -408,6 +411,46 @@ What stays visible:
 - NEAR Intents links your Solana address to the ZEC address of the wallet.
 - A failed swap sends the SOL back to the refund address after the deadline. NEAR Intents has no
   duty to refund a deposit that it cannot process (its terms).
+
+## Live swap from ZEC to SOL (staging only)
+
+**Status:** built for staging.zigs.app, behind `NEAR_LIVE`. No real swap from ZEC has run yet. A
+mainnet wallet pays ZEC with a group payment to a deposit address of NEAR Intents. NEAR Intents
+pays SOL to the plain Solana address of the same wallet. A refund goes to the transparent address
+of the group (`t3`), from which **Zigs cannot move funds yet**.
+
+How a live swap from ZEC works:
+
+- The page needs the plain Solana address of the wallet and its transparent address. It posts the
+  amount, the slippage and these two addresses to `/near/swap-zec` of the app Worker. Nobody
+  types an address.
+- The Worker asks for a live quote from ZEC to SOL with a deadline 6 hours later, and checks the
+  answer as for a swap from SOL. The deposit address must be a transparent address with no memo,
+  and at least 4 hours must be left.
+- **Propose the payment** opens Send with the deposit address, the exact amount and a note that
+  marks the payment as this swap. The person proposes it as any other payment.
+- Each device that approves the payment reads `/near/status` for the deposit address. The Worker
+  now also passes the swap of that address: the assets, the two addresses, the amount in and the
+  deadline. The device approves only when NEAR Intents waits for a deposit of the exact amount, for
+  a swap from ZEC to SOL that pays the Solana address of this wallet, refunds to its transparent
+  address and ends at the deadline in the note, with 30 minutes left. This check trusts the Worker
+  and NEAR Intents. It does not check the signature of the quote.
+- No device sends the payment in the last 30 minutes before the deadline: a late deposit can be
+  lost.
+
+| Party | What it learns |
+|---|---|
+| NEAR Intents (`1click.chaindefuser.com`) | The amount, the Solana address and the transparent address of the wallet, linked to the deposit address. Each approving device makes it read the swap again. It sees the Worker, not your IP address |
+| App Worker | The IP address of each device that opens or checks the swap, the amount and both addresses. It keeps no log |
+| Zcash observers | The payment to the deposit address and its amount: a transparent output. The spent notes and the change stay shielded |
+| Solana observers | The payout to the Solana address of the wallet |
+| Group server | The payment, as for any payment. Its note says that it is a swap from ZEC to SOL, and the note is encrypted like the rest |
+
+What stays visible:
+
+- NEAR Intents links the transparent address of the group to its Solana address. The status of a
+  swap names both addresses to anyone who knows the deposit address.
+- A refund lands at the transparent address, where the chain shows it to everyone.
 
 ## Solana beta (Helius Devnet)
 

@@ -65,6 +65,11 @@ function swapOf(body, ask, route) {
 }
 
 const hashes = (list) => (Array.isArray(list) ? list.filter((h) => typeof h === 'string') : []);
+// The swap that the deposit address belongs to (nearStatusSwap of cf/src/near.js): its text
+// fields only.
+const SWAP_FIELDS = ['from', 'to', 'recipient', 'refundTo', 'amountIn', 'deadline'];
+const swapFieldsOf = (swap) => Object.freeze(Object.fromEntries(SWAP_FIELDS
+  .filter((k) => typeof swap?.[k] === 'string').map((k) => [k, swap[k]])));
 // The state of a swap of an answer of the Worker, or null when the answer is not a state.
 function statusOf(body) {
   if (!STATES.has(body?.status)) return null;
@@ -72,7 +77,7 @@ function statusOf(body) {
     .filter((k) => INTEGER.test(body[k] ?? '')).map((k) => [k, body[k]]));
   return Object.freeze({ status: body.status, originTxs: hashes(body.originTxs),
     destinationTxs: hashes(body.destinationTxs), refundReason: optionalText(body.refundReason),
-    ...amounts });
+    swap: swapFieldsOf(body.swap), ...amounts });
 }
 
 // The error of a refusal. The Worker answers 400 with a JSON code, 429 and 502 for the rest.

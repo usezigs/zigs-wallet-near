@@ -23,6 +23,7 @@ import { myVerified, seatCheck } from "./app-dkg.js";
 import { once, react, render } from "./app-loop.js";
 import { openSend } from "./app-send.js";
 import { nameRefusal, registry } from "./zns.js";
+import { checkSwap, swapSendRefusal } from "./app-swap-zec.js";
 
 const inspectCache = new Map();
 
@@ -404,11 +405,13 @@ export const approvedTxid = (ss) => markOf(state.gid, ss.id).approved
   ? txidOf({ pczt: afterOf(ss) }) : txidOf(ss);
 
 // Null when the finished transaction has the approved id, else why it does not go out. Nothing
-// that cannot be read goes out.
+// that cannot be read goes out, and no swap payment in the last 30 minutes before its deadline.
 // ponytail: compares the `final.txid` that one seat wrote; it does not prove that `tx_hex` carries
 // it. The FROST signatures still bind the approved sighash. ZEC-18: an engine check of the bytes.
 export function sendRefusal(ss) {
   if (!isStr(ss.final?.txid)) return "The finished transaction cannot be read.";
+  const late = swapSendRefusal(ss);
+  if (late) return late;
   const bound = !!markOf(state.gid, ss.id).approved, want = approvedTxid(ss);
   if (!want) return unread(bound ? "the approved transaction" : "the proposal");
   if (ss.final.txid === want) return null;
@@ -520,6 +523,7 @@ async function approveNow(ss, i) {
   // last sync can be minutes old.
   const tip = await freshTip();
   await checkNames(ss, tip);
+  await checkSwap(ss);
   // Under the lock of the secrets: a write here neither brings back a burned nonce nor drops a
   // new one of another tab.
   const doc = await withSecrets(() => commitNow(ss, i, ins, tip, gid));

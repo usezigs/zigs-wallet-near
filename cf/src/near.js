@@ -322,6 +322,25 @@ function nearStatusSound(json, address) {
     && json.quoteResponse?.quote?.depositAddress === address;
 }
 
+// The swap that the deposit address belongs to, from the quote in the state: the asset keys, the
+// two addresses, the amount in and the time to pay before. Each device that approves a group
+// payment to the deposit address compares them with its own (web/app-swap-zec.js). A field of
+// another form stays behind.
+const NEAR_ADDRESS = /^[0-9A-Za-z]{20,400}$/;
+const nearKeyOf = (id) => [...NEAR_ASSETS].find(([, asset]) => asset.id === id)?.[0];
+function nearStatusSwap(response) {
+  const { quote, quoteRequest: ask } = response;
+  if (!ask || typeof ask !== "object") return undefined;
+  const address = (v) => (typeof v === "string" && NEAR_ADDRESS.test(v) ? v : undefined);
+  const payBy = nearPayBy(quote, ask);
+  return {
+    from: nearKeyOf(ask.originAsset), to: nearKeyOf(ask.destinationAsset),
+    recipient: address(ask.recipient), refundTo: address(ask.refundTo),
+    amountIn: NEAR_INTEGER.test(quote.amountIn) ? quote.amountIn : undefined,
+    deadline: Number.isNaN(payBy) ? undefined : new Date(payBy).toISOString(),
+  };
+}
+
 // Only these fields of a state go to the page. A state that is not known is "other": "unknown"
 // is for a swap that NEAR Intents does not list (404).
 function nearStatusAnswer(json) {
@@ -332,6 +351,7 @@ function nearStatusAnswer(json) {
     originTxs: nearHashes(details.originChainTxHashes),
     destinationTxs: nearHashes(details.destinationChainTxHashes),
     refundReason: NEAR_REASON.test(details.refundReason) ? details.refundReason : undefined,
+    swap: nearStatusSwap(json.quoteResponse),
   };
   for (const k of NEAR_STATUS_AMOUNTS) {
     if (typeof details[k] === "string" && NEAR_INTEGER.test(details[k])) out[k] = details[k];

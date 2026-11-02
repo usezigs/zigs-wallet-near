@@ -814,6 +814,19 @@ const status = async (label, address = DEPOSIT, e = LIVE, init = {}) => {
   assert.deepEqual([st.status, (await json(st)).status], [200, "PENDING_DEPOSIT"]);
   assert.equal(taken().at(-1).url,
     "https://1click.chaindefuser.com/v0/status?depositAddress=" + T1);
+  // The swap of the deposit address goes to the page: the time to pay before is the earlier of
+  // the two deadlines. A field of another form stays behind.
+  const quoted = (ask, quote = {}) => () => Response.json({ status: "PENDING_DEPOSIT",
+    quoteResponse: { quote: { depositAddress: T1, amountIn: "200000", deadline: hours(6),
+      ...quote }, quoteRequest: { originAsset: ID.zec, destinationAsset: ID.sol,
+      recipient: REFUND, refundTo: T3, deadline: hours(5), ...ask } } });
+  reply = quoted({});
+  assert.deepEqual((await json(await status("the swap of a deposit", T1))).swap, { from: "zec",
+    to: "sol", recipient: REFUND, refundTo: T3, amountIn: "200000", deadline: hours(5) });
+  reply = quoted({ originAsset: "nep141:other.near", recipient: "<b>", refundTo: 7,
+    deadline: "soon" }, { amountIn: "1.5" });
+  assert.deepEqual((await json(await status("odd swap fields", T1))).swap, { to: "sol" },
+    "only the sound fields; a deadline that cannot be read gives no time to pay before");
   reply = good;
   taken();
   step("/near/swap-zec asks for a swap from ZEC with a transparent refund, checks a transparent "

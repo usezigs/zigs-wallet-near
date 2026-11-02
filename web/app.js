@@ -70,6 +70,7 @@ import "./app-tutorial.js";
 import "./privacy-language.js";
 import "./app-guided-setup.js";
 import "./app-taddress.js";
+import "./app-swap-zec.js";
 import "./app-funding-preview.js";
 import "./app-recipients.js";
 import "./app-help.js";
