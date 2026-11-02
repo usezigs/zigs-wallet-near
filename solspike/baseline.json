@@ -1,5 +1,5 @@
 {
-  "baseCommit": "9b1e9e801cafeeefd873c78a4d945c4f4a83686f",
+  "baseCommit": "aba7f2edf41ad40204cb59d826f8ddfb2232919b",
   "node": "v26.12.1",
   "tests": {
     "web/test/messaging-presentation.mjs": {
@@ -114,6 +114,9 @@
       "exit": 0
     },
     "web/test/sol-plain-security.mjs": {
+      "exit": 0
+    },
+    "web/test/sol-plain-review.mjs": {
       "exit": 0
     },
     "web/test/sol-app.mjs": {
