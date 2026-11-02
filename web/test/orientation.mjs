@@ -93,7 +93,7 @@ assert.ok(has(swap, ".swap-modal-heading>div", /min-width:0/)
 // Specificity as one number (ids, classes, types), enough for the selectors compared here.
 const weight = (sel) => [/#[\w-]+/g, /\.[\w-]+|\[[^\]]*\]|:[\w-]+/g, /(?:^|[\s>+~])[a-z]+/g]
   .reduce((sum, re) => sum * 100 + (sel.replace(/"[^"]*"/g, "").match(re) ?? []).length, 0);
-const ring = swap.find((r) => /\.swap-deposit:focus$/.test(r.sel)
+const ring = swap.find((r) => r.sel.endsWith(".swap-deposit:focus")
   && /outline:2px solid var\(--focus\)/.test(r.body));
 assert.ok(ring && weight(ring.sel) > weight('section[tabindex="-1"]:focus'),
   "the deposit screen shows its focus ring over the no-frame rule of app.css");
