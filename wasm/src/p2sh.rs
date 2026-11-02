@@ -5,14 +5,42 @@
 
 use std::{collections::HashSet, num::NonZeroU8};
 
+use orchard::keys::{FullViewingKey, Scope};
+use pczt::{
+    roles::{
+        creator::Creator,
+        io_finalizer::IoFinalizer,
+        signer::Signer,
+        verifier::{OrchardError, TransparentError, Verifier},
+    },
+    Pczt,
+};
+use serde::Deserialize;
 use serde_json::{json, Value};
 use wasm_bindgen::prelude::*;
-use zcash_protocol::consensus::Network;
-use zcash_transparent::{keys::NonHardenedChildIndex, zip48};
+use zcash_primitives::transaction::{
+    builder::{BuildConfig, Builder, BundlePadding, PcztResult},
+    fees::{transparent::InputSize, zip317, FeeRule as _},
+    TxVersion,
+};
+use zcash_protocol::{
+    consensus::{BlockHeight, Network, Parameters},
+    memo::MemoBytes,
+    value::Zatoshis,
+};
+use zcash_script::script::{Evaluable as _, Redeem};
+use zcash_transparent::{
+    address::TransparentAddress,
+    builder::p2sh_input_serialized_len,
+    bundle::{OutPoint, TxOut},
+    keys::NonHardenedChildIndex,
+    sighash::SighashType,
+    zip48,
+};
 
-use zcash_script::script::Evaluable as _;
-
-use super::{network, R};
+use super::{
+    e, ensure, network, parse_fvk, pczt_from_b64, pczt_to_b64, rng, Custom, Terms, R,
+};
 
 /// A standard P2SH multisig script holds at most 15 keys (ZIP 48).
 const MAX_KEYS: usize = 15;
@@ -48,13 +76,13 @@ pub fn p2sh_key(key_package: &str, net: &str) -> R<String> {
     Ok(account_key(key_package, &net)?.to_account_pubkey().key_info_expression(&net))
 }
 
-/// The P2SH address of the group: `t` signatures (at least 2) of the `keys` of all seats (the
-/// published key information expressions, in any order). The key of this seat (`key_package`)
-/// must be among them exactly once, and no two seats may have the same key: a key twice in the
-/// script would let one seat give two of the `t` signatures. Returns JSON {address,
-/// redeem_script (hex)}.
-pub fn p2sh_address(t: u32, keys: &[String], key_package: &str, net: &str) -> R<String> {
-    let net = network(net)?;
+/// The address and the redeem script of the group: `t` signatures (at least 2) of the `keys` of
+/// all seats (the published key information expressions, in any order). The key of this seat
+/// (`key_package`) must be among them exactly once, and no two seats may have the same key: a key
+/// twice in the script would let one seat give two of the `t` signatures.
+pub(crate) fn group_script(
+    t: u32, keys: &[String], key_package: &str, net: &Network,
+) -> R<(TransparentAddress, Redeem)> {
     if keys.is_empty() || keys.len() > MAX_KEYS {
         return Err(format!("a group address needs 1 to {MAX_KEYS} keys, not {}", keys.len()));
     }
@@ -63,11 +91,11 @@ pub fn p2sh_address(t: u32, keys: &[String], key_package: &str, net: &str) -> R<
     let threshold = u8::try_from(t).ok().and_then(NonZeroU8::new).filter(fits);
     let threshold = threshold.ok_or(format!("the threshold {t} does not fit {} keys", keys.len()))?;
     let parse = |(i, k): (usize, &String)| {
-        zip48::AccountPubKey::parse_key_info_expression(k, &net)
+        zip48::AccountPubKey::parse_key_info_expression(k, net)
             .ok_or(format!("key {} is no ZIP 48 key of this network", i + 1))
     };
     let parsed = keys.iter().enumerate().map(parse).collect::<R<Vec<_>>>()?;
-    let own = account_key(key_package, &net)?.to_account_pubkey();
+    let own = account_key(key_package, net)?.to_account_pubkey();
     let mine = parsed.iter().filter(|k| **k == own).count();
     if mine != 1 {
         return Err(format!("the key of this device is {mine} times in the group keys, not once"));
@@ -76,12 +104,19 @@ pub fn p2sh_address(t: u32, keys: &[String], key_package: &str, net: &str) -> R<
         .map_err(|e| format!("the group keys do not make a ZIP 48 address: {e:?}"))?;
     let (address, redeem) = fvk.derive_address(zip32::Scope::External, NonHardenedChildIndex::ZERO);
     distinct_keys(&redeem)?;
+    Ok((address, redeem))
+}
+
+/// The P2SH address of the group (`group_script`). Returns JSON {address, redeem_script (hex)}.
+pub fn p2sh_address(t: u32, keys: &[String], key_package: &str, net: &str) -> R<String> {
+    let net = network(net)?;
+    let (address, redeem) = group_script(t, keys, key_package, &net)?;
     let encoded = zcash_keys::address::Address::Transparent(address).encode(&net);
     Ok(json!({"address": encoded, "redeem_script": hex::encode(redeem.to_bytes())}).to_string())
 }
 
 /// Refuses a multisig script with the same public key twice.
-fn distinct_keys(redeem: &zcash_script::script::Redeem) -> R<()> {
+fn distinct_keys(redeem: &Redeem) -> R<()> {
     use zcash_script::solver::{standard, ScriptKind};
     let Some(ScriptKind::MultiSig { pubkeys, .. }) = standard(redeem) else {
         return Err("the group script is no multisig script".into());
@@ -103,6 +138,301 @@ pub fn js_p2sh_address(
     t: u32, keys: Vec<String>, key_package: &str, net: &str,
 ) -> Result<String, JsError> {
     p2sh_address(t, &keys, key_package, net).map_err(|e| JsError::new(&e))
+}
+
+// ─────────────── The sweep: from the group address to the shielded wallet ───────────────
+//
+// A sweep spends payments of the group address to the external Ironwood address of the wallet.
+// It has one phase: each device checks it and signs each input with its key, and the signatures
+// are its approval. Any device that holds `t` of them finishes and sends it.
+
+/// A sweep pays one Ironwood output, which the builder pads to two actions.
+const SWEEP_ACTIONS: usize = 2;
+/// At most this many payments in one sweep.
+pub(crate) const MAX_SWEEP_INPUTS: usize = 50;
+
+/// An unspent output of the group address, as `transparentUtxos` lists it (the txid in the
+/// order of explorers).
+#[derive(Deserialize, Clone)]
+pub(crate) struct Coin {
+    txid: String,
+    index: u32,
+    value: u64,
+}
+
+impl Coin {
+    fn outpoint(&self) -> R<OutPoint> {
+        let id = hex::decode(&self.txid).ok().and_then(|b| <[u8; 32]>::try_from(b).ok());
+        let mut id = id.ok_or("a payment of the group address has a bad txid")?;
+        id.reverse();
+        Ok(OutPoint::new(id, self.index))
+    }
+}
+
+/// The ZIP 317 fee of a transaction with `inputs` P2SH inputs of `size` bytes and `actions`
+/// Ironwood actions: the rule that the builder applies.
+fn sweep_fee(inputs: usize, size: usize, actions: usize) -> R<u64> {
+    let sizes = std::iter::repeat_n(InputSize::Known(size), inputs);
+    let fee = zip317::FeeRule::standard()
+        .fee_required(&Network::MainNetwork, BlockHeight::from_u32(0), sizes, [], 0, 0, 0, actions)
+        .map_err(e("fee"))?;
+    Ok(fee.into_u64())
+}
+
+/// The size of one input of the group script in a transaction, with `t` signatures of the
+/// largest size (ZIP 317).
+fn input_size(redeem: &Redeem) -> R<usize> {
+    p2sh_input_serialized_len(&redeem.clone().weaken())
+        .ok_or_else(|| "the group script is no multisig script".to_string())
+}
+
+/// The payments that a sweep spends, largest first, and its fee: as many as raise the amount that
+/// arrives, at most `MAX_SWEEP_INPUTS`. Anyone can send dust to the public address: a payment
+/// worth less than the fee of its own bytes stays behind.
+fn pick_coins(mut coins: Vec<Coin>, size: usize) -> R<(Vec<Coin>, u64)> {
+    coins.sort_by(|a, b| b.value.cmp(&a.value));
+    let (mut best, mut total) = ((0, 0, 0), 0u64);
+    for (k, c) in coins.iter().take(MAX_SWEEP_INPUTS).enumerate() {
+        total = total.checked_add(c.value).ok_or("the payments add up to too much")?;
+        let fee = sweep_fee(k + 1, size, SWEEP_ACTIONS)?;
+        if total.saturating_sub(fee) > best.1 {
+            best = (k + 1, total - fee, fee);
+        }
+    }
+    if best.0 == 0 {
+        return Err("the transparent address holds no payment worth more than the fee".into());
+    }
+    coins.truncate(best.0);
+    Ok((coins, best.2))
+}
+
+/// The PCZT of a sweep of `coins` of the group address `script` to the external address of `fvk`,
+/// less the fee. `anchor` is a recent Ironwood root of the wallet, for the dummy spends of the
+/// padding. Returns the PCZT, the value that arrives, the fee and the number of inputs.
+pub(crate) fn build_sweep<P: Parameters>(
+    params: P,
+    terms: &Terms,
+    (fvk, anchor): (&FullViewingKey, orchard::Anchor),
+    coins: &[Coin],
+    (address, redeem): &(TransparentAddress, Redeem),
+) -> R<(Pczt, u64, u64, usize)> {
+    let (coins, fee) = pick_coins(coins.to_vec(), input_size(redeem)?)?;
+    let total: u64 = coins.iter().map(|c| c.value).sum();
+    let mut b = Builder::new(params, terms.target, BuildConfig::Standard {
+        sapling_anchor: None,
+        orchard_anchor: None,
+        ironwood_anchor: Some(anchor),
+        orchard_padding: BundlePadding::DEFAULT,
+        ironwood_padding: BundlePadding::DEFAULT,
+    });
+    if let Some(expiry) = terms.expiry {
+        b = b.with_expiry_height(expiry);
+    }
+    let z = |v: u64| Zatoshis::from_u64(v).map_err(e("value"));
+    for c in &coins {
+        let coin = TxOut::new(z(c.value)?, address.script().into());
+        b.add_transparent_p2sh_input(redeem.clone().weaken(), c.outpoint()?, coin)
+            .map_err(e("builder"))?;
+    }
+    let (ovk, to) = (fvk.to_ovk(Scope::External), fvk.address_at(0u32, Scope::External));
+    b.add_ironwood_output::<zip317::FeeRule>(Some(ovk), to, z(total - fee)?, MemoBytes::empty())
+        .map_err(e("builder"))?;
+    let PcztResult { pczt_parts, .. } =
+        b.build_for_pczt(rng(), &zip317::FeeRule::standard()).map_err(e("build_for_pczt"))?;
+    let pczt = Creator::build_from_parts(pczt_parts).ok_or("creator failed")?;
+    let pczt = IoFinalizer::new(pczt).finalize_io(rng()).map_err(e("io finalizer"))?;
+    Ok((pczt, total - fee, fee, coins.len()))
+}
+
+/// What a checked sweep does.
+struct Swept {
+    inputs: usize,
+    total: u64,
+    value: u64,
+    fee: u64,
+}
+
+/// The number and the sum of the inputs of `p`. Each one spends from the group address with the
+/// group script and signs the whole transaction.
+fn sweep_inputs(p: &Pczt, (address, redeem): &(TransparentAddress, Redeem)) -> R<(usize, u64)> {
+    let (want_pk, want_rs) = (address.script().to_bytes(), redeem.to_bytes());
+    let mut sum = (0usize, 0u64);
+    let check = |b: &zcash_transparent::pczt::Bundle| -> Result<(), TransparentError<String>> {
+        for (i, input) in b.inputs().iter().enumerate() {
+            let fail = |m: &str| TransparentError::Custom(format!("input {i} {m}"));
+            if input.script_pubkey().to_bytes() != want_pk {
+                return Err(fail("spends from another address than the group address"));
+            }
+            if input.redeem_script().as_ref().map(|r| r.to_bytes()) != Some(want_rs.clone()) {
+                return Err(fail("has another script than the group script"));
+            }
+            if *input.sighash_type() != SighashType::ALL {
+                return Err(fail("signs less than the whole transaction"));
+            }
+            sum.0 += 1;
+            sum.1 = sum.1.checked_add(input.value().into_u64()).ok_or_else(|| fail("overflows"))?;
+        }
+        Ok(())
+    };
+    Verifier::new(p.clone()).with_transparent(check).map_err(|x| match x {
+        TransparentError::Custom(m) => m,
+        other => format!("the transparent inputs do not parse: {other:?}"),
+    })?;
+    ensure(sum.0 > 0, "a move spends at least one payment of the group address")?;
+    Ok(sum)
+}
+
+/// The one Ironwood output of `p` that carries value: its action, its value, and the number of
+/// actions. It pays the external address of `fvk`, every spend is a dummy of value 0, and the
+/// outgoing viewing key of the wallet opens it, so the wallet finds the note.
+fn sweep_output(p: &Pczt, fvk: &FullViewingKey) -> R<(usize, u64, usize)> {
+    let ext = fvk.address_at(0u32, Scope::External);
+    let (mut found, mut actions) = (vec![], 0);
+    let check = |b: &orchard::pczt::Bundle| -> Result<(), OrchardError<Custom>> {
+        for (i, a) in b.actions().iter().enumerate() {
+            let fail = |m: &str| OrchardError::Custom(Custom(format!("action {i} {m}")));
+            a.verify_cv_net()?;
+            actions += 1;
+            let (s, o) = (a.spend(), a.output());
+            let (sv, ov) = s.value().zip(*o.value()).ok_or_else(|| fail("has no value"))?;
+            if sv.inner() != 0 {
+                return Err(fail("spends a note"));
+            }
+            if ov.inner() == 0 {
+                continue;
+            }
+            o.verify_note_commitment(s)?;
+            if *o.recipient() != Some(ext) {
+                return Err(fail("pays another address than this wallet"));
+            }
+            found.push((i, ov.inner()));
+        }
+        Ok(())
+    };
+    Verifier::new(p.clone()).with_ironwood(check)
+        .map_err(|x| format!("the shielded part of the move does not check: {x:?}"))?;
+    let [(i, value)] = found[..] else {
+        return Err("a move pays exactly one shielded output to this wallet".into());
+    };
+    let opens = super::memo::recover(p, fvk)?.contains_key(&("Ironwood".to_string(), i));
+    ensure(opens, "the output of the move does not open with the keys of this wallet")?;
+    Ok((i, value, actions))
+}
+
+/// Checks that `p` moves payments of the group address to this wallet and nothing else.
+fn check_sweep(
+    p: &Pczt, script: &(TransparentAddress, Redeem), fvk: &FullViewingKey, net: Network,
+) -> R<Swept> {
+    ensure(super::sighash(p)?.0 == TxVersion::V6, "a move is a version 6 transaction")?;
+    ensure(super::pczt_network(p)? == net, "the move is for another network")?;
+    ensure(*p.global().expiry_height() != 0, "the transaction never expires")?;
+    let s = p.sapling();
+    ensure(s.spends().is_empty() && s.outputs().is_empty(), "the transaction has a Sapling part")?;
+    ensure(p.orchard().actions().is_empty(), "a move has no Orchard part")?;
+    ensure(p.transparent().outputs().is_empty(), "a move has no transparent output")?;
+    let (inputs, total) = sweep_inputs(p, script)?;
+    let (_, value, actions) = sweep_output(p, fvk)?;
+    let fee = sweep_fee(inputs, input_size(&script.1)?, actions)?;
+    let paid = total.checked_sub(value);
+    let paid_text = paid.map_or("less than 0".into(), |f| f.to_string());
+    ensure(paid == Some(fee), &format!(
+        "the move pays a fee of {paid_text} zat, not the ZIP 317 fee of {fee} zat"))?;
+    Ok(Swept { inputs, total, value, fee })
+}
+
+/// The keys of a check: the PCZT, the group script and the viewing key of the wallet.
+fn sweep_parts(
+    pczt: &str, group: (u32, &[String], &str), fvk: &str, net: &str,
+) -> R<(Pczt, (TransparentAddress, Redeem), FullViewingKey, Network)> {
+    let net = network(net)?;
+    let (t, keys, key_package) = group;
+    let script = group_script(t, keys, key_package, &net)?;
+    Ok((pczt_from_b64(pczt)?, script, parse_fvk(fvk)?, net))
+}
+
+/// The check of a sweep that each device runs before it signs, with the keys of the group (`t`,
+/// `keys`, `key_package` as for `p2sh_address`) and the viewing key of the wallet. Returns JSON
+/// {inputs, total, value, fee, txid, expiry_height}.
+pub fn sweep_check(
+    pczt: &str, group: (u32, &[String], &str), fvk: &str, net: &str,
+) -> R<String> {
+    let (p, script, fvk, net) = sweep_parts(pczt, group, fvk, net)?;
+    let s = check_sweep(&p, &script, &fvk, net)?;
+    Ok(json!({"inputs": s.inputs, "total": s.total, "value": s.value, "fee": s.fee,
+        "txid": super::txid_of(&p)?, "expiry_height": p.global().expiry_height()})
+    .to_string())
+}
+
+/// Checks the sweep (`sweep_check`) and its expiry against the chain height `tip`, then signs each
+/// input with the key of this seat. ZIP 244 binds each signature to the whole transaction and to
+/// the value and the script of every input, so the device needs no read of the payments. Returns
+/// JSON {key (hex), signatures: [hex, one per input: DER and the sighash type]}.
+pub fn sweep_sign(
+    pczt: &str, group: (u32, &[String], &str), fvk: &str, net: &str, tip: u32,
+) -> R<String> {
+    let (p, script, fvk, net) = sweep_parts(pczt, group, fvk, net)?;
+    let s = check_sweep(&p, &script, &fvk, net)?;
+    super::expiry::check(&p, tip)?;
+    let sk = account_key(group.2, &net)?
+        .derive_signing_key(zip32::Scope::External, NonHardenedChildIndex::ZERO);
+    let key = sk.public_key().serialize();
+    let mut signer = Signer::new(p).map_err(e("signer"))?;
+    for i in 0..s.inputs {
+        signer.sign_transparent(i, &sk).map_err(e("sign"))?;
+    }
+    let mut sigs = vec![];
+    let read = |b: &zcash_transparent::pczt::Bundle| -> Result<(), TransparentError<String>> {
+        for input in b.inputs() {
+            let sig = input.partial_signatures().get(&key);
+            sigs.push(sig.map(hex::encode).ok_or(TransparentError::Custom("unsigned".into()))?);
+        }
+        Ok(())
+    };
+    Verifier::new(signer.finish()).with_transparent(read).map_err(e("signatures"))?;
+    Ok(json!({"key": hex::encode(key), "signatures": sigs}).to_string())
+}
+
+/// Adds the signatures of the seats (JSON [{key, signatures}], as `sweep_sign` gives them) to the
+/// sweep and finishes it: the proof, the script of each input and the transaction. A signature
+/// that does not verify fails with its key. Returns the JSON of `finalize`.
+pub fn sweep_finish(pczt: &str, signatures: &str) -> R<String> {
+    let sets: Vec<Value> =
+        serde_json::from_str(signatures).map_err(|_| "the signatures are no JSON")?;
+    let mut signer = Signer::new(pczt_from_b64(pczt)?).map_err(e("signer"))?;
+    for set in &sets {
+        let key = set["key"].as_str().unwrap_or("?");
+        let list = set["signatures"].as_array().ok_or("a seat sent no signature list")?;
+        for (i, sig) in list.iter().enumerate() {
+            let fail = |m: &str| format!("the signature of key {key} on input {i} {m}");
+            let bytes = sig.as_str().and_then(|h| hex::decode(h).ok());
+            let bytes = bytes.ok_or_else(|| fail("is no hex"))?;
+            let Some((&kind, der)) = bytes.split_last() else { return Err(fail("is empty")) };
+            let whole = fail("signs less than the whole transaction");
+            ensure(kind == SighashType::ALL.encode(), &whole)?;
+            let sig = secp256k1::ecdsa::Signature::from_der(der).map_err(|_| fail("is no DER"))?;
+            signer.append_transparent_signature(i, sig).map_err(|_| fail("does not verify"))?;
+        }
+    }
+    super::finalize(&pczt_to_b64(signer.finish())?)
+}
+
+#[wasm_bindgen(js_name = sweepCheck)]
+pub fn js_sweep_check(
+    pczt: &str, t: u32, keys: Vec<String>, key_package: &str, fvk: &str, net: &str,
+) -> Result<String, JsError> {
+    sweep_check(pczt, (t, &keys, key_package), fvk, net).map_err(|e| JsError::new(&e))
+}
+
+#[wasm_bindgen(js_name = sweepSign)]
+pub fn js_sweep_sign(
+    pczt: &str, t: u32, keys: Vec<String>, key_package: &str, fvk: &str, net: &str, tip: u32,
+) -> Result<String, JsError> {
+    sweep_sign(pczt, (t, &keys, key_package), fvk, net, tip).map_err(|e| JsError::new(&e))
+}
+
+#[wasm_bindgen(js_name = sweepFinish)]
+pub fn js_sweep_finish(pczt: &str, signatures: &str) -> Result<String, JsError> {
+    sweep_finish(pczt, signatures).map_err(|e| JsError::new(&e))
 }
 
 #[cfg(test)]

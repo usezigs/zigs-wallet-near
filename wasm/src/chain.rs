@@ -43,7 +43,7 @@ use zcash_protocol::{
 };
 
 use super::{
-    account, build_ironwood_pczt, e, ensure, expiry,
+    account, build_ironwood_pczt, e, ensure, expiry, p2sh,
     memo::{commitment_bytes, parse_memo, received as memos_in, MemoView},
     pczt_from_b64, pczt_to_b64, session,
     snapshot::{decode_note, decode_store, encode_note, encode_store, hex32},
@@ -943,11 +943,6 @@ fn build_spend(
     let values: Vec<(u64, u32)> = unspent.iter().map(|n| (n.value(), n.height)).collect();
     let pick = choose(&values)?;
     let depth = (CONFIRMATIONS - 1) as usize;
-    let root = s
-        .tree
-        .root_at_checkpoint_depth(Some(depth))
-        .map_err(e("tree root"))?
-        .ok_or("the wallet is not synced yet")?;
     let mut inputs = vec![];
     for &i in &pick.picked {
         let path = s
@@ -958,8 +953,37 @@ fn build_spend(
         inputs.push((unspent[i].note, orchard::tree::MerklePath::from(path)));
     }
     let outs = (payees, pick.change);
-    let pczt = build_ironwood_pczt(s.net, terms, fvk, (inputs, orchard::Anchor::from(root)), outs)?;
+    let pczt = build_ironwood_pczt(s.net, terms, fvk, (inputs, anchor(s)?), outs)?;
     Ok((pczt, pick))
+}
+
+/// The Ironwood root of the wallet `CONFIRMATIONS - 1` blocks back: the anchor of a payment.
+fn anchor(s: &Inner) -> R<orchard::Anchor> {
+    let depth = (CONFIRMATIONS - 1) as usize;
+    let root = s.tree.root_at_checkpoint_depth(Some(depth)).map_err(e("tree root"))?;
+    Ok(orchard::Anchor::from(root.ok_or("the wallet is not synced yet")?))
+}
+
+/// A move of payments of the group address to this wallet (`p2sh::build_sweep`). `coins` is the
+/// list of `transparentUtxos`. It expires as a group payment does. Returns JSON {pczt, value,
+/// fee, inputs}.
+async fn create_sweep(
+    state: &RefCell<Inner>, coins: &str, group: (u32, &[String], &str),
+) -> R<String> {
+    let coins: Vec<p2sh::Coin> = serde_json::from_str(coins).map_err(e("payment list"))?;
+    let net = state.borrow().net;
+    let script = p2sh::group_script(group.0, group.1, group.2, &net)?;
+    let endpoint = state.borrow().endpoint.clone();
+    let tip = tip_of(&endpoint).await?;
+    let mut s = state.borrow_mut();
+    s.tip = tip;
+    let fvk = s.ufvk.orchard().ok_or("the viewing key has no Orchard component")?;
+    let target = BlockHeight::from_u32(tip + 1);
+    let terms = Terms { target, expiry: Some(expiry::expiry_for(&net, target)), fee_factor: 1 };
+    let (pczt, value, fee, inputs) =
+        p2sh::build_sweep(net, &terms, (fvk, anchor(&s)?), &coins, &script)?;
+    Ok(json!({"pczt": pczt_to_b64(pczt)?, "value": value, "fee": fee, "inputs": inputs})
+        .to_string())
 }
 
 /// A group payment: its approvals take hours, so it expires after the window of `expiry`.
@@ -1232,6 +1256,17 @@ impl ChainWallet {
     #[wasm_bindgen(js_name = createMessage)]
     pub async fn create_message(&self, to: String, text: String) -> Result<String, JsError> {
         super::js(create_message(&self.0, &to, &text).await)
+    }
+
+    /// A move of the payments `coins` (the `utxos` of `transparentUtxos`) of the group address to
+    /// the shielded address of this wallet. `t`, `keys` and `key_package` give the group script,
+    /// as for `p2shAddress`. Returns `{"pczt", "value", "fee", "inputs"}`. Each seat checks and
+    /// signs it with `sweepSign`, and one finishes it with `sweepFinish`.
+    #[wasm_bindgen(js_name = createSweep)]
+    pub async fn create_sweep(
+        &self, coins: String, t: u32, keys: Vec<String>, key_package: String,
+    ) -> Result<String, JsError> {
+        super::js(create_sweep(&self.0, &coins, (t, &keys, &key_package)).await)
     }
 
     pub async fn broadcast(&self, tx_hex: String) -> Result<String, JsError> {
