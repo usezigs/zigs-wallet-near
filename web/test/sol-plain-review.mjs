@@ -149,12 +149,12 @@ const LABEL_OF = {
   recipient: "To",
   amount: "Amount",
   units: "Base units",
-  symbol: "Token",
+  symbol: "Asset",
   mint: "Mint",
   fee: "Fee lamports",
   rent: "Rent lamports",
-  payer: "Fee address",
-  group: "Wallet address",
+  payer: "Fee payer",
+  group: "Wallet",
 };
 
 // ── The encoders equal the Rust encoders; the chain and the checker follow ──
@@ -360,6 +360,37 @@ step("the screen shows only the lines of the checker");
 }
 step("an error and a refusal give no way to approve and no rows");
 
+// ── An accepted answer must be complete before it can be approved ──
+{
+  const ask = (answer, W2 = {}) => reviewText({ W: { plain_check_message: () => answer,
+    plain_rule_list: W.plain_rule_list, ...W2 } }, 1, 2, 3, 4);
+  const empty = ask("accepted");
+  assert.equal(empty.kind, "accepted", "control: an accepted head with no line is accepted");
+  assert.ok(!canApprove(empty), "an accepted answer with no line cannot be approved");
+  assert.deepEqual(screenRows(empty), [], "and it shows no rows");
+  for (const answer of ["accepted\nintent", "accepted\nintent send-sol\nfee",
+    "accepted\nintent \ncluster mainnet"]) {
+    const review = ask(answer);
+    assert.equal(review.kind, "accepted", `control: ${JSON.stringify(answer)} is accepted`);
+    assert.ok(!canApprove(review), `a known name with no value cannot be approved: ${answer}`);
+    assert.deepEqual(screenRows(review), [], "and it shows no rows");
+  }
+  assert.ok(canApprove(ask("accepted\nintent send-sol\nmystery")),
+    "a name that the page does not know shows its whole line and does not block");
+  assert.ok(canApprove(ask("accepted\nintent send-sol\nfee 5000")), "a complete answer");
+  // A throw of plain_rule_list is an error of the review, not an exception of the page.
+  const noList = { plain_rule_list() { throw new Error("no list"); } };
+  const broken = ask("refused\nplain-data\tx", noList);
+  assert.deepEqual(broken, { kind: "error", text: "no list" }, "a throw of the list is an error");
+  assert.ok(!canApprove(broken));
+  // A rule that the list does not know shows its id as the statement.
+  const unknown = ask("refused\nplain-data\tinstruction 0\nplain-new-rule\tthe detail");
+  assert.deepEqual(refusalRows(unknown).map((r) => r.statement),
+    [statements.get("plain-data"), "plain-new-rule"], "an unknown rule id is its own statement");
+  assert.equal(refusalRows(unknown)[1].detail, "the detail");
+}
+step("an incomplete accepted answer cannot be approved, and a rule list that throws is an error");
+
 // ── A missing read is an error of the checker, with the text of the checker ──
 {
   const keys = keysOf("mainnet");
@@ -449,6 +480,28 @@ step("a missing read is an error with no way to approve");
 }
 step("a tampered message gives one row for each broken rule");
 
+// ── Enable USDC: the mint of the message is the pinned mint ──
+{
+  const keys = keysOf("mainnet");
+  const pins = plainPins({ cluster: "mainnet" }, keys.group, PAYER);
+  const v = vector("mainnet-s4-enable-usdc");
+  const intent = intentOf("s4-enable-usdc", keys);
+  const chain = await readChain(c, workerOf(decodeChain(v.chain)), intent, pins);
+  const mint = Buffer.from(keyOfBase58(/^mint (\S+)$/m.exec(v.answer)[1]), "hex");
+  const at = v.msg.indexOf(mint);
+  assert.ok(at > 0 && v.msg.indexOf(mint, at + 1) < 0, "the mint occurs once in the message");
+  const other = Buffer.from(v.msg);
+  Buffer.from("66".repeat(32), "hex").copy(other, at);
+  const review = reviewText(c, other, intent, pins, chain);
+  assert.equal(review.kind, "refused", "another mint in the message is refused");
+  assert.deepEqual(ruleIds(review), ["plain-key-table", "plain-accounts"]);
+  assert.ok(!canApprove(review) && screenRows(review).length === 0, "and shows no mint row");
+  const same = reviewText(c, v.msg, intent, pins, chain);
+  assert.equal(screenRows(same).find((r) => r.name === "mint").value, base58(hex(mint)),
+    "control: the accepted message shows the pinned mint");
+}
+step("a mint that is not the pinned mint is refused");
+
 // ── Every vector, through the screen model ──
 const labelled = new Set();
 for (const name of names) {
@@ -523,19 +576,31 @@ step("the screen model follows every native answer");
   };
   await rejects(readChain(c, hole, intent, pins), /no readable account/,
     "an entry that is missing is no absent account");
+  for (const executable of [undefined, null, "true", 1, 0, "", {}]) {
+    const odd = workerOf(decoded);
+    const inner4 = odd.call;
+    odd.call = async (cmd, args) => {
+      const answer = await inner4(cmd, args);
+      if (cmd !== "accounts") return answer;
+      return { accounts: answer.accounts.map((a) => (a ? { ...a, executable } : a)) };
+    };
+    await rejects(readChain(c, odd, intent, pins), /no readable account/,
+      `an executable flag that is not a boolean is refused: ${String(executable)}`);
+  }
   const base = { genesis: decoded.genesis, rents: decoded.rents, reads: decoded.reads };
   const account = decoded.reads[0].account;
   const bad = (change, pattern, what) =>
     assert.throws(() => encodeChain({ ...base, ...change }), pattern, what);
   bad({ genesis: decoded.genesis.subarray(1) }, /genesis hash is not 32 bytes/, "short genesis");
   bad({ rents: [1n, 2n] }, /bad rents/, "two rents");
-  bad({ rents: [1n, 2n, 2n ** 64n] }, /does not fit in 8 bytes/, "a rent above u64");
+  bad({ rents: [1n, 2n, 2n ** 64n] },
+    /a rent is above 18446744073709551615, the largest number in 8 bytes$/, "a rent above u64");
   bad({ reads: [{ ...decoded.reads[0], role: "boss" }] }, /not the role of a read/, "a role");
   bad({ reads: [{ ...decoded.reads[0], key: new Uint8Array(31) }] }, /address of the payer/);
   bad({ reads: [{ ...decoded.reads[0], account: { ...account, owner: new Uint8Array(3) } }] },
     /owner of the payer/, "a short owner");
   bad({ reads: [{ ...decoded.reads[0], account: { ...account, lamports: -1n } }] },
-    /lamports of the payer does not fit/, "negative lamports");
+    /lamports of the payer is below 0$/, "negative lamports");
   bad({ reads: Array.from({ length: 101 }, () => decoded.reads[0]) }, /bad rents or reads/);
   const hundred = Array.from({ length: 100 }, () => decoded.reads[0]);
   assert.doesNotThrow(() => encodeChain({ ...base, reads: hundred }), "100 reads are the limit");
@@ -592,22 +657,39 @@ step("encodeChain equals the Rust encoder on the edges of an account");
   assert.deepEqual([...u32le(2 ** 32 - 1)], [255, 255, 255, 255]);
   assert.deepEqual([...u64le(2n ** 64n - 1n)], Array(8).fill(255));
   assert.deepEqual([...u64le("258")], [2, 1, 0, 0, 0, 0, 0, 0]);
-  for (const value of [-1, 2 ** 32, 1.5, "", "-1", " 1", "1e3", null, undefined, true, {}]) {
-    assert.throws(() => u32le(value), RangeError, `u32le refuses ${String(value)}`);
+  // The text says what is wrong: not a whole number, below 0, or above the largest number.
+  const refuses = (make, value, text) => assert.throws(() => make(value, "n"),
+    (e) => e instanceof RangeError && e.message === text, `${make.name} refuses ${String(value)}`);
+  for (const value of [1.5, "", " 1", "1e3", null, undefined, true, {}, NaN, 2 ** 64]) {
+    refuses(u32le, value, "n is not a whole number");
+    refuses(u64le, value, "n is not a whole number");
   }
-  for (const value of [-1n, 2n ** 64n, 2 ** 64, "18446744073709551616", NaN]) {
-    assert.throws(() => u64le(value), RangeError, `u64le refuses ${String(value)}`);
+  for (const value of [-1, "-1", -1n, -(2 ** 40)]) {
+    refuses(u32le, value, "n is below 0");
+    refuses(u64le, value, "n is below 0");
   }
-  assert.throws(() => sendSolIntent(0, NONCE, key, 2n ** 64n), /the amount does not fit/);
-  assert.throws(() => sendSolIntent(2 ** 32, NONCE, key, 1n), /k does not fit/);
-  assert.throws(() => sendTokenIntent(0, NONCE, 256, key, 1n), /the token does not fit/);
-  assert.throws(() => sendTokenIntent(0, NONCE, 0, key, 2n ** 64n), /the amount does not fit/);
-  assert.throws(() => createNonceIntent(2 ** 32, BLOCKHASH), /k does not fit/);
-  assert.throws(() => cancelIntent(2 ** 32, NONCE), /k does not fit/);
+  for (const value of [2 ** 32, "4294967296", 2n ** 32n]) {
+    refuses(u32le, value, "n is above 4294967295, the largest number in 4 bytes");
+  }
+  for (const value of [2n ** 64n, "18446744073709551616"]) {
+    refuses(u64le, value, "n is above 18446744073709551615, the largest number in 8 bytes");
+  }
+  assert.throws(() => sendTokenIntent(0, NONCE, 256, key, 1n),
+    (e) => e.message.endsWith("in 1 byte") && !e.message.includes("1 bytes"), "byte, not bytes");
+  assert.throws(() => sendSolIntent(0, NONCE, key, 2n ** 64n),
+    /the amount is above 18446744073709551615, the largest number in 8 bytes$/);
+  assert.throws(() => sendSolIntent(2 ** 32, NONCE, key, 1n),
+    /k is above 4294967295, the largest number in 4 bytes$/);
+  assert.throws(() => sendTokenIntent(0, NONCE, 256, key, 1n),
+    /the token is above 255, the largest number in 1 byte$/);
+  assert.throws(() => sendTokenIntent(0, NONCE, 0, key, 2n ** 64n),
+    /the amount is above 18446744073709551615, the largest number in 8 bytes$/);
+  assert.throws(() => createNonceIntent(2 ** 32, BLOCKHASH), /k is above 4294967295/);
+  assert.throws(() => cancelIntent(2 ** 32, NONCE), /k is above 4294967295/);
   for (const intent of [createNonceIntent(7, BLOCKHASH), cancelIntent(7, NONCE)]) {
     assert.deepEqual(Array.from(intent.slice(1, 5)), [7, 0, 0, 0], "k is written");
   }
-  assert.throws(() => enableTokenIntent(-1, BLOCKHASH), /the token does not fit/);
+  assert.throws(() => enableTokenIntent(-1, BLOCKHASH), /the token is below 0$/);
   const badKeys = ["", "ab", key.slice(1), key + "00", key.toUpperCase(), "zz".repeat(32), null];
   for (const bad of badKeys) {
     assert.throws(() => sendSolIntent(0, NONCE, bad, 1n), /the recipient is not 32 bytes of hex/);

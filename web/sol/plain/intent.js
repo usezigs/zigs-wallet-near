@@ -17,7 +17,7 @@ const KINDS = {
   [TAG_CANCEL]: ["cancel", 37],
 };
 const KEY_HEX = /^[0-9a-f]{64}$/;
-const UINT_TEXT = /^[0-9]+$/;
+const INT_TEXT = /^-?[0-9]+$/;
 
 export const bytesOfHex = (hex) => Uint8Array.from(hex.match(/../g) ?? [], (h) => parseInt(h, 16));
 
@@ -32,16 +32,24 @@ export function join(...parts) {
   return out;
 }
 
-// An unsigned integer of `size` bytes, little endian: a BigInt, a safe integer or a decimal text.
-// A value outside 0 .. 2^(8 size) - 1 throws, so no field wraps.
+const byteCount = (size) => `${size} ${size === 1 ? "byte" : "bytes"}`;
+
+// A whole number from a BigInt, a safe integer or a decimal text. Any other value throws.
+function wholeNumber(value, what) {
+  if (typeof value === "bigint") return value;
+  if (Number.isSafeInteger(value)) return BigInt(value);
+  if (typeof value === "string" && INT_TEXT.test(value)) return BigInt(value);
+  throw new RangeError(`${what} is not a whole number`);
+}
+
+// An unsigned integer of `size` bytes, little endian. A value outside 0 .. 2^(8 size) - 1 throws,
+// so no field wraps.
 function uintLe(value, size, what) {
-  const shaped =
-    typeof value === "bigint" ||
-    (Number.isSafeInteger(value) && value >= 0) ||
-    (typeof value === "string" && UINT_TEXT.test(value));
-  const n = shaped ? BigInt(value) : -1n;
-  if (n < 0n || n >= 1n << BigInt(8 * size)) {
-    throw new RangeError(`${what} does not fit in ${size} bytes`);
+  const n = wholeNumber(value, what);
+  const max = (1n << BigInt(8 * size)) - 1n;
+  if (n < 0n) throw new RangeError(`${what} is below 0`);
+  if (n > max) {
+    throw new RangeError(`${what} is above ${max}, the largest number in ${byteCount(size)}`);
   }
   return Uint8Array.from({ length: size }, (_, i) => Number((n >> BigInt(8 * i)) & 255n));
 }

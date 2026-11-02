@@ -10,12 +10,12 @@ const LABELS = {
   recipient: "To",
   amount: "Amount",
   units: "Base units",
-  symbol: "Token",
+  symbol: "Asset",
   mint: "Mint",
   fee: "Fee lamports",
   rent: "Rent lamports",
-  payer: "Fee address",
-  group: "Wallet address",
+  payer: "Fee payer",
+  group: "Wallet",
 };
 const OTHER = "Other";
 
@@ -30,8 +30,27 @@ function nameValue(line) {
   return { name, value };
 }
 
-function statementsOf(W) {
-  return new Map(W.plain_rule_list().split("\n").map((line) => splitOnce(line, "\t")));
+const statementsOf = (W) =>
+  new Map(W.plain_rule_list().split("\n").map((line) => splitOnce(line, "\t")));
+
+// The statement of a rule is its text in plain_rule_list. A rule that the list does not know shows
+// its id, so a row is never empty.
+function refusedRules(W, body) {
+  const statements = statementsOf(W);
+  return body.map((line) => {
+    const [id, detail] = splitOnce(line, "\t");
+    return { id, statement: statements.get(id) ?? id, detail };
+  });
+}
+
+function readAnswer(W, answer) {
+  const [head, ...rest] = answer.split("\n");
+  const body = rest.filter(Boolean);
+  if (head === "accepted") {
+    return { kind: "accepted", lines: body.map((line) => ({ line, ...nameValue(line) })) };
+  }
+  if (head === "refused") return { kind: "refused", rules: refusedRules(W, body) };
+  return { kind: "error", text: answer.replace(/^error\t/, "") };
 }
 
 /**
@@ -41,31 +60,21 @@ function statementsOf(W) {
  * of the wasm, are errors: they are neither accepted nor refused.
  */
 export function reviewText({ W }, message, intent, pins, chain) {
-  let answer;
   try {
-    answer = W.plain_check_message(message, intent, pins, chain);
+    return readAnswer(W, String(W.plain_check_message(message, intent, pins, chain)));
   } catch (e) {
     return { kind: "error", text: String(e?.message ?? e) };
   }
-  const [head, ...rest] = String(answer).split("\n");
-  const body = rest.filter(Boolean);
-  if (head === "accepted") {
-    const lines = body.map((line) => ({ line, ...nameValue(line) }));
-    return { kind: "accepted", lines };
-  }
-  if (head === "refused") {
-    const statements = statementsOf(W);
-    const rule = (line) => {
-      const [id, detail] = splitOnce(line, "\t");
-      return { id, statement: statements.get(id) ?? "", detail };
-    };
-    return { kind: "refused", rules: body.map(rule) };
-  }
-  return { kind: "error", text: String(answer).replace(/^error\t/, "") };
 }
 
-/** True only for an accepted answer. A refusal and an error leave no way to approve. */
-export const canApprove = (review) => review.kind === "accepted";
+/**
+ * True only for an accepted answer that has a line, and a value for each line whose name this
+ * page knows. A refusal and an error leave no way to approve.
+ */
+export const canApprove = (review) =>
+  review.kind === "accepted" &&
+  review.lines.length > 0 &&
+  review.lines.every(({ name, value }) => !Object.hasOwn(LABELS, name) || value !== "");
 
 /**
  * The rows of an accepted answer, one for each line and in the order of the checker:

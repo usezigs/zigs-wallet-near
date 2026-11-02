@@ -71,7 +71,8 @@ function accountOf(role, raw) {
   if (raw === null) return null;
   const { owner, data, lamports, executable } = raw ?? {};
   const [key, bytes] = [bytes58(owner), dataOf(data)];
-  if (key?.length !== 32 || bytes === null || typeof lamports !== "string") {
+  const shaped = key?.length === 32 && bytes !== null && typeof lamports === "string";
+  if (!shaped || typeof executable !== "boolean") {
     throw new Error(`chain: the Worker gave no readable account for the ${role}`);
   }
   return { lamports, owner: key, executable: executable === true, data: bytes };

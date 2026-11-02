@@ -1515,26 +1515,32 @@ export const MUTATIONS = [
     [[PLAIN_INTENT, "const MODE_PLAIN = 1;", "const MODE_PLAIN = 2;"]],
     /the pins equal the Rust pins/),
   reviewMutant("PL-screen-source", "the recipient row comes from the intent and not the checker",
-    [[PLAIN_REVIEW, "    const lines = body.map((line) => ({ line, ...nameValue(line) }));\n",
-      "    const lines = body.map((line) => ({ line, ...nameValue(line) }));\n"
-        + "    for (const l of lines) {\n      if (l.name === \"recipient\") "
-        + "l.value = Buffer.from(intent.slice(37, 69)).toString(\"hex\");\n    }\n"]],
+    [[PLAIN_REVIEW,
+      "    return readAnswer(W, String(W.plain_check_message(message, intent, pins, chain)));\n",
+      "    const answer = String(W.plain_check_message(message, intent, pins, chain));\n"
+        + "    const review = readAnswer(W, answer);\n"
+        + "    for (const l of review.lines ?? []) {\n      if (l.name === \"recipient\") "
+        + "l.value = Buffer.from(intent.slice(37, 69)).toString(\"hex\");\n    }\n"
+        + "    return review;\n"]],
     /the rows equal the lines of the checker one for one/),
   reviewMutant("PL-first-only", "the screen shows the first refused rule only",
-    [[PLAIN_REVIEW, "rules: body.map(rule)", "rules: body.slice(0, 1).map(rule)"]],
-    /a changed recipient names the rules of the account table/),
+    [[PLAIN_REVIEW, "  return body.map((line) => {\n",
+      "  return body.slice(0, 1).map((line) => {\n"]],
+    /an unknown rule id is its own statement/),
   reviewMutant("PL-error-as-accepted", "an error answer shows as accepted",
     [[PLAIN_REVIEW, 'if (head === "accepted") {',
       'if (head === "accepted" || head.startsWith("error")) {']],
     /neither accepted nor refused is an error/),
   reviewMutant("PL-error-approve", "an error answer leaves a way to approve",
-    [[PLAIN_REVIEW, 'export const canApprove = (review) => review.kind === "accepted";',
+    [[PLAIN_REVIEW, 'export const canApprove = (review) =>\n  review.kind === "accepted" &&\n'
+      + "  review.lines.length > 0 &&\n"
+      + '  review.lines.every(({ name, value }) => !Object.hasOwn(LABELS, name) || value !== "");',
       'export const canApprove = (review) => review.kind !== "refused";']],
     /an error gives no way to approve/),
   reviewMutant("PL-rule-text", "the statement of a rule row is the detail of the checker",
-    [[PLAIN_REVIEW, 'statement: statements.get(id) ?? "", detail }',
+    [[PLAIN_REVIEW, "statement: statements.get(id) ?? id, detail }",
       "statement: detail, detail }"]],
-    /the statement is the text of plain_rule_list/),
+    /an unknown rule id is its own statement/),
   reviewMutant("PL-other-hidden", "a name that the page does not know is left out of the rows",
     [[PLAIN_REVIEW, "  return review.lines.map(({ name, value, line }) =>",
       "  return review.lines.filter(({ name }) => Object.hasOwn(LABELS, name))\n"
@@ -1555,7 +1561,7 @@ export const MUTATIONS = [
       "if (account === null) return join([1], u64le(0), new Uint8Array(32), [0], u32le(0));"]],
     /readChain equals the Rust chain bundle/),
   reviewMutant("PL-uint-wrap", "an integer above its size wraps and does not throw",
-    [[PLAIN_INTENT, "if (n < 0n || n >= 1n << BigInt(8 * size)) {", "if (false) {"]],
+    [[PLAIN_INTENT, "  if (n > max) {\n", "  if (false) {\n"]],
     /a rent above u64/),
   reviewMutant("PL-kind-length", "kindOfIntent names an intent of any length",
     [[PLAIN_INTENT, "return name !== undefined && hex.length === size * 2 ? name : null;",
@@ -1569,8 +1575,9 @@ export const MUTATIONS = [
       'rents: ["650240", "1056640", "1488440"],']],
     /a rent that the pin does not hold is refused/),
   reviewMutant("PL-dedupe-id", "the screen keeps one row for each rule id",
-    [[PLAIN_REVIEW, "rules: body.map(rule)",
-      "rules: body.map(rule).filter((r, i, all) => all.findIndex((x) => x.id === r.id) === i)"]],
+    [[PLAIN_REVIEW, "  });\n}\n\nfunction readAnswer",
+      "  }).filter((r, i, all) => all.findIndex((x) => x.id === r.id) === i);\n}\n\n"
+        + "function readAnswer"]],
     /one row for each instruction/),
   reviewMutant("PL-exec-zero", "encodeChain writes the executable flag as 0",
     [[PLAIN_CHAIN, "[executable === true ? 1 : 0],", "[0],"]],
@@ -1587,7 +1594,7 @@ export const MUTATIONS = [
     [[PLAIN_CHAIN, "return { lamports, owner: key, executable: executable === true, data: bytes };",
       "return { lamports: Number(lamports), owner: key, executable: executable === true, "
         + "data: bytes };"]],
-    /lamports of the recipient does not fit/),
+    /lamports of the recipient is not a whole number/),
   reviewMutant("PL-undefined-absent", "an undefined account entry is read as an absent account",
     [[PLAIN_CHAIN, "if (raw === null) return null;", "if (raw == null) return null;"]],
     /an entry that is missing is no absent account/),

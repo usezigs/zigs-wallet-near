@@ -10,6 +10,7 @@ import { startSolWorker } from "../client.js";
 import { COLLECTIONS, filterSol } from "../docs.js";
 import * as W from "../wasm/sol_wasm.js";
 import { walletOf } from "../wallet.js";
+import { closeDirect, confirmDirect, startDirect } from "./direct.js";
 import { PLAIN_WORKER_POLICY } from "./guard.js";
 import { readBalances } from "./reads.js";
 import { plainSetup, plainView, readTexts } from "./view.js";
@@ -47,6 +48,7 @@ const blank = () => ({
   worker: null,
   watched: false,
   balances: unread(),
+  direct: null,
 });
 
 function teardown(c) {
@@ -186,6 +188,19 @@ const madeOf = (c, i) => {
   return c.docs.soldone[i] ? true : c.wait > 0 ? null : false;
 };
 
+// Create nonce and Enable USDC (direct.js). One key lets one step run at a time, so a double click
+// is one action. The button of a step starts its review; Confirm and Cancel come from the review.
+const directActions = (c) => {
+  const once = (fn) => c.host.once("sol:direct", fn);
+  const ensure = () => ensureWorker(c);
+  return {
+    createNonce: () => once(() => startDirect(c, "createNonce", ensure)),
+    enableUsdc: () => once(() => startDirect(c, "enableUsdc", ensure)),
+    confirm: () => once(() => confirmDirect(c, ensure)),
+    cancel: () => closeDirect(c),
+  };
+};
+
 /** Loads the wasm and returns the controller of the plain Solana wallet. */
 export async function attach(host) {
   await W.default();
@@ -207,7 +222,8 @@ export async function attach(host) {
     react: () => react(c),
     add: () => addSolana(c),
     observe,
-    view: (act, actions) => plainView(c, act, { ...actions, add: () => addSolana(c) }),
+    view: (act, actions) =>
+      plainView(c, act, { ...actions, add: () => addSolana(c), ...directActions(c) }),
     setup: () => setupOf(c),
     made: (i) => madeOf(c, i),
     read: () => readTexts(c),

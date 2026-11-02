@@ -32,9 +32,13 @@ const STAYS = "SOL and USDC stay at this wallet’s Solana address. A device lef
 // The words that the body text of a card may hold: the owner found the tab too text heavy.
 const BUDGET = { start: 30, ready: 26, stopped: 20, running: 20, differs: 15, early: 10,
   stoppedAndDiffer: 10, forgedFee: 70, noFee: 158, away: 13 };
+// The words that Set up sending adds to the ready card, for each state of a step. The words of the
+// checker and of the network are not counted: they are not copy.
+const STEP_BUDGET = { reading: 3, review: 5, sending: 8, refusal: 3, poor: 18, error: 3,
+  done: 5, unknown: 8, failed: 0 };
 
 const rig = await loadRig();
-const { t, data, waitFor } = rig;
+const { t, data, waitFor, W } = rig;
 const step = (name) => console.log("ok  " + name);
 const realNow = Date.now;
 let skew = 0;
@@ -110,14 +114,14 @@ const spoken = (n) => n.text ?? [n.attrs?.["aria-label"], n.attrs?.title,
 const promise = (what, tree) => assert.doesNotMatch(spoken(tree), PROMISE,
   "no word of a promise in " + what);
 // The words of the body text of a card: its paragraphs, callouts and notes. It skips what is not
-// body text: hidden nodes, closed details, headings, labels, badges, amounts, the address, buttons
-// and links. The "Device N: saved" status of a backup row is the label of its buttons and each
-// local device adds one, so it is skipped too.
+// body text: hidden nodes, closed details, headings, labels, badges, amounts, the address, buttons,
+// links, and the lines and rules of the checker. The "Device N: saved" status of a backup row is
+// the label of its buttons and each local device adds one, so it is skipped too.
 const NOT_BODY = /\b(label|badge|sr-only|sol-amount|addr-full|hex)\b/;
 const wordsIn = (s) => s.split(/\s+/).filter(Boolean).length;
-const skipped = (n) => n.attrs.hidden !== undefined || /^(button|a|h3|h4|input)$/.test(n.tag)
+const skipped = (n) => n.attrs.hidden !== undefined || /^(button|a|h3|h4|input|dl)$/.test(n.tag)
   || (n.tag === "details" && n.attrs.open === undefined) || NOT_BODY.test(n.className ?? "")
-  || n.attrs["data-sol"]?.startsWith("backup-state-");
+  || /^(backup-state-|direct-rules)/.test(n.attrs["data-sol"] ?? "");
 const bodyText = (n) => (n.text !== undefined ? [n.text]
   : skipped(n) ? [] : n.kids.flatMap(bodyText));
 const bodyWords = (card) => wordsIn(bodyText(card).join(" "));
@@ -436,6 +440,61 @@ const readFrom = async (tab) => {
   assert.equal(mark(other, "address"), undefined);
 }
 step("the tab shows the address of the group key, Copy, the explorer link, the balances and fees");
+
+// ── Set up sending: the words of each state of a step ──
+{
+  const idle = built(() => plainView(c, (fn) => fn, {}));
+  const base = bodyWords(card(idle));
+  assert.equal(base, BUDGET.ready, "control: the idle ready card holds the ready budget");
+  assert.ok(mark(idle, "create-nonce") && !mark(idle, "direct-title"), "the idle card: a button");
+  const line = (full) => ({ line: full, name: full.split(" ")[0], value: full.split(" ")[1] });
+  const review = { kind: "accepted", lines: ["intent create-nonce", "cluster mainnet", "fee 5000",
+    "rent 1056640", `payer ${fee(1)}`, `group ${address}`].map(line) };
+  const rules = W.plain_rule_list().split("\n");
+  const refused = { kind: "refused", rules: rules.slice(0, 2).map((rule) => {
+    const [id, statement] = rule.split("\t");
+    return { id, statement, detail: "the checker's detail of this rule" };
+  }) };
+  const checker = "chain: the read of the payer is missing";
+  const network = "The network refused this in a test run: InstructionError Program log: x";
+  const txId = "5".repeat(87);
+  const step2 = { kind: "createNonce", seat: 1 };
+  const states = {
+    reading: [{ kind: "createNonce", step: "reading" }, 0],
+    review: [{ ...step2, step: "review", review }, 0],
+    sending: [{ ...step2, step: "sending", review }, 0],
+    refusal: [{ ...step2, step: "stopped", review: refused, note: "" }, 0],
+    poor: [{ ...step2, step: "stopped", review: refused,
+      note: "Device 1 has too little SOL at its fee address, and mainnet has no faucet." }, 0],
+    error: [{ ...step2, step: "stopped", review: { kind: "error", text: checker }, note: "" },
+      wordsIn(checker)],
+    done: [{ ...step2, step: "done", result: { status: "confirmed", slot: "1", txId } }, 0],
+    unknown: [{ ...step2, step: "done", result: { status: "unknown", slot: "", txId } }, 0],
+    failed: [{ ...step2, step: "failed", text: network }, wordsIn(network)],
+  };
+  for (const [name, [direct, outside]] of Object.entries(states)) {
+    const tree = built(() => plainView({ ...c, direct }, (fn) => fn, {}));
+    promise("the step state " + name, tree);
+    const own = bodyWords(card(tree)) - base - outside;
+    assert.ok(own <= STEP_BUDGET[name],
+      `the ${name} state adds at most ${STEP_BUDGET[name]} words, not ${own}`);
+    assert.ok(nameStartsWithText(tree), "the names of the controls start with their text: " + name);
+    const controls = all(tree, (n) => n.tag === "button" || n.tag === "a");
+    assert.ok(controls.every((n) => text(n).trim() !== ""), "every control has its text: " + name);
+    assert.doesNotMatch(texts(tree).join(" | "), /\b(cap|capped|faucet link)\b/i, "no cap text");
+  }
+  const poor = built(() => plainView({ ...c, direct: states.poor[0] }, (fn) => fn, {}));
+  assert.equal(all(mark(poor, "direct-stopped"), (n) => n.tag === "a").length, 0,
+    "the fee sentence has no faucet link");
+  const done = built(() => plainView({ ...c, direct: states.done[0] }, (fn) => fn, {}));
+  assert.equal(text(mark(done, "direct-signature")), txId.slice(0, 8) + "…" + txId.slice(-6));
+  assert.equal(mark(done, "direct-explorer").attrs.href, "https://explorer.solana.com/tx/" + txId);
+  assert.doesNotMatch(mark(done, "direct-explorer").attrs.href, /cluster=/);
+  const failed = built(() => plainView({ ...c, direct: states.failed[0] }, (fn) => fn, {}));
+  assert.equal(mark(failed, "direct-failed").attrs.role, "alert", "a failure is an alert");
+  assert.equal(mark(done, "direct-result").kids[0].attrs.role, "status", "a result is a status");
+}
+step("each state of Set up sending stays within its words and names no promise");
 
 // ── A bad USDC account and a failed update stay on their own rows ──
 {

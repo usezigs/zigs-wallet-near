@@ -14,7 +14,7 @@ const TOKEN_LEN = 165;
 const AMOUNT_AT = 64;
 const STATE_AT = 108;
 const INITIALIZED = 1;
-const USDC = 0; // the place of USDC in the pinned mint table of the wasm
+export const USDC = 0; // the place of USDC in the pinned mint table of the wasm
 const NO_ACCOUNT = "The wasm named no USDC account for this wallet.";
 const BAD_ACCOUNT = "The USDC account of the group is not an initialised token account.";
 

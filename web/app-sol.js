@@ -15,7 +15,7 @@ import { openGroup, sdb, unsubGroup } from "./app-groups.js";
 import { act, el, guard } from "./app-dom.js";
 import { confirmedNo, groupVersion, safetyNo, seatCheck } from "./app-dkg.js";
 import { openBackupCheck, restore, sealAndSave } from "./app-backups.js";
-import { once, react, render } from "./app-loop.js";
+import { focusAfter, once, react, render } from "./app-loop.js";
 
 // Devnet, for version 3 wallets on the testnet that the people of the wallet confirmed (SOL-34).
 // web/sol loads from the Solana tab, a signed solstart document, or the unsigned Solana hint
@@ -144,6 +144,7 @@ export function resetSolStart() {
 // host.putSec is the save of a step that holds the lock of the secrets (putSol, shareOnce).
 export const solHost = () => ({
   Z, sdb, state, el, act, log, once, render, refilter, showBanner, sec, putSec: putSecHeld,
+  focusAfter,
   signedDoc,
   recipientSelect,
   exclusive, takeStored,

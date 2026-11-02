@@ -229,6 +229,18 @@ documents arrive. A part that stopped after the seats agreed still shows the add
 balances, with no Copy. The Change devices texts, also the dialog that moves the Zcash funds, say
 that the SOL and USDC stay at the Solana address. The probe of the config keeps no body.
 
+The ready tab also has Create nonce (S1) and Enable USDC (S4), which one device takes alone with its
+fee key (`web/sol/plain/direct.js`). Both messages have one signature, so the group does not sign.
+Each step spends only the SOL of that fee address. The page reads the chain at the addresses that
+the wasm names, compiles the message and runs the checker, and it shows the lines of the checker.
+Only after the person presses Confirm does the fee key sign the exact message that the checker
+accepted. The page then simulates it, sends the bytes that passed and waits for the id of the
+signature. A refusal, an error or a failed simulation signs or sends nothing more, and an answer
+"unknown" is never sent again. Each step reads a new blockhash. Create nonce takes the first of the
+first 100 nonce indexes of the device whose account is missing. The tab shows Enable USDC from the
+next balance read and never from the result of a step. The fee key stays on the device: the Worker
+gets the signed transaction only.
+
 **3.9 Known limits of the plain wallet (P1).**
 
 1. A System-owned account that holds lamports at an associated token account address stops that
