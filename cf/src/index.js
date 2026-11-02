@@ -161,17 +161,19 @@ async function assets(req, env, url) {
 // secret LWD_KEY that the Worker adds (infra/lwd). The page calls /lwd behind the password gate
 // and never holds the key. Only the gRPC methods that the engine calls pass (wasm/src/chain.rs),
 // so the route is no open proxy. GetMempoolTx passes: it ends with the mempool. The stream that
-// stays open, GetMempoolStream, is closed.
+// stays open, GetMempoolStream, is closed. GetAddressUtxos passes with a body of one address: it
+// reads the transparent address of a group wallet.
 const LWD_ORIGIN = "https://lwd.zigs.app";
 const LWD_PATH = /^\/lwd(\/cash\.z\.wallet\.sdk\.rpc\.CompactTxStreamer\/([A-Za-z]+))$/;
 const LWD_METHODS = new Set(["GetLatestBlock", "GetTreeState", "GetBlockRange", "GetTransaction",
-  "SendTransaction", "GetMempoolTx"]);
+  "SendTransaction", "GetMempoolTx", "GetAddressUtxos"]);
 // One GetBlockRange call asks for at most this many blocks, so no call asks for the whole chain.
 // The engine asks for BATCH (1,000) blocks at a time (wasm/src/chain.rs); the margin of one more
 // batch keeps a later, larger BATCH working. web/test/lwd.mjs checks that the limit stays above.
 const LWD_MAX_BLOCKS = 2_000;
 const LWD_MAX_RANGE_BODY = 256; // bytes; the frame of the engine has 19
 const LWD_MAX_MEMPOOL_BODY = 64; // bytes; the frame of the engine has 8 (no exclude list)
+const LWD_MAX_UTXOS_BODY = 64; // bytes; the frame of the engine has 44 (one t-address)
 const LWD_REQUEST = ["content-type", "x-grpc-web", "x-user-agent", "grpc-timeout"];
 const LWD_RESPONSE = ["content-type", "grpc-status", "grpc-message"];
 
@@ -306,12 +308,14 @@ async function smallBody(req, max) {
 }
 
 // The body to send upstream: a GetBlockRange body only when its range is small enough, and a
-// GetMempoolTx body only when it is small. Other bodies stream as they come. A Response when the
-// call is refused.
+// GetMempoolTx or GetAddressUtxos body only when it is small. Other bodies stream as they come. A
+// Response when the call is refused.
+const LWD_SMALL = new Map([["GetMempoolTx", LWD_MAX_MEMPOOL_BODY],
+  ["GetAddressUtxos", LWD_MAX_UTXOS_BODY]]);
 async function lwdBody(req, method) {
-  if (method === "GetMempoolTx") {
-    const bytes = await smallBody(req, LWD_MAX_MEMPOOL_BODY);
-    return bytes ?? new Response("Send one GetMempoolTx request.\n", { status: 400 });
+  if (LWD_SMALL.has(method)) {
+    const bytes = await smallBody(req, LWD_SMALL.get(method));
+    return bytes ?? new Response(`Send one ${method} request.\n`, { status: 400 });
   }
   if (method !== "GetBlockRange") return req.body;
   const bytes = await smallBody(req, LWD_MAX_RANGE_BODY);

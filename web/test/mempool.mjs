@@ -4,7 +4,8 @@
 // in the balance ("Not in a block yet") and as a row in the activity ("Receiving · not in a block
 // yet"). They never count as Available or Incoming, and never touch the balance or the cap. A
 // call that fails or takes 20 s shows nothing, and the last good list stays for 2 minutes. The page
-// redraws when what it shows changes. The engine is a fake.
+// redraws when what it shows changes. The engine is a fake. The last part checks the transparent
+// address of the group on Receive.
 // Run: node web/test/mempool.mjs   (Node 26)
 import assert from "node:assert/strict";
 import { loadRig, sleep } from "./sol-rig.mjs";
@@ -445,6 +446,59 @@ console.log("ok  no call for a hidden tab or a closed wallet; the 30 s call asks
   assert.match(s.error, /the sync broke/);
   t.setChain(null);
   console.log("ok  a finished sync asks the engine once; a hidden tab or a failed sync does not");
+}
+// ── The transparent address of the group on Receive (PRIVACY.md) ──
+// Each seat publishes its ZIP 48 key as the signed document p2sh/<seat>. The address shows only
+// when all n keys check, and a seat writes its key at most once each time the wallet opens.
+{
+  const engine = await import("../app-engine.js");
+  const { groupTaddress, readTaddressBalance, taddressSection } =
+    await import("../app-taddress.js");
+  const keyDocs = (id) => [1, 2, 3].map((seat) => rig.data.get(`groups/${id}/p2sh/${seat}`));
+  const shown = () => textOf(drawn(() => taddressSection()));
+  const tg = await rig.wallet({ name: "Transparent" });
+  await rig.waitFor("the group address", () => groupTaddress().address);
+  const { address } = groupTaddress();
+  assert.match(address, /^t2/, "a testnet P2SH address");
+  const docs = keyDocs(tg);
+  assert.ok(docs.every((d) => d?.v === 1 && typeof d.key === "string" && d.sig), "signed keys");
+  const kp = JSON.stringify(t.sec(tg, 3).keyPackage);
+  const keys = docs.map((d) => d.key).reverse();
+  assert.equal(JSON.parse(Z.p2shAddress(2, keys, kp, "testnet")).address, address,
+    "seat 3 makes the same address from the keys in another order");
+  console.log("ok  three seats publish signed keys and make one 2-of-3 address");
+
+  // An engine that fails a balance read at once, then a stub that answers with two payments.
+  const before = engine.Z;
+  const offline = { ...before, transparentUtxos: async () => { throw new Error("offline"); } };
+  t.setZ(offline);
+  await readTaddressBalance(address);
+  assert.match(shown(), /The balance could not be read\./);
+  const utxo = (value) => ({ txid: "ab".repeat(32), index: 0, value, height: 5 });
+  t.setZ({ ...offline, transparentUtxos: async (_url, a) =>
+    JSON.stringify({ total: 15e7, utxos: a === address ? [utxo(1e8), utxo(5e7)] : [] }) });
+  await readTaddressBalance(address);
+  assert.match(shown(), /Balance: 1\.5 ZEC in 2 payments/);
+  assert.match(shown(), /The chain shows its balance and every payment to it to everyone/);
+  t.setZ(offline);
+  console.log("ok  a failed balance read says so, and a good one shows 1.5 ZEC in 2 payments");
+
+  // A server that swaps the key of seat 3 for the key of seat 1 blocks the address.
+  let writes = 0;
+  rig.hook.before = (path, v) => {
+    if (!path.endsWith("/p2sh/3")) return v;
+    writes += 1;
+    return { ...v, key: docs[0].key };
+  };
+  const swapped = await rig.wallet({ name: "Swapped key" });
+  await rig.waitFor("three key documents", () => keyDocs(swapped).every(Boolean));
+  await real(300);
+  assert.deepEqual(groupTaddress(), { published: 2, of: 3 }, "the swapped key does not check");
+  assert.equal(writes, 1, "seat 3 wrote its key once, not again on each snapshot");
+  assert.match(shown(), /2 of 3 devices published their key/);
+  rig.hook.before = (_path, v) => v;
+  t.setZ(before);
+  console.log("ok  a swapped key blocks the address, and the seat does not write it again");
 }
 console.log("mempool: ok");
 process.exit(0);

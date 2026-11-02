@@ -85,7 +85,8 @@ export async function loadRig() {
   const store = makeStore();
   t.setDb(store.db);
   t.setMe("me-uid");
-  const fakeZ = { ...Z, latestHeight: async () => 1000, ChainWallet: Offline };
+  const fakeZ = { ...Z, latestHeight: async () => 1000, ChainWallet: Offline,
+    transparentUtxos: async () => { throw new Error("offline"); } };
   t.setZ(fakeZ);
   const waitFor = async (what, ok, ms = 60000) => {
     for (const t0 = Date.now(); !ok();) {
@@ -96,7 +97,8 @@ export async function loadRig() {
   return { t, Z, W, ...store, waitFor, wallet: (opts) => wallet(t, waitFor, opts) };
 }
 
-// No network: the chain height is fixed and a sync fails at once.
+// No network: the chain height is fixed, and a sync and a read of a transparent balance fail at
+// once.
 class Offline {
   constructor() {
     throw new Error("offline");

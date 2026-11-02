@@ -54,6 +54,8 @@ export const joinMessage: (a: number, b: number) => [number, number, number, num
 export const latestHeight: (a: number, b: number) => any;
 export const makeRequest: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const normalizeAddress: (a: number, b: number) => [number, number, number, number];
+export const p2shAddress: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
+export const p2shKey: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const parseRequest: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const payeeAddress: (a: number, b: number) => [number, number, number, number];
 export const safetyNumber: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
@@ -66,6 +68,7 @@ export const signShare: (a: number, b: number, c: number, d: number, e: number, 
 export const skCommit: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
 export const splitMessage: (a: number, b: number) => [number, number, number, number];
 export const start: () => void;
+export const transparentUtxos: (a: number, b: number, c: number, d: number) => any;
 export const vaultSk: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
 export const walletCreate: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const walletCreateV2: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];

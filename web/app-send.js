@@ -28,6 +28,7 @@ import {
 import { solOn } from "./app-sol.js";
 import { recipientSelect } from "./app-recipients.js";
 import { securityExplanation } from "./app-tutorial.js";
+import { taddressSection } from "./app-taddress.js";
 import { privacyNotice, ZEC_EXPOSURE } from "./privacy-language.js";
 import { walletAvatarFor } from "./app-wallet-identity.js";
 
@@ -64,6 +65,7 @@ export function receiveDialog() {
   privacyNotice(el, hidden || moved ? "unknown" : "shielded",
     hidden || moved ? "Address unavailable" : "Shielded · Zcash " + curNet().label,
     ZEC_EXPOSURE),
+  hidden || moved ? null : taddressSection(),
   securityExplanation("receive"));
 }
 

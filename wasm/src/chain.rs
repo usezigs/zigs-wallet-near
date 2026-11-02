@@ -26,7 +26,7 @@ use zcash_client_backend::{
         compact_formats::{CompactBlock, CompactOrchardAction, CompactTx},
         service::{
             compact_tx_streamer_client::CompactTxStreamerClient, BlockId, BlockRange, ChainSpec,
-            GetMempoolTxRequest, PoolType, RawTransaction, TreeState, TxFilter,
+            GetAddressUtxosArg, GetMempoolTxRequest, PoolType, RawTransaction, TreeState, TxFilter,
         },
     },
     scanning::{scan_block, ScanningKeys, SpendIdentifiers},
@@ -1071,6 +1071,44 @@ pub async fn js_latest_height(endpoint: String) -> Result<u32, JsError> {
     super::js(tip_of(&endpoint).await)
 }
 
+/// A read of the unspent outputs of one address asks for at most this many.
+const MAX_UTXOS: u32 = 100;
+
+/// The unspent outputs of the transparent `address` that the light-wallet server lists, and their
+/// sum: JSON {total, utxos: [{txid, index, value, height}]}. The txid is in the order that
+/// explorers use. The server can hide an output or invent one: a spend commits to the value and
+/// the script of each input (ZIP 244), so an invented output makes a spend fail and loses nothing.
+async fn utxos_of(endpoint: &str, address: &str) -> R<String> {
+    let arg = GetAddressUtxosArg {
+        addresses: vec![address.to_string()],
+        start_height: 0,
+        max_entries: MAX_UTXOS,
+    };
+    let list = client(endpoint).get_address_utxos(arg).await.map_err(rpc)?.into_inner();
+    utxo_json(address, &list.address_utxos)
+}
+
+fn utxo_json(
+    address: &str, list: &[zcash_client_backend::proto::service::GetAddressUtxosReply],
+) -> R<String> {
+    let mut total = 0u64;
+    let mut utxos = Vec::with_capacity(list.len());
+    for u in list.iter().filter(|u| u.address == address) {
+        let value = u64::try_from(u.value_zat).map_err(|_| "lightwalletd: a negative value")?;
+        total = total.checked_add(value).ok_or("lightwalletd: the values overflow")?;
+        let mut txid = u.txid.clone();
+        txid.reverse();
+        utxos.push(json!({"txid": hex::encode(txid), "index": u.index, "value": value,
+            "height": u.height}));
+    }
+    Ok(json!({"total": total, "utxos": utxos}).to_string())
+}
+
+#[wasm_bindgen(js_name = transparentUtxos)]
+pub async fn js_transparent_utxos(endpoint: String, address: String) -> Result<String, JsError> {
+    super::js(utxos_of(&endpoint, &address).await)
+}
+
 /// True when an error message says that a reorganisation was deeper than the wallet can undo.
 #[wasm_bindgen(js_name = isDeepReorg)]
 pub fn js_is_deep_reorg(message: &str) -> bool {
@@ -1454,6 +1492,21 @@ mod tests {
         assert!(super::super::normalize_address(&ua(Network::MainNetwork)).unwrap().starts_with("u1"));
         assert!(super::super::normalize_address(&ua(Network::TestNetwork)).unwrap().starts_with("utest1"));
         native::close(k).unwrap();
+    }
+
+    #[test]
+    fn the_utxos_of_an_address_add_up_and_skip_other_addresses() {
+        use zcash_client_backend::proto::service::GetAddressUtxosReply;
+        let row = |address: &str, value: i64| GetAddressUtxosReply {
+            address: address.into(), txid: vec![1, 2], index: 3, script: vec![], value_zat: value,
+            height: 9,
+        };
+        let out = v(&utxo_json("t3a", &[row("t3a", 5), row("t3b", 7), row("t3a", 6)]).unwrap());
+        assert_eq!(out["total"], 11);
+        assert_eq!(out["utxos"][0], json!({"txid": "0201", "index": 3, "value": 5, "height": 9}));
+        assert!(utxo_json("t3a", &[row("t3a", -1)]).unwrap_err().contains("negative"));
+        assert!(utxo_json("t3a", &[row("t3a", i64::MAX), row("t3a", i64::MAX), row("t3a", 2)])
+            .unwrap_err().contains("overflow"));
     }
 
     #[test]
@@ -2476,6 +2529,11 @@ mod tests {
         let tm = Address::Transparent(TransparentAddress::PublicKeyHash([5; 20])).encode(&net);
         let to = address_for(&"0b".repeat(32), 1);
         let rows = [json!({"to": tm, "amount": 200_000}), json!({"to": to, "amount": 100_000})];
+        // A P2SH output has 32 bytes, less than 34, and still counts as one action.
+        let t2 = Address::Transparent(TransparentAddress::ScriptHash([6; 20])).encode(&net);
+        let p2sh = parse_payees(&[json!({"to": t2, "amount": 50_000})], net).unwrap();
+        let made = v(&spend_pczt(&w, &p2sh, chain.last_height(), false, None).unwrap());
+        assert_eq!(made["fee"], json!(15_000));
         let (payees, tip) = (parse_payees(&rows, net).unwrap(), chain.last_height());
         let fvk = hex::encode(w.ufvk.orchard().unwrap().to_bytes());
         for (priority, fee) in [(false, 15_000), (true, 150_000)] {

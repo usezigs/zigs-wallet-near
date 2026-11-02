@@ -47,6 +47,10 @@ const ENGINE_RANGE = Buffer.from("000000000e0a0508c08db701120508a795b701", "hex"
 // The GetMempoolTx body that the engine (web/pkg) sends: no exclude list, pool type Ironwood (4).
 // The test after the body bounds checks it against the real engine.
 const ENGINE_MEMPOOL = Buffer.from("00000000031a0104", "hex");
+// The GetAddressUtxos body that the engine (web/pkg) sends, recorded with a stub of fetch: one t3
+// address, start 0 (left out), at most 100 entries.
+const T3 = "t3Vz22vK5z2LcKEdg16Yv4FFneEL1zg9ojd";
+const ENGINE_UTXOS = Buffer.from([0, 0, 0, 0, 39, 10, 35, ...Buffer.from(T3), 0x18, 100]);
 const varint = (n) => {
   const out = [];
   for (; n >= 128; n = Math.floor(n / 128)) out.push((n % 128) | 128);
@@ -71,7 +75,7 @@ const frame = (msg, flag = 0) => {
 {
   // The other methods of the service (CompactTxStreamer, zcash_client_backend 0.25).
   // GetMempoolStream keeps its answer open until the next block, so it stays closed.
-  const closed = ["GetAddressUtxos", "GetAddressUtxosStream", "GetBlock", "GetBlockNullifiers",
+  const closed = ["GetAddressUtxosStream", "GetBlock", "GetBlockNullifiers",
     "GetBlockRangeNullifiers", "GetLatestTreeState", "GetLightdInfo", "GetMempoolStream",
     "GetSubtreeRoots", "GetTaddressBalance", "GetTaddressBalanceStream",
     "GetTaddressTransactions", "GetTaddressTxids", "Ping"];
@@ -100,16 +104,18 @@ const frame = (msg, flag = 0) => {
     assert.equal((await ask("/lwd/other", { method })).status, 404, method + " on a bad path");
   }
   assert.deepEqual(calls, [], "no call went upstream");
-  step("the 14 methods that the engine does not call, and a bad path, give 404; a bad method 405");
+  step("the 13 methods that the engine does not call, and a bad path, give 404; a bad method 405");
 }
 
-// ── The six methods that the engine calls go upstream with their body ──
+// ── The seven methods that the engine calls go upstream with their body ──
 {
-  // A body of 300 bytes that is no BlockRange: only GetBlockRange and GetMempoolTx get a check.
+  // A body of 300 bytes that is no BlockRange: only GetBlockRange, GetMempoolTx and
+  // GetAddressUtxos get a check.
   const raw = frame(sub(1, Array(295).fill(7)));
   const methods = ["GetLatestBlock", "GetTreeState", "GetBlockRange", "GetTransaction",
-    "SendTransaction", "GetMempoolTx"];
-  const engine = { GetBlockRange: ENGINE_RANGE, GetMempoolTx: ENGINE_MEMPOOL };
+    "SendTransaction", "GetMempoolTx", "GetAddressUtxos"];
+  const engine = { GetBlockRange: ENGINE_RANGE, GetMempoolTx: ENGINE_MEMPOOL,
+    GetAddressUtxos: ENGINE_UTXOS };
   for (const method of methods) {
     const body = engine[method] ?? raw;
     calls.length = 0;
@@ -120,7 +126,7 @@ const frame = (msg, flag = 0) => {
     assert.deepEqual(sent, new Uint8Array(body), method + ": the body goes unchanged");
   }
   calls.length = 0;
-  step("the six methods that the engine calls go upstream; GetBlockRange and GetMempoolTx are bounded");
+  step("the seven methods that the engine calls go upstream; three of them are bounded");
 }
 
 // ── A GetMempoolTx call has a small body: the exclude list is empty, one pool type ──
@@ -157,6 +163,21 @@ const frame = (msg, flag = 0) => {
     404, "the stream that stays open is still closed");
   assert.equal(calls.length, 0);
   step("a GetMempoolTx body of up to 64 bytes passes; a larger one gives 400; GetMempoolStream 404");
+}
+
+// ── A GetAddressUtxos call has a small body: one address, so no call reads many addresses ──
+{
+  const path = "/lwd" + SERVICE + "GetAddressUtxos";
+  calls.length = 0;
+  assert.equal((await ask(path, { body: ENGINE_UTXOS })).status, 200, "one address passes");
+  const many = frame([...Array(4)].flatMap(() => sub(1, [...Buffer.from(T3)])));
+  const res = await ask(path, { body: many });
+  assert.equal(res.status, 400, "four addresses give 400");
+  assert.match(await res.clone().text(), /Send one GetAddressUtxos request/);
+  await keyless(res, "many addresses");
+  assert.equal(calls.length, 1, "a refused body sends nothing upstream");
+  calls.length = 0;
+  step("a GetAddressUtxos body of up to 64 bytes passes; a larger one gives 400");
 }
 
 // ── The request that the real engine sends is ENGINE_MEMPOOL ──

@@ -54,6 +54,7 @@ mod ceremony;
 mod chain;
 mod expiry;
 mod memo;
+mod p2sh;
 mod request;
 mod session;
 mod snapshot;
@@ -1794,7 +1795,7 @@ mod tests {
     }
 
     /// A fee that leaves out the action of the transparent output is below the ZIP 317 fee. Two
-    /// transparent outputs (66 bytes) count as two actions.
+    /// transparent outputs (68 bytes) count as two actions.
     #[test]
     fn inspect_counts_the_actions_of_transparent_outputs() {
         use zcash_primitives::transaction::fees::fixed;
@@ -1868,6 +1869,22 @@ mod tests {
         let tex = "tex1s2rt77ggv6q989lr49rkgzmh5slsksa9khdgte";
         assert!(payee_address(tex).unwrap_err().contains("ZIP 320"));
         assert_eq!(payee_address("t1nope").unwrap_err(), "not a Zcash address");
+    }
+
+    /// The key packages of a real DKG give each seat its own ZIP 48 key, and the three seats
+    /// make the same group address.
+    #[test]
+    fn p2sh_keys_come_from_real_key_packages() {
+        let (results, _) = run_dkg(false);
+        let packages: Vec<String> = results.iter().map(|r| r["key_package"].to_string()).collect();
+        let keys: Vec<String> =
+            packages.iter().map(|p| p2sh::p2sh_key(p, "mainnet").unwrap()).collect();
+        let unique: std::collections::HashSet<&String> = keys.iter().collect();
+        assert_eq!(unique.len(), 3, "one key per seat");
+        let address = |p: &String| v(&p2sh::p2sh_address(2, &keys, p, "mainnet").unwrap());
+        let first = address(&packages[0]);
+        assert!(first["address"].as_str().unwrap().starts_with("t3"));
+        assert!(packages[1..].iter().all(|p| address(p) == first));
     }
 
     /// The same for a Sapling output: its value would also look like a higher fee.

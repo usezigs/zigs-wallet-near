@@ -48,6 +48,12 @@ const METHODS: &[(&str, Method)] = &[
     ("walletVerify", |a| wallet_verify(s(a, 0)?, s(a, 1)?)),
     ("normalizeAddress", |a| normalize_address(s(a, 0)?)),
     ("payeeAddress", |a| payee_address(s(a, 0)?)),
+    ("p2shKey", |a| p2sh::p2sh_key(s(a, 0)?, s(a, 1)?)),
+    ("p2shAddress", |a| {
+        let keys: Vec<String> = serde_json::from_value(Value::Array(list(a, 1)?.to_vec()))
+            .map_err(|_| "argument 1 must be a list of keys".to_string())?;
+        p2sh::p2sh_address(h(a, 0)?, &keys, s(a, 2)?, s(a, 3)?)
+    }),
     ("skCommit", |a| ceremony::sk_commit(s(a, 0)?, n(a, 1)?, s(a, 2)?, s(a, 3)?)),
     ("dkgEcho", |a| ceremony::dkg_echo(s(a, 0)?, s(a, 1)?)),
     ("vaultSk", |a| ceremony::vault_sk(s(a, 0)?, s(a, 1)?, s(a, 2)?)),

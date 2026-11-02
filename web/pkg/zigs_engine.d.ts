@@ -175,6 +175,10 @@ export function makeRequest(payees: string, net: string): string;
 
 export function normalizeAddress(addr: string): string;
 
+export function p2shAddress(t: number, keys: string[], key_package: string, net: string): string;
+
+export function p2shKey(key_package: string, net: string): string;
+
 export function parseRequest(uri: string, net: string): string;
 
 export function payeeAddress(addr: string): string;
@@ -198,6 +202,8 @@ export function skCommit(wallet_id: string, seat: number, box_pk: string, r: str
 export function splitMessage(text: string): string;
 
 export function start(): void;
+
+export function transparentUtxos(endpoint: string, address: string): Promise<string>;
 
 export function vaultSk(wallet_id: string, echo: string, parts: string): string;
 
@@ -266,6 +272,8 @@ export interface InitOutput {
     readonly latestHeight: (a: number, b: number) => any;
     readonly makeRequest: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly normalizeAddress: (a: number, b: number) => [number, number, number, number];
+    readonly p2shAddress: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
+    readonly p2shKey: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly parseRequest: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly payeeAddress: (a: number, b: number) => [number, number, number, number];
     readonly safetyNumber: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
@@ -278,6 +286,7 @@ export interface InitOutput {
     readonly skCommit: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
     readonly splitMessage: (a: number, b: number) => [number, number, number, number];
     readonly start: () => void;
+    readonly transparentUtxos: (a: number, b: number, c: number, d: number) => any;
     readonly vaultSk: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
     readonly walletCreate: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly walletCreateV2: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];

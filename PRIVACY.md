@@ -93,6 +93,15 @@ the change and the shielded recipients stay shielded. Send says this under the a
 no TEX address (ZIP 320): a TEX address takes funds from transparent addresses only, and Zigs
 pays from the shielded pool. A transparent output adds one action to the ZIP 317 fee.
 
+A version 3 wallet also has a transparent address of the group (`t3`, on testnet `t2`): a P2SH
+multisig address (ZIP 48) that needs the signatures of t of the n devices. Each device derives
+its secp256k1 key from its own key share and publishes the public key as a signed document, so
+the group server sees that the wallet has such keys, but not the keys: the documents are
+encrypted like the others. This address is public. The chain shows its balance and every payment
+to it to everyone, and all payments to it link to one another. A swap from ZEC sends its refund
+there. Receive shows it below the shielded address and says that it is public. Zigs cannot move
+funds from this address yet.
+
 ## Group server (Cloudflare Worker and Durable Objects)
 
 Every field of every wallet document is encrypted on the device with XChaCha20-Poly1305. The key
@@ -161,6 +170,11 @@ The app downloads compact blocks and finds the wallet's notes on the device. The
   does not apply. The server also sees the transaction that carries each message that the account
   sends, and the moment it is sent. The server does not see the text of any message, because the
   text is encrypted for the recipient.
+- the transparent address of the group (`GetAddressUtxos`), with your IP address (on testnet,
+  our server sees the app Worker), the first time Receive shows it after the wallet opens. The
+  page asks for that one address
+  and reads at most 100 of its unspent outputs. So the server can link this IP address to the
+  group's transparent address and to its balance.
 
 While it serves blocks, it does not learn which notes or outputs are yours: every wallet
 downloads the same blocks. The fetch for a memo is the exception. The app asks for a transaction
