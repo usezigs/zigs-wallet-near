@@ -258,7 +258,29 @@ leads to the nonces: they are saved with the plain digest before the commit is p
 saved approval of other bytes is refused. The nonces and the key share are never published.
 Two open proposals of one seat on one nonce account cannot both land: the earlier one stands and
 the later one ends with the text "Propose it again." A proposal and an approval have no age
-limit. The signing rounds and the send come in a later step.
+limit.
+
+The reactor of the plain controller (`web/sol/plain/sign.js`) finishes an approved send for the
+seats of this browser, with no click. At `t` commits for one digest (`sol_plain_digest`) a device
+publishes the package part: the signers, the digest and the commitments that it uses. A signer
+makes its share only for the commitment that the package names for its seat and that its saved
+nonces made. It reads the chain first, then (under the lock of `shareOnce`, `nonces.js`) the wasm
+runs the checker again, the nonces go in the same save that keeps the share, and only then the share
+document is written. A made share that was not published is published again. Any device combines
+the shares (`sol_aggregate`, `verify_strict`) and writes the signed part. The transaction is the
+message, then the fee signature, then the group signature. The proposing seat sends it when this
+browser holds that seat. Another device waits 30 s after it saw the session signed. The sender reads
+`status` for the id (the base58 of the fee signature) first. A transaction that landed is not sent
+again. Else it simulates the bytes, sends the same bytes and waits for the result. Each call of the
+Worker has a time limit. Three failed tries (an error at any step before the send, or a refusal of
+the node at the send) end the session with a text. A send that fails in transport, and a wait with
+no answer, are no failed tries: the page shows the id and "not confirmed yet", and the next pass
+reads the status again. A refusal
+of the checker at share time, a commitment that is not the saved one, shares that do not combine
+and a fee signature that does not fit end the session with a text. The nonces of an ended session
+are dropped. A session ends when a send on the same nonce account landed, and when two proposals
+stand on one account. A fee key that two seats show ends the open proposals of both. A proposal time
+must be a whole number above 0 and at most a day ahead of the clock of the device.
 
 **3.9 Known limits of the plain wallet (P1).**
 

@@ -14,7 +14,7 @@ import { toBase64 } from "./guard.js";
 import { bytesOfHex, createNonceIntent, enableTokenIntent, join, plainPins } from "./intent.js";
 import { USDC } from "./reads.js";
 import { INCOMPLETE, canApprove, reviewText } from "./review.js";
-import { SESSIONS } from "./sessions.js";
+import { SESSIONS, feeShared } from "./sessions.js";
 
 export const TITLE_KEY = "sol-direct-title";
 /** The key that gives the focus back to the button of a kind (data-key). */
@@ -46,19 +46,27 @@ const TOO_OLD = "This review is too old. Nothing was sent. Start again.";
 
 const textOf = (e) => String(e?.message ?? e);
 
+const twinText = (seat) =>
+  `Another device shows the fee address of device ${seat}, so device ${seat} cannot pay.`;
+
 /** The text for a fee address that cannot pay. Mainnet has no faucet, so it names none. */
 const poorText = (seat) =>
   `Device ${seat} has too little SOL at its fee address, and mainnet has no faucet.`;
 
 // Why no step may run now, or null: the wallet stopped, its documents (also its sessions) are not
-// read or checked, or the devices do not agree on one key. It reads the documents again first.
-export function block(c) {
-  c.refresh();
+// read or checked, or the devices do not agree on one key. The reactor has read them just now.
+export function blockNow(c) {
   const stop = stopOf(c) || startBlock(c.host);
   if (stop) return stop;
   if (![...COLLECTIONS, SESSIONS].every((name) => c.loaded[name])) return LOADING;
   if (c.wait > 0 || c.sessWait > 0) return CHECKING;
   return agreement(c).state === "agree" ? null : NOT_AGREED;
+}
+
+/** `blockNow`, after the documents are read again. */
+export function block(c) {
+  c.refresh();
+  return blockNow(c);
 }
 
 const TRANSIENT = [LOADING, CHECKING];
@@ -88,13 +96,18 @@ export function stillOpen(c, opened) {
   if (why && !TRANSIENT.includes(why)) throw new Error(why);
 }
 
+// Why seat `seat` cannot pay now (a text), or null: its fee document is not shown, or does not fit,
+// or another device shows the same fee key.
+const payProblem = (c, seat) =>
+  feeProblem(c, seat) ?? (feeShared(c.docs, seat) ? twinText(seat) : null);
+
 // The first device of this browser that holds a key share and a fee key that its document shows.
 export function payerSeat(c) {
   const { localSeats, canWriteAs } = c.host;
   const seats = localSeats().filter((i) => canWriteAs(i) && holdsShare(solOf(c.host, c.gid, i)));
-  const seat = seats.find((i) => feeProblem(c, i) === null);
+  const seat = seats.find((i) => payProblem(c, i) === null);
   if (seat !== undefined) return seat;
-  throw new Error(seats.length ? feeProblem(c, seats[0]) : NO_DEVICE);
+  throw new Error(seats.length ? payProblem(c, seats[0]) : NO_DEVICE);
 }
 
 // The address (base58) of nonce account k of the payer, as the wasm derives it.

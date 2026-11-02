@@ -2,9 +2,9 @@
 // It runs the second DKG of ceremony.js with the label "mainnet-plain" and reads the balances of
 // the group through the plain Worker, web/sol/plain/worker.js, which it starts after the server
 // sent the policy header of that file. It loads no pool code: no pool Worker, no prover, no
-// session, signing or view module (it has its own session twin, plain/sessions.js, and shares the
-// nonce lock of nonces.js). The mainnet config route is its only other request. A test follows
-// the imports of this file, so every path below is a literal, and none is computed.
+// session, signing or view module (it has its own twins, plain/sessions.js and plain/sign.js, and
+// shares the nonce lock of nonces.js). The mainnet config route is its only other request. A
+// test follows the imports of this file, so every path below is a literal, and none is computed.
 import { reactAborts } from "../abort.js";
 import { addSolana, agreement, reactCeremony } from "../ceremony.js";
 import { startSolWorker } from "../client.js";
@@ -16,7 +16,8 @@ import { closeDirect, confirmDirect, startDirect } from "./direct.js";
 import { PLAIN_WORKER_POLICY } from "./guard.js";
 import { proposeSend } from "./propose.js";
 import { readBalances } from "./reads.js";
-import { ENDED, SESSIONS, SESSION_ID, filterSessions } from "./sessions.js";
+import { ENDED, SESSIONS, SESSION_ID, feeShared, filterSessions } from "./sessions.js";
+import { limited, reactSessions } from "./sign.js";
 import { plainSetup, plainView, readTexts } from "./view.js";
 
 const LOG_MAX = 200;
@@ -62,6 +63,8 @@ const blank = () => ({
   shares: {},
   sessWait: 0,
   watching: new Map(),
+  tries: new Map(),
+  signedSeen: new Map(),
 });
 
 function teardown(c) {
@@ -81,7 +84,7 @@ function refresh(c) {
   const check = c.host.checkIn(c.gid);
   const onBad = (rel) => logIgnored(c, rel);
   const f = filterSol(c.raw, check, onBad);
-  const s = filterSessions(c.raw, check, onBad);
+  const s = filterSessions(c.raw, check, onBad, (seat) => feeShared(f.docs, seat));
   Object.assign(c, { docs: f.docs, wait: f.wait, sessWait: s.wait });
   Object.assign(c, { sessions: s.sessions, commits: s.commits, shares: s.shares });
 }
@@ -197,7 +200,7 @@ async function startWorker(c) {
     worker.close();
     throw e;
   }
-  return worker;
+  return limited(worker);
 }
 
 // One start at a time: a caller that comes while the start runs gets the same Worker, and never
@@ -246,6 +249,7 @@ function react(c) {
   syncWatches(c);
   reactCeremony(c);
   reactAborts(c);
+  reactSessions(c, () => ensureWorker(c));
   readIfDue(c);
 }
 
