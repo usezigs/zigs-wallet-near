@@ -91,7 +91,7 @@ TESTS=(messaging-presentation messaging-cost-review messaging-account-view premi
   lwd zns near-quote
   sol-config sol-docs sol-ceremony sol-plain-ceremony sol-plain-app sol-plain-reads
   sol-plain-view sol-plain-load sol-plain-security sol-plain-review sol-plain-direct
-  sol-plain-sessions sol-app
+  sol-plain-sessions sol-plain-sign sol-app
   sol-wasm
   sol-sessions
   sol-limits
@@ -106,7 +106,7 @@ HELPERS=(passkey-fixture sol-rig sol-setup sol-chain sol-vector sol-fixture sol-
   closure)
 # The tests that take more than 20 s, slowest first, then the server test. Each must be in TESTS.
 SLOW_FIRST=(sol-pay app sol-pay-seats sol-pay-exec sol-pay-lease sol-pay-look sol-ceremony sol-app
-  unified-setup sol-sessions sol-pay-end sol-limits cf/test/limits)
+  unified-setup sol-sessions sol-pay-end sol-plain-sign sol-limits cf/test/limits)
 for f in web/test/*.mjs; do
   name=$(basename "$f" .mjs)
   if [[ " ${TESTS[*]} ${HELPERS[*]} " != *" $name "* ]]; then

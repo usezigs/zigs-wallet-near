@@ -144,6 +144,8 @@ await waitFor("the documents", () => [...COLLECTIONS, "solsessions"].every((n) =
 await plain.add();
 await pump("agreement", () => agreement(c).state === "agree"
   && [1, 2, 3].every((i) => publishedFee(c, i)));
+// The controller of the page follows the same store and now also signs. This test drives its own.
+t.plainSol?.close();
 const group = agreement(c).done.groupKey;
 const fee = (i) => publishedFee(c, i);
 const pinsOf = (i) => plainPins(c.wallet, group, fee(i));
@@ -735,7 +737,8 @@ step("a proposal that is no send, an unknown payer and a seat without a share ar
 {
   const ss = (await sessions()).find((s) => s.id === ids.signed);
   assert.ok(showable(ss));
-  const good = { id: ss.id, intent: ss.intent, message: ss.message, feeSig: ss.feeSig };
+  const good = { id: ss.id, intent: ss.intent, message: ss.message, feeSig: ss.feeSig,
+    createdAt: ss.createdAt };
   const kinds = {
     "create-nonce": hex(createNonceIntent(0, "00".repeat(32))),
     "enable-token": "10" + "00" + "11".repeat(32),
@@ -762,9 +765,18 @@ step("a proposal that is no send, an unknown payer and a seat without a share ar
     assert.equal(showable({ ...good, feeSig }), false, JSON.stringify(feeSig) + " is no signature");
   }
   assert.ok(showable({ ...good, message: "00".repeat(1232) }), "a full packet is shown");
+  // The time of a proposal is a whole number of milliseconds, above 0 and not far ahead.
+  const now = Date.now();
+  for (const createdAt of [1, now, now + 3_600_000]) assert.ok(showable({ ...good, createdAt }));
+  const times = [undefined, null, 0, -5, 1.5, "1700000000000", NaN, Infinity, now + 2 * 86_400_000,
+    10 ** 13, 2 ** 53, [now]];
+  for (const createdAt of times) {
+    assert.equal(showable({ ...good, createdAt }), false, String(createdAt) + " is no time");
+  }
   // The commits and shares of a session are watched by its id: 1 to 64 word characters or -.
   for (const id of ["a-b_9", "x".repeat(64), "0"]) assert.ok(showable({ ...good, id }), id);
-  const badIds = ["", "x".repeat(65), "a.b", "a b", "a/b", "a\n", "é", undefined, null, 7, ["a"]];
+  const badIds = ["", "x".repeat(65), "a.b", "a b", "a/b", "a\n", "é", undefined, null, 7, ["a"],
+    "constructor", "__proto__", "toString", "hasOwnProperty"];
   for (const id of badIds) {
     assert.equal(showable({ ...good, id }), false, JSON.stringify(id) + " is no session id");
   }
@@ -1323,7 +1335,7 @@ step("the controller offers propose, review and approve; the words go to the liv
   // 51 newer sessions: only the newest 50 are watched, and no older session keeps a watch.
   const newest = [];
   for (let i = 0; i < 51; i++) {
-    const options = { k: 100 + i, createdAt: 10 ** 13 + i, units: 5_000_000n + BigInt(i) };
+    const options = { k: 100 + i, createdAt: Date.now() + 1000 + i, units: 5_000_000n + BigInt(i) };
     newest.push((await plant(1, options)).id);
   }
   assert.equal(await watched(), 1 + 2 * 50, "at most 50 sessions are watched");
