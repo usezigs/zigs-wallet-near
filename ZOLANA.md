@@ -241,6 +241,25 @@ first 100 nonce indexes of the device whose account is missing. The tab shows En
 next balance read and never from the result of a step. The fee key stays on the device: the Worker
 gets the signed transaction only.
 
+A device can also propose a send of SOL (S2) or USDC (S3), and the other devices can approve it
+(`web/sol/plain/propose.js`, `approve.js`, `sessions.js`). The tab has no form for it yet. The
+session is the document `solsessions/<id>` with one signed part, the proposal: `intent`,
+`message`, `feeSig` and `createdAt`. The commits sit below it, at the path and with the fields of
+the pool. The plain controller does not import the pool session module: `sessions.js` of the
+plain wallet reads the same path and the same signed fields. The one pool module that it shares is
+`nonces.js`, because the once-only rule of the FROST nonces must have one copy. The proposer
+takes the lowest index k whose nonce account (the nonce accounts of its own fee address) is
+initialised, names the group key as authority and has no open session. It reads the chain at the
+addresses of the wasm, runs the checker, and only after an accepted answer signs the exact
+message with its fee key. A refusal or an error signs and writes nothing. An approving device
+takes the payer from the fee document of the proposing seat, never from a field of the proposal,
+checks the fee signature, reads the chain again and runs the checker. Only an accepted answer
+leads to the nonces: they are saved with the plain digest before the commit is published, and a
+saved approval of other bytes is refused. The nonces and the key share are never published.
+Two open proposals of one seat on one nonce account cannot both land: the earlier one stands and
+the later one ends with the text "Propose it again." A proposal and an approval have no age
+limit. The signing rounds and the send come in a later step.
+
 **3.9 Known limits of the plain wallet (P1).**
 
 1. A System-owned account that holds lamports at an associated token account address stops that

@@ -13,7 +13,8 @@ import { readChain } from "./chain.js";
 import { toBase64 } from "./guard.js";
 import { bytesOfHex, createNonceIntent, enableTokenIntent, join, plainPins } from "./intent.js";
 import { USDC } from "./reads.js";
-import { canApprove, reviewText } from "./review.js";
+import { INCOMPLETE, canApprove, reviewText } from "./review.js";
+import { SESSIONS } from "./sessions.js";
 
 export const TITLE_KEY = "sol-direct-title";
 /** The key that gives the focus back to the button of a kind (data-key). */
@@ -30,7 +31,7 @@ const RESULT = {
 const BLANK = "00".repeat(32); // the address of a nonce account does not depend on the blockhash
 // ponytail: a device looks at its first 100 nonce accounts (the most that one accounts call takes).
 // The upgrade path is a second call that starts at 100.
-const NONCE_WINDOW = 100;
+export const NONCE_WINDOW = 100;
 const NO_SOL = /AccountNotFound|InsufficientFunds|insufficient lamports/i;
 const LOADING = "Zigs has not loaded the Solana data of this wallet yet. Try again in a moment.";
 const CHECKING = "Zigs is still checking the Solana data of this wallet. Try again in a moment.";
@@ -38,8 +39,7 @@ const NOT_AGREED = "The devices have not agreed on one Solana key yet.";
 const NO_DEVICE = "This browser holds no device that can sign for Solana.";
 const NONCE_FULL = "This device has no free nonce account among its first 100.";
 const NO_NONCE = "The wasm named no nonce account for this wallet.";
-const BAD_ANSWER = "The Worker answered with data that Zigs cannot use.";
-const INCOMPLETE = "The checker answered with lines that Zigs cannot show.";
+export const BAD_ANSWER = "The Worker answered with data that Zigs cannot use.";
 const UNSEEN = { status: "unknown", slot: "" };
 const SIMULATED = "The network refused this in a test run: ";
 const TOO_OLD = "This review is too old. Nothing was sent. Start again.";
@@ -50,19 +50,46 @@ const textOf = (e) => String(e?.message ?? e);
 const poorText = (seat) =>
   `Device ${seat} has too little SOL at its fee address, and mainnet has no faucet.`;
 
-// Why no step may run now, or null: the wallet stopped, its documents are not read or checked,
-// or the devices do not agree on one key. It reads the documents again first.
-function block(c) {
+// Why no step may run now, or null: the wallet stopped, its documents (also its sessions) are not
+// read or checked, or the devices do not agree on one key. It reads the documents again first.
+export function block(c) {
   c.refresh();
   const stop = stopOf(c) || startBlock(c.host);
   if (stop) return stop;
-  if (!COLLECTIONS.every((name) => c.loaded[name])) return LOADING;
-  if (c.wait > 0) return CHECKING;
+  if (![...COLLECTIONS, SESSIONS].every((name) => c.loaded[name])) return LOADING;
+  if (c.wait > 0 || c.sessWait > 0) return CHECKING;
   return agreement(c).state === "agree" ? null : NOT_AGREED;
 }
 
+const TRANSIENT = [LOADING, CHECKING];
+const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+
+/**
+ * `block`, after a short wait while the only reason is that a document of the wallet is still
+ * loaded or checked (a signature check takes a moment). A real reason comes at once.
+ */
+export async function settledBlock(c, ms = 3000) {
+  const end = Date.now() + ms;
+  for (;;) {
+    const why = block(c);
+    if (!TRANSIENT.includes(why) || Date.now() > end) return why;
+    await sleep(50);
+  }
+}
+
+const CLOSED = "The wallet closed during this step. Nothing was published.";
+
+/**
+ * The guard after an await: throws when the wallet closed since `opened` or a stop came. A
+ * document that is only being checked again does not stop the step.
+ */
+export function stillOpen(c, opened) {
+  const why = c.opened === opened ? block(c) : CLOSED;
+  if (why && !TRANSIENT.includes(why)) throw new Error(why);
+}
+
 // The first device of this browser that holds a key share and a fee key that its document shows.
-function payerSeat(c) {
+export function payerSeat(c) {
   const { localSeats, canWriteAs } = c.host;
   const seats = localSeats().filter((i) => canWriteAs(i) && holdsShare(solOf(c.host, c.gid, i)));
   const seat = seats.find((i) => feeProblem(c, i) === null);
@@ -71,7 +98,7 @@ function payerSeat(c) {
 }
 
 // The address (base58) of nonce account k of the payer, as the wasm derives it.
-function nonceAddress(W, k, pins) {
+export function nonceAddress(W, k, pins) {
   const rows = W.plain_reads(createNonceIntent(k, BLANK), pins).split("\n");
   const nonce = rows.map((row) => row.split("\t")).find(([role]) => role === "nonce");
   if (!nonce?.[2]) throw new Error(NO_NONCE);
@@ -181,7 +208,7 @@ function simulateText(run, seat) {
 
 // The signature (hex) of the fee key on the exact message that the checker accepted. The wasm
 // runs the checker again and signs only if this key is the payer. No text leaves with the secret.
-function sign(c, seat, { message, intent, pins, chain }) {
+export function sign(c, seat, { message, intent, pins, chain }) {
   const { secret } = readyFee(c, seat);
   try {
     return c.W.sol_plain_fee_sign(message, intent, pins, chain, JSON.stringify({ secret }));

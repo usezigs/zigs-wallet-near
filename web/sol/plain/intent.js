@@ -20,6 +20,8 @@ const KEY_HEX = /^[0-9a-f]{64}$/;
 const INT_TEXT = /^-?[0-9]+$/;
 
 export const bytesOfHex = (hex) => Uint8Array.from(hex.match(/../g) ?? [], (h) => parseInt(h, 16));
+export const hexOfBytes = (bytes) =>
+  Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 
 /** One byte string from byte strings (a Uint8Array or an array of numbers). */
 export function join(...parts) {
@@ -116,3 +118,14 @@ export function kindOfIntent(hex) {
   const [name, size] = KINDS[parseInt(hex.slice(0, 2), 16)] ?? [];
   return name !== undefined && hex.length === size * 2 ? name : null;
 }
+
+const SENDS = new Set(["send-sol", "send-token"]);
+/** True for the intent (hex) of a send: S2 or S3, from its tag and its length alone. */
+export const isSendIntent = (hex) => SENDS.has(kindOfIntent(hex));
+
+/**
+ * The index k of a send intent (hex), or null for any other bytes. Only the choice of a free nonce
+ * account reads it: the screen shows the values of the checker.
+ */
+export const indexOfSend = (hex) =>
+  isSendIntent(hex) ? parseInt(hex.slice(2, 10).match(/../g).reverse().join(""), 16) : null;

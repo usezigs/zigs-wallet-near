@@ -93,3 +93,20 @@ export function screenRows(review) {
 /** One row for each rule that the checker refused: { id, statement, detail }. */
 export const refusalRows = (review) =>
   review.kind === "refused" ? review.rules.map((rule) => ({ ...rule })) : [];
+
+export const INCOMPLETE = "The checker answered with lines that Zigs cannot show.";
+const REFUSED = "The checker refused this: ";
+const UNCHECKED = "The checker could not check this: ";
+
+/**
+ * The text of a review that cannot be approved, for a person who is told why nothing was signed,
+ * published or saved: each broken rule with its detail, or the error of the checker.
+ */
+export function stopText(review) {
+  if (review.kind === "refused") {
+    const rules = review.rules.map(({ statement, detail }) =>
+      detail ? `${statement} (${detail})` : statement);
+    return REFUSED + rules.join("; ");
+  }
+  return review.kind === "error" ? UNCHECKED + review.text : INCOMPLETE;
+}

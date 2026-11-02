@@ -53,7 +53,9 @@ step("the wallet kind is derived from the confirmed network only");
 
 // ── The plain controller loads no pool code ──
 // The closure of its imports holds no module of the pool, the pool Worker, the prover or the pool
-// config. Every path that the scan follows is a relative literal (closure.mjs), so no import can
+// config. nonces.js is the one shared module of the pool that it loads: it holds the once-only
+// rule of the FROST nonces and imports only secrets.js, so a copy of it would be a second rule.
+// Every path that the scan follows is a relative literal (closure.mjs), so no import can
 // hide from it. Text that starts a Worker or asks the server for a file is banned, except for the
 // literals below: the mainnet config, the policy check and the Worker start of the plain
 // controller, the start in client.js and the wasm glue that fetches its own wasm.
@@ -62,11 +64,12 @@ step("the wallet kind is derived from the confirmed network only");
   const files = [...closure.keys()];
   const need = ["sol/plain/control.js", "sol/ceremony.js", "sol/fee.js", "sol/abort.js",
     "sol/docs.js", "sol/secrets.js", "sol/wallet.js", "sol/wasm/sol_wasm.js", "util.js",
-    "sol/client.js", "sol/plain/guard.js", "sol/plain/intent.js", "sol/plain/reads.js"];
+    "sol/client.js", "sol/plain/guard.js", "sol/plain/intent.js", "sol/plain/reads.js",
+    "sol/nonces.js", "sol/plain/sessions.js"];
   for (const file of need) assert.ok(files.includes(file), "the closure holds " + file);
   const pool = ["main", "view", "session", "localprove", "localprover", "approve", "propose",
     "execute", "signing", "spend", "payview", "worker", "zolana.bundle", "transfer",
-    "addsol", "prepare", "store", "sessions", "nonces", "gate", "intent", "backup", "rent"];
+    "addsol", "prepare", "store", "sessions", "gate", "intent", "backup", "rent"];
   const ALLOWED = {
     "sol/wasm/sol_wasm.js": ["fetch(module_or_path)"],
     "sol/plain/control.js": ['fetch("/sol/config-mainnet.json",', 'fetch("/sol/plain/worker.js")',

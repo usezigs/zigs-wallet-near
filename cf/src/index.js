@@ -45,7 +45,7 @@ const SOL_CONFIG_MAINNET = "/sol/config-mainnet.json";
 const PLAIN_FILE = /^\/sol\/plain\/[a-z0-9-]+\.js$/;
 const PLAIN_SOL_FILES = new Set([
   "/sol/abort.js", "/sol/backup.js", "/sol/ceremony.js", "/sol/client.js", "/sol/docs.js",
-  "/sol/fee.js", "/sol/secrets.js", "/sol/wallet.js", "/sol/wasm/sol_wasm.js",
+  "/sol/fee.js", "/sol/nonces.js", "/sol/secrets.js", "/sol/wallet.js", "/sol/wasm/sol_wasm.js",
   "/sol/wasm/sol_wasm_bg.wasm",
 ]);
 
