@@ -12,23 +12,21 @@ import { privacyBadge } from "../../privacy-language.js";
 import { DECIMALS, amountText } from "./reads.js";
 
 const NETWORK = "Solana Mainnet";
-const FACTS = "Real money. Balances and payments are public. The code is not audited. You can "
-  + "lose money. You cannot send funds out of this wallet in this version.";
-const START_NOTE = "Helius sees your IP address and this wallet’s address. Funding a device’s "
-  + "fee address links it to this wallet.";
+const FACTS = "Real money, public on chain. Not audited. Sending comes later.";
+const START_NOTE = "Helius sees your IP address and the wallet address. Funding a fee address "
+  + "links that device to this wallet.";
 const ONLY_DEVICE_1 = "Device 1 adds Solana.";
 const KEEP_OPEN = "Keep this page open until the setup ends.";
 const DO_NOT_USE = "Do not use the Solana part of this wallet.";
-const STOP_NEXT = "The Zcash part still works. To use Solana, create a new wallet.";
-const RECEIVE_ONLY = "Receive only SOL and USDC on Solana mainnet here. Tokens from other "
-  + "networks can be lost.";
-const FUNDS_STAY = "Funds already sent to this address stay there.";
+const STOP_NEXT = "Zcash still works. To use Solana, create a new wallet.";
+const RECEIVE_ONLY = "Only SOL and USDC. Other tokens can be lost.";
+const FUNDS_STAY = "Funds sent to this address stay there.";
 const EXPLORER = "https://explorer.solana.com/address/";
-const EXPLORER_NOTE = "The explorer sees this address and your IP address.";
+const EXPLORER_NOTE = "The explorer sees your IP address.";
 const FEE_NOTE = "Fee addresses are needed when sending starts.";
-const USDC_NOTE = "You can receive USDC now; sending it comes later.";
-const BACKUP_SAVED = "file saved. Test it with Check saved file.";
-const BACKUP_NONE = "no backup file yet";
+const BACKUP_SAVED = "saved";
+const BACKUP_NONE = "not backed up";
+const COPY_FAILED = "Copy failed. Select the text and copy it.";
 const READING = "Reading…";
 const NOT_READ = "Not read";
 const NOT_ENABLED = "No USDC yet";
@@ -85,24 +83,28 @@ export function readTexts(c) {
   };
 }
 
-// A button that copies `text`. It says Copied for a moment. A failed copy says what to do instead.
+// A button that copies `text`, and a hidden status that screen readers read. The button says Copied
+// for a moment. A failed copy says what to do instead. The name starts with the visible word.
 function copyButton(c, text, what, mark) {
+  const { el } = c.host;
+  const status = el("span", { class: "sr-only", role: "status", "data-sol": mark + "-status" });
   const copy = async (ev) => {
     const button = ev.currentTarget;
-    const say = (word, name) => {
+    const say = (word, name, spoken) => {
       button.textContent = word;
       button.setAttribute("aria-label", name);
+      status.textContent = spoken;
     };
     try {
       await navigator.clipboard.writeText(text);
-      say("Copied", "Copied");
+      say("Copied", "Copied", "Copied");
     } catch {
-      say("Select and copy", "Copy failed. Select the text and copy it.");
+      say("Select and copy", "Select and copy " + what, COPY_FAILED);
     }
-    setTimeout(() => say("Copy", "Copy " + what), COPIED_MS);
+    setTimeout(() => say("Copy", "Copy " + what, ""), COPIED_MS);
   };
   const attrs = { class: "btn sm", type: "button", "data-sol": mark, "aria-label": "Copy " + what };
-  return c.host.el("button", { ...attrs, onclick: copy }, "Copy");
+  return [el("button", { ...attrs, onclick: copy }, "Copy"), status];
 }
 
 function head(c, status) {
@@ -119,12 +121,13 @@ function head(c, status) {
 
 const facts = (c) => c.host.el("div", { class: "callout warn", "data-sol": "facts" }, FACTS);
 
+// The note is the text that people accept when they press the button: only device 1 has one.
 function startCard(c, act, actions) {
   const { el, localSeats } = c.host;
+  if (!localSeats().includes(1)) return [facts(c), el("p", { class: "small" }, ONLY_DEVICE_1)];
   const add = el("button", { class: "btn primary", type: "button", "data-sol": "add",
     onclick: act(actions.add) }, "Add Solana");
-  return [facts(c), el("p", { class: "small", "data-sol": "start-note" }, START_NOTE),
-    localSeats().includes(1) ? add : el("p", { class: "small" }, ONLY_DEVICE_1)];
+  return [facts(c), el("p", { class: "small", "data-sol": "start-note" }, START_NOTE), add];
 }
 
 function progress(c) {
@@ -158,8 +161,7 @@ function balances(c, read) {
     return el("div", { class: "sol-hero" },
       el("span", { class: "label" }, UNITS[asset]),
       el("span", { class: "sol-amount" + (row.amount ? "" : " muted"),
-        "data-sol": "balance-" + asset }, row.text),
-      row.state === "off" ? el("p", { class: "small muted" }, USDC_NOTE) : null);
+        "data-sol": "balance-" + asset }, row.text));
   };
   const grid = "display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px";
   return el("div", { style: grid }, cell("sol"), cell("usdc"),
@@ -167,7 +169,7 @@ function balances(c, read) {
       read.error) : null);
 }
 
-const addressLines = (el, address) => [el("span", { class: "label" }, "Solana address"),
+const addressLines = (el, address) => [el("span", { class: "label" }, "Solana mainnet address"),
   el("div", { class: "addr-full", "data-sol": "address" }, address)];
 
 function receive(c, address) {
@@ -239,7 +241,7 @@ function backup(c, act, actions) {
   return el("div", { style: GRID }, el("h4", {}, "Backup"),
     ...localSeats().map((i) => backupRow(c, act, actions, i)),
     el("div", { class: "row-actions" }, el("button", { class: "btn sm", type: "button",
-      "data-sol": "restore", "aria-label": "Restore the Solana part from a backup",
+      "data-sol": "restore", "aria-label": "Restore a backup of the Solana part",
       onclick: () => input.click() }, "Restore a backup"), input));
 }
 

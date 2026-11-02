@@ -28,7 +28,8 @@ FAST="optional-passkey demo-check chain-fallback chat backup-check graph persona
   cf/test/gate sol-nonce-tabs nonce-locks no-storage"
 SLOW="app sol-fee sol-sessions sol-limits sol-ceremony sol-app sol-pay sol-pay-exec sol-pay-seats
   sol-pay-lease sol-pay-look sol-pay-end unified-setup sol-prove sol-plain-ceremony"
-HELPERS="passkey-fixture sol-rig sol-setup sol-chain sol-vector sol-fixture sol-pay-rig page closure"
+HELPERS="passkey-fixture sol-rig sol-setup sol-chain sol-vector sol-fixture sol-pay-rig page
+  closure"
 # A new test file goes into FAST or SLOW here, and into TESTS of solspike/baseline.sh. A name is
 # a file of web/test; an entry with a slash is a path from the root (cf/test/gate).
 all=" $(echo $FAST $SLOW $HELPERS) "

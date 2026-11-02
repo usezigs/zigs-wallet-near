@@ -18,18 +18,19 @@ import { plainView, readTexts } from "../sol/plain/view.js";
 import { config, loadRig, mainnetConfig, sleep } from "./sol-rig.mjs";
 
 // The words of the tab, as people read them. A change of a word is a change of this file.
-const FACTS = "Real money. Balances and payments are public. The code is not audited. You can "
-  + "lose money. You cannot send funds out of this wallet in this version.";
-const START_NOTE = "Helius sees your IP address and this wallet’s address. Funding a device’s "
-  + "fee address links it to this wallet.";
-const RECEIVE_ONLY = "Receive only SOL and USDC on Solana mainnet here. Tokens from other "
-  + "networks can be lost.";
+const FACTS = "Real money, public on chain. Not audited. Sending comes later.";
+const START_NOTE = "Helius sees your IP address and the wallet address. Funding a fee address "
+  + "links that device to this wallet.";
+const RECEIVE_ONLY = "Only SOL and USDC. Other tokens can be lost.";
 const FEE_NOTE = "Fee addresses are needed when sending starts.";
-const EXPLORER_NOTE = "The explorer sees this address and your IP address.";
+const EXPLORER_NOTE = "The explorer sees your IP address.";
 const EXPOSURE = "Solana mainnet shows every balance and payment of this wallet to everyone. "
   + "Helius sees your IP address and the address of this wallet.";
-const FUNDS_STAY = "Funds already sent to this address stay there.";
-const STAYS = "SOL and USDC do not move this way. They stay at the Solana address of this wallet";
+const FUNDS_STAY = "Funds sent to this address stay there.";
+const STAYS = "SOL and USDC stay at this wallet’s Solana address. A device left out keeps "
+  + "its key share.";
+// The words that the body text of a card may hold: the owner found the tab too text heavy.
+const BUDGET = { start: 30, ready: 25, stopped: 20 };
 
 const rig = await loadRig();
 const { t, data, waitFor } = rig;
@@ -99,6 +100,22 @@ const click = (node) => node.on.click({ preventDefault() {}, currentTarget: {} }
 // Every text and attribute value of a tree, for the checks of what it must not hold.
 const everything = (n) => n.text ?? JSON.stringify(n.attrs) + n.kids.map(everything).join("");
 const KEY = /api-key|helius-rpc|not-a-real-key/;
+// The words of the body text of a card: its paragraphs, callouts and notes. It skips what is not
+// body text: hidden nodes, closed details, headings, labels, badges, amounts, the address, buttons
+// and links. The "Device N: saved" status of a backup row is the label of its buttons and each
+// local device adds one, so it is skipped too.
+const NOT_BODY = /\b(label|badge|sr-only|sol-amount|addr-full|hex)\b/;
+const wordsIn = (s) => s.split(/\s+/).filter(Boolean).length;
+const skipped = (n) => n.attrs.hidden !== undefined || /^(button|a|h3|h4|input)$/.test(n.tag)
+  || (n.tag === "details" && n.attrs.open === undefined) || NOT_BODY.test(n.className ?? "")
+  || n.attrs["data-sol"]?.startsWith("backup-state-");
+const bodyText = (n) => (n.text !== undefined ? [n.text]
+  : skipped(n) ? [] : n.kids.flatMap(bodyText));
+const bodyWords = (card) => wordsIn(bodyText(card).join(" "));
+const card = (tree) => one(tree, (n) => n.className === "card card-pad sol-view");
+// A name that a person says must start with the visible text of its control (WCAG 2.5.3).
+const nameStartsWithText = (tree) => all(tree, (n) => n.attrs?.["aria-label"]
+  && /^(button|a)$/.test(n.tag)).every((n) => n.attrs["aria-label"].startsWith(text(n)));
 const ids = () => t.walletSections().map(([id]) => id);
 
 // ── The states of a read: one row for each asset, and no error hides another balance ──
@@ -195,6 +212,11 @@ assert.equal(t.solStays(), "", "a wallet without a start document names no Solan
   const sees = built(() => plainView(others, (fn) => fn, { add() {} }));
   assert.equal(mark(sees, "add"), undefined, "the other devices have no start button");
   assert.match(text(sees), /Device 1 adds Solana\./);
+  assert.equal(mark(sees, "start-note"), undefined, "and no note to accept");
+  const words = bodyWords(card(tab));
+  assert.ok(words <= BUDGET.start,
+    `the start card stays within ${BUDGET.start} words, not ${words}`);
+  assert.ok(bodyWords(sees) <= BUDGET.start, "so does the start card of the other devices");
   assert.equal(t.sol, null, "the plain tab loads no pool code");
   assert.equal(config.calls, 0);
 }
@@ -233,6 +255,9 @@ step("a served wallet gets the Solana section, and only device 1 gets the start 
   assert.equal(text(mark(stopped, "address")), base58(agreement(c).done.groupKey));
   assert.ok(mark(stopped, "balance-sol") && mark(stopped, "balance-usdc"), "and their balances");
   assert.equal(text(mark(stopped, "funds-stay")), FUNDS_STAY);
+  const own = bodyWords(stopped) - wordsIn(stop);
+  assert.ok(own <= BUDGET.stopped,
+    `the stopped card has at most ${BUDGET.stopped} own words, not ${own}`);
   assert.equal(mark(stopped, "copy-address"), undefined, "with no Copy");
   assert.equal(mark(stopped, "explorer"), undefined, "and no link");
   assert.equal(mark(stopped, "backup-1"), undefined, "and no backup");
@@ -286,6 +311,12 @@ const readFrom = async (tab) => {
     && marks.indexOf("facts") < marks.indexOf("address"), "the warning comes before the address");
   assert.equal(text(mark(tab, "facts")), FACTS, "the ready card shows the facts");
   assert.ok(text(tab).includes(RECEIVE_ONLY), "the address says what it takes");
+  assert.ok(one(tab, (n) => n.className === "label" && text(n) === "Solana mainnet address"),
+    "and its label names the network");
+  const words = bodyWords(card(tab));
+  assert.ok(words <= BUDGET.ready,
+    `the ready card stays within ${BUDGET.ready} words, not ${words}`);
+  assert.ok(nameStartsWithText(tab), "the name of a control starts with its visible text");
   assert.equal(text(mark(tab, "address")), address, "the full address of the group key");
   assert.equal(keyOfBase58(text(mark(tab, "address"))), done.groupKey, "and it is that key");
   assert.equal(text(mark(tab, "balance-sol")), "1.5 SOL");
@@ -322,12 +353,18 @@ const readFrom = async (tab) => {
   Object.defineProperty(globalThis, "navigator", { configurable: true,
     value: { clipboard: { writeText: async (value) => { copied = value; } } } });
   const button = { textContent: "Copy", setAttribute(k, v) { this[k] = v; } };
-  await mark(draw("solana"), "copy-address").on.click({ currentTarget: button });
+  const copying = draw("solana");
+  const status = mark(copying, "copy-address-status");
+  assert.equal(status.attrs.role, "status", "Copy has a status for screen readers");
+  assert.match(status.className, /sr-only/, "and it is hidden");
+  await mark(copying, "copy-address").on.click({ currentTarget: button });
   assert.equal(copied, address, "Copy copies the whole address");
   assert.equal(button.textContent, "Copied", "a copy says Copied");
   assert.equal(button["aria-label"], "Copied", "and so does its name");
+  assert.equal(status.textContent, "Copied", "and the hidden status says Copied");
   await sleep(1700);
   assert.equal(button.textContent, "Copy", "and goes back to Copy");
+  assert.equal(status.textContent, "", "and the status clears");
   await mark(draw("solana"), "copy-fee-2").on.click({ currentTarget: button });
   assert.equal(copied, fee(2), "the Copy of a fee address copies that fee address");
   const lone = built(() => plainView({ ...c, host: { ...c.host, localSeats: () => [2] } },
@@ -336,8 +373,12 @@ const readFrom = async (tab) => {
   assert.equal(mark(lone, "fee-address-1"), undefined, "and no fee address of another device");
   Object.defineProperty(globalThis, "navigator", { configurable: true,
     value: { clipboard: { writeText: async () => { throw new Error("denied"); } } } });
-  await mark(draw("solana"), "copy-address").on.click({ currentTarget: button });
+  const refused = draw("solana");
+  await mark(refused, "copy-address").on.click({ currentTarget: button });
   assert.equal(button.textContent, "Select and copy", "a refused copy says what to do");
+  assert.ok(button["aria-label"].startsWith("Select and copy"), "and its name starts with that");
+  assert.equal(mark(refused, "copy-address-status").textContent,
+    "Copy failed. Select the text and copy it.", "and the status says what failed");
 }
 {
   const was = c.gid;
@@ -361,12 +402,11 @@ step("the tab shows the address of the group key, Copy, the explorer link, the b
   assert.match(text(asset(rows, "sol")), /1\.5SOL/);
   assert.doesNotMatch(text(asset(rows, "sol")), /not usable/);
   assert.match(text(asset(rows, "usdc")), /Unavailable.*not usable/);
-  const NO_USDC = "You can receive USDC now; sending it comes later.";
   Object.assign(record, { usdcError: "" });
   const none = draw("solana");
   assert.equal(text(mark(none, "balance-usdc")), "No USDC yet", "no USDC account yet");
-  assert.ok(text(none).includes(NO_USDC), "the tab says that USDC can arrive");
-  assert.match(text(asset(draw("overview"), "usdc")), new RegExp("No USDC yet.*" + NO_USDC));
+  assert.doesNotMatch(text(none), /receive USDC now/, "and no note on top of it");
+  assert.match(text(asset(draw("overview"), "usdc")), /No USDC yet/);
   Object.assign(record, { usdc: 9_007_199_254_740_993n, sol: 18_446_744_073_709_551_615n });
   const exact = draw("solana");
   assert.equal(text(mark(exact, "balance-sol")), "18446744073.709551615 SOL",
@@ -433,7 +473,7 @@ step("the rows of Overview are real, Receive works and Send says it is not avail
 {
   assert.deepEqual(t.solUnsaved(), [1, 2, 3], "no seat saved a Solana file yet");
   const tab = draw("solana");
-  assert.match(text(mark(tab, "backup-state-1")), /^Device 1: no backup file yet/);
+  assert.match(text(mark(tab, "backup-state-1")), /^Device 1: not backed up/);
   assert.equal(mark(tab, "check-1"), undefined, "no saved file to check yet");
   await click(mark(tab, "backup-1"));
   assert.match(t.ui.backup?.words.title ?? "", /Back up the Solana part of device 1/,
@@ -445,7 +485,9 @@ step("the rows of Overview are real, Receive works and Send says it is not avail
   assert.deepEqual(t.solUnsaved(), [2, 3], "a saved file leaves the list");
   assert.deepEqual(t.solFile(1), { saved: true, restored: false });
   const saved = draw("solana");
-  assert.match(text(mark(saved, "backup-state-1")), /Device 1: file saved\. Test it with Check/);
+  assert.match(text(mark(saved, "backup-state-1")), /^Device 1: saved/);
+  assert.ok(nameStartsWithText(saved), "the names of the backup buttons start with their text");
+  assert.equal(mark(saved, "restore").attrs["aria-label"], "Restore a backup of the Solana part");
   await click(mark(saved, "check-1"));
   assert.deepEqual([t.ui.backup?.check, t.ui.backup?.chain, t.ui.backup?.seat],
     [true, "sol", 1], "the check of the saved file opens for a plain seat");

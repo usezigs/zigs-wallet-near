@@ -448,8 +448,8 @@ export const SOL_STAYS = "If this wallet has a Solana part, it does not move thi
  * with or without a Solana part.
  */
 export const solStays = () => (solOn() && !solNotAdded() ? " " + SOL_STAYS : plainStays());
-export const PLAIN_STAYS = "SOL and USDC do not move this way. They stay at the Solana address of "
-  + "this wallet, and a device that is left out keeps its key share.";
+export const PLAIN_STAYS = "SOL and USDC stay at this wallet’s Solana address. A device left out "
+  + "keeps its key share.";
 export const plainStays = () => (plainAdded() ? " " + PLAIN_STAYS : "");
 const movePayment = () => state.sessions.find((x) => x.move === state.g.movedTo && !x.error
   && !ended(x));
@@ -769,8 +769,7 @@ function usdcAsset() {
 
 // The SOL or USDC row of a served plain wallet: the balance of the last read, or the state of its
 // Solana part. It has no Shield and Unshield (no pool), and its details say what is public.
-const PLAIN_STATUS = { stale: "Update failed · old balance",
-  off: "You can receive USDC now; sending it comes later." };
+const PLAIN_STATUS = { stale: "Update failed · old balance" };
 // The amount of a plain row: the balance with its unit, or the state as a text.
 function plainAmount(row) {
   if (row.amount) return unitAmount(row.amount, row.unit);
