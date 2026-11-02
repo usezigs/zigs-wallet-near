@@ -1,17 +1,33 @@
 // The controller of the plain Solana wallet of a confirmed mainnet wallet (ZOLANA.md 3.8-4.1).
-// It runs the second DKG of ceremony.js with the label "mainnet-plain" and loads no pool code: no
-// Worker, no prover, no session, signing or view module, and it reads no config. A test follows
-// the imports of this file, so every path below is a literal, and none is computed.
+// It runs the second DKG of ceremony.js with the label "mainnet-plain" and reads the balances of
+// the group through the plain Worker, web/sol/plain/worker.js, which it starts after the server
+// sent the policy header of that file. It loads no pool code: no pool Worker, no prover, no
+// session, signing or view module. The mainnet config route is its only other request. A test
+// follows the imports of this file, so every path below is a literal, and none is computed.
 import { reactAborts } from "../abort.js";
-import { addSolana, reactCeremony } from "../ceremony.js";
+import { addSolana, agreement, reactCeremony } from "../ceremony.js";
+import { startSolWorker } from "../client.js";
 import { COLLECTIONS, filterSol } from "../docs.js";
 import * as W from "../wasm/sol_wasm.js";
 import { walletOf } from "../wallet.js";
+import { PLAIN_WORKER_POLICY } from "./guard.js";
+import { readBalances } from "./reads.js";
 
 const LOG_MAX = 200;
+// Helius allows few calls: one read job at a time, and one read of a wallet in 30 s, also after a
+// failed one.
+const READ_GAP_MS = 30_000;
+const NO_SOLANA = new Set([404, 503]); // the answers of a server that does not serve mainnet
+const UNAVAILABLE = "Solana mainnet is not available on this server";
+const NOT_LOADED = "Solana did not load. Check your connection, then reload the page.";
+const NO_POLICY =
+  "The server did not send the policy of the Solana worker, so the worker was not started.";
+const WRONG_CLUSTER = "The Solana worker answered for another cluster, so it was not used.";
+const CLOSED = "The wallet closed during this Solana read.";
 
-// What belongs to the open wallet. The host and the wasm outlive it.
+// What belongs to the open wallet. The host, the wasm and the read records outlive it.
 let opens = 0;
+const unread = () => ({ at: null, sol: null, usdc: null, fees: {}, error: "", next: 0 });
 const blank = () => ({
   opened: ++opens,
   gid: null,
@@ -23,10 +39,14 @@ const blank = () => ({
   logged: new Set(),
   docs: Object.fromEntries(COLLECTIONS.map((name) => [name, {}])),
   wait: 0,
+  worker: null,
+  watched: false,
+  balances: unread(),
 });
 
 function teardown(c) {
   for (const stop of c.unsubs) stop();
+  c.worker?.close();
   Object.assign(c, blank());
 }
 
@@ -50,6 +70,8 @@ function openGroup(c, gid, base) {
   const wallet = walletOf(c.W, c.host.netConfirmed(gid));
   if (wallet?.mode !== "plain") return;
   Object.assign(c, { gid, base, wallet });
+  if (!c.reads.has(gid)) c.reads.set(gid, unread());
+  c.balances = c.reads.get(gid);
   for (const name of COLLECTIONS) {
     const onDocs = (snap) => {
       if (c.gid !== gid) return;
@@ -62,23 +84,95 @@ function openGroup(c, gid, base) {
   }
 }
 
+/** The Helius mainnet URL that the server gives. It is a secret: nothing keeps or logs it. */
+async function fetchMainnetUrl() {
+  const res = await fetch("/sol/config-mainnet.json", { cache: "no-store" }).catch(() => null);
+  if (NO_SOLANA.has(res?.status)) throw new Error(UNAVAILABLE);
+  const url = res?.ok ? (await res.json().catch(() => null))?.rpcUrl : undefined;
+  if (typeof url !== "string" || !url) throw new Error(NOT_LOADED);
+  return url;
+}
+
+async function requireWorkerPolicy() {
+  const res = await fetch("/sol/plain/worker.js").catch(() => null);
+  if (!res?.ok || res.headers.get("content-security-policy") !== PLAIN_WORKER_POLICY) {
+    throw new Error(NO_POLICY);
+  }
+}
+
+// The Worker of the open wallet: it starts once the server's policy header is the expected one,
+// and its answer to init names the cluster of the wallet. teardown closes it.
+async function ensureWorker(c) {
+  if (c.worker) return c.worker;
+  const { opened, wallet } = c;
+  await requireWorkerPolicy();
+  const rpcUrl = await fetchMainnetUrl();
+  if (c.opened !== opened) throw new Error(CLOSED);
+  const worker = startSolWorker("/sol/plain/worker.js");
+  try {
+    const answer = await worker.call("init", { cluster: wallet.cluster, rpcUrl });
+    if (answer.cluster !== wallet.cluster) throw new Error(WRONG_CLUSTER);
+    if (c.opened !== opened) throw new Error(CLOSED);
+  } catch (e) {
+    worker.close();
+    throw e;
+  }
+  c.worker = worker;
+  return worker;
+}
+
+// A failed read keeps the old balances, shows its error and waits READ_GAP_MS before the next one.
+async function readJob(c, opened, groupKey) {
+  const record = c.balances;
+  record.next = Date.now() + READ_GAP_MS;
+  try {
+    const worker = await ensureWorker(c);
+    const read = await readBalances(c, worker, groupKey);
+    if (c.opened === opened) Object.assign(record, read, { at: Date.now(), error: "" });
+  } catch (e) {
+    if (c.opened !== opened) return;
+    Object.assign(record, { error: String(e?.message ?? e), next: Date.now() + READ_GAP_MS });
+    setTimeout(() => c.host.refilter(), READ_GAP_MS + 100);
+  }
+  c.host.render();
+}
+
+const hidden = () => globalThis.document?.visibilityState === "hidden";
+
+// Reads when the wallet is shown (observe), its seats agree, the tab is visible and the gap of
+// this wallet has passed. host.once lets one read job run at a time.
+function readIfDue(c) {
+  if (!c.watched || Date.now() < c.balances.next || hidden()) return;
+  const { done } = agreement(c);
+  if (done) c.host.once("sol:read", () => readJob(c, c.opened, done.groupKey));
+}
+
 function react(c) {
   if (!c.wallet || c.gid !== c.host.state.gid) return;
   refresh(c);
   reactCeremony(c);
   reactAborts(c);
+  readIfDue(c);
 }
 
 /** Loads the wasm and returns the controller of the plain Solana wallet. */
 export async function attach(host) {
   await W.default();
-  const c = { host: { ...host, mode: "plain" }, W, ...blank() };
+  const c = { host: { ...host, mode: "plain" }, W, reads: new Map(), ...blank() };
   c.refresh = () => refresh(c); // restoreSolana reads the documents again while it waits
+  // The page does nothing to the chain until a screen shows the wallet and calls observe.
+  const observe = (gid) => {
+    if (gid !== c.gid || gid !== c.host.state.gid) return;
+    c.watched = true;
+    refresh(c);
+    readIfDue(c);
+  };
   return {
     ctl: c, // the state of the controller, for the tests
     open: (gid, base) => openGroup(c, gid, base),
     close: () => teardown(c),
     react: () => react(c),
     add: () => addSolana(c),
+    observe,
   };
 }

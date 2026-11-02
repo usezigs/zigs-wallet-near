@@ -1,18 +1,18 @@
 // The second DKG of a plain Solana wallet (web/sol/plain/control.js) against the real page modules
 // and the real wasm (see sol-rig.mjs): a confirmed mainnet wallet gets the label "mainnet-plain"
 // in every document and secret, a pool wallet keeps "devnet", and the plain controller loads no
-// pool code. The page does not call the plain controller yet (no page wiring in this branch), so
-// the test calls react() itself. The page loads the pool module once and never unloads it, so
-// the blocks run in this order: the plain controller first, then the checks that the pool module
-// never loaded, and the pool controller last.
+// pool code. The page loads the plain controller on its own (web/app-sol.js), but this test
+// attaches one itself and calls react(). The page loads the pool module once and never unloads
+// it, so the blocks run in this order: the plain controller first, then the checks that the pool
+// module never loaded, and the pool controller last.
 // Run: node web/test/sol-plain-ceremony.mjs   (Node 26)
 import assert from "node:assert/strict";
-import fs from "node:fs";
 import { docFields } from "../signed.js";
 import { agreement, startBlock } from "../sol/ceremony.js";
 import { CLUSTER, COLLECTIONS } from "../sol/docs.js";
 import { attach } from "../sol/plain/control.js";
 import { labelOf, walletOf } from "../sol/wallet.js";
+import { closureOf } from "./closure.mjs";
 import { config, loadRig, sleep, storage } from "./sol-rig.mjs";
 
 const rig = await loadRig();
@@ -52,50 +52,45 @@ const HEX64 = /^[0-9a-f]{64}$/;
 step("the wallet kind is derived from the confirmed network only");
 
 // ── The plain controller loads no pool code ──
-// The closure of its imports holds no module of the pool, the Worker, the prover or the config.
-// Every path that the scan follows is a relative literal, so no import can hide from it. No file
-// starts a Worker or asks the server for a file; the wasm glue fetches its own wasm only.
+// The closure of its imports holds no module of the pool, the pool Worker, the prover or the pool
+// config. Every path that the scan follows is a relative literal (closure.mjs), so no import can
+// hide from it. Text that starts a Worker or asks the server for a file is banned, except for the
+// literals below: the mainnet config, the policy check and the Worker start of the plain
+// controller, the start in client.js and the wasm glue that fetches its own wasm.
 {
-  const web = new URL("../", import.meta.url);
-  const FROM = /\b(?:import|export)\b[^;"'`]*?\bfrom\s*(["'`])([^"'`]*)\1/g;
-  const BARE = /\bimport\s*(["'`])([^"'`]*)\1/g;
-  const DYNAMIC = /\bimport\s*\(([^)]*)\)/g;
-  const RELATIVE = /^\.{1,2}\//;
-  const LITERAL = /^\s*(["'])(\.{1,2}\/[^"'\\]*)\1\s*$/;
-  const closure = new Map();
-  const follow = (url) => {
-    const rel = url.pathname.slice(web.pathname.length);
-    if (closure.has(rel)) return;
-    const text = fs.readFileSync(url, "utf8");
-    closure.set(rel, text);
-    for (const m of [...text.matchAll(FROM), ...text.matchAll(BARE)]) {
-      assert.match(m[2], RELATIVE, rel + " imports a path that is not relative: " + m[2]);
-      follow(new URL(m[2], url));
-    }
-    for (const m of text.matchAll(DYNAMIC)) {
-      const lone = LITERAL.exec(m[1]);
-      assert.ok(lone, rel + " has an import() whose path is no relative literal: " + m[1]);
-      follow(new URL(lone[2], url));
-    }
-  };
-  follow(new URL("sol/plain/control.js", web));
+  const closure = closureOf(["sol/plain/control.js"]);
   const files = [...closure.keys()];
   const need = ["sol/plain/control.js", "sol/ceremony.js", "sol/fee.js", "sol/abort.js",
-    "sol/docs.js", "sol/secrets.js", "sol/wallet.js", "sol/wasm/sol_wasm.js", "util.js"];
+    "sol/docs.js", "sol/secrets.js", "sol/wallet.js", "sol/wasm/sol_wasm.js", "util.js",
+    "sol/client.js", "sol/plain/guard.js", "sol/plain/intent.js", "sol/plain/reads.js"];
   for (const file of need) assert.ok(files.includes(file), "the closure holds " + file);
   const pool = ["main", "view", "session", "localprove", "localprover", "approve", "propose",
-    "execute", "signing", "spend", "payview", "worker", "zolana.bundle", "transfer", "client",
+    "execute", "signing", "spend", "payview", "worker", "zolana.bundle", "transfer",
     "addsol", "prepare", "store", "sessions", "nonces", "gate", "intent", "backup", "rent"];
+  const ALLOWED = {
+    "sol/wasm/sol_wasm.js": ["fetch(module_or_path)"],
+    "sol/plain/control.js": ['fetch("/sol/config-mainnet.json",', 'fetch("/sol/plain/worker.js")',
+      'startSolWorker("/sol/plain/worker.js")'],
+    // client.js is shared with the pool: its default URL is the pool Worker. The plain controller
+    // passes its own URL (the literal above), and a call with no URL would not match it.
+    "sol/client.js": ['starts /sol/worker.js,', 'url = "/sol/worker.js"',
+      'new Worker(url, { type: "module" })'],
+  };
   for (const file of files) {
     const banned = pool.some((name) => file === `sol/${name}.js`) || /prover/.test(file);
     assert.ok(!banned, "no pool module in the closure of the plain controller: " + file);
     assert.ok(!file.startsWith("app"), "no page module in the closure: " + file);
-    const glue = file === "sol/wasm/sol_wasm.js";
-    const text = glue ? closure.get(file).replace("fetch(module_or_path)", "") : closure.get(file);
+    let text = closure.get(file);
+    for (const literal of ALLOWED[file] ?? []) {
+      assert.equal(text.split(literal).length, 2, file + " holds " + literal + " once");
+      text = text.replace(literal, "");
+    }
     assert.ok(!text.includes("/sol/config.json"), file + " asks for the config of the pool");
     assert.ok(!text.includes("/sol/worker.js"), file + " starts the Worker of the pool");
     assert.ok(!/\bWorker\s*\(/.test(text), file + " starts a Worker");
     assert.ok(!/\bfetch\s*\(/.test(text), file + " asks the server for a file");
+    const starter = file === "sol/client.js" || !/\bstartSolWorker\s*\(/.test(text);
+    assert.ok(starter, file + " starts a Worker with the default URL of the pool");
   }
 }
 step("the closure of the plain controller holds no pool code");

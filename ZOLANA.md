@@ -200,7 +200,21 @@ second. The server gives `/sol/plain/*` its own policy (`PLAIN_WORKER_POLICY` in
 secret `HELIUS_MAINNET_URL`, and else `{ rpcUrl }` with `Cache-Control: no-store`. A Helius Secure
 URL (paid plan) has another host, so it needs a change of the pin in both files. A new module in
 `web/sol/plain` needs a name of lowercase letters, digits and hyphens: no other name answers when `SOL` is
-off.
+off. With `SOL` off and `SOL_MAINNET` `"1"`, the server also serves the shared modules and the wasm
+file that the plain wallet loads (`PLAIN_SOL_FILES` in `cf/src/index.js`) and no other file of `/sol`;
+`cf/test/gate.mjs` computes the import closure of `web/sol/plain/control.js` and of
+`web/sol/backup.js` and fails when the list differs.
+
+The plain controller (`web/sol/plain/control.js`) starts this Worker for the first balance read of an
+open wallet, and only if a screen shows the wallet. It compares the `content-security-policy` header
+of `/sol/plain/worker.js` with `PLAIN_WORKER_POLICY`; a difference starts nothing. It then asks
+`/sol/config-mainnet.json` (not cached) and sends `init` with the cluster and the URL, and checks that
+the answer names the cluster of the wallet. The URL is not stored, logged or shown. The read job gets
+the SOL of the group address, the USDC of its associated token account and the SOL of each published
+fee address. The wasm names the token account (`plain_reads`, row `source`); no document or answer
+of the network gives it. The page decodes the token account for display only (the checker parses it
+again before any signature). One read job runs at a time, a wallet is read once in 30 s, a hidden tab
+reads nothing, and a failed read keeps the old balances and waits 30 s.
 
 **3.9 Known limits of the plain wallet (P1).**
 

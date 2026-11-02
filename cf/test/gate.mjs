@@ -4,8 +4,9 @@
 // group WebSocket, never prompts again while the page runs.
 import assert from "node:assert/strict";
 import { createHash, createHmac, randomBytes } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { PLAIN_WORKER_POLICY } from "../../web/sol/plain/guard.js";
+import { closureOf, web } from "../../web/test/closure.mjs";
 import { COOKIE, MAX_AGE_S, gate, sessionCookie, withCookie } from "../src/gate.js";
 
 // The real fetch handler of cf/src/index.js, as web/test/lwd.mjs loads it: a stub for the
@@ -354,7 +355,7 @@ let session = null;
   // With SOL off and SOL_MAINNET on, only the plain modules answer, in one spelling.
   const only = { ...OPEN, SOL: "0", SOL_MAINNET: "1" };
   const closed = ["/sol/worker.js", "/sol/guard.js", "/sol/config.json", "/sol/zolana.bundle.js",
-    "/sol/wasm/sol_wasm_bg.wasm", "/sol/prover/prover.worker.js", "/sol", "/sol/", "/sol/plain",
+    "/sol/wasm/sol_wasm.d.ts", "/sol/prover/prover.worker.js", "/sol", "/sol/", "/sol/plain",
     "/sol/plain/", "/SOL/plain/worker.js", "/sol/Plain/worker.js", "/sol/plain/Worker.js",
     "/sol//plain/worker.js", "/sol/plain/..%2fworker.js", "/sol/plain%2Fworker.js",
     "/sol%2Fplain/worker.js", "/sol/plain/wor%6Ber.js", "/sol/plain/worker.js/",
@@ -374,6 +375,54 @@ let session = null;
   }
   assert.deepEqual(served, ["/sol/plain/worker.js", "/sol/plain/guard.js"]);
   console.log("ok  with SOL off, only /sol/plain/<name>.js answers: no path reaches a Devnet file");
+
+  // The plain wallet also loads shared modules and the wasm file: the page imports them from /sol.
+  // The list of the server is the closure of the plain controller and of the backup module (which
+  // the page imports for a restore), plus the wasm file, and every other file of web/sol is 404.
+  const closure = closureOf(["sol/plain/control.js", "sol/backup.js"]);
+  const wanted = [...closure.keys()].filter((f) => /^sol\/(?!plain\/)/.test(f)).map((f) => "/" + f);
+  wanted.push("/sol/wasm/sol_wasm_bg.wasm");
+  const listed = /PLAIN_SOL_FILES = new Set\(\[([^\]]*)\]\)/.exec(index)[1].match(/"[^"]*"/g);
+  assert.deepEqual(listed.map((text) => JSON.parse(text)).sort(), wanted.sort(),
+    "the list of the server is the closure of the plain wallet");
+  const solDir = new URL("sol/", web);
+  const onDisk = readdirSync(solDir, { recursive: true })
+    .filter((f) => statSync(new URL(f, solDir)).isFile()).map((f) => `/sol/${f}`);
+  for (const path of wanted) assert.ok(onDisk.includes(path), `${path} is a file of web/sol`);
+  const plainFile = (path) => /^\/sol\/plain\/[a-z0-9-]+\.js$/.test(path);
+  served.length = 0;
+  for (const path of onDisk) {
+    const res = await ask(path, only);
+    const answers = wanted.includes(path) || plainFile(path);
+    assert.equal(res.status, answers ? 200 : 404, path);
+    if (!answers) continue;
+    const policy = plainFile(path) ? PLAIN_POLICY : WORKER_POLICY;
+    assert.equal(res.headers.get("content-security-policy"), policy, `the policy of ${path}`);
+  }
+  assert.deepEqual(served.sort(), [...wanted, ...onDisk.filter(plainFile)].sort(),
+    "the asset server was asked for the plain wallet files and no other");
+  // The Devnet files stay 404 in every spelling, and so do other spellings of a listed file.
+  const poolOnly = ["worker.js", "main.js", "session.js", "view.js", "config.json",
+    "zolana.bundle.js", "prover/prover.worker.js", "guard.js", "wasm/sol_wasm.d.ts"];
+  const spelled = [];
+  for (const file of poolOnly) {
+    const first = "%" + file.charCodeAt(0).toString(16);
+    spelled.push(`/sol/${file}`, `/sol/${first}${file.slice(1)}`, `/sol\\${file}`,
+      `/sol//${file}`, `/SOL/${file}`, `/sol/${file[0].toUpperCase()}${file.slice(1)}`,
+      `//sol/${file}`, `/sol/${file}/`, `/sol/./${file}`, `/sol/x/../${file}`);
+  }
+  for (const path of wanted) {
+    spelled.push(path.toUpperCase(), path.replace("/sol/", "/sol//"), `${path}/`, `${path}%00`,
+      path.replace("/sol/", "/sol%2f"), path.replace(/\.(js|wasm)$/, ".$1.map"));
+  }
+  served.length = 0;
+  for (const path of spelled) {
+    const res = await ask(path, only);
+    assert.equal(res.status, 404, `${path} in plain-only mode`);
+    await hasNoSecret(res, path);
+  }
+  assert.deepEqual(served, [], "no spelling reached the asset server");
+  console.log("ok  with SOL off, the files of the plain wallet answer and no Devnet file does");
 
   // Both off: nothing under /sol answers, the plain files too, and other paths still do.
   for (const SOL_MAINNET of [undefined, "0", "true", ""]) {
