@@ -9,7 +9,7 @@ import { NearIntentsSwapProvider } from "./near-intents-swap-provider.js";
 import { netName } from "./app-chain.js";
 import { render } from "./app-loop.js";
 import { openSend } from "./app-send.js";
-import { plainSol } from "./app-sol.js";
+import { plainLoad, plainSol } from "./app-sol.js";
 import { said } from "./app-kit.js";
 import { log, state, ui } from "./app-state.js";
 import { groupTaddress } from "./app-taddress.js";
@@ -36,7 +36,7 @@ export function swapDeadline(note) {
 // loaded both modules already, so they come from the module cache.
 let solTools = null, solToolsLoading = null;
 function loadSolTools() {
-  solToolsLoading ??= Promise.all([import("./sol/ceremony.js"), import("./sol/docs.js")])
+  return solToolsLoading ??= Promise.all([import("./sol/ceremony.js"), import("./sol/docs.js")])
     .then(([ceremony, docs]) => {
       solTools = { agreement: ceremony.agreement, base58: docs.base58 };
       render();
@@ -99,6 +99,13 @@ function proposeDeposit(swap) {
   render();
 }
 
+// A note that names a swap or NEAR Intents, on a payment with a transparent payee.
+const SWAPPY = /\b(swap|near\s*intents|1click)\b/i;
+const lookalike = (ss) => typeof ss.note === "string" && SWAPPY.test(ss.note)
+  && Array.isArray(ss.payees) && ss.payees.some((p) => /^t/.test(p?.to ?? ""));
+const LOOKALIKE = "The note names a swap, but it is not the note of the Swap page, so this "
+  + "browser cannot check the swap. It did not approve. Propose the swap again from the Swap page.";
+
 // The one payee of a swap payment: one transparent output with no memo.
 function payeeOf(ss) {
   const payees = Array.isArray(ss.payees) ? ss.payees : [];
@@ -123,12 +130,30 @@ function mismatch(status, own, p, payBy) {
   return wrong ? wrong[1] : null;
 }
 
-const ownAddresses = () => ({ recipient: plainSolAddress(), refundTo: groupTaddress().address });
+// The Solana address of the wallet once the plain controller has read the documents of its key
+// setup. ponytail: asks every 200 ms for at most 10 s; the upgrade is an event of the controller.
+async function solAddressSoon() {
+  for (const end = Date.now() + 10_000; Date.now() < end;) {
+    const address = plainSolAddress();
+    if (address) return address;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  return null;
+}
+// A device that approves may not have shown the Swap tab or loaded the plain controller: both
+// load first. A testnet wallet has no plain Solana address.
+async function ownAddresses() {
+  if (netName(state.g) !== "mainnet") return {};
+  if (!plainSol) await plainLoad();
+  await loadSolTools();
+  return { recipient: await solAddressSoon(), refundTo: groupTaddress().address };
+}
 
-async function swapRefusal(ss, payBy, provider, own) {
+async function swapRefusal(ss, payBy, provider, given) {
   const p = payeeOf(ss);
   if (!p) return "A swap payment has one recipient and no memo.";
   if (payBy - Date.now() < SWAP_MARGIN_MS) return LATE;
+  const own = given ?? await ownAddresses();
   if (!own.recipient || !own.refundTo) {
     return "This browser cannot read the Solana address or the refund address of this wallet.";
   }
@@ -141,13 +166,16 @@ async function swapRefusal(ss, payBy, provider, own) {
  * Refuses the approval of a swap payment (its note marks it) unless NEAR Intents waits at the
  * deposit address for the exact amount of a swap from ZEC to SOL that pays the Solana address of
  * this wallet, refunds to its transparent address and ends at the deadline of the note, with 30
- * minutes left. Another payment passes with no request. `own` holds the Solana and the refund
- * address of the wallet; the tests give them.
+ * minutes left. A note that names a swap in another form is refused for a transparent payee,
+ * because a proposer could write it to look like the swap note. Another payment passes with no
+ * request. `own` holds the Solana and the refund address of the wallet; the tests give them.
  */
-export async function checkSwap(ss, provider = new NearIntentsSwapProvider(),
-  own = ownAddresses()) {
+export async function checkSwap(ss, provider = new NearIntentsSwapProvider(), own = null) {
   const payBy = swapDeadline(ss.note);
-  if (payBy === null) return;
+  if (payBy === null) {
+    if (lookalike(ss)) throw new Error(LOOKALIKE);
+    return;
+  }
   const why = await swapRefusal(ss, payBy, provider, own);
   if (why) throw new Error(why + " This browser did not approve.");
 }

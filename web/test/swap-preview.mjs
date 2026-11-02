@@ -1161,7 +1161,13 @@ try {
   await checkSwap(ss, near(swapOk), own);
   assert.deepEqual(asked, [T1], 'the device asks for the swap of the payee address');
   await checkSwap({ note: 'Rent', payees: ss.payees }, near(swapOk), own);
+  await checkSwap({ note: 'Swap the shifts', payees: [{ to: UA, amount: 5 }] }, near(swapOk), own);
   assert.equal(asked.length, 1, 'a payment that is no swap asks nothing');
+  for (const look of [note.replace('Intents', 'lntents'), 'NEAR Intents swap, pay soon',
+    'swap via 1Click']) {
+    await assert.rejects(checkSwap({ note: look, payees: ss.payees }, near(swapOk), own),
+      /names a swap, but it is not the note of the Swap page/, 'a lookalike note: ' + look);
+  }
   const refused = async (what, ss2, provider, mine = own) => {
     await assert.rejects(checkSwap(ss2, provider, mine), (e) => e.message.endsWith(
       'This browser did not approve.'), what);
@@ -1180,6 +1186,9 @@ try {
   await refused('two payees', { ...ss, payees: [...ss.payees, ss.payees[0]] }, near(swapOk));
   await refused('a memo', { ...ss, payees: [{ ...ss.payees[0], memo: 'x' }] }, near(swapOk));
   await refused('no own refund address', ss, near(swapOk), { recipient: REFUND });
+  const { state: page } = await import('../app-state.js');
+  assert.notEqual(page.g?.network, 'mainnet', 'the fixture: no mainnet wallet is open');
+  await refused('no mainnet wallet, so no own addresses', ss, near(swapOk), null);
   const soon = new Date(Date.now() + SWAP_MARGIN_MS - 60_000).toISOString();
   await refused('29 minutes left', { ...ss, note: swapNote(soon) },
     near({ ...swapOk, deadline: soon }));
