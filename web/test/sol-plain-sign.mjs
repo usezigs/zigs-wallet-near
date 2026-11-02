@@ -1140,52 +1140,119 @@ step("a node that is behind or has no block, with a send that landed, ends nothi
 }
 step("other errors of the send are no failed try, and -32003 is one");
 
-// ── A signed part whose group signature does not verify ends the session at once ──
-// A landing needs a valid group signature, so such a part cannot have landed. A hostile seat can
-// write a package part and a signed part with any 64 bytes. No device waits for it for ever (a
-// message with no nonce, or a nonce account that is gone, would make it wait), and none sends it.
-{
-  const NOT_VERIFIED = "The group signature does not verify. Nothing was sent.";
-  const other = (await session(done.id)).signature; // a valid signature, of other bytes
-  assert.ok(ed25519(null, bytesOfHex((await session(done.id)).message), nodeKey(group),
-    Buffer.from(other, "hex")), "control: it is a good signature of the group");
-  const cases = {
-    "junk, nonce account gone": { signature: "cd".repeat(64), gone: true },
-    "a signature of other bytes, nonce account gone": { signature: other, gone: true },
-    "junk, a message with no nonce":
-      { signature: "cd".repeat(64), message: vector("s1-create-nonce", "msg") },
-  };
-  for (const [label, { signature, gone, message }] of Object.entries(cases)) {
-    reset();
-    let id, digest;
-    if (message) {
-      id = hexOfBytes(crypto.getRandomValues(new Uint8Array(16)));
-      const intent = hexOfBytes(sendSolIntent(1000, nonceValue(3, 1000), recipient, 1000n));
-      await writeProposal(c, id, { intent, message: hex(message), feeSig: "ab".repeat(64),
-        createdAt: Date.now() }, 3);
-      digest = "00".repeat(32);
-    } else {
-      const made = await fresh([]);
-      id = made.id;
-      digest = W.sol_plain_digest(pinsOf(1), bytesOfHex(made.ss.message));
-      if (gone) world.accounts.delete(nonceAddress(1, made.k));
-    }
-    await writePart(c, id, "package", { package: "{}", signers: [2, 3], digest }, { seat: 3 });
-    await writePart(c, id, "signed", { signature }, { seat: 3 });
-    rig.notify();
-    await waitFor("the session is read", () => (c.refresh(),
-      c.sessions.some((x) => x.id === id && x.status === "signed")), 10000);
-    await pump("the session ends", becomes(id, "failed"), 5000);
-    assert.equal((await session(id)).error, NOT_VERIFIED, label);
-    assert.deepEqual(calls.filter((x) => ["status", "simulate", "send"].includes(x.cmd)), [],
-      label + ": no call of the Worker for these bytes");
-    assert.equal(c.tries.get(id), undefined, label + ": and no try was counted");
-    assert.ok(announced.includes(`Send SOL: ${NOT_VERIFIED}`), label + ": the words are said");
-    data.delete(path(gid, "solsessions/" + id));
-    rig.notify();
+// ── A signed part that does not verify: the nonce account decides, not the signature ──
+// A hostile seat can write a package part and a signed part with any 64 bytes. A landing moves the
+// nonce, and a member can overwrite the signed part after it, so a signature that does not verify
+// says nothing about a landing. While the nonce account holds the nonce value, the failed
+// simulations count and the third ends the session. Where the nonce account is gone, or the
+// message has no nonce instruction, the session holds and writes no failure part.
+const signedBy3 = async (id, signature, digest) => {
+  await writePart(c, id, "package", { package: "{}", signers: [2, 3], digest }, { seat: 3 });
+  await writePart(c, id, "signed", { signature }, { seat: 3 });
+  rig.notify();
+  await waitFor("the session is read", () => (c.refresh(),
+    c.sessions.some((x) => x.id === id && x.status === "signed")), 10000);
+  return id;
+};
+async function junkSend(signature, how = "") {
+  if (how === "no nonce") {
+    const id = hexOfBytes(crypto.getRandomValues(new Uint8Array(16)));
+    const intent = hexOfBytes(sendSolIntent(1000, nonceValue(3, 1000), recipient, 1000n));
+    await writeProposal(c, id, { intent, message: hex(vector("s1-create-nonce", "msg")),
+      feeSig: "ab".repeat(64), createdAt: Date.now() }, 3);
+    return signedBy3(id, signature, "00".repeat(32));
   }
+  const { id, ss, k } = await fresh([]);
+  if (how === "gone") world.accounts.delete(nonceAddress(1, k));
+  return signedBy3(id, signature, W.sol_plain_digest(pinsOf(1), bytesOfHex(ss.message)));
 }
-step("a signed part with a group signature that does not verify ends the session at once");
+const dropSession = (id) => {
+  data.delete(path(gid, "solsessions/" + id));
+  rig.notify();
+};
+const failureWritten = (id) => writes.some((w) => w.id === id && w.part === "error");
+{
+  const saved = { ...LIMITS };
+  Object.assign(LIMITS, { backoff: 20, grace: 0 });
+  const first = await session(done.id);
+  const other = first.signature; // a good signature of the group, of other bytes
+  assert.ok(ed25519(null, bytesOfHex(first.message), nodeKey(group), Buffer.from(other, "hex")),
+    "control: it is a good signature of the group");
+  const SIMULATED = 'The network refused the signed transaction: "SignatureFailure"';
+  const counted = {
+    "64 bytes that no key made": ["cd".repeat(64), SIMULATED, 3],
+    "a good signature of other bytes": [other, SIMULATED, 3],
+    "a text that is no signature": ["not a signature", "The group signature is not valid.", 0],
+  };
+  for (const [label, [signature, text, sims]] of Object.entries(counted)) {
+    reset();
+    const id = await junkSend(signature);
+    await pump("the session ends", becomes(id, "failed"), 8000);
+    assert.equal((await session(id)).error, "Not sent: " + text, label);
+    assert.equal(simulations(), sims, label + ": a simulation for each try, or none");
+    assert.equal(c.tries.get(id), 3, label + ": three tries counted");
+    assert.equal(sendCalls(), 0, label + ": nothing was sent");
+    assert.ok(announced.includes("Send SOL: Not sent: " + text), label + ": the words are said");
+    dropSession(id);
+  }
+  const held = {
+    "64 bytes, nonce account gone": ["cd".repeat(64), "gone"],
+    "a text that is no signature, nonce account gone": ["not a signature", "gone"],
+    "64 bytes, a message with no nonce instruction": ["cd".repeat(64), "no nonce"],
+  };
+  for (const [label, [signature, how]] of Object.entries(held)) {
+    reset();
+    const id = await junkSend(signature, how);
+    await pump("the hold is said", () => announced.some(waits), 8000);
+    const t0 = Date.now();
+    await pump("more passes", () => Date.now() - t0 > 1500);
+    await holds(id, label);
+    assert.equal(sendCalls(), 0, label + ": nothing was sent");
+    assert.equal(failureWritten(id), false, label + ": no failure part was written");
+    dropSession(id);
+  }
+  Object.assign(LIMITS, saved);
+}
+step("a signed part that does not verify counts while the nonce stands and holds when it is gone");
+
+// ── A member who overwrites the signed part after a landing ends nothing ──
+// The shared document has no lock: any member can write another signature over the signed part
+// once the bytes landed. The id of the transaction is the fee signature, which the overwrite
+// leaves alone, so the status still finds the landing. A status node that lags holds the step (the
+// nonce moved) until it catches up. The session ends sent and never writes a failure.
+{
+  const saved = { ...LIMITS };
+  const junk = "ab".repeat(64);
+  for (const mode of ["T7-LAG", "T7-FRESH"]) {
+    const lag = mode === "T7-LAG";
+    Object.assign(LIMITS, { grace: 0, backoff: lag ? 60 : 600 });
+    reset();
+    const { id, ss } = await fresh([2, 3]);
+    landing.answer(); // the node takes the bytes, the nonce moves, the answer is lost
+    if (lag) answers.status = lagging;
+    await pump("the first send", () => sendCalls() >= 1);
+    assert.ok(world.landed.has(base58(ss.feeSig)), mode + ": control: the transaction landed");
+    answers.send = orig.send;
+    assert.equal(await status(id), "signed", mode + ": control: the sent mark is not there yet");
+    await writePart(c, id, "signed", { signature: junk }, { seat: 3 });
+    await pump("the junk is read", () => c.sessions.find((s) => s.id === id)?.signature === junk);
+    if (lag) {
+      const asked = statusCalls();
+      await pump("more looks", () => statusCalls() >= asked + 3 || over(id));
+      await holds(id, mode);
+      unlag();
+    }
+    await pump("the session ends", () => over(id), 8000);
+    assert.equal(await status(id), "sent", mode + ": the landing is found");
+    assert.equal(doc(id).signature, junk, mode + ": control: the junk stayed in the document");
+    assert.equal(doc(id).error, undefined, mode + ": no failure part");
+    assert.equal(failureWritten(id), false, mode + ": and no failure was ever written");
+    assert.equal(world.sends.length, 1, mode + ": the bytes went out once");
+    assert.equal((await session(id)).slot, "4242");
+  }
+  Object.assign(LIMITS, saved);
+}
+step("a member who overwrites the signed part after a landing ends nothing, lagging or fresh");
 
 // ── A nonce account that cannot be read or understood ends nothing ──
 // The refusal is a real one, so the nonce account is read. Whatever the read gives besides "the

@@ -9,13 +9,12 @@
 //  - send: one device lands the transaction (the fee signature, then the group signature, after
 //    the message) and writes the sent mark. It reads the status first.
 // A session that cannot go on ends with a text, and the nonces of an ended session are dropped.
-// A group signature that does not verify ends the session at once: it cannot land. Only a refusal
-// of the bytes counts as a failed try (three end the session): a failed simulation, or -32002 or
-// -32003 at the send. It counts only while the nonce account still holds the nonce value of the
-// transaction: a landing moves the nonce in the same moment, and a status node may lag behind.
-// A session whose nonce moved ends only when the status finds its transaction. Any other error (a
-// node that is behind, a hang, a 429, a failed read or write) is no try: the step waits and looks
-// again.
+// Only a refusal of the bytes counts as a failed try (three end the session): a failed simulation,
+// or -32002 or -32003 at the send. It counts only while the nonce account still holds the nonce
+// value of the transaction: a landing moves the nonce in the same moment, and a status node may
+// lag behind. A session whose nonce moved ends only when the status finds its transaction. Any
+// other error (a node that is behind, a hang, a 429, a failed read or write) is no try: the step
+// waits and looks again.
 // The nonce rules are in nonces.js. Nothing here reads or shows a nonce or a key share.
 import { agreement } from "../ceremony.js";
 import { base58 } from "../docs.js";
@@ -43,7 +42,6 @@ const STILL_THERE = /already.*processed|has already been/i;
 // check_status_cache).
 const MOVED = /BlockhashNotFound|Blockhash not found|AlreadyProcessed/i;
 const SIGNATURE = /^[0-9a-f]{128}$/;
-const UNVERIFIED = "The group signature does not verify. Nothing was sent.";
 // The v1 message (wasm-sol/src/v1.rs): 0x81, the header (3), the config mask (4), the lifetime
 // (32), the instruction count, the address count, the addresses, the config values, the heads.
 const V1_PREFIX = 0x81;
@@ -408,6 +406,8 @@ function maybeSend(c, ss, { ensure, group }) {
 // The transaction of a v1 message: the message, then the signatures in the order of the signers,
 // the fee key first and the group key second.
 function txOf(ss) {
+  const sound = typeof ss.signature === "string" && SIGNATURE.test(ss.signature);
+  if (!sound) throw new Refused("The group signature is not valid.");
   return toBase64(join(bytesOfHex(ss.message), bytesOfHex(ss.feeSig + ss.signature)));
 }
 
@@ -466,18 +466,8 @@ async function resultOf(c, ss, ctx) {
   return result.status === "none" ? land(c, ss, ctx) : result;
 }
 
-// A landing needs a valid group signature, so a signed part whose signature does not verify under
-// the group key cannot have landed: the session ends at once and nothing is sent.
-async function groupSigned(c, ss, { group, was }) {
-  const sound = typeof ss.signature === "string" && SIGNATURE.test(ss.signature);
-  if (sound && c.W.sol_fee_verify(group, bytesOfHex(ss.message), ss.signature)) return true;
-  if (!moved(c, was, ss, SIGNED)) await failSession(c, ss, UNVERIFIED, was);
-  return false;
-}
-
-async function attemptSend(c, ss, { seat, worker, group }) {
+async function attemptSend(c, ss, { seat, worker }) {
   const was = c.opened;
-  if (!(await groupSigned(c, ss, { group, was }))) return;
   const txId = base58(ss.feeSig);
   const ctx = { worker, tx: txOf(ss), txId, was };
   if (!(await leased(sessionRef(c, ss), 60000))) return sleep(RETRY_MS);
@@ -566,7 +556,7 @@ async function sendSigned(c, ss, { seat, worker, group }) {
   const was = c.opened,
     how = { key: "send:" + ss.id, was };
   try {
-    await attemptSend(c, ss, { seat, worker, group });
+    await attemptSend(c, ss, { seat, worker });
     c.fails.delete(how.key);
   } catch (e) {
     if (e instanceof Halt || c.opened !== was) throw e;
