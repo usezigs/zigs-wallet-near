@@ -574,7 +574,9 @@ transaction, in a new tab, with no cluster parameter.
 A proposal holds the recipient and the amount of the send, in the message that the devices sign.
 Every device of the group can read them. The list of sends shows no recipient and no amount: a
 device sees them in its review, which shows the lines of the checker. A proposal has no age limit.
-A signed send stays valid on chain until its nonce account advances.
+A signed send stays valid on chain until its nonce account advances. The page cannot cancel a
+signed send yet, and the signed transaction sits in a session document that every device of the
+group can read and send.
 
 The Helius URL holds an API key. It is a secret of the Worker (`HELIUS_MAINNET_URL`). The server
 gives it to the page at `/sol/config-mainnet.json`, so every user of the page can read it. Allowed

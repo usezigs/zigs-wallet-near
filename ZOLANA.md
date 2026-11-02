@@ -271,8 +271,8 @@ nonce accounts shows no free one. A refusal of the checker shows one line and th
 details element, and signs and writes nothing. The recipient can come from the Address book (kinds
 `SOL:mainnet:public` and `USDC:mainnet:public`). The list of sends shows each session with its
 title, its proposer and a chip: waiting for approvals, your approval, signing, signed, may have
-been sent (a signed send whose step met an error with no known result, with the transaction id and
-the explorer link), sent, failed on chain, failed and superseded. A row shows no recipient and no
+been sent (a signed send whose step met an error with no known result, with the explorer link of
+the transaction), sent, failed on chain, failed and superseded. A row shows no recipient and no
 amount. Review reads the chain again for the proposal that the page holds now and shows the lines
 of the checker with the cost (fee plus rent, in SOL). Approve is there only after that review of
 the same proposal and seat, and the approval is refused when a fresh read gives other lines. The
@@ -307,7 +307,7 @@ failed read or write, any other RPC error of the send (a node that is behind or 
 -32005), a send that fails in transport, a wait with no answer, and an answer with a word or a slot
 that the Worker never gives (it gives none, pending, confirmed, finalized and failed). The step
 waits 3 s, then twice as long each time up to a minute, and keeps its key meanwhile. The page shows
-the id and "not confirmed yet" when a send may have gone out, and the next pass reads the status
+the explorer link and "not confirmed yet" when a send may have gone out, and the next pass reads the status
 again. A refusal of the checker at share time, a commitment that is not the saved one, shares that
 do not combine and a fee signature that does not fit end the session with a text. A refusal whose
 end could not be written is written again. The nonces of an ended session are dropped. A document
