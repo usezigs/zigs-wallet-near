@@ -41,7 +41,7 @@ import {
   sol, solActivity, solBackup, solBalance, solError, solFile, solLoad, solLoading,
   solActivityWaits, solLoadingCount, solOlderCount, solOn, solPending, solPendingRows, solSetup,
   solNotAdded, solObserveOverview, solPartError, solPartSetup, solSync, solTab, plainAdded,
-  plainLoading, plainNotAdded, plainRead, plainSetup, plainShown, plainSol, plainTab,
+  plainLoading, plainNotAdded, plainPick, plainRead, plainSetup, plainShown, plainSol, plainTab,
 } from "./app-sol.js";
 import {
   createZecPrice, formatUsdBalance, pendingShortcut, plainRow, portfolioView, solRow, zecInProgress,
@@ -167,7 +167,9 @@ export function walletSections() {
     ["members", "Devices"], ["recovery", "Security"], ["settings", "Settings"],
   ];
   if (solOn()) sections.push(["solana", "Solana", countBadge(solPending(), "to approve", "attn")]);
-  else if (plainShown()) sections.push(["solana", "Solana"]);
+  else if (plainShown()) {
+    sections.push(["solana", "Solana", countBadge(solPending(), "to approve", "attn")]);
+  }
   return sections;
 }
 
@@ -335,7 +337,22 @@ function liveTotal(view) {
 
 const demoBadge = () => el("span", { class: "badge plain demo-badge" }, "Demo");
 
-const SEND_LATER = "Send is not available yet";
+// Why a plain wallet cannot send or receive an asset now, in a few words, or "" when it can. USDC
+// is sent only once the last read shows its token account.
+const PLAIN_WHY = { "not started": "Add Solana first", running: "Solana is still setting up",
+  stopped: "Solana stopped", differs: "Solana keys differ",
+  unavailable: "Solana is not available" };
+const USDC_WHY = { ready: "", stale: "", off: "Enable USDC first" };
+function plainPartWhy() {
+  const status = plainSetup()?.status;
+  if (status === "ready") return "";
+  return PLAIN_WHY[status] ?? (plainNotAdded() ? PLAIN_WHY["not started"] : "Solana is loading");
+}
+function plainWhy(id, sending) {
+  const why = plainPartWhy();
+  if (why || !sending || id !== "usdc") return why;
+  return USDC_WHY[plainRead()?.rows.usdc.state] ?? "USDC is not ready";
+}
 // HTML disclosures keep their own keyboard and dismissal behavior. Asset choices open the
 // existing forms, with the same validation, blockers and payment handlers as the asset cards.
 function assetActionPicker(action) {
@@ -352,9 +369,12 @@ function assetActionPicker(action) {
   el("span", { class: "asset-choice-copy" }, el("strong", {}, title),
     el("span", { class: "small muted", id: "choose-" + action + "-" + id }, detail)),
   el("span", { class: "chev", "aria-hidden": "true" }, icon("chevronRight")));
-  // A served plain wallet receives; it sends in a later version.
-  const plainChoice = (id, title) => choose(id, title, sending ? SEND_LATER : PLAIN_NETWORK
-    + " · shows the address", sending, sending ? null : openSolanaReceive);
+  // A served plain wallet sends and receives SOL and USDC once its Solana part is ready.
+  const plainChoice = (id, title) => {
+    const why = plainWhy(id, sending);
+    const detail = why || PLAIN_NETWORK + (sending ? " · public" : " · shows the address");
+    return choose(id, title, detail, !!why, sending ? () => openSolanaSend(id) : openSolanaReceive);
+  };
   return el("details", { class: "overview-action-picker" },
     el("summary", { class: "btn" + (sending ? " primary" : "") }, icon(action), label),
     el("div", { class: "asset-choices" }, el("p", { class: "label" }, label + " · choose an asset"),
@@ -429,9 +449,9 @@ function transactionEmpty(text, id = null) {
 function emptyApprovalsRead(sol) {
   const why = emptyState({ loaded: state.sessionsLoaded, failed: state.sessionsFailed,
     checking: state.pending, synced: chainReady(curChain()), ignored: state.ignored,
-    sol: solOn() });
+    sol: solWallet() });
   return ["empty", "zec"].includes(why) && (!sol || sol.kind === "info"
-    && solSetup()?.status === "ready" && !solLoadingCount() && !solOlderCount());
+    && solPartSetup()?.status === "ready" && !solLoadingCount() && !solOlderCount());
 }
 
 // The row of a received payment opens the explorer: the note says what that site sees.
@@ -578,7 +598,7 @@ function approvalRow(ss) {
 function pendingCard() {
   const zec = zecInProgress(state.sessions.filter(isOpen).map((ss) => ss.id),
     inFlight().map((ss) => ss.id), heldApprovals());
-  const p = pendingShortcut({ zec, sol: solOn() ? solPending() : 0 });
+  const p = pendingShortcut({ zec, sol: solWallet() ? solPending() : 0 });
   if (!p) return null;
   return el("section", { class: "callout pending-shortcut", role: "status" }, icon("activity"),
     el("span", {}, p.text),
@@ -1117,6 +1137,14 @@ const openSolanaControl = (id) => {
   if (sol) focusAfter("INPUT:" + id + ":0", true);
   render();
 };
+// The Send choice of a plain wallet: the Solana tab with the asset chosen and the form in focus.
+// "sol-send" is the data-key of the form (web/sol/plain/sendview.js).
+const openSolanaSend = (asset) => {
+  ui.tab = "solana";
+  plainPick(asset);
+  focusAfter("sol-send", true);
+  render();
+};
 const openSolanaButton = () => el("button", { class: "btn sm", type: "button",
   onclick: openSolana }, "Open Solana");
 
@@ -1136,7 +1164,8 @@ function solApprovalRequest(r) {
     "data-key": "sol-" + r.id, onclick: openSolana },
     el("span", { class: "approval-request-type" }, icon("send"), "Solana proposal"),
     el("span", { class: "approval-request-recipient" }, r.title),
-    el("span", { class: "approval-request-meta" }, "Solana Devnet · Proposed by " + proposer({ by: r.by })),
+    el("span", { class: "approval-request-meta" },
+      solNetwork() + " · Proposed by " + proposer({ by: r.by })),
     el("span", { class: "approval-request-bottom" },
       el("span", { class: "approval-request-status" }, "Awaiting your approval"),
       el("span", { class: "approval-request-action" }, "Review in Solana", el("span", { "aria-hidden": "true" }, icon("external")))),
@@ -1147,7 +1176,7 @@ const solInboxRow = (r) => el("button", {
 },
 el("span", { class: "tx-ico out", "aria-hidden": "true" }, icon("send")),
 el("span", { class: "ri-main" }, el("span", { class: "ri-title" }, r.title),
-  el("span", { class: "ri-sub" }, "Solana Devnet · Proposed by " + proposer({ by: r.by }))),
+  el("span", { class: "ri-sub" }, solNetwork() + " · Proposed by " + proposer({ by: r.by }))),
 el("span", { class: "ri-end" }, el("span", { class: "badge warn" }, "Your approval")),
 el("span", { class: "chev" }, icon("chevronRight")));
 
@@ -1184,9 +1213,12 @@ function inboxBucket(ss, held) {
   }
 }
 
-const solInbox = () => solLine({ on: solOn(), error: solError, loading: !!(sol || solLoading),
-  setup: solSetup(), toApprove: solPending(), reading: solLoadingCount(),
+const solInbox = () => solLine({ on: solWallet(), error: solPartError(),
+  loading: plainShown() ? !!(plainSol || plainLoading) : !!(sol || solLoading),
+  setup: solPartSetup(), toApprove: solPending(), reading: solLoadingCount(),
   older: solOlderCount() });
+// The wallet can have a Solana part: the pool (testnet) or the plain part of a mainnet wallet.
+const solWallet = () => solOn() || plainShown();
 
 const INBOX_EMPTY = {
   failed: "The payments of this wallet could not be read. Reload the page.",
@@ -1203,7 +1235,7 @@ const INBOX_EMPTY = {
 function inboxNote(rows) {
   const why = emptyState({ loaded: state.sessionsLoaded, failed: state.sessionsFailed,
     checking: state.pending, synced: chainReady(curChain()), ignored: state.ignored,
-    sol: solOn() });
+    sol: solWallet() });
   if (why === "failed") return el("div", { class: "callout bad", role: "alert" }, INBOX_EMPTY[why]);
   const partial = ["loading", "syncing"].includes(why);
   if (rows && !partial) return null;

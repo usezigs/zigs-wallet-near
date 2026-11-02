@@ -51,14 +51,15 @@ proposer chooses one ([comparison](PRIVACY.md#on-chain)).
   a device adds SOL to the group with Add SOL: the fee address shows on chain next to the group.
   Read [ZOLANA.md](ZOLANA.md) first, then [PRIVACY.md](PRIVACY.md#solana-beta-helius-devnet).
 - Solana on mainnet (plain wallet): a mainnet wallet can add a plain Solana account that holds real
-  SOL and USDC. The group will sign for it when send comes. It is a normal account: it has no pool,
-  no hosted prover and no privacy, and every balance and payment is public on chain. The page reads
-  balances through `https://mainnet.helius-rpc.com`. Helius sees your IP address and the group
-  address. The explorer sees the address that you open. Cloudflare, the host, sees the connection
-  data of each call, also of the call for the Helius URL. It is not audited. The web app can
-  receive, create a nonce account and enable USDC. Send of SOL and USDC comes later, so a deposit
-  stays in the wallet until then. The server turns it on with `SOL_MAINNET`: `"1"` on staging, `"0"`
-  on production ([ZOLANA.md](ZOLANA.md) 3.10, [PRIVACY.md](PRIVACY.md#solana-mainnet-plain-wallet)).
+  SOL and USDC. The group signs for it: a send needs the same approvals as a Zcash payment. It is a
+  normal account: it has no pool, no hosted prover and no privacy, and every balance and payment is
+  public on chain. A proposal shows its recipient and amount to every device of the group. The page
+  reads balances and sends transactions through `https://mainnet.helius-rpc.com`. Helius sees your
+  IP address, the group address and each signed transaction. The explorer sees the address that you
+  open. Cloudflare, the host, sees the connection data of each call, also of the call for the Helius
+  URL. It is not audited. The web app can receive, send SOL and USDC, create a nonce account and
+  enable USDC. The server turns it on with `SOL_MAINNET`: `"1"` on staging, `"0"` on production
+  ([ZOLANA.md](ZOLANA.md) 3.10, [PRIVACY.md](PRIVACY.md#solana-mainnet-plain-wallet)).
 - The wallet follows chain reorganisations of up to 100 blocks
   ([how](PROTOCOL.md#6-receiving-and-sync)). After a deeper one, the web, iPhone and Mac apps
   scan the wallet again from its birthday.
@@ -481,8 +482,8 @@ variable `SOL_MAINNET` in `cf/wrangler.jsonc` is `"1"`. It is `"0"` at the top l
 and `"1"` in staging. Set the secret like the Devnet one (`npx wrangler secret put HELIUS_MAINNET_URL`, with
 `--env staging` for staging), and allow only the origin of the page at Helius. Without the secret,
 the route answers 503. The plain wallet itself (`web/sol/plain/`, the Solana tab, the balances and
-the backup, ZOLANA.md 3.8 to 3.10) can receive and cannot send SOL or USDC yet. Keep
-`SOL_MAINNET` at `"0"` at the top level (production).
+the backup, the sends, ZOLANA.md 3.8 to 3.10) can receive and send SOL and USDC. Keep
+`SOL_MAINNET` at `"0"` at the top level (production) until the owner turns the part on there.
 
 To try the beta by hand, make a testnet wallet, add the Solana part, and open the Solana tab. Each
 device that this browser holds shows **Your fee address**. Send Devnet SOL to it (the **Get Devnet
@@ -861,8 +862,9 @@ folder path.
   of Helius sees the witness of each spend unless the group turns on local proving (experimental,
   slower, not tested on phones), the pool has an upgrade key outside the group, and sender and
   recipient of a transfer are public.
-- **Solana mainnet is a plain account on staging.** A mainnet wallet there can hold real SOL and
-  USDC in a public account. It is not audited, and it cannot send SOL or USDC yet.
+- **Solana mainnet is a plain account on staging.** A mainnet wallet there can hold, receive and
+  send real SOL and USDC in a public account. It is not audited, and it has no privacy. A signed
+  send cannot be cancelled yet.
 
 ## License
 

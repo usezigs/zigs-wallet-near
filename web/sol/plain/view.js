@@ -9,12 +9,17 @@ import { feeMismatch, mismatchText, publishedFee } from "../fee.js";
 import { holdsShare, solOf, stopOf } from "../secrets.js";
 import { labelOf } from "../wallet.js";
 import { privacyBadge } from "../../privacy-language.js";
-import { BUSY, NOTHING_SIGNED, STEP_TEXT, TITLE_KEY, focusKey, resultText } from "./direct.js";
+import {
+  BUSY, NOTHING_SIGNED, STEP_TEXT, TITLE_KEY, focusKey, payerSeat, resultText,
+} from "./direct.js";
 import { DECIMALS, amountText } from "./reads.js";
-import { refusalRows, screenRows } from "./review.js";
+import { refusalPart, rowList, txLink } from "./rowsview.js";
+import { screenRows } from "./review.js";
+import { sendForm, sendList } from "./sendview.js";
+import { freeNonces } from "./sends.js";
 
 const NETWORK = "Solana Mainnet";
-const FACTS = "Real money, public on chain. Not audited. No sending yet: deposits stay here.";
+const FACTS = "Real money, public on chain. Not audited.";
 const START_NOTE = "Helius sees your IP and wallet address. "
   + "Funding fee addresses links each device to this wallet.";
 const ONLY_DEVICE_1 = "Device 1 adds Solana.";
@@ -24,9 +29,8 @@ const STOP_NEXT = "Zcash still works. To use Solana, create a new wallet.";
 const RECEIVE_ONLY = "Only SOL and USDC. Other tokens can be lost.";
 const FUNDS_STAY = "Funds sent to this address stay there.";
 const EXPLORER = "https://explorer.solana.com/address/";
-const EXPLORER_TX = "https://explorer.solana.com/tx/";
 const EXPLORER_NOTE = "Helius and the explorer see your IP.";
-const FEE_NOTE = "Fee addresses pay for setup now and for sending later.";
+const FEE_NOTE = "Fee addresses pay for setup and for sending.";
 const BACKUP_SAVED = "saved";
 const BACKUP_NONE = "not backed up. Back up before you deposit.";
 const COPY_FAILED = "Copy failed. Select the text and copy it.";
@@ -35,13 +39,11 @@ const NOT_READ = "Not read";
 const NOT_ENABLED = "No USDC yet";
 const COPIED_MS = 1500;
 const SETUP_TITLE = "Set up sending";
-const COST_NOTE = "Each step spends real SOL from a fee address.";
 const MARKS = { createNonce: "create-nonce", enableUsdc: "enable-usdc" };
+const NO_KEY = "This browser holds no Solana key to pay a fee.";
+const NO_PAYER = "No fee address of this browser can pay now.";
 const SIGNS = (seat) => `Device ${seat} signs and pays.`;
-// The checker shows fee and rent in lamports. The SOL form follows, so that the cost can be read.
-const LAMPORT_ROWS = new Set(["fee", "rent"]);
-// The rows that hold an address or a signature are set in the code face.
-const CODE_ROWS = new Set(["recipient", "mint", "payer", "group"]);
+const ENABLED = new Set(["confirmed", "finalized"]);
 const TITLES = {
   unavailable: "Solana is not available", "not started": "Add Solana", running: "Setting up Solana",
   ready: "Solana", stopped: "Solana stopped", differs: "Keys differ",
@@ -80,8 +82,9 @@ function rowOf(r, asset) {
 }
 
 /**
- * What the page shows of the last read: { at, error, rows: { sol, usdc }, fees }. A row is
+ * What the page shows of the last read: { at, error, rows: { sol, usdc }, fees, nonces }. A row is
  * { state, text } and, with an amount, { amount, unit } too. `fees` maps a seat to its SOL text.
+ * `nonces` is { seat, have, ks } from the last read of the nonce accounts, or null.
  */
 export function readTexts(c) {
   const r = c.balances;
@@ -91,6 +94,7 @@ export function readTexts(c) {
     error: r.error,
     rows: { sol: rowOf(r, "sol"), usdc: rowOf(r, "usdc") },
     fees: Object.fromEntries(fees),
+    nonces: r.nonces,
   };
 }
 
@@ -257,16 +261,36 @@ function backup(c, act, actions) {
 
 const shortId = (id) => id.slice(0, 8) + "…" + id.slice(-6);
 
+// Why a step cannot run now, in one line, or null: this browser holds no Solana key, no fee
+// address of it can pay (the notes of the fee addresses say why), or the fee address has no SOL.
+function stepBlock(c) {
+  const { localSeats, canWriteAs } = c.host;
+  if (!localSeats().some((i) => canWriteAs(i) && holdsShare(solOf(c.host, c.gid, i)))) {
+    return NO_KEY;
+  }
+  let seat;
+  try {
+    seat = payerSeat(c);
+  } catch {
+    return NO_PAYER;
+  }
+  return c.balances.fees[seat] === 0n ? `Device ${seat} has no SOL at its fee address.` : null;
+}
+
 // Create nonce, and Enable USDC while the last read shows no USDC account: it comes from the
-// balance read and from nothing else. A step that runs disables both.
-function stepButtons(c, actions, busy) {
+// balance read and from nothing else. A step that runs, or that cannot run, disables both. `done`
+// (USDC just enabled) leaves out Enable USDC: the next read would remove the button anyway.
+function stepButtons(c, actions, busy, done = false) {
   const { el } = c.host;
-  const usdcOff = readTexts(c).rows.usdc.state === "off";
-  const button = (step) => el("button", { class: "btn", type: "button", disabled: busy,
-    "data-sol": MARKS[step], "data-key": focusKey(step), onclick: () => actions[step]() },
-  STEP_TEXT[step]);
-  return el("div", { class: "row-actions" }, button("createNonce"),
-    usdcOff ? button("enableUsdc") : null);
+  const usdcOff = readTexts(c).rows.usdc.state === "off" && !done;
+  const why = stepBlock(c);
+  const button = (step) => el("button", { class: "btn", type: "button", disabled: busy || !!why,
+    "aria-describedby": why ? "sol-step-why" : null, "data-sol": MARKS[step],
+    "data-key": focusKey(step), onclick: () => actions[step]() }, STEP_TEXT[step]);
+  return el("div", { style: GRID },
+    why ? el("p", { class: "small", id: "sol-step-why", "data-sol": "step-why" }, why) : null,
+    el("div", { class: "row-actions" }, button("createNonce"),
+      usdcOff ? button("enableUsdc") : null));
 }
 
 // The screen of a step: a heading that takes the focus when the screen opens, then its parts.
@@ -284,19 +308,13 @@ function screen(c, actions, state, ...parts) {
 // carries a live role: the page rebuilds the nodes on every redraw and would say them again.
 const note = (c, mark, text) => c.host.el("p", { class: "small", "data-sol": mark }, text);
 
-const valueOf = ({ name, value }) => LAMPORT_ROWS.has(name) && /^\d+$/.test(value)
-  ? `${value} (${amountText(value, DECIMALS.sol)} SOL)` : value;
-
 // The lines of the checker first, then Confirm and Cancel. Both wait while the step sends.
 function reviewScreen(c, actions, state) {
   const { el } = c.host;
   const sending = state.step === "sending";
-  const rows = screenRows(state.review).flatMap((row) => [el("dt", {}, row.label),
-    el("dd", { class: CODE_ROWS.has(row.name) ? "hex" : null, "data-sol": "row-" + row.name },
-      valueOf(row))]);
   const button = (mark, cls, text, onclick) => el("button", { class: "btn " + cls, type: "button",
     disabled: sending, "data-sol": mark, "data-key": "sol-direct-" + mark, onclick }, text);
-  return screen(c, actions, state, el("dl", { class: "kv", "data-sol": "direct-rows" }, ...rows),
+  return screen(c, actions, state, rowList(c, screenRows(state.review), "direct-rows"),
     note(c, "direct-signs", SIGNS(state.seat)),
     sending ? note(c, "direct-busy", BUSY.sending) : null,
     el("div", { class: "row-actions" },
@@ -309,28 +327,24 @@ function stoppedScreen(c, actions, state) {
   const { el } = c.host;
   const { review } = state;
   const alert = (mark, text) => el("p", { class: "callout bad", "data-sol": mark }, text);
-  const rules = refusalRows(review).map((rule) => el("li", { "data-sol": "rule-" + rule.id },
-    el("strong", {}, rule.statement), " ", el("span", { class: "small" }, rule.detail)));
   return screen(c, actions, state, state.note ? alert("direct-poor", state.note) : null,
-    review.kind === "refused" ? el("ul", { class: "list", "data-sol": "direct-rules" }, rules)
-      : alert("direct-error", review.text),
+    ...(review.kind === "refused" ? refusalPart(c, review, "direct")
+      : [alert("direct-error", review.text)]),
     note(c, "direct-nothing", NOTHING_SIGNED),
     el("div", { class: "row-actions" }, el("button", { class: "btn", type: "button",
       "data-sol": "cancel", "data-key": "sol-direct-cancel", onclick: () => actions.cancel() },
     "Close")));
 }
 
-// The result of a step: its words, the short form of its signature and the explorer link.
-function resultLine(c, state) {
+// The result of a step: its words, the short form of its signature and the explorer link. `key`
+// gives the link a data-key, so that the focus lands there when the button of the step is gone.
+function resultLine(c, state, key = null) {
   const { el } = c.host;
   const { txId } = state.result;
-  const link = el("a", { class: "btn sm", href: EXPLORER_TX + txId, rel: "noopener noreferrer",
-    "data-sol": "direct-explorer", target: "_blank" }, "Open in explorer",
-  el("span", { class: "sr-only" }, " (the transaction, opens in a new tab)"));
   return el("div", { style: GRID, "data-sol": "direct-result" },
     el("p", { class: "small" }, resultText(state), " ",
       el("span", { class: "hex", "data-sol": "direct-signature" }, shortId(txId))),
-    el("div", { class: "row-actions" }, link));
+    el("div", { class: "row-actions" }, txLink(c, txId, "direct-explorer", key)));
 }
 
 const STEP_BODY = {
@@ -339,11 +353,22 @@ const STEP_BODY = {
   review: (c, actions, state) => [reviewScreen(c, actions, state)],
   sending: (c, actions, state) => [reviewScreen(c, actions, state)],
   stopped: (c, actions, state) => [stoppedScreen(c, actions, state)],
-  done: (c, actions, state) => [resultLine(c, state), stepButtons(c, actions, false)],
+  done: (c, actions, state) => {
+    const enabled = state.kind === "enableUsdc" && ENABLED.has(state.result.status);
+    return [resultLine(c, state, enabled ? focusKey("enableUsdc") : null),
+      stepButtons(c, actions, false, enabled)];
+  },
   failed: (c, actions, state) => [c.host.el("p", { class: "callout bad",
     "data-sol": "direct-failed" }, state.text), stepButtons(c, actions, false)],
 };
 const SCREENS = new Set(["review", "sending", "stopped"]);
+
+// How many nonce accounts the paying device holds, and how many of them no open send uses.
+function nonceLine(c) {
+  const held = c.balances.nonces;
+  if (!held) return null;
+  return note(c, "nonces", `Nonce accounts: ${held.have}, free: ${freeNonces(c)}.`);
+}
 
 // The two steps that one device takes alone with its fee key (direct.js).
 function sendSetup(c, actions) {
@@ -353,12 +378,13 @@ function sendSetup(c, actions) {
   const body = STEP_BODY[state?.step ?? "idle"](c, actions, state);
   return el("div", { style: GRID, "data-sol": "send-setup" },
     SCREENS.has(state?.step) ? null : el("h4", {}, SETUP_TITLE),
-    SCREENS.has(state?.step) ? null : note(c, "direct-cost", COST_NOTE), ...body);
+    SCREENS.has(state?.step) ? null : nonceLine(c), ...body);
 }
 
 function ready(c, act, actions, done) {
   const read = readTexts(c);
-  return [facts(c), balances(c, read), receive(c, base58(done.groupKey)), sendSetup(c, actions),
+  return [facts(c), balances(c, read), receive(c, base58(done.groupKey)),
+    sendForm(c, act, actions), sendList(c, actions), sendSetup(c, actions),
     fees(c, read), backup(c, act, actions)];
 }
 

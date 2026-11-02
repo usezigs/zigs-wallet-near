@@ -516,7 +516,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
         detail('Route', from.network + ' → NEAR Intents → ' + to.network)),
       el('label', { for: 'swap-refund', class: 'swap-field-label' },
         'Refund address: the Solana address that you pay from. Use a wallet that you control, '
-          + 'not an exchange, and not the Solana address of a Zigs wallet: it cannot send yet.'),
+          + 'not an exchange.'),
       refund, refundNote,
       el('div', { class: 'swap-review-warning' }, text('', 'Real funds', 'strong'),
         text('', UNTESTED), text('', SWAP_PRIVACY)),

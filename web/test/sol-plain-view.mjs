@@ -4,7 +4,7 @@
 // a mainnet wallet that the server does not serve, and a testnet wallet, look as before; a served
 // wallet gets the Solana section, the start card (device 1 only), the setup states, the address of
 // the agreed group key with Copy and the explorer link, the SOL and USDC balances, the fee and
-// backup rows; the rows of Overview are real, Receive works and Send says "not available yet";
+// backup rows; the rows of Overview are real, and Receive and Send work;
 // Change devices warns that the funds stay, also in the dialog that moves the Zcash funds; a plain
 // seat gets the backup dialog, its file state and the saved-file check; the probe keeps no key.
 // Run: node web/test/sol-plain-view.mjs   (Node 26)
@@ -18,11 +18,11 @@ import { plainView, readTexts } from "../sol/plain/view.js";
 import { config, loadRig, mainnetConfig, sleep } from "./sol-rig.mjs";
 
 // The words of the tab, as people read them. A change of a word is a change of this file.
-const FACTS = "Real money, public on chain. Not audited. No sending yet: deposits stay here.";
+const FACTS = "Real money, public on chain. Not audited.";
 const START_NOTE = "Helius sees your IP and wallet address. "
   + "Funding fee addresses links each device to this wallet.";
 const RECEIVE_ONLY = "Only SOL and USDC. Other tokens can be lost.";
-const FEE_NOTE = "Fee addresses pay for setup now and for sending later.";
+const FEE_NOTE = "Fee addresses pay for setup and for sending.";
 const EXPLORER_NOTE = "Helius and the explorer see your IP.";
 const EXPOSURE = "Solana mainnet shows every balance and payment of this wallet to everyone. "
   + "Helius sees your IP address and the address of this wallet.";
@@ -30,11 +30,19 @@ const FUNDS_STAY = "Funds sent to this address stay there.";
 const STAYS = "SOL and USDC stay at this wallet’s Solana address. A device left out keeps "
   + "its key share.";
 // The words that the body text of a card may hold: the owner found the tab too text heavy.
-const BUDGET = { start: 33, ready: 38, stopped: 20, running: 20, differs: 15, early: 10,
-  stoppedAndDiffer: 10, forgedFee: 82, noFee: 170, away: 13 };
+// The facts line lost 3 words ("Sending comes later."): forgedFee 70 to 67. ready: the line of the
+// nonce accounts adds 5 once a read shows them (net +2). noFee: the reason why no step can run adds
+// 9 words (net +6). The send form has its own budget (FORM_WORDS).
+const BUDGET = { start: 30, ready: 28, stopped: 20, running: 20, differs: 15, early: 10,
+  stoppedAndDiffer: 10, forgedFee: 67, noFee: 164, away: 13 };
+// The words that the send form authors itself: the labels of its fields. The saved recipient
+// picker is the shared component of the Address book and has its own words.
+const FORM_WORDS = 5;
 // The words that Set up sending adds to the ready card, for each state of a step. The words of the
 // checker and of the network are not counted: they are not copy.
-const STEP_BUDGET = { reading: 3, review: 5, sending: 8, refusal: 3, poor: 18, error: 3,
+// refusal and poor: the summary line "The checker refused this." (4 words) stands in front of the
+// rules, which are now in a closed details element (they were an open list).
+const STEP_BUDGET = { reading: 3, review: 5, sending: 8, refusal: 7, poor: 22, error: 3,
   done: 5, unknown: 8, failed: 0 };
 
 const rig = await loadRig();
@@ -120,11 +128,17 @@ const promise = (what, tree) => assert.doesNotMatch(spoken(tree), PROMISE,
 const NOT_BODY = /\b(label|badge|sr-only|sol-amount|addr-full|hex)\b/;
 const wordsIn = (s) => s.split(/\s+/).filter(Boolean).length;
 const skipped = (n) => n.attrs.hidden !== undefined || /^(button|a|h3|h4|input|dl)$/.test(n.tag)
+
   || (n.tag === "details" && n.attrs.open === undefined) || NOT_BODY.test(n.className ?? "")
-  || /^(backup-state-|direct-rules)/.test(n.attrs["data-sol"] ?? "");
+  || /^(backup-state-|direct-rules|send-form$)/.test(n.attrs["data-sol"] ?? "");
 const bodyText = (n) => (n.text !== undefined ? [n.text]
   : skipped(n) ? [] : n.kids.flatMap(bodyText));
 const bodyWords = (card) => wordsIn(bodyText(card).join(" "));
+// The words that the send form authors: not its buttons, headings and fields, and not the saved
+// recipient picker, which is the shared component of the Address book.
+const formText = (n) => (n.text !== undefined ? [n.text]
+  : /^(button|h4|input)$/.test(n.tag) || n.className === "recipient-picker" ? []
+    : n.kids.flatMap(formText));
 const card = (tree) => one(tree, (n) => n.className === "card card-pad sol-view");
 // A name that a person says must start with the visible text of its control (WCAG 2.5.3).
 const nameStartsWithText = (tree) => all(tree, (n) => n.attrs?.["aria-label"]
@@ -221,6 +235,8 @@ assert.equal(t.solStays(), "", "a wallet without a start document names no Solan
   // its check waits.
   c.raw = { ...raw, solstart: { 1: { by: 1, sig: "x", cluster: "mainnet-plain" } } };
   c.host = { ...host, checkIn: () => () => "wait" };
+  assert.equal(t.plainSol.setup(), null,
+    "the tab waits while a start document waits for its signature check: setup reads it now");
   const held = draw("solana");
   Object.assign(c, { raw, host });
   waits("while a start document waits for its signature check", held);
@@ -369,6 +385,9 @@ const readFrom = async (tab) => {
   assert.ok(words <= BUDGET.ready,
     `the ready card stays within ${BUDGET.ready} words, not ${words}`);
   assert.ok(nameStartsWithText(tab), "the name of a control starts with its visible text");
+  const formWords = wordsIn(formText(mark(tab, "send-form")).join(" "));
+  assert.ok(formWords <= FORM_WORDS,
+    `the send form authors at most ${FORM_WORDS} words, not ${formWords}`);
   assert.equal(text(mark(tab, "address")), address, "the full address of the group key");
   assert.equal(keyOfBase58(text(mark(tab, "address"))), done.groupKey, "and it is that key");
   assert.equal(text(mark(tab, "balance-sol")), "1.5 SOL");
@@ -499,14 +518,19 @@ step("the tab shows the address of the group key, Copy, the explorer link, the b
   assert.equal(mark(done, "direct-result").kids[0].attrs.role, undefined, "nor is a result");
   for (const name of ["reading", "sending", "poor", "error"]) {
     const tree = built(() => plainView({ ...c, direct: states[name][0] }, (fn) => fn, {}));
+    // The saved recipient picker of the send form is the shared component: its hint is a status.
+    const picker = all(tree, (n) => n.className === "recipient-picker")
+      .flatMap((n) => all(n, () => true));
     const live = all(tree, (n) => /^(status|alert)$/.test(n.attrs?.role ?? "")
-      && !/copy/.test(n.attrs["data-sol"] ?? ""));
+      && !/copy/.test(n.attrs["data-sol"] ?? "") && !picker.includes(n));
     assert.equal(live.length, 0, "no live node in the step state " + name);
   }
   const sums = built(() => plainView({ ...c, direct: states.review[0] }, (fn) => fn, {}));
   assert.equal(text(mark(sums, "row-fee")), "5000 (0.000005 SOL)", "the fee shows in SOL too");
   assert.equal(text(mark(sums, "row-rent")), "1056640 (0.00105664 SOL)", "and the rent");
-  assert.equal(text(mark(sums, "row-intent")), "create-nonce", "other rows stay as written");
+  assert.equal(text(mark(sums, "row-intent")), "Create nonce account", "the Action in words");
+  assert.equal(text(mark(sums, "row-cost")), "0.00106164 SOL", "fee plus rent, in SOL");
+  assert.equal(text(mark(sums, "row-cluster")), "mainnet", "other rows stay as written");
   const odd = { kind: "accepted", lines: [line("fee unknown")] };
   const oddTree = built(() => plainView({ ...c, direct: { ...step2, step: "review", review: odd } },
     (fn) => fn, {}));
@@ -564,8 +588,8 @@ step("a bad USDC account and a failed update stay on their own rows");
     assert.equal(shield.length, 0, id + " row has no Shield and no Unshield");
   }
   for (const id of ["sol", "usdc"]) {
-    assert.equal(choice(tree, "Send", id).attrs.disabled, "", id + " Send waits");
-    assert.match(text(choice(tree, "Send", id)), /Send is not available yet/);
+    assert.equal(choice(tree, "Send", id).attrs.disabled, undefined, id + " Send works");
+    assert.match(text(choice(tree, "Send", id)), /Solana Mainnet · public/);
     assert.equal(choice(tree, "Receive", id).attrs.disabled, undefined, id + " Receive works");
   }
   choice(tree, "Receive", "usdc").on.click();
@@ -605,7 +629,7 @@ step("a bad USDC account and a failed update stay on their own rows");
   }
   assert.match(text(asset(tree, "usdc")), /Wallet balance.*12\.345678.*USDC/);
 }
-step("the rows of Overview are real, Receive works and Send says it is not available yet");
+step("the rows of Overview are real, and Receive and Send work");
 
 // ── The backup of a plain seat: dialog, file state, saved-file check ──
 {

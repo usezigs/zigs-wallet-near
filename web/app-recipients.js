@@ -15,6 +15,8 @@ const destinations = [
   ["ZEC:mainnet:shielded", "Shielded ZEC · Zcash Mainnet"],
   ["SOL:devnet:shielded", "Shielded SOL · Solana Devnet"],
   ["SOL:devnet:public", "Public SOL withdrawal · Solana Devnet"],
+  ["SOL:mainnet:public", "Public SOL · Solana Mainnet"],
+  ["USDC:mainnet:public", "Public USDC · Solana Mainnet"],
 ];
 const kindKey = (r) => [r.asset, r.network, r.type].join(":");
 const kindText = (r) => destinations.find(([key]) => key === kindKey(r))?.[1] || "Unavailable destination";

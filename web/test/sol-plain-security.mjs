@@ -128,7 +128,7 @@ const withRaw = (change, show) => {
   const text1 = withRaw((raw) => ({ soldone: { 1: raw.soldone[1] } }), diagnostics);
   assert.match(text1, /^Solana part: setting up$/m);
   assert.match(text1, /^Solana backup files not saved: \d+$/m);
-  assert.doesNotMatch(text1, /^Solana payments to approve/m, "a plain part has no payments yet");
+  assert.match(text1, /^Solana payments to approve: 0$/m, "the count of the sends to approve");
   const forged = (raw) => ({ soldone: { ...raw.soldone, 2: { ...raw.soldone[2],
     groupKey: "00".repeat(32) } } });
   const differs = withRaw(forged, security);
@@ -175,7 +175,7 @@ const SAME_RULE = /Zcash \+ Solana · same approval rule/;
   const live = diagnostics();
   assert.match(live, /^Solana part: ready$/m);
   assert.match(live, /^Solana backup files not saved: 3$/m);
-  assert.doesNotMatch(live, /^Solana payments to approve/m);
+  assert.match(live, /^Solana payments to approve: 0$/m);
   await click(key(tree, "security-backup-2-sol"));
   assert.match(t.ui.backup?.words.title ?? "", /Back up the Solana part of device 2/,
     "Back up opens the backup of the plain seat");
