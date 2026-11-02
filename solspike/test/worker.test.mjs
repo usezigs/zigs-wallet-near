@@ -2,7 +2,7 @@
 // The real worker.js, guard.js and prepare.js run in Node. /sol/zolana.bundle.js and
 // /sol/transfer.js are replaced by worker-sdk-stub.mjs (the real decoders, a fake client, wallet
 // and proof input builder), so the test needs no network, no wasm and no key. transfer.js has
-// its own test with the real SDK. The steps name the mutants that they kill:
+// its own test with the real SDK. The steps check:
 //   U13 the finite-expiry refusal      U14 the expiry read-back from the instruction data
 //   U15 the single-origin fetch guard  U16 redact() in answer()   U18 redact.add() in init()
 // and the nonce version tag, the order of commands and the prover that the client uses. The fetch

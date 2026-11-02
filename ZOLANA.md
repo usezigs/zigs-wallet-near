@@ -1441,8 +1441,6 @@ one defect, which version 2 fixed. The move needs these first:
   signs
   the version 2 address, so the full replay of the landed `create` and `execute` passed on version
   2 only (commit cc92a9c).
-- `sh sol-program/mutants.sh` removes one rule per mutant in a copy of `src/`: the tests kill all
-  51 mutants. The unchanged source must pass first, and a kill counts only when named tests fail.
 
 **Condition 1: SOL withdrawals, version 4, 16 October 2026.** The pool reads one settlement group
 per withdrawal leg right after the owner signers: the SOL interface (`["sol_interface", 0]` of the

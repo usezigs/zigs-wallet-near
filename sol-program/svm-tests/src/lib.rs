@@ -396,8 +396,8 @@ pub fn close_cancelled_ix(payer: &Pubkey, body: &Body) -> Instruction {
     )
 }
 
-/// The program's folder: `..`, or `ZIGS_PROGRAM_DIR` (the mutation check of `mutants.sh`
-/// points it at a changed copy). The tests read its ELF, its source and its lock file.
+/// The program's folder: `..`, or `ZIGS_PROGRAM_DIR` when it is set. The tests read its ELF, its
+/// source and its lock file.
 pub fn program_dir() -> PathBuf {
     std::env::var_os("ZIGS_PROGRAM_DIR")
         .map(PathBuf::from)
