@@ -18,6 +18,14 @@ import { canApprove, reviewText } from "./review.js";
 export const TITLE_KEY = "sol-direct-title";
 /** The key that gives the focus back to the button of a kind (data-key). */
 export const focusKey = (kind) => "sol-direct-" + kind;
+/** The name of each step. */
+export const STEP_TEXT = { createNonce: "Create nonce", enableUsdc: "Enable USDC" };
+export const BUSY = { reading: "Reading the chain…", sending: "Signing and sending…" };
+export const NOTHING_SIGNED = "Nothing was signed.";
+const RESULT = {
+  confirmed: "Confirmed", finalized: "Confirmed", failed: "Failed on chain",
+  unknown: "Sent, not confirmed yet",
+};
 
 const BLANK = "00".repeat(32); // the address of a nonce account does not depend on the blockhash
 // ponytail: a device looks at its first 100 nonce accounts (the most that one accounts call takes).
@@ -34,6 +42,7 @@ const BAD_ANSWER = "The Worker answered with data that Zigs cannot use.";
 const INCOMPLETE = "The checker answered with lines that Zigs cannot show.";
 const UNSEEN = { status: "unknown", slot: "" };
 const SIMULATED = "The network refused this in a test run: ";
+const TOO_OLD = "This review is too old. Nothing was sent. Start again.";
 
 const textOf = (e) => String(e?.message ?? e);
 
@@ -109,9 +118,31 @@ async function examine(c, worker, kind, seat) {
   return canApprove(review) ? { step: "review", review, run } : stopped(review, seat);
 }
 
+/** The words of a finished step, as people read them: "Create nonce: Confirmed, device 1." */
+export const resultText = ({ kind, result, seat }) =>
+  `${STEP_TEXT[kind]}: ${RESULT[result.status] ?? RESULT.unknown}, device ${seat}.`;
+
+const SPOKEN = {
+  reading: () => BUSY.reading,
+  sending: () => BUSY.sending,
+  stopped: (s) => [s.note, s.review.kind === "error" ? s.review.text : "", NOTHING_SIGNED]
+    .filter(Boolean).join(" "),
+  done: resultText,
+  failed: (s) => s.text,
+};
+
+// What a screen reader hears when the step changes. The page rebuilds its nodes on every redraw,
+// so the words go to one live region that stays (host.announce) and the nodes carry no role.
+// A review is silent: the focus goes to its heading.
+const announce = (c, state) => {
+  const words = SPOKEN[state.step]?.(state);
+  if (words) c.host.announce(words);
+};
+
 function finish(c, state, change, key) {
   if (c.direct !== state) return;
   Object.assign(state, change);
+  announce(c, state);
   c.host.focusAfter(key, true);
   c.host.render();
 }
@@ -125,6 +156,7 @@ function finish(c, state, change, key) {
 export async function startDirect(c, kind, ensure) {
   const state = { kind, step: "reading" };
   c.direct = state;
+  announce(c, state);
   c.host.render();
   let change;
   try {
@@ -139,7 +171,9 @@ export async function startDirect(c, kind, ensure) {
 }
 
 // The text for a test run that failed: what the network said, and the fee sentence if it fits.
+// The blockhash of a review that stayed open for about a minute is gone: the person starts again.
 function simulateText(run, seat) {
+  if (/BlockhashNotFound/.test(run.err)) return TOO_OLD;
   const logs = (Array.isArray(run.logs) ? run.logs : []).join(" | ").slice(0, 300);
   const said = [SIMULATED + run.err, logs].filter(Boolean).join(" ");
   return NO_SOL.test(`${run.err} ${logs}`) ? `${poorText(seat)} ${said}` : said;
@@ -183,6 +217,7 @@ export async function confirmDirect(c, ensure) {
   const state = c.direct;
   if (state?.step !== "review") return;
   state.step = "sending";
+  announce(c, state);
   c.host.render();
   let change;
   try {

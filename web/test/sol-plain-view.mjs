@@ -22,7 +22,7 @@ const FACTS = "Real money, public on chain. Not audited. Sending comes later.";
 const START_NOTE = "Helius sees your IP and wallet address. "
   + "Funding fee addresses links each device to this wallet.";
 const RECEIVE_ONLY = "Only SOL and USDC. Other tokens can be lost.";
-const FEE_NOTE = "Fee addresses are needed when sending starts.";
+const FEE_NOTE = "Fee addresses pay for setup and sending.";
 const EXPLORER_NOTE = "Helius and the explorer see your IP.";
 const EXPOSURE = "Solana mainnet shows every balance and payment of this wallet to everyone. "
   + "Helius sees your IP address and the address of this wallet.";
@@ -32,7 +32,7 @@ const STAYS = "SOL and USDC stay at this wallet’s Solana address. A device lef
 // The words that the body text of a card may hold: the owner found the tab too text heavy.
 const BUDGET = { start: 30, ready: 26, stopped: 20, running: 20, differs: 15, early: 10,
   stoppedAndDiffer: 10, forgedFee: 70, noFee: 158, away: 13 };
-// The words that Set up sending adds to the ready card, for each state of a step. The words of the
+// The words that Prepare to send adds to the ready card, for each state of a step. The words of the
 // checker and of the network are not counted: they are not copy.
 const STEP_BUDGET = { reading: 3, review: 5, sending: 8, refusal: 3, poor: 18, error: 3,
   done: 5, unknown: 8, failed: 0 };
@@ -360,6 +360,8 @@ const readFrom = async (tab) => {
   assert.ok(marks.indexOf("facts") < marks.indexOf("balance-sol")
     && marks.indexOf("facts") < marks.indexOf("address"), "the warning comes before the address");
   assert.equal(text(mark(tab, "facts")), FACTS, "the ready card shows the facts");
+  assert.equal(text(one(tab, (n) => n.tag === "h3")), "Solana",
+    "the card holds the address, the setup and the backup, so it is not titled Receive");
   assert.ok(text(tab).includes(RECEIVE_ONLY), "the address says what it takes");
   assert.ok(one(tab, (n) => n.className === "label" && text(n) === "Solana mainnet address"),
     "and its label names the network");
@@ -374,7 +376,7 @@ const readFrom = async (tab) => {
   assert.equal(text(mark(tab, "fee-balance-1")), "0.005 SOL");
   assert.equal(text(mark(tab, "fee-balance-2")), "0 SOL");
   for (const i of [1, 2, 3]) assert.equal(text(mark(tab, "fee-address-" + i)), fee(i));
-  assert.ok(text(tab).includes(FEE_NOTE), "the fee addresses say when they are needed");
+  assert.ok(text(tab).includes(FEE_NOTE), "the fee addresses say what they pay for");
   assert.ok(one(tab, (n) => n.className === "privacy-badge privacy-public"),
     "the tab says Public");
   assert.ok(one(tab, (n) => n.className === "label" && text(n) === "Solana Mainnet"),
@@ -441,7 +443,7 @@ const readFrom = async (tab) => {
 }
 step("the tab shows the address of the group key, Copy, the explorer link, the balances and fees");
 
-// ── Set up sending: the words of each state of a step ──
+// ── Prepare to send: the words of each state of a step ──
 {
   const idle = built(() => plainView(c, (fn) => fn, {}));
   const base = bodyWords(card(idle));
@@ -491,10 +493,26 @@ step("the tab shows the address of the group key, Copy, the explorer link, the b
   assert.equal(mark(done, "direct-explorer").attrs.href, "https://explorer.solana.com/tx/" + txId);
   assert.doesNotMatch(mark(done, "direct-explorer").attrs.href, /cluster=/);
   const failed = built(() => plainView({ ...c, direct: states.failed[0] }, (fn) => fn, {}));
-  assert.equal(mark(failed, "direct-failed").attrs.role, "alert", "a failure is an alert");
-  assert.equal(mark(done, "direct-result").kids[0].attrs.role, "status", "a result is a status");
+  // The words go to the live region of the page (direct.js). A node that the page rebuilds on
+  // every redraw with a live role would say them again.
+  assert.equal(mark(failed, "direct-failed").attrs.role, undefined, "a failure is no live node");
+  assert.equal(mark(done, "direct-result").kids[0].attrs.role, undefined, "nor is a result");
+  for (const name of ["reading", "sending", "poor", "error"]) {
+    const tree = built(() => plainView({ ...c, direct: states[name][0] }, (fn) => fn, {}));
+    const live = all(tree, (n) => /^(status|alert)$/.test(n.attrs?.role ?? "")
+      && !/copy/.test(n.attrs["data-sol"] ?? ""));
+    assert.equal(live.length, 0, "no live node in the step state " + name);
+  }
+  const sums = built(() => plainView({ ...c, direct: states.review[0] }, (fn) => fn, {}));
+  assert.equal(text(mark(sums, "row-fee")), "5000 (0.000005 SOL)", "the fee shows in SOL too");
+  assert.equal(text(mark(sums, "row-rent")), "1056640 (0.00105664 SOL)", "and the rent");
+  assert.equal(text(mark(sums, "row-intent")), "create-nonce", "other rows stay as written");
+  const odd = { kind: "accepted", lines: [line("fee unknown")] };
+  const oddTree = built(() => plainView({ ...c, direct: { ...step2, step: "review", review: odd } },
+    (fn) => fn, {}));
+  assert.equal(text(mark(oddTree, "row-fee")), "unknown", "a fee that is no number is not changed");
 }
-step("each state of Set up sending stays within its words and names no promise");
+step("each state of Prepare to send stays within its words and names no promise");
 
 // ── A bad USDC account and a failed update stay on their own rows ──
 {

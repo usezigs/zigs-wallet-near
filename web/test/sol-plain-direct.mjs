@@ -7,7 +7,10 @@
 // and an answer "unknown" sign or send nothing more; the first free nonce index; a fresh blockhash
 // for each action; the fee signature (verified with sol_fee_verify) is on the bytes that were
 // simulated and sent; the secret of the fee key is in no Worker call, log, banner, document or
-// tree; the focus keys; and that Enable USDC follows the balance read.
+// tree; the focus keys; that Enable USDC follows the balance read; that a stop between the review
+// and Confirm, or between the test run and the send, sends nothing; that a refused send is not
+// repeated; the result words of each answer of the network; the device that pays; Escape, the
+// disabled buttons and the USDC rows; and the words that go to the live region of the page.
 // Run: node web/test/sol-plain-direct.mjs   (Node 26)
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -15,13 +18,16 @@ import { agreement } from "../sol/ceremony.js";
 import { COLLECTIONS, base58 } from "../sol/docs.js";
 import { feeOf, publishedFee } from "../sol/fee.js";
 import { wireBase64 } from "../sol/intent.js";
+import { closeDirect } from "../sol/plain/direct.js";
 import { GENESIS, PLAIN_WORKER_POLICY, checkCommand } from "../sol/plain/guard.js";
 import { createNonceIntent, plainPins } from "../sol/plain/intent.js";
 import { usdcAddress } from "../sol/plain/reads.js";
+import { plainView } from "../sol/plain/view.js";
 import * as W from "../sol/wasm/sol_wasm.js";
 import { loadRig, mainnetConfig, sleep } from "./sol-rig.mjs";
 
 const rig = await loadRig();
+const { announce } = await import("../app-dom.js"); // it needs the stub page of the rig
 const { t, data, waitFor } = rig;
 const step = (name) => console.log("ok  " + name);
 const realNow = Date.now;
@@ -209,6 +215,10 @@ const settle = async () => {
   await sleep(30);
 };
 const spy = { signs: [] };
+// The words that the step sends to the live region of the page (host.announce).
+const said = [];
+assert.equal(c.host.announce, announce, "the host of the page gives the one live region");
+c.host.announce = (words) => said.push(words);
 c.W = { ...W, sol_plain_fee_sign: (...args) => {
   spy.signs.push(args);
   return (spy.override ?? W.sol_plain_fee_sign)(...args);
@@ -216,6 +226,7 @@ c.W = { ...W, sol_plain_fee_sign: (...args) => {
 const start = async (button) => {
   calls.length = 0;
   spy.signs.length = 0;
+  said.length = 0;
   await click(mark(draw(), button));
   return draw();
 };
@@ -224,11 +235,17 @@ const rowsOf = (tree) => {
   const cells = list.kids.map(text);
   return Array.from({ length: cells.length / 2 }, (_, i) => [cells[2 * i], cells[2 * i + 1]]);
 };
+// The checker writes fee and rent in lamports; the tab adds the SOL form after them.
 const checkerRows = (run) => W.plain_check_message(run.message, run.intent, run.pins, run.chain)
   .split("\n").slice(1).map((line) => {
     const at = line.indexOf(" ");
-    return [LABEL_OF[line.slice(0, at)], line.slice(at + 1)];
+    const [name, value] = [line.slice(0, at), line.slice(at + 1)];
+    return [LABEL_OF[name], /^(fee|rent)$/.test(name) ? `${value} (${Number(value) / 1e9} SOL)`
+      : value];
   });
+// A node of the step that is a live region. The page says the step through host.announce.
+const silent = (tree) => all(mark(tree, "send-setup") ?? tree,
+  (n) => /^(status|alert)$/.test(n.attrs?.role ?? "")).length;
 await read();
 
 // ── The tab: Create nonce, and Enable USDC while the read shows no USDC account ──
@@ -256,6 +273,7 @@ let first;
   const tab = draw();
   const button = mark(tab, "create-nonce");
   calls.length = 0;
+  said.length = 0;
   const twice = [click(button), click(button)];
   await Promise.all(twice);
   assert.equal(calls.filter((x) => x.cmd === "blockhash").length, 1, "a double click is one step");
@@ -280,6 +298,10 @@ let first;
   assert.deepEqual([title.tag, title.attrs.tabindex, title.attrs["data-key"]],
     ["h4", "-1", "sol-direct-title"], "the heading can take the focus");
   assert.deepEqual(rowsOf(tab2), checkerRows(c.direct.run), "the rows are the checker's lines");
+  assert.equal(rowsOf(tab2).find(([label]) => label === "Fee lamports")[1], "5000 (0.000005 SOL)",
+    "the fee shows in SOL after the lamports, so that the cost can be read before Confirm");
+  assert.deepEqual(said, ["Reading the chain…"], "the review says nothing: the focus goes to it");
+  assert.equal(silent(tab2), 0, "no node of the step is a live region: the redraw would repeat it");
   assert.deepEqual(rowsOf(tab2).map(([label]) => label),
     ["Action", "Network", "Fee lamports", "Rent lamports", "Fee payer", "Wallet"]);
   assert.equal(rowsOf(tab2).find(([label]) => label === "Fee payer")[1], base58(fee(1)),
@@ -294,6 +316,7 @@ let first;
 
   // Confirm twice: one action.
   calls.length = 0;
+  said.length = 0;
   const confirm = mark(tab2, "confirm");
   await Promise.all([click(confirm), click(confirm)]);
   assert.deepEqual(names(), ["simulate", "send", "confirm"],
@@ -315,10 +338,13 @@ let first;
     "the wasm signs the message, the intent and the chain that were shown");
   assert.deepEqual(JSON.parse(round), { secret }, "the round holds the secret and nothing else");
   assert.equal(c.direct.step, "done");
+  assert.deepEqual(said, ["Signing and sending…", "Create nonce: Confirmed, device 1."],
+    "the live region says that the step sends, then how it ended");
   assert.deepEqual(t.wantFocus, { key: "sol-direct-createNonce", force: true },
     "the focus goes back to the button");
   const done = draw();
   sound(done);
+  assert.equal(silent(done), 0);
   const line = text(mark(done, "direct-result"));
   assert.ok(line.startsWith("Create nonce: Confirmed, device 1. "), line);
   const id = base58(signature);
@@ -396,6 +422,8 @@ step("Cancel gives the focus back, a blockhash is read for each action, and the 
   assert.ok(text(rule).length > text(rule.kids[0]).length, "and the detail of the checker");
   assert.equal(mark(tab, "confirm"), undefined, "there is no Confirm");
   assert.match(text(mark(tab, "direct-nothing")), /^Nothing was signed\.$/);
+  assert.deepEqual(said, ["Reading the chain…", "Nothing was signed."]);
+  assert.equal(silent(tab), 0);
   assert.deepEqual(t.wantFocus, { key: "sol-direct-title", force: true });
   assert.equal(text(mark(tab, "cancel")), "Close");
   await click(mark(tab, "cancel"));
@@ -416,6 +444,8 @@ step("a refusal shows the rules and signs and sends nothing");
   const poor = text(mark(tab, "direct-poor"));
   assert.equal(poor, "Device 1 has too little SOL at its fee address, and mainnet has no faucet.");
   assert.equal(poor.split(/[.!?]\s/).length, 1, "one sentence");
+  assert.equal(said.at(-1), poor + " Nothing was signed.", "the live region says it");
+  assert.equal(silent(tab), 0);
   assert.equal(all(mark(tab, "direct-stopped"), (n) => n.tag === "a").length, 0, "with no link");
   assert.ok(mark(tab, "rule-plain-rent-payer"), "the rule rows show too");
   assert.deepEqual([spy.signs.length, names().filter((n) => /simulate|send/.test(n))], [0, []]);
@@ -432,7 +462,8 @@ step("a fee address with no SOL gets the mainnet sentence and no signature");
   assert.equal(c.direct.step, "failed");
   sound(tab);
   assert.equal(text(mark(tab, "direct-failed")), "blockhash: Helius is not answering.");
-  assert.equal(mark(tab, "direct-failed").attrs.role, "alert");
+  assert.equal(silent(tab), 0, "the live region says the failure once; the node is no alert");
+  assert.deepEqual(said, ["Reading the chain…", "blockhash: Helius is not answering."]);
   assert.deepEqual(t.wantFocus, { key: "sol-direct-createNonce", force: true });
   assert.deepEqual([spy.signs.length, names().includes("simulate")], [0, false]);
   world.genesis = GENESIS.devnet;
@@ -532,8 +563,8 @@ step("the secret of the fee key is in no call, log, banner, state or tree");
   assert.deepEqual(rowsOf(tree), checkerRows(c.direct.run));
   assert.deepEqual(rowsOf(tree).map(([label]) => label),
     ["Action", "Network", "Mint", "Fee lamports", "Rent lamports", "Fee payer", "Wallet"]);
-  assert.equal(rowsOf(tree).find(([label]) => label === "Rent lamports")[1], RENTS[2],
-    "the rent of a token account is shown");
+  assert.equal(rowsOf(tree).find(([label]) => label === "Rent lamports")[1],
+    `${RENTS[2]} (${Number(RENTS[2]) / 1e9} SOL)`, "the rent of a token account is shown, in SOL");
   assert.ok(rowsOf(tree).find(([label]) => label === "Mint")[1].startsWith("EPjFWdd5"));
   assert.deepEqual(Array.from(c.direct.run.intent.slice(0, 2)), [16, 0], "enable token 0, USDC");
   assert.equal(world.accounts.has(ata), false);
@@ -577,6 +608,303 @@ step("Enable USDC shows the lines, sends once, and turns off with the next read"
   world.accounts.delete(ata);
 }
 step("Enable USDC at an address with System-owned lamports is refused with the rule row");
+
+// ── The words of each answer of the network ──
+{
+  const wanted = { failed: "Failed on chain", finalized: "Confirmed",
+    pending: "Sent, not confirmed yet", none: "Sent, not confirmed yet" };
+  for (const [status, words] of Object.entries(wanted)) {
+    await start("create-nonce");
+    world.confirm = { status, slot: "1", err: status === "failed" ? '"x"' : null };
+    await click(mark(draw(), "confirm"));
+    world.confirm = { status: "confirmed", slot: "301", err: null };
+    const done = draw();
+    const line = `Create nonce: ${words}, device 1.`;
+    assert.ok(text(mark(done, "direct-result")).startsWith(line + " "), status + ": " + line);
+    assert.equal(said.at(-1), line, status + ": the live region says it once");
+    assert.equal(silent(done), 0, status + ": no node of the step is a live region");
+    assert.ok(mark(done, "direct-explorer"), status + ": the link is there to look");
+    assert.equal(c.direct.result.txId, base58(signatureOf(world.sent.at(-1))));
+  }
+}
+step("failed, finalized, pending and none each show their own words and the link");
+
+// ── A stop that comes between two guards sends nothing ──
+// A host whose first block(c) of direct.js finds the stop, and no other call does. A stub for the
+// whole call would also reach reactAborts, which publishes a real abort document.
+const STOP = "Solana setup stopped: a seat left.";
+const stopOnce = (host) => {
+  let armed = true;
+  return { ...host, sec: (...args) => {
+    if (armed && new Error().stack.includes("at block ")) {
+      armed = false;
+      return { sol: { aborted: STOP } };
+    }
+    return host.sec(...args);
+  } };
+};
+{
+  // Between the review and Confirm.
+  await start("create-nonce");
+  const confirm = mark(draw(), "confirm");
+  const host = c.host;
+  c.host = stopOnce(host);
+  const before = world.sent.length;
+  calls.length = 0;
+  spy.signs.length = 0;
+  await click(confirm);
+  c.host = host;
+  assert.equal(c.direct.step, "failed", "a stop before Confirm ends the step");
+  assert.equal(c.direct.text, STOP, "the step shows the stop");
+  assert.deepEqual([spy.signs.length, names()], [0, []], "nothing is signed, nothing is read");
+  assert.equal(world.sent.length, before);
+  c.direct = null;
+  // Between the test run and the send.
+  await start("create-nonce");
+  const second = mark(draw(), "confirm");
+  let release;
+  world.hold = { cmd: "simulate", wait: new Promise((done) => { release = done; }) };
+  calls.length = 0;
+  spy.signs.length = 0;
+  const running = click(second);
+  await waitFor("the test run", () => calls.some((x) => x.cmd === "simulate"));
+  c.host = stopOnce(host);
+  release();
+  await running;
+  c.host = host;
+  world.hold = null;
+  assert.deepEqual(names(), ["simulate"], "a stop after the test run sends nothing");
+  assert.equal(c.direct.step, "failed");
+  assert.equal(c.direct.text, STOP);
+  assert.equal(spy.signs.length, 1, "the key signed once, before the stop");
+  assert.equal(world.sent.length, before, "and nothing was sent");
+  c.direct = null;
+}
+step("a stop before Confirm or between the test run and the send sends nothing");
+
+// ── A send that the node refuses after a good test run is not repeated ──
+{
+  await start("create-nonce");
+  const confirm = mark(draw(), "confirm");
+  const hashes = world.hashes;
+  const before = world.sent.length;
+  world.failing = "send";
+  calls.length = 0;
+  spy.signs.length = 0;
+  await click(confirm);
+  world.failing = null;
+  assert.deepEqual(names(), ["simulate", "send"], "no confirm and no second send");
+  assert.equal(spy.signs.length, 1, "one signature");
+  assert.equal(world.hashes, hashes, "no new blockhash");
+  assert.equal(c.direct.step, "failed");
+  assert.equal(c.direct.text, "send: Helius is not answering.");
+  await click(confirm);
+  await sleep(100);
+  assert.deepEqual(names(), ["simulate", "send"], "a late click does nothing");
+  assert.equal(world.sent.length, before);
+  c.direct = null;
+}
+step("a refused send is shown once and never repeated");
+
+// ── A review that stayed open until its blockhash was gone ──
+{
+  await start("create-nonce");
+  world.sim = { err: '"BlockhashNotFound"', logs: [] };
+  const before = world.sent.length;
+  calls.length = 0;
+  await click(mark(draw(), "confirm"));
+  world.sim = { err: null, logs: [] };
+  const tooOld = "This review is too old. Nothing was sent. Start again.";
+  assert.equal(c.direct.text, tooOld, "the review is too old");
+  assert.equal(said.at(-1), tooOld);
+  assert.deepEqual(names(), ["simulate"]);
+  assert.equal(world.sent.length, before);
+  assert.ok(mark(draw(), "create-nonce"), "the person can start again");
+  await start("create-nonce");
+  assert.equal(c.direct.step, "review", "and the new review has a new blockhash");
+  c.direct = null;
+}
+step("a blockhash that is gone says the review is too old");
+
+// ── Another device pays when device 1 has no usable fee key ──
+{
+  // Device 1 shows another key than its share gives: its fee key cannot sign (fee.js).
+  const sharePackage = JSON.stringify(c.host.sec(c.gid, 1).sol.keyPackage);
+  const wasteful = c.W;
+  c.W = { ...wasteful, sol_fee_key: (pkg) => {
+    const made = JSON.parse(W.sol_fee_key(pkg));
+    return JSON.stringify(pkg === sharePackage ? { ...made, public: fee(2) } : made);
+  } };
+  world.accounts.set(base58(fee(2)), account(SOL(5)));
+  const tab = await start("create-nonce");
+  assert.equal(c.direct.step, "review", "device 2 reviews");
+  assert.equal(c.direct.seat, 2, "device 2 pays");
+  assert.match(text(mark(tab, "direct-signs")), /^Device 2 signs and pays\.$/);
+  assert.equal(rowsOf(tab).find(([label]) => label === "Fee payer")[1], base58(fee(2)));
+  await click(mark(tab, "confirm"));
+  assert.equal(c.direct.step, "done");
+  assert.ok(text(mark(draw(), "direct-result")).startsWith("Create nonce: Confirmed, device 2. "),
+    "the result names device 2");
+  const signature = signatureOf(steps().find((x) => x.cmd === "simulate").args.tx);
+  assert.ok(W.sol_fee_verify(fee(2), c.direct.run.message, signature), "fee key 2 signed");
+  assert.ok(!W.sol_fee_verify(fee(1), c.direct.run.message, signature), "not fee key 1");
+  assert.ok(!JSON.stringify(calls).includes(feeOf(c, 2).secret), "no secret of device 2 in a call");
+  // A short fee address names its own device, before and after the test run.
+  world.accounts.delete(base58(fee(2)));
+  const poor = await start("create-nonce");
+  assert.equal(c.direct.step, "stopped");
+  assert.equal(text(mark(poor, "direct-poor")),
+    "Device 2 has too little SOL at its fee address, and mainnet has no faucet.");
+  await click(mark(poor, "cancel"));
+  world.accounts.set(base58(fee(2)), account(SOL(5)));
+  await start("create-nonce");
+  world.sim = { err: '"InsufficientFundsForRent"', logs: [] };
+  await click(mark(draw(), "confirm"));
+  world.sim = { err: null, logs: [] };
+  assert.match(c.direct.text, /^Device 2 has too little SOL at its fee address, and mainnet has/);
+  c.W = wasteful;
+  world.accounts.delete(base58(fee(2)));
+  c.direct = null;
+}
+step("device 2 signs, pays and is named when device 1 has no usable fee key");
+
+// ── A checker that fails, or accepts with no line to show, leaves no way to confirm ──
+{
+  const wasteful = c.W;
+  for (const [answer, shown] of [
+    [() => { throw new Error("the checker broke"); }, "the checker broke"],
+    [() => "accepted\n", "The checker answered with lines that Zigs cannot show."],
+  ]) {
+    c.W = { ...wasteful, plain_check_message: answer };
+    const tab = await start("create-nonce");
+    c.W = wasteful;
+    assert.equal(c.direct.step, "stopped", shown);
+    assert.equal(text(mark(tab, "direct-error")), shown, "the screen shows: " + shown);
+    assert.equal(mark(tab, "confirm"), undefined, "there is no Confirm");
+    assert.equal(said.at(-1), shown + " Nothing was signed.", "the live region says it");
+    assert.deepEqual([spy.signs.length, names().filter((n) => /simulate|send/.test(n))], [0, []]);
+    await click(mark(tab, "cancel"));
+  }
+}
+step("a checker that fails or shows no line gives no Confirm");
+
+// ── Escape, the disabled buttons and the USDC rows ──
+{
+  const escape = (tree, name) => mark(tree, name).on.keydown({ key: "Escape" });
+  let tab = await start("create-nonce");
+  mark(tab, "direct-review").on.keydown({ key: "Enter" });
+  assert.equal(c.direct.step, "review", "another key does nothing");
+  escape(tab, "direct-review");
+  assert.equal(c.direct, null, "Escape cancels the review");
+  assert.deepEqual(t.wantFocus, { key: "sol-direct-createNonce", force: true });
+  world.afterWindow = (addresses) => world.accounts.set(addresses[0], nonceAccount());
+  tab = await start("create-nonce");
+  world.afterWindow = null;
+  assert.equal(c.direct.step, "stopped");
+  escape(tab, "direct-stopped");
+  assert.equal(c.direct, null, "and the refusal");
+  world.accounts.clear();
+  world.accounts.set(base58(fee(1)), account(SOL(5)));
+
+  // A step that reads: the start buttons wait.
+  let release;
+  world.hold = { cmd: "blockhash", wait: new Promise((done) => { release = done; }) };
+  calls.length = 0;
+  const reading = click(mark(draw(), "create-nonce"));
+  await waitFor("the read", () => calls.some((x) => x.cmd === "blockhash"));
+  tab = draw();
+  const waiting = [mark(tab, "create-nonce"), mark(tab, "enable-usdc")];
+  assert.ok(waiting.every((b) => b && b.attrs.disabled !== undefined), "both start buttons wait");
+  assert.equal(text(mark(tab, "direct-busy")), "Reading the chain…");
+  assert.equal(silent(tab), 0);
+  const state = c.direct;
+  closeDirect(c);
+  assert.equal(c.direct, state, "a step that reads is not closed");
+  release();
+  await reading;
+  world.hold = null;
+  assert.equal(c.direct.step, "review");
+
+  // A step that sends: Confirm and Cancel wait, and neither Cancel nor Escape drops the result.
+  world.hold = { cmd: "simulate", wait: new Promise((done) => { release = done; }) };
+  const sending = click(mark(draw(), "confirm"));
+  await waitFor("the test run", () => calls.some((x) => x.cmd === "simulate"));
+  tab = draw();
+  assert.equal(c.direct.step, "sending");
+  for (const name of ["confirm", "cancel"]) {
+    assert.notEqual(mark(tab, name).attrs.disabled, undefined, name + " waits while it sends");
+  }
+  assert.equal(text(mark(tab, "direct-busy")), "Signing and sending…");
+  assert.equal(silent(tab), 0);
+  closeDirect(c);
+  await click(mark(tab, "cancel"));
+  escape(tab, "direct-sending");
+  assert.equal(c.direct, state, "a step that sends is not closed");
+  release();
+  await sending;
+  world.hold = null;
+  assert.equal(c.direct.step, "done", "so its result is not lost");
+  assert.equal(c.direct.result.status, "confirmed");
+
+  // The USDC row: Enable USDC shows only for a read that found no account.
+  await settle();
+  const saved = { ...c.balances };
+  c.balances.next = Number.MAX_SAFE_INTEGER; // the draw starts no read
+  const rows = {
+    off: { at: 1, error: "", usdc: null, usdcError: "" },
+    reading: { at: null, error: "", usdc: null, usdcError: "" },
+    failed: { at: null, error: "Helius is not answering.", usdc: null, usdcError: "" },
+    bad: { at: 1, error: "", usdc: null, usdcError: "The USDC account is not a token account." },
+    stale: { at: 1, error: "Helius is not answering.", usdc: 5n, usdcError: "" },
+  };
+  for (const [name, row] of Object.entries(rows)) {
+    Object.assign(c.balances, row);
+    const shown = draw();
+    assert.equal(!!mark(shown, "enable-usdc"), name === "off", "Enable USDC for the row " + name);
+    assert.ok(mark(shown, "create-nonce"), "Create nonce stays for the row " + name);
+  }
+  Object.assign(c.balances, saved);
+  c.direct = null;
+
+  // A viewer with no device in this browser has neither button.
+  const viewer = built(() => plainView({ ...c, host: { ...c.host, localSeats: () => [] } },
+    (fn) => fn, {}));
+  assert.equal(mark(viewer, "send-setup"), undefined);
+  assert.equal(mark(viewer, "create-nonce"), undefined);
+}
+step("Escape cancels, the buttons wait while a step reads or sends, USDC follows its row");
+
+// ── The live region of the page stays; only its text changes ──
+{
+  const before = globalThis.document;
+  const mounted = [];
+  globalThis.document = new Proxy(recording(before), { get: (o, k) => k === "getElementById"
+    ? (id) => ({ id, after: (node) => { node.isConnected = true; mounted.push(node); } }) : o[k] });
+  try {
+    announce("one");
+    announce("two");
+    assert.equal(mounted.length, 1, "one region");
+    const region = mounted[0];
+    assert.equal(region.textContent, "", "the text is cleared first, so a repeat is a change");
+    await sleep(250);
+    assert.equal(region.textContent, "two", "then the last words are set");
+    assert.equal(region.className, "sr-only");
+    assert.deepEqual([region.attrs.role, region.attrs["aria-live"], region.attrs["aria-atomic"]],
+      ["status", "polite", "true"]);
+    announce("two");
+    assert.equal(region.textContent, "", "the same words again are cleared first too");
+    await sleep(250);
+    assert.equal(region.textContent, "two");
+    region.isConnected = false; // the page lost it
+    announce("three");
+    assert.equal(mounted.length, 2, "a new region replaces a region that left the page");
+    await sleep(250);
+    assert.equal(mounted[1].textContent, "three");
+  } finally {
+    globalThis.document = before;
+  }
+}
+step("the live region stays and only its text changes");
 
 // ── The wallet closes while a step reads: nothing is left behind ──
 {

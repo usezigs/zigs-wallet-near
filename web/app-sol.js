@@ -12,7 +12,7 @@ import {
   canWriteAs, checkIn, netConfirmed, refilter, signedDoc, signedMode,
 } from "./app-filter.js";
 import { openGroup, sdb, unsubGroup } from "./app-groups.js";
-import { act, el, guard } from "./app-dom.js";
+import { act, announce, el, guard } from "./app-dom.js";
 import { confirmedNo, groupVersion, safetyNo, seatCheck } from "./app-dkg.js";
 import { openBackupCheck, restore, sealAndSave } from "./app-backups.js";
 import { focusAfter, once, react, render } from "./app-loop.js";
@@ -144,7 +144,7 @@ export function resetSolStart() {
 // host.putSec is the save of a step that holds the lock of the secrets (putSol, shareOnce).
 export const solHost = () => ({
   Z, sdb, state, el, act, log, once, render, refilter, showBanner, sec, putSec: putSecHeld,
-  focusAfter,
+  focusAfter, announce,
   signedDoc,
   recipientSelect,
   exclusive, takeStored,

@@ -9,7 +9,7 @@ import { feeMismatch, mismatchText, publishedFee } from "../fee.js";
 import { holdsShare, solOf, stopOf } from "../secrets.js";
 import { labelOf } from "../wallet.js";
 import { privacyBadge } from "../../privacy-language.js";
-import { TITLE_KEY, focusKey } from "./direct.js";
+import { BUSY, NOTHING_SIGNED, STEP_TEXT, TITLE_KEY, focusKey, resultText } from "./direct.js";
 import { DECIMALS, amountText } from "./reads.js";
 import { refusalRows, screenRows } from "./review.js";
 
@@ -26,7 +26,7 @@ const FUNDS_STAY = "Funds sent to this address stay there.";
 const EXPLORER = "https://explorer.solana.com/address/";
 const EXPLORER_TX = "https://explorer.solana.com/tx/";
 const EXPLORER_NOTE = "Helius and the explorer see your IP.";
-const FEE_NOTE = "Fee addresses are needed when sending starts.";
+const FEE_NOTE = "Fee addresses pay for setup and sending.";
 const BACKUP_SAVED = "saved";
 const BACKUP_NONE = "not backed up";
 const COPY_FAILED = "Copy failed. Select the text and copy it.";
@@ -34,23 +34,16 @@ const READING = "Reading…";
 const NOT_READ = "Not read";
 const NOT_ENABLED = "No USDC yet";
 const COPIED_MS = 1500;
-const SETUP_TITLE = "Set up sending";
-const STEPS = {
-  createNonce: { mark: "create-nonce", text: "Create nonce" },
-  enableUsdc: { mark: "enable-usdc", text: "Enable USDC" },
-};
-const BUSY = { reading: "Reading the chain…", sending: "Signing and sending…" };
+const SETUP_TITLE = "Prepare to send";
+const MARKS = { createNonce: "create-nonce", enableUsdc: "enable-usdc" };
 const SIGNS = (seat) => `Device ${seat} signs and pays.`;
-const NOTHING_SIGNED = "Nothing was signed.";
-const RESULT = {
-  confirmed: "Confirmed", finalized: "Confirmed", failed: "Failed on chain",
-  unknown: "Sent, not confirmed yet",
-};
+// The checker shows fee and rent in lamports. The SOL form follows, so that the cost can be read.
+const LAMPORT_ROWS = new Set(["fee", "rent"]);
 // The rows that hold an address or a signature are set in the code face.
 const CODE_ROWS = new Set(["recipient", "mint", "payer", "group"]);
 const TITLES = {
   unavailable: "Solana is not available", "not started": "Add Solana", running: "Setting up Solana",
-  ready: "Receive", stopped: "Solana stopped", differs: "Keys differ",
+  ready: "Solana", stopped: "Solana stopped", differs: "Keys differ",
 };
 const UNITS = { sol: "SOL", usdc: "USDC" };
 const GRID = "display:grid;gap:8px";
@@ -269,23 +262,29 @@ function stepButtons(c, actions, busy) {
   const { el } = c.host;
   const usdcOff = readTexts(c).rows.usdc.state === "off";
   const button = (step) => el("button", { class: "btn", type: "button", disabled: busy,
-    "data-sol": STEPS[step].mark, "data-key": focusKey(step), onclick: () => actions[step]() },
-  STEPS[step].text);
+    "data-sol": MARKS[step], "data-key": focusKey(step), onclick: () => actions[step]() },
+  STEP_TEXT[step]);
   return el("div", { class: "row-actions" }, button("createNonce"),
     usdcOff ? button("enableUsdc") : null);
 }
 
 // The screen of a step: a heading that takes the focus when the screen opens, then its parts.
-function screen(c, state, ...parts) {
+// Escape cancels it; closeDirect ignores a step that reads or sends.
+function screen(c, actions, state, ...parts) {
   const { el } = c.host;
+  const onkeydown = (ev) => ev.key === "Escape" && actions.cancel();
   return el("div", { style: GRID, role: "group", "aria-labelledby": "sol-direct-title",
-    "data-sol": "direct-" + state.step },
+    "data-sol": "direct-" + state.step, onkeydown },
   el("h4", { id: "sol-direct-title", tabindex: "-1", "data-key": TITLE_KEY,
-    "data-sol": "direct-title" }, STEPS[state.kind].text), ...parts);
+    "data-sol": "direct-title" }, STEP_TEXT[state.kind]), ...parts);
 }
 
-const note = (c, mark, text, role = "status") =>
-  c.host.el("p", { class: "small", role, "data-sol": mark }, text);
+// The words of a step reach screen readers through host.announce (direct.js), so no node here
+// carries a live role: the page rebuilds the nodes on every redraw and would say them again.
+const note = (c, mark, text) => c.host.el("p", { class: "small", "data-sol": mark }, text);
+
+const valueOf = ({ name, value }) => LAMPORT_ROWS.has(name) && /^\d+$/.test(value)
+  ? `${value} (${amountText(value, DECIMALS.sol)} SOL)` : value;
 
 // The lines of the checker first, then Confirm and Cancel. Both wait while the step sends.
 function reviewScreen(c, actions, state) {
@@ -293,11 +292,11 @@ function reviewScreen(c, actions, state) {
   const sending = state.step === "sending";
   const rows = screenRows(state.review).flatMap((row) => [el("dt", {}, row.label),
     el("dd", { class: CODE_ROWS.has(row.name) ? "hex" : null, "data-sol": "row-" + row.name },
-      row.value)]);
+      valueOf(row))]);
   const button = (mark, cls, text, onclick) => el("button", { class: "btn " + cls, type: "button",
     disabled: sending, "data-sol": mark, "data-key": "sol-direct-" + mark, onclick }, text);
-  return screen(c, state, el("dl", { class: "kv", "data-sol": "direct-rows" }, ...rows),
-    note(c, "direct-signs", SIGNS(state.seat), null),
+  return screen(c, actions, state, el("dl", { class: "kv", "data-sol": "direct-rows" }, ...rows),
+    note(c, "direct-signs", SIGNS(state.seat)),
     sending ? note(c, "direct-busy", BUSY.sending) : null,
     el("div", { class: "row-actions" },
       button("confirm", "primary", "Confirm", () => actions.confirm()),
@@ -308,14 +307,13 @@ function reviewScreen(c, actions, state) {
 function stoppedScreen(c, actions, state) {
   const { el } = c.host;
   const { review } = state;
-  const alert = (mark, text) => el("p", { class: "callout bad", role: "alert", "data-sol": mark },
-    text);
+  const alert = (mark, text) => el("p", { class: "callout bad", "data-sol": mark }, text);
   const rules = refusalRows(review).map((rule) => el("li", { "data-sol": "rule-" + rule.id },
     el("strong", {}, rule.statement), " ", el("span", { class: "small" }, rule.detail)));
-  return screen(c, state, state.note ? alert("direct-poor", state.note) : null,
+  return screen(c, actions, state, state.note ? alert("direct-poor", state.note) : null,
     review.kind === "refused" ? el("ul", { class: "list", "data-sol": "direct-rules" }, rules)
       : alert("direct-error", review.text),
-    note(c, "direct-nothing", NOTHING_SIGNED, null),
+    note(c, "direct-nothing", NOTHING_SIGNED),
     el("div", { class: "row-actions" }, el("button", { class: "btn", type: "button",
       "data-sol": "cancel", "data-key": "sol-direct-cancel", onclick: () => actions.cancel() },
     "Close")));
@@ -324,14 +322,12 @@ function stoppedScreen(c, actions, state) {
 // The result of a step: its words, the short form of its signature and the explorer link.
 function resultLine(c, state) {
   const { el } = c.host;
-  const { status, txId } = state.result;
-  const word = RESULT[status] ?? RESULT.unknown;
-  const text = `${STEPS[state.kind].text}: ${word}, device ${state.seat}.`;
+  const { txId } = state.result;
   const link = el("a", { class: "btn sm", href: EXPLORER_TX + txId, rel: "noopener noreferrer",
     "data-sol": "direct-explorer", target: "_blank" }, "Open in explorer",
   el("span", { class: "sr-only" }, " (the transaction, opens in a new tab)"));
   return el("div", { style: GRID, "data-sol": "direct-result" },
-    el("p", { class: "small", role: status === "failed" ? "alert" : "status" }, text, " ",
+    el("p", { class: "small" }, resultText(state), " ",
       el("span", { class: "hex", "data-sol": "direct-signature" }, shortId(txId))),
     el("div", { class: "row-actions" }, link));
 }
@@ -343,7 +339,7 @@ const STEP_BODY = {
   sending: (c, actions, state) => [reviewScreen(c, actions, state)],
   stopped: (c, actions, state) => [stoppedScreen(c, actions, state)],
   done: (c, actions, state) => [resultLine(c, state), stepButtons(c, actions, false)],
-  failed: (c, actions, state) => [c.host.el("p", { class: "callout bad", role: "alert",
+  failed: (c, actions, state) => [c.host.el("p", { class: "callout bad",
     "data-sol": "direct-failed" }, state.text), stepButtons(c, actions, false)],
 };
 const SCREENS = new Set(["review", "sending", "stopped"]);
