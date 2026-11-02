@@ -10,10 +10,13 @@
 // confirm; a late device finds a landed transaction and sends nothing; a refusal at share time,
 // a commitment that the package does not name and three refusals end the session; every other error
 // (transport, a hang, a 429, a bad answer, a failed read or write) is no failed try, and a session
-// whose transaction landed is never ended; a hung call ends its step; a wallet that closes or a
-// session that ends stops a step before the send; the nonces of an ended session are dropped; a
-// hostile document stops no device; the pool controller and the plain controller never touch each
-// other's sessions; no secret leaves. The fake Worker answers errors as the real one does
+// whose transaction landed is never ended, also when the status node lags behind the node that
+// simulates (a landing moves the nonce, and a refusal with a moved nonce counts for nothing,
+// however late, after a reload and on a device that did not send); a hung call ends its step; a
+// wallet that closes or a session that ends stops a step before the send; the nonces of an ended
+// session are dropped; a hostile document stops no device, and a seat that posts many proposals
+// cannot take every watch of the page; the pool controller and the plain controller never touch
+// each other's sessions; no secret leaves. The fake Worker answers errors as the real one does
 // (`Error: <method>: <text>`, worker.js), because the page reads those texts.
 // Run: node web/test/sol-plain-sign.mjs   (Node 26)
 import assert from "node:assert/strict";
@@ -29,15 +32,15 @@ import { dropNonces, saveNonces } from "../sol/nonces.js";
 import { readSolSession } from "../sol/sessions.js";
 import { approvePlain as approveStep } from "../sol/plain/approve.js";
 import { attach } from "../sol/plain/control.js";
-import { block, settledBlock } from "../sol/plain/direct.js";
+import { LIMITS, block, settledBlock } from "../sol/plain/direct.js";
 import { GENESIS, base58Bytes, checkCommand } from "../sol/plain/guard.js";
 import {
   bytesOfHex, createNonceIntent, hexOfBytes, plainPins, sendSolIntent,
 } from "../sol/plain/intent.js";
 import { proposeSend as proposeStep } from "../sol/plain/propose.js";
 import { usdcAddress } from "../sol/plain/reads.js";
-import { LIMITS } from "../sol/plain/sign.js";
 import { filterSessions, writePart, writeProposal } from "../sol/plain/sessions.js";
+import { nonceOf } from "../sol/plain/sign.js";
 import * as W from "../sol/wasm/sol_wasm.js";
 import { loadRig, mainnetConfig, sleep } from "./sol-rig.mjs";
 
@@ -88,6 +91,7 @@ const world = {
   passed: new Set(), // the texts of the transactions that passed a simulation
   sims: [], sends: [], sendTimes: [], simError: null, sendError: null, sendLands: true,
   confirmAnswer: null,
+  movedErr: '"BlockhashNotFound"', // what a simulation of spent bytes says (Agave)
   shortAccounts: false,
 };
 const calls = [];
@@ -110,11 +114,26 @@ function signers({ n, message, sigs }) {
   const group = n === 2 && ed25519(null, message, nodeKey(GROUP.key), sigs[1]);
   return { feeSigner: fee, groupOk: group, ok: message[0] === 0x81 && fee !== undefined && group };
 }
+// The lifetime of a v1 message is its nonce value (bytes 8 to 40). A landing spends it: the nonce
+// account that holds it gets a new value in the same moment, and the same bytes fail from then on.
+const lifetimeOf = (tx) => hex(parts(tx).message.subarray(8, 40));
+const spent = new Set();
+function spendNonce(tx) {
+  const lifetime = lifetimeOf(tx);
+  spent.add(lifetime);
+  for (const [address, held] of world.accounts) {
+    const bytes = Buffer.from(held.data, "base64");
+    if (bytes.length !== 80 || bytes.subarray(40, 72).toString("hex") !== lifetime) continue;
+    createHash("sha256").update(lifetime).digest().copy(bytes, 40);
+    world.accounts.set(address, { ...held, data: bytes.toString("base64") });
+  }
+}
 function simulate({ tx }) {
   const found = parts(tx);
   const { ok, ...who } = signers(found);
   world.sims.push({ tx, n: found.n, ...who, message: hex(found.message) });
-  const err = ok ? world.simError : '"SignatureFailure"';
+  const moved = spent.has(lifetimeOf(tx)) ? world.movedErr : null;
+  const err = ok ? world.simError ?? moved : '"SignatureFailure"';
   if (!err) world.passed.add(tx);
   return { err: err ?? null, unitsConsumed: null, loadedAccountsDataSize: null, logs: [] };
 }
@@ -124,7 +143,10 @@ function send({ tx }) {
   world.sends.push(tx);
   world.sendTimes.push(Date.now());
   const id = base58(hex(parts(tx).sigs[0]));
-  if (world.sendLands) world.landed.set(id, { status: "confirmed", slot: "4242", err: null });
+  if (world.sendLands) {
+    world.landed.set(id, { status: "confirmed", slot: "4242", err: null });
+    spendNonce(tx);
+  }
   return { signature: id };
 }
 const unseen = { status: "none", slot: "", err: null };
@@ -720,6 +742,8 @@ const REFUSAL = "sendTransaction: RPC error -32002: Transaction simulation faile
   const fin = await session(id);
   assert.match(fin.error, /^Not sent: The network refused the signed transaction: /);
   assert.equal(calls.filter((x) => x.cmd === "simulate").length, 3, "three tries");
+  assert.equal(calls.filter((x) => x.cmd === "accounts" && x.args.addresses.length === 1).length,
+    3, "the nonce account is read for each refusal, and it still holds the nonce: a real failure");
   assert.equal(world.sends.length, 0);
   for (let i = 0; i < 6; i++) {
     plain.react();
@@ -877,6 +901,523 @@ step("a transport error after the send and an unknown result are no failed tries
 }
 step("a send that landed is never ended by a status that fails or hangs");
 
+// ── A landing spends the nonce: a refusal with a moved nonce is no failed try ──
+// The bytes went out and landed. The nonce moved on, so the simulation refuses them (the fake says
+// BlockhashNotFound, as Agave does when the nonce no longer fits, or another text), and a status
+// node that lags still says "none". Such a refusal counts for nothing, however long the lag lasts,
+// after a reload and on a device that did not send: the step waits and reads the status again.
+// The nonce account decides, not the time and not the memory of this tab.
+const NAMED = '"BlockhashNotFound"'; // what a simulation of spent bytes names (the fast path)
+const UNNAMED = '"InvalidAccountData"'; // a refusal that only the nonce account explains
+const lagging = () => ({ statuses: [unseen] });
+const orig = { send: answers.send, status: answers.status, confirm: answers.confirm,
+  simulate: answers.simulate, accounts: answers.accounts };
+// The node takes the bytes and the nonce moves on, and then the answer of the send is lost
+// ("answer"), or the send is good and the wait for the result fails ("wait").
+const landing = {
+  answer: () => {
+    answers.send = (args) => {
+      orig.send(args);
+      throw new Error("sendTransaction: the request failed (fetch failed)");
+    };
+  },
+  wait: () => {
+    answers.confirm = () => {
+      throw new Error("confirm: Helius is not answering.");
+    };
+  },
+};
+const unlag = () => {
+  Object.assign(answers, orig);
+  world.movedErr = NAMED;
+};
+const simulations = () => calls.filter((x) => x.cmd === "simulate").length;
+const reads = (k) => calls.filter((x) => x.cmd === "accounts"
+  && JSON.stringify(x.args.addresses) === JSON.stringify([nonceAddress(1, k)])).length;
+const waits = (w) => w.startsWith("The nonce of this payment moved.");
+// A lagging status leaves the session signed, with no failure part and no counted try.
+async function holds(id, label) {
+  assert.equal(await status(id), "signed", label + ": the session stays open");
+  assert.equal(doc(id).error, undefined, label + ": no failure part was written");
+  assert.equal(c.tries.get(id), undefined, label + ": no try was counted");
+}
+// The status catches up: the transaction is found, and the session ends sent after one send.
+async function catchUp(id, label) {
+  unlag();
+  await pump("sent", becomes(id, "sent"), 8000);
+  assert.equal(world.sends.length, 1, label + ": the bytes went out once");
+  assert.equal((await session(id)).slot, "4242");
+}
+{
+  const saved = { ...LIMITS };
+  Object.assign(LIMITS, { grace: 150, backoff: 20 });
+  for (const how of Object.keys(landing)) {
+    for (const err of [NAMED, UNNAMED]) {
+      const label = `${how}, ${err}`;
+      reset();
+      world.movedErr = err;
+      const { id, ss, k } = await newSend([2, 3]);
+      landing[how]();
+      answers.status = lagging;
+      await pump("the first send", () => sendCalls() >= 1);
+      await pump("the grace is over", () => Date.now() - world.sendTimes[0] > 2 * LIMITS.grace);
+      const seen = simulations();
+      await pump("more refusals", () => simulations() >= seen + 2);
+      assert.ok(world.landed.has(base58(ss.feeSig)), label + ": control: the transaction landed");
+      await holds(id, label + ", after the grace");
+      assert.equal(reads(k) > 0, err === UNNAMED,
+        label + ": the nonce account is read for a refusal that its text does not explain");
+      assert.ok(announced.some(waits), label + ": and the words say why the step waits");
+      await catchUp(id, label);
+      await pump("the memory of the send is dropped", () => !c.went.has(id));
+    }
+  }
+  Object.assign(LIMITS, saved);
+}
+step("a refusal after a landing ends nothing while the status node lags, also after the grace");
+
+// ── The node that serves the account can lag as well ──
+// The simulation names the spent nonce while the account read still shows the old value: the name
+// is enough. A refusal that no text explains, soon after this tab sent, waits for the grace.
+{
+  const saved = { ...LIMITS };
+  Object.assign(LIMITS, { backoff: 20 });
+  const cases = [["named", NAMED, 150], ["unnamed, within the grace", UNNAMED, 60_000]];
+  for (const [label, err, grace] of cases) {
+    reset();
+    LIMITS.grace = grace;
+    world.movedErr = err;
+    const { id, k } = await newSend([2, 3]);
+    const address = nonceAddress(1, k);
+    const old = structuredClone(world.accounts.get(address));
+    answers.accounts = ({ addresses }) => ({
+      accounts: addresses.map((a) => (a === address ? old : (world.accounts.get(a) ?? null))),
+    });
+    landing.answer();
+    answers.status = lagging;
+    await pump("the first send", () => sendCalls() >= 1);
+    const seen = simulations();
+    await pump("refusals", () => simulations() >= seen + 3
+      && Date.now() - world.sendTimes[0] > Math.min(2 * grace, 400));
+    if (grace > 1000) {
+      assert.ok(Date.now() - world.sendTimes[0] < grace, "control: within the grace");
+    }
+    await holds(id, label);
+    assert.equal(reads(k), 0, label + ": the old value of the account was never read");
+    await catchUp(id, label);
+  }
+  Object.assign(LIMITS, saved);
+}
+step("a stale account read does not make a refusal after a landing count");
+
+// ── The tab needs no memory: a reload, and a device that did not send ──
+// The note of the send (c.went) is gone, so only the nonce account can tell that the refusal comes
+// from a landing. The grace stays long: it holds nothing here.
+{
+  const saved = { ...LIMITS };
+  Object.assign(LIMITS, { backoff: 20, fallback: 100 });
+  for (const who of ["a reload", "a takeover"]) {
+    for (const err of [NAMED, UNNAMED]) {
+      const label = `${who}, ${err}`;
+      reset();
+      world.movedErr = err;
+      const { id, ss } = await newSend([2, 3]);
+      landing.answer();
+      answers.status = lagging;
+      await pump("the first send", () => sendCalls() >= 1);
+      assert.ok(world.landed.has(base58(ss.feeSig)), label + ": control: the transaction landed");
+      const seats = c.host.localSeats;
+      if (who === "a reload") {
+        plain.close();
+        plain.open(gid, base);
+        await waitFor("the documents",
+          () => [...COLLECTIONS, "solsessions"].every((n) => c.loaded[n]), 15000);
+      } else {
+        c.went.clear();
+        c.host.localSeats = () => [2]; // device 2 did not send: it takes over after the wait
+      }
+      assert.equal(c.went.has(id), false, label + ": control: this tab has no note of the send");
+      announced.length = 0;
+      const seen = simulations();
+      await pump("refusals", () => simulations() >= seen + 3);
+      await holds(id, label);
+      assert.ok(announced.some(waits), label + ": and the words come again for this tab");
+      await catchUp(id, label);
+      c.host.localSeats = seats;
+    }
+  }
+  Object.assign(LIMITS, saved);
+}
+step("a reload or a device that did not send ends nothing after a landing either");
+
+// ── Only a refusal of the bytes is a failed try, not a node that is behind ──
+// A refusal counts when the node says that the bytes are bad: -32002 (preflight failed) or -32003
+// (a signature failed). Any other error of the send says nothing about the bytes, which may be on
+// the chain already. A node that is behind shows the old nonce, a passing simulation and a status
+// of none, so no other check could tell the refusal from a real one.
+const BEHIND = "sendTransaction: RPC error -32005: Node is behind by 150 slots";
+const NO_BLOCK = "sendTransaction: RPC error -32004: Block not available for slot 9";
+const passes = ({ tx }) => {
+  world.passed.add(tx);
+  return { err: null, unitsConsumed: null, loadedAccountsDataSize: null, logs: [] };
+};
+// The page looks at 100 nonce accounts at most: these tests use one of them again, with a new nonce
+// value each time.
+const firstK = nextK;
+let genNext = 0;
+const fresh = (approvers) => {
+  nextK = firstK;
+  return newSend(approvers, { gen: ++genNext });
+};
+const over = (id) => ["failed", "sent"].includes(c.sessions.find((s) => s.id === id)?.status);
+{
+  const saved = { ...LIMITS };
+  Object.assign(LIMITS, { backoff: 20, grace: 120_000 });
+  for (const text of [BEHIND, NO_BLOCK]) {
+    reset();
+    const { id, k } = await fresh([2, 3]);
+    const address = nonceAddress(1, k);
+    const old = structuredClone(world.accounts.get(address));
+    landing.answer(); // the node takes the bytes, the nonce moves, the answer is lost
+    await pump("the first send", () => sendCalls() >= 1);
+    assert.equal(world.sends.length, 1, text + ": control: the bytes went out");
+    // Now every node in reach is behind: the send is refused with the text, the simulation
+    // passes, the account shows the old nonce and the status says none.
+    answers.send = () => {
+      throw new Error(text);
+    };
+    answers.simulate = passes;
+    answers.accounts = ({ addresses }) => ({
+      accounts: addresses.map((a) => (a === address ? old : (world.accounts.get(a) ?? null))),
+    });
+    answers.status = lagging;
+    plain.close();
+    plain.open(gid, base); // the reload takes the note of the send away
+    await waitFor("the documents",
+      () => [...COLLECTIONS, "solsessions"].every((n) => c.loaded[n]), 15000);
+    assert.equal(c.went.has(id), false, text + ": control: this tab has no note of the send");
+    const before = sendCalls();
+    await pump("many refusals", () => sendCalls() >= before + 6 || over(id));
+    await holds(id, text);
+    await catchUp(id, text);
+  }
+  Object.assign(LIMITS, saved);
+}
+step("a node that is behind or has no block, with a send that landed, ends nothing");
+
+{
+  const saved = { ...LIMITS };
+  Object.assign(LIMITS, { backoff: 20 });
+  const texts = {
+    "a block that is not there": NO_BLOCK,
+    "a 429 in the RPC shape": "sendTransaction: RPC error 429: Too many requests",
+    "a 503 in the RPC shape": "sendTransaction: RPC error 503: Service unavailable",
+    "an internal error": "sendTransaction: RPC error -32603: Internal error",
+    "an unknown code and text": "sendTransaction: RPC error -32099: A text that nobody knows",
+    "a refusal quoted inside another text":
+      "sendTransaction: RPC error -32005: sendTransaction: RPC error -32002: quoted",
+    "the 429 of the Worker": "sendTransaction: Too many Helius calls. Wait a minute.",
+    "the 5xx of the Worker": "sendTransaction: Helius is not answering.",
+  };
+  for (const [label, text] of Object.entries(texts)) {
+    reset();
+    const { id } = await fresh([2, 3]);
+    world.sendError = text;
+    await pump("more sends", () => sendCalls() >= 5 || over(id));
+    await holds(id, label);
+    world.sendError = null;
+    await pump("sent", becomes(id, "sent"));
+    assert.equal(world.sends.length, 1, label + ": the bytes went out once");
+  }
+  // A signature that the node refuses is a refusal of the bytes, like a failed preflight.
+  reset();
+  const { id } = await fresh([2, 3]);
+  world.sendError = "sendTransaction: RPC error -32003: Transaction signature verification failure";
+  await pump("the session ends", becomes(id, "failed"));
+  assert.equal(sendCalls(), 3, "three tries");
+  assert.match((await session(id)).error, /^Not sent: .*RPC error -32003/);
+  Object.assign(LIMITS, saved);
+}
+step("other errors of the send are no failed try, and -32003 is one");
+
+// ── A signed part that does not verify: the nonce account decides, not the signature ──
+// A hostile seat can write a package part and a signed part with any 64 bytes. A landing moves the
+// nonce, and a member can overwrite the signed part after it, so a signature that does not verify
+// says nothing about a landing. While the nonce account holds the nonce value, the failed
+// simulations count and the third ends the session. Where the nonce account is gone, or the
+// message has no nonce instruction, the session holds and writes no failure part.
+const signedBy3 = async (id, signature, digest) => {
+  await writePart(c, id, "package", { package: "{}", signers: [2, 3], digest }, { seat: 3 });
+  await writePart(c, id, "signed", { signature }, { seat: 3 });
+  rig.notify();
+  await waitFor("the session is read", () => (c.refresh(),
+    c.sessions.some((x) => x.id === id && x.status === "signed")), 10000);
+  return id;
+};
+async function junkSend(signature, how = "") {
+  if (how === "no nonce") {
+    const id = hexOfBytes(crypto.getRandomValues(new Uint8Array(16)));
+    const intent = hexOfBytes(sendSolIntent(1000, nonceValue(3, 1000), recipient, 1000n));
+    await writeProposal(c, id, { intent, message: hex(vector("s1-create-nonce", "msg")),
+      feeSig: "ab".repeat(64), createdAt: Date.now() }, 3);
+    return signedBy3(id, signature, "00".repeat(32));
+  }
+  const { id, ss, k } = await fresh([]);
+  if (how === "gone") world.accounts.delete(nonceAddress(1, k));
+  return signedBy3(id, signature, W.sol_plain_digest(pinsOf(1), bytesOfHex(ss.message)));
+}
+const dropSession = (id) => {
+  data.delete(path(gid, "solsessions/" + id));
+  rig.notify();
+};
+const failureWritten = (id) => writes.some((w) => w.id === id && w.part === "error");
+{
+  const saved = { ...LIMITS };
+  Object.assign(LIMITS, { backoff: 20, grace: 0 });
+  const first = await session(done.id);
+  const other = first.signature; // a good signature of the group, of other bytes
+  assert.ok(ed25519(null, bytesOfHex(first.message), nodeKey(group), Buffer.from(other, "hex")),
+    "control: it is a good signature of the group");
+  const SIMULATED = 'The network refused the signed transaction: "SignatureFailure"';
+  const counted = {
+    "64 bytes that no key made": ["cd".repeat(64), SIMULATED, 3],
+    "a good signature of other bytes": [other, SIMULATED, 3],
+    "a text that is no signature": ["not a signature", "The group signature is not valid.", 0],
+  };
+  for (const [label, [signature, text, sims]] of Object.entries(counted)) {
+    reset();
+    const id = await junkSend(signature);
+    await pump("the session ends", becomes(id, "failed"), 8000);
+    assert.equal((await session(id)).error, "Not sent: " + text, label);
+    assert.equal(simulations(), sims, label + ": a simulation for each try, or none");
+    assert.equal(c.tries.get(id), 3, label + ": three tries counted");
+    assert.equal(sendCalls(), 0, label + ": nothing was sent");
+    assert.ok(announced.includes("Send SOL: Not sent: " + text), label + ": the words are said");
+    dropSession(id);
+  }
+  const held = {
+    "64 bytes, nonce account gone": ["cd".repeat(64), "gone"],
+    "a text that is no signature, nonce account gone": ["not a signature", "gone"],
+    "64 bytes, a message with no nonce instruction": ["cd".repeat(64), "no nonce"],
+  };
+  for (const [label, [signature, how]] of Object.entries(held)) {
+    reset();
+    const id = await junkSend(signature, how);
+    await pump("the hold is said", () => announced.some(waits), 8000);
+    const t0 = Date.now();
+    await pump("more passes", () => Date.now() - t0 > 1500);
+    await holds(id, label);
+    assert.equal(sendCalls(), 0, label + ": nothing was sent");
+    assert.equal(failureWritten(id), false, label + ": no failure part was written");
+    dropSession(id);
+  }
+  Object.assign(LIMITS, saved);
+}
+step("a signed part that does not verify counts while the nonce stands and holds when it is gone");
+
+// ── A member who overwrites the signed part after a landing ends nothing ──
+// The shared document has no lock: any member can write another signature over the signed part
+// once the bytes landed. The id of the transaction is the fee signature, which the overwrite
+// leaves alone, so the status still finds the landing. A status node that lags holds the step (the
+// nonce moved) until it catches up. The session ends sent and never writes a failure.
+{
+  const saved = { ...LIMITS };
+  const junk = "ab".repeat(64);
+  for (const mode of ["T7-LAG", "T7-FRESH"]) {
+    const lag = mode === "T7-LAG";
+    Object.assign(LIMITS, { grace: 0, backoff: lag ? 60 : 600 });
+    reset();
+    const { id, ss } = await fresh([2, 3]);
+    landing.answer(); // the node takes the bytes, the nonce moves, the answer is lost
+    if (lag) answers.status = lagging;
+    await pump("the first send", () => sendCalls() >= 1);
+    assert.ok(world.landed.has(base58(ss.feeSig)), mode + ": control: the transaction landed");
+    answers.send = orig.send;
+    assert.equal(await status(id), "signed", mode + ": control: the sent mark is not there yet");
+    await writePart(c, id, "signed", { signature: junk }, { seat: 3 });
+    await pump("the junk is read", () => c.sessions.find((s) => s.id === id)?.signature === junk);
+    if (lag) {
+      const asked = statusCalls();
+      await pump("more looks", () => statusCalls() >= asked + 3 || over(id));
+      await holds(id, mode);
+      unlag();
+    }
+    await pump("the session ends", () => over(id), 8000);
+    assert.equal(await status(id), "sent", mode + ": the landing is found");
+    assert.equal(doc(id).signature, junk, mode + ": control: the junk stayed in the document");
+    assert.equal(doc(id).error, undefined, mode + ": no failure part");
+    assert.equal(failureWritten(id), false, mode + ": and no failure was ever written");
+    assert.equal(world.sends.length, 1, mode + ": the bytes went out once");
+    assert.equal((await session(id)).slot, "4242");
+  }
+  Object.assign(LIMITS, saved);
+}
+step("a member who overwrites the signed part after a landing ends nothing, lagging or fresh");
+
+// ── A nonce account that cannot be read or understood ends nothing ──
+// The refusal is a real one, so the nonce account is read. Whatever the read gives besides "the
+// value is still here" counts for nothing; a good read lets the three refusals end the session.
+{
+  const saved = { ...LIMITS };
+  Object.assign(LIMITS, { backoff: 20, grace: 0 });
+  const edit = (held, change) => {
+    const bytes = Buffer.from(held.data, "base64");
+    change(bytes);
+    return { ...held, data: bytes.toString("base64") };
+  };
+  const faults = {
+    "the read fails": () => {
+      throw new Error("accounts: Helius is not answering.");
+    },
+    "the answer has another length": () => ({ accounts: [] }),
+    "the account is gone": () => ({ accounts: [null] }),
+    "the answer is no account": () => ({ accounts: ["text"] }),
+    "another owner": (held) => ({ accounts: [{ ...held, owner: TOKEN_PROGRAM }] }),
+    "data of another size": (held) => ({ accounts: [{ ...held, data: "AAAA" }] }),
+    "not initialised": (held) => ({ accounts: [edit(held, (b) => b.writeUInt32LE(0, 4))] }),
+    "another authority": (held) => ({ accounts: [edit(held, (b) => b.fill(1, 8, 40))] }),
+    "the nonce moved": (held) => ({ accounts: [edit(held, (b) => b.fill(7, 40, 72))] }),
+  };
+  for (const [label, fault] of Object.entries(faults)) {
+    reset();
+    world.simError = '"AccountNotFound"';
+    answers.accounts = (args) => (args.addresses.length === 1
+      ? fault(world.accounts.get(args.addresses[0]))
+      : orig.accounts(args));
+    const { id } = await newSend([2, 3]);
+    await pump("the first refusal", () => simulations() >= 1);
+    const seen = simulations();
+    await pump("more refusals", () => simulations() >= seen + 3);
+    await holds(id, label);
+    answers.accounts = orig.accounts;
+    await pump("the session ends once the nonce account reads well", becomes(id, "failed"), 8000);
+    assert.match((await session(id)).error, /^Not sent: .*AccountNotFound/);
+    assert.equal(c.tries.get(id), 3, label + ": three tries counted after the good read");
+  }
+  Object.assign(LIMITS, saved);
+}
+step("a nonce account that cannot be read or understood ends nothing");
+
+// ── Only the message of the transaction names the nonce account that is read ──
+// A session is built from signed fields, and the message is the part that both signatures cover.
+// No other field of the document names an account to read, whatever a hostile seat writes in it.
+{
+  const saved = { ...LIMITS };
+  Object.assign(LIMITS, { backoff: 20, grace: 0 });
+  reset();
+  world.movedErr = UNNAMED;
+  const { id, ss, k } = await newSend([2, 3]);
+  const other = nextK++;
+  setNonce(1, other); // an account that still holds its value, for the fields to point at
+  const expected = { account: nonceAddress(1, k), value: nonceValue(1, k) };
+  const intent = hexOfBytes(sendSolIntent(other, nonceValue(1, other), recipient, 1000n));
+  assert.deepEqual(nonceOf(ss), expected, "the account and the value come from the message");
+  assert.deepEqual(nonceOf({ ...ss, intent, txId: "x", signers: [7], nonce: "y" }), expected,
+    "the other fields change nothing");
+  // A cut message gives the same answer or none, and never a throw.
+  for (let n = 0; n <= ss.message.length; n += 2) {
+    const got = nonceOf({ message: ss.message.slice(0, n) });
+    assert.ok(got === null || JSON.stringify(got) === JSON.stringify(expected), "cut at " + n);
+  }
+  // A hand made v1 message: the first instruction must be System AdvanceNonceAccount.
+  const key = (b) => Buffer.alloc(32, b);
+  const layout = { mask: 0, config: 0, program: 2, accounts: [1, 0], data: "04000000", keys: 3,
+    ixs: 1, version: 0x81 };
+  const v1 = (change = {}) => {
+    const m = { ...layout, ...change };
+    const head = Buffer.from([m.version, 1, 0, 1, m.mask, 0, 0, 0]);
+    const table = [key(1), key(2), Buffer.alloc(32)].slice(0, m.keys);
+    const payload = Buffer.concat([Buffer.from(m.accounts), Buffer.from(m.data, "hex")]);
+    const ix = Buffer.from([m.program, m.accounts.length, m.data.length / 2, 0]);
+    return Buffer.concat([head, key(7), Buffer.from([m.ixs, m.keys]), ...table,
+      Buffer.alloc(m.config), ix, payload]).toString("hex");
+  };
+  const good = { account: base58(key(2).toString("hex")), value: key(7).toString("hex") };
+  assert.deepEqual(nonceOf({ message: v1() }), good, "control: the hand made message reads");
+  assert.deepEqual(nonceOf({ message: v1({ mask: 0b11111, config: 20 }) }), good,
+    "and the config values are skipped");
+  const odd = { "another version": { version: 0x80 }, "another instruction": { data: "05000000" },
+    "a longer instruction": { data: "0400000000" }, "another program": { program: 1 },
+    "no account": { accounts: [] }, "an account outside the table": { accounts: [3, 0] },
+    "a program outside the table": { program: 3 }, "no instruction": { ixs: 0 },
+    "a table that is cut": { keys: 2 }, "more instructions than there are": { ixs: 200 } };
+  for (const [name, change] of Object.entries(odd)) {
+    assert.equal(nonceOf({ message: v1(change) }), null, name + " is no nonce transaction");
+  }
+  assert.equal(nonceOf({ message: "81" }), null, "a message of one byte");
+  // The stored document may hold any field. None of them is read: the read goes to the account of
+  // the message, finds it moved and waits.
+  const stored = path(gid, "solsessions/" + id);
+  const fields = { nonceAccount: nonceAddress(1, other), account: nonceAddress(1, other),
+    nonce: nonceValue(1, other), lifetime: nonceValue(1, other) };
+  data.set(stored, { ...data.get(stored), ...fields });
+  rig.notify();
+  landing.answer();
+  answers.status = lagging;
+  await pump("the first send", () => sendCalls() >= 1);
+  const singles = () => calls.filter((x) => x.cmd === "accounts" && x.args.addresses.length === 1);
+  await pump("three reads of the nonce account", () => singles().length >= 3);
+  assert.ok(singles().every((x) => x.args.addresses[0] === nonceAddress(1, k)),
+    "the account of the message is read, and no other");
+  await holds(id, "hostile fields");
+  await catchUp(id, "hostile fields");
+  for (const index of [k, other]) world.accounts.delete(nonceAddress(1, index));
+  Object.assign(LIMITS, saved);
+}
+step("a hostile field of the document cannot point the nonce read at another account");
+
+// ── Two refusals before the send count; the lag after the send does not ──
+{
+  const saved = { ...LIMITS };
+  LIMITS.grace = 1500;
+  reset();
+  const { id } = await newSend([2, 3]);
+  let early = 2;
+  answers.simulate = (args) => (early-- > 0
+    ? { err: '"AccountNotFound"', unitsConsumed: null, loadedAccountsDataSize: null, logs: [] }
+    : orig.simulate(args));
+  let lag = 0;
+  answers.status = (args) => (lag-- > 0 ? lagging() : orig.status(args));
+  answers.send = (args) => {
+    orig.send(args);
+    lag = 2; // the status node shows the landing two reads later
+    throw new Error("sendTransaction: the request failed (fetch failed)");
+  };
+  const ended = () => ["sent", "failed"].includes(c.sessions.find((s) => s.id === id)?.status);
+  await pump("settles", ended);
+  assert.equal(await status(id), "sent", "two reads of a lagging status end nothing");
+  assert.equal(doc(id).error, undefined);
+  assert.equal(c.tries.get(id), 2, "the two refusals before the send counted, none after");
+  assert.equal(world.sends.length, 1);
+  unlag();
+  Object.assign(LIMITS, saved);
+}
+step("the refusals before a send count and the ones soon after it do not");
+
+// ── The same payment is not proposed again while the first one may stand ──
+// The lag lasts longer than the grace. The session stays open and holds its nonce account, which
+// the landing moved to a new value: nothing is proposed on it, and nothing is paid twice.
+{
+  const saved = { ...LIMITS };
+  Object.assign(LIMITS, { grace: 150, backoff: 20 });
+  reset();
+  const first = await newSend([2, 3]);
+  landing.answer();
+  answers.status = lagging;
+  await pump("the first send", () => sendCalls() >= 1);
+  await pump("three times the grace", () => Date.now() - world.sendTimes[0] > 3 * LIMITS.grace);
+  const held = Buffer.from(world.accounts.get(nonceAddress(1, first.k)).data, "base64");
+  assert.notEqual(held.subarray(40, 72).toString("hex"), nonceValue(1, first.k),
+    "control: the landing moved the nonce");
+  await assert.rejects(asSeat(c, 1, () => proposeSend(c, ensure, typed())),
+    /Create a nonce account first\./);
+  await holds(first.id, "after the grace");
+  await catchUp(first.id, "the first");
+  assert.equal(new Set(world.sends).size, 1, "one payment");
+  Object.assign(LIMITS, saved);
+}
+step("a payment whose send may have landed cannot be proposed again");
+
 // ── A 429 on the read-only calls is no failed try ──
 {
   reset();
@@ -935,6 +1476,23 @@ step("a 429 on simulate is no failed try and the step waits longer each time");
   await pump("sent", becomes(id, "sent"));
 }
 step("a status or confirm answer with another word or no slot is refused and writes no mark");
+
+// ── A simulation answer without an err field is no refusal ──
+{
+  reset();
+  const { id } = await newSend([2, 3]);
+  const realSim = answers.simulate;
+  answers.simulate = () => ({});
+  await pump("three simulations", () => simulations() >= 3);
+  await sleep(200);
+  assert.equal(await status(id), "signed", "an answer of another shape ends nothing");
+  assert.equal(doc(id).error, undefined);
+  assert.equal(c.tries.get(id), undefined, "and counts no try");
+  assert.equal(world.sends.length, 0, "and nothing was sent");
+  answers.simulate = realSim;
+  await pump("sent", becomes(id, "sent"));
+}
+step("a simulation answer with no err field is refused as an answer and counts no try");
 
 // ── A hung call ends its step ──
 {
@@ -1417,6 +1975,44 @@ step("a session that throws in its step is skipped and the others go on");
 }
 step("a package that names another digest gets no share");
 
+// ── A package with no text, or with no digest, ends the session and breaks no pass ──
+{
+  reset();
+  const empty = await newSend([2, 3]);
+  const digest = W.sol_plain_digest(pinsOf(1), bytesOfHex(empty.ss.message));
+  await writePart(c, empty.id, "package", { package: "", signers: [2, 3], digest }, { seat: 3 });
+  rig.notify();
+  await pump("a package with no text ends the session", becomes(empty.id, "failed"), 8000);
+  assert.match((await session(empty.id)).error, /^A device did not sign: /);
+  assert.equal(count("sol_plain_sign_share"), 0, "and no share was made");
+  const bare = await newSend([2, 3]);
+  await writePart(c, bare.id, "package", { package: "{}", signers: [2, 3] }, { seat: 3 });
+  rig.notify();
+  await pump("a package with no digest ends the session", becomes(bare.id, "failed"), 8000);
+  assert.match((await session(bare.id)).error, /^A device did not sign: The digest differs\./);
+  const skipped = logs.filter((l) => l.includes(`session ${bare.id} skipped`));
+  assert.deepEqual(skipped, [], "no pass threw");
+  // A package part with signers and a digest but no package field is not a collecting session: no
+  // pass takes the lease for a package of it, and the signers end it.
+  const noField = await newSend([2, 3]);
+  const digest2 = W.sol_plain_digest(pinsOf(1), bytesOfHex(noField.ss.message));
+  await writePart(c, noField.id, "package", { signers: [2, 3], digest: digest2 }, { seat: 3 });
+  rig.notify();
+  let leases = 0;
+  rig.hook.lease = () => {
+    leases++;
+    return true;
+  };
+  await pump("a package with no package field ends the session", becomes(noField.id, "failed"),
+    8000);
+  rig.hook.lease = () => true;
+  assert.match((await session(noField.id)).error, /^A device did not sign: /);
+  assert.equal(leases, 0, "and no pass took the lease to publish a package");
+  assert.deepEqual(logs.filter((l) => l.includes(`session ${noField.id} skipped`)), [],
+    "no pass threw");
+}
+step("a package with no text or no digest ends the session and no pass throws");
+
 // ── The fee signature is checked again before a share ──
 {
   reset();
@@ -1547,6 +2143,86 @@ step("a hung chain read frees its step and confirm has a limit of its own");
   rig.hook.lease = () => true;
 }
 step("a package and a send wait while another device holds the lease");
+
+// ── One seat that posts many proposals cannot take every watch of the page ──
+// The older honest session needs the commits and the shares of the other devices: a session that
+// is not watched never signs. Proposals that this app cannot show take no watch, those with a
+// stake of this device come first, and a seat holds at most 8.
+{
+  const DAY = 24 * 60 * 60 * 1000;
+  const junk = (seat, k, createdAt) => ({
+    intent: hexOfBytes(sendSolIntent(k, nonceValue(seat, k), recipient, 1000n)),
+    message: "81" + "00".repeat(100), feeSig: "ab".repeat(64), createdAt });
+  const post = async (seat, k, createdAt) => {
+    const id = hexOfBytes(crypto.getRandomValues(new Uint8Array(16)));
+    await writeProposal(c, id, junk(seat, k, createdAt), seat);
+    return id;
+  };
+  const watched = (ids) => ids.filter((id) => c.watching.has(id));
+  const cleanup = async (ids) => {
+    for (const id of ids) data.delete(path(gid, "solsessions/" + id));
+    rig.notify();
+    await pump("the junk is gone", () => ids.every((id) => !c.sessions.some((x) => x.id === id)));
+  };
+  // Seat 3 posts 51 proposals that can be shown and 51 that cannot (a date far ahead), all newer.
+  reset();
+  const honest = await newSend([]);
+  const shown = [], hidden = [];
+  for (let i = 0; i < 51; i++) {
+    shown.push(await post(3, 300 + i, Date.now() + 1000 + i));
+    hidden.push(await post(3, 400 + i, Date.now() + 3 * DAY + i));
+  }
+  for (const seat of [2, 3]) {
+    await approvePlain(c, ensure, await session(honest.id), seat);
+    keep(seat, honest.id);
+  }
+  plain.react();
+  assert.ok(c.watching.has(honest.id), "the older honest session is watched");
+  assert.deepEqual(watched(shown), shown.slice(-8), "the newest 8 of the seat, not all 51");
+  assert.deepEqual(watched(hidden), [], "a proposal that cannot be shown takes no watch");
+  await pump("the honest session is sent", becomes(honest.id, "sent"));
+  await cleanup([...shown, ...hidden]);
+  // The seat that proposed the honest session posts them too. The honest session has a stake of
+  // this device (saved nonces): it comes before the newer proposals of the seat.
+  reset();
+  const own = await newSend([]);
+  const flood = [];
+  for (let i = 0; i < 51; i++) flood.push(await post(1, 500 + i, Date.now() + 1000 + i));
+  for (const seat of [2, 3]) {
+    await approvePlain(c, ensure, await session(own.id), seat);
+    keep(seat, own.id);
+  }
+  plain.react();
+  assert.ok(c.watching.has(own.id), "a session with a stake is watched before newer ones");
+  const byOf = (id) => c.sessions.find((x) => x.id === id)?.by;
+  const ofSeat = [...c.watching.keys()].filter((id) => byOf(id) === 1);
+  assert.equal(ofSeat.length, 8, "and the seat holds 8 in all");
+  await pump("the session is sent", becomes(own.id, "sent"));
+  await cleanup(flood);
+  // The 51 proposals of seat 3 have a stake as well (a signed package part, status signing): the
+  // cap of 8 for one proposer binds them too, and the honest session is watched.
+  reset();
+  const live = await newSend([]);
+  const stuck = [];
+  for (let i = 0; i < 51; i++) {
+    const id = await post(3, 700 + i, Date.now() + 1000 + i);
+    const part = { package: "{}", signers: [8, 9], digest: "00".repeat(32) };
+    await writePart(c, id, "package", part, { seat: 3 });
+    stuck.push(id);
+  }
+  for (const seat of [2, 3]) {
+    await approvePlain(c, ensure, await session(live.id), seat);
+    keep(seat, live.id);
+  }
+  plain.react();
+  const stuckStates = (await sessions()).filter((x) => stuck.includes(x.id)).map((x) => x.status);
+  assert.deepEqual([...new Set(stuckStates)], ["signing"], "control: every one has a stake");
+  assert.ok(c.watching.has(live.id), "the honest session is watched");
+  assert.equal(watched(stuck).length, 8, "and the seat holds 8 of its 51 sessions with a stake");
+  await pump("the honest session is sent", becomes(live.id, "sent"));
+  await cleanup(stuck);
+}
+step("51 newer proposals of one seat leave the watches of the older honest session");
 
 // ── A stopped wallet drops every nonce ──
 {

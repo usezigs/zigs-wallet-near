@@ -25,8 +25,25 @@ export const BUSY = { reading: "Reading the chain…", sending: "Signing and sen
 export const NOTHING_SIGNED = "Nothing was signed.";
 const RESULT = {
   confirmed: "Confirmed", finalized: "Confirmed", failed: "Failed on chain",
-  unknown: "Sent, not confirmed yet",
+  unknown: "Sent, not confirmed yet", maybe: "May have been sent. Not confirmed yet",
 };
+/**
+ * The page side time limit of a Worker call (`confirm` waits 45 s inside the Worker), the wait of a
+ * device that does not hold the proposing seat before it sends, the first wait after an error
+ * with no known result (each next one is twice as long, up to a minute), and the time after a send
+ * in which a status of "none" proves nothing (a node that lags). Tests lower them.
+ */
+export const LIMITS = {
+  call: 20_000, confirm: 60_000, fallback: 30_000, backoff: 3000, grace: 120_000,
+};
+// What the page reads when the node refused the bytes of a send for certain: the preflight failed
+// (-32002) or a signature failed (-32003). The Worker writes `Error: sendTransaction: RPC error
+// <code>: <text>` (worker.js resultOf). The Worker's own refusal, before any call, is the second
+// text. Any other error leaves the bytes with the node, so it is no refusal.
+export const REFUSED =
+  /^(?:Error: )?(?:sendTransaction: RPC error -3200[23]:|send: these bytes did not pass)/;
+// The words of confirm for a transaction that is on the chain.
+export const DONE = new Set(["confirmed", "finalized", "failed"]);
 
 const BLANK = "00".repeat(32); // the address of a nonce account does not depend on the blockhash
 // ponytail: a device looks at its first 100 nonce accounts (the most that one accounts call takes).
@@ -187,11 +204,36 @@ function finish(c, state, change, key) {
   c.host.render();
 }
 
+const shown = ({ seat, txId }, status, slot) =>
+  ({ step: "done", seat, result: { status, slot, txId } });
+
+// A send of this kind that may have landed (c.unsure): its status is read before the step starts
+// again, so that no second account is made while the first may stand. Returns the state to show,
+// or null when the step may start: nothing is open, or the status said "none" for LIMITS.grace.
+// Any other answer (also "pending") keeps the step shut.
+async function earlier(c, kind, worker) {
+  const before = c.unsure.get(kind);
+  if (!before) return null;
+  const { statuses } = await worker.call("status", { signatures: [before.txId] });
+  if (!Array.isArray(statuses) || statuses.length !== 1) throw new Error(BAD_ANSWER);
+  const { status, slot } = Object(statuses[0]);
+  if (DONE.has(status)) {
+    c.unsure.delete(kind);
+    return shown(before, status, slot);
+  }
+  if (status === "none" && Date.now() - before.at >= LIMITS.grace) {
+    c.unsure.delete(kind);
+    return null;
+  }
+  return shown(before, "maybe", "");
+}
+
 /**
  * Starts a step for `kind` ("createNonce" or "enableUsdc"): reads the chain and checks the message
  * with the first ready device of this browser. It signs and sends nothing. `ensure` gives the
  * plain Worker. The result is in c.direct: step "review" (the person can confirm), "stopped" (the
- * checker refused or failed) or "failed" (this step could not read).
+ * checker refused or failed), "failed" (this step could not read) or "done" (an earlier send of
+ * this kind may have landed: its result comes first).
  */
 export async function startDirect(c, kind, ensure) {
   const state = { kind, step: "reading" };
@@ -203,7 +245,9 @@ export async function startDirect(c, kind, ensure) {
     const why = block(c);
     if (why) throw new Error(why);
     const seat = payerSeat(c);
-    change = { seat, ...(await examine(c, await ensure(), kind, seat)) };
+    const worker = await ensure();
+    const open = await earlier(c, kind, worker);
+    change = { seat, ...(open ?? (await examine(c, worker, kind, seat))) };
   } catch (e) {
     change = { step: "failed", text: textOf(e) };
   }
@@ -230,11 +274,18 @@ export function sign(c, seat, { message, intent, pins, chain }) {
   }
 }
 
+// The id of a send with no known result stays: the next try of this kind reads its status first.
+// A wallet that closed and opened meanwhile (c.opened changed) gets no note.
+function remember(c, was, { state, txId }) {
+  if (c.opened === was) c.unsure.set(state.kind, { txId, seat: state.seat, at: Date.now() });
+}
+
 // Signs, simulates, sends the bytes that passed, and waits for the id. Returns the result.
 async function send(c, state, ensure) {
   const why = block(c);
   if (why) throw new Error(why);
   const { seat, run } = state;
+  const was = c.opened;
   const signature = sign(c, seat, run);
   const tx = toBase64(join(run.message, bytesOfHex(signature)));
   const worker = await ensure();
@@ -242,10 +293,17 @@ async function send(c, state, ensure) {
   if (test.err !== null) throw new Error(simulateText(test, seat));
   const stop = block(c); // a closed wallet or a stop that came meanwhile sends nothing
   if (stop) throw new Error(stop);
-  await worker.call("send", { tx });
   const txId = base58(signature);
+  try {
+    await worker.call("send", { tx });
+  } catch (e) {
+    if (REFUSED.test(textOf(e))) throw e;
+    remember(c, was, { state, txId }); // the node may have the bytes
+    return { status: "maybe", slot: "", txId };
+  }
   // The bytes are sent now. A wait that fails is not a failed send: the id is all that is known.
   const seen = await worker.call("confirm", { signature: txId }).catch(() => UNSEEN);
+  if (seen.status === UNSEEN.status) remember(c, was, { state, txId });
   return { status: seen.status, slot: seen.slot, txId };
 }
 

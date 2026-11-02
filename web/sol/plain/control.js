@@ -9,6 +9,7 @@ import { reactAborts } from "../abort.js";
 import { addSolana, agreement, reactCeremony } from "../ceremony.js";
 import { startSolWorker } from "../client.js";
 import { COLLECTIONS, filterSol } from "../docs.js";
+import { pendingShare, savedNonces } from "../nonces.js";
 import * as W from "../wasm/sol_wasm.js";
 import { walletOf } from "../wallet.js";
 import { approvePlain, reviewSession } from "./approve.js";
@@ -17,7 +18,7 @@ import { PLAIN_WORKER_POLICY } from "./guard.js";
 import { readHeld } from "./held.js";
 import { proposeSend } from "./propose.js";
 import { readBalances } from "./reads.js";
-import { ENDED, SESSIONS, SESSION_ID, feeShared, filterSessions } from "./sessions.js";
+import { ENDED, SESSIONS, feeShared, filterSessions, showable } from "./sessions.js";
 import {
   NOTHING_PROPOSED, announceChanges, approveLooked, closeLook, pendingList, pendingRows, startLook,
 } from "./sends.js";
@@ -38,8 +39,9 @@ const CLOSED = "The wallet closed during this Solana read.";
 const TOO_SLOW = "Solana did not start in time. Check your connection.";
 const START_MS = 20_000; // the limit of each step of the start of the Worker
 // Any holder of the wallet link can add session documents. The page watches the commits and the
-// shares of the valid sessions that did not end, and at most this many of them (newest first).
-const WATCH_MAX = 50;
+// shares of the valid sessions that did not end, and at most this many of one proposer: a seat
+// that posts many sessions cannot take every watch.
+const WATCH_SEAT = 8;
 
 // What belongs to the open wallet. The host, the wasm and the read records outlive it.
 let opens = 0;
@@ -73,6 +75,8 @@ const blank = () => ({
   tries: new Map(),
   fails: new Map(),
   refused: new Map(),
+  went: new Map(),
+  unsure: new Map(),
   signedSeen: new Map(),
 });
 
@@ -116,14 +120,32 @@ function watchSession(c, gid, base, id) {
   return () => stops.forEach((stop) => stop());
 }
 
-// Watches the sessions that can still progress: valid (the filter read their proposal), not sent
-// and not failed, at most WATCH_MAX. A session that ended gives its watches back, and a document
-// that is not a valid session never takes one.
+// This device has a stake in a session when it holds nonces or a made share for it, or the session
+// is past the commits (a package, or signed).
+const stake = (c, ss) =>
+  ss.status !== "collecting" ||
+  c.host.localSeats().some((i) => savedNonces(c, i, ss.id) || pendingShare(c, i, ss.id));
+
+// The ids to watch: the sessions that can still progress and that this app shows, those with a
+// stake first, then the newest (c.sessions is newest first), at most WATCH_SEAT of each proposer.
+function watchIds(c) {
+  const open = c.sessions.filter((ss) => !ENDED.has(ss.status) && showable(ss));
+  const mine = open.filter((ss) => stake(c, ss));
+  const others = open.filter((ss) => !mine.includes(ss));
+  const used = new Map();
+  const ids = [];
+  for (const ss of [...mine, ...others]) {
+    const n = used.get(ss.by) ?? 0;
+    if (n < WATCH_SEAT) ids.push(ss.id);
+    used.set(ss.by, n + 1);
+  }
+  return ids;
+}
+
+// Watches those sessions. A session that ended gives its watches back, and a document that is not
+// a valid session never takes one.
 function syncWatches(c) {
-  const live = c.sessions
-    .filter((ss) => !ENDED.has(ss.status) && SESSION_ID.test(ss.id))
-    .slice(0, WATCH_MAX)
-    .map((ss) => ss.id);
+  const live = watchIds(c);
   for (const [id, stop] of c.watching) {
     if (live.includes(id)) continue;
     stop();
