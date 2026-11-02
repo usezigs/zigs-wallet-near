@@ -3,12 +3,14 @@
 // checkCommand of guard.js on every message and answers from a table: the test cannot show that a
 // browser loads the real module Worker under the policy header (a staging smoke test does). It
 // shows: the Worker starts only after the policy check; init holds the cluster and the URL and
-// nothing else; the URL stays out of storage, log, banner and page; every message has the schema
-// of the plain Worker; the USDC address is the one that the wasm names; the pace of the reads
-// (one job at a time, 30 s per wallet, also after a failure, no read in a hidden tab).
+// nothing else; the URL stays out of storage, log, banner, state, store, console and error texts;
+// every message has the schema of the plain Worker; the USDC address is the one that the wasm
+// names; the pace of the reads (one job at a time, 30 s per wallet, also after a failure, no read
+// in a hidden tab); a start that hangs ends, and a close ends a start that is in init.
 // Run: node web/test/sol-plain-reads.mjs   (Node 26)
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { inspect } from "node:util";
 import { agreement } from "../sol/ceremony.js";
 import { COLLECTIONS, base58 } from "../sol/docs.js";
 import { publishedFee } from "../sol/fee.js";
@@ -21,6 +23,17 @@ import { config, loadRig, mainnetConfig, sleep, storage } from "./sol-rig.mjs";
 const rig = await loadRig();
 const { t, W, data, waitFor } = rig;
 const step = (name) => console.log("ok  " + name);
+// The key of the fake Helius URL must be in no place that the page controls (assertNoKey below).
+const KEY = mainnetConfig.rpcUrl.split("=").pop();
+const printed = []; // every line that went to the console
+for (const level of ["log", "info", "warn", "error", "debug"]) {
+  const real = console[level].bind(console);
+  console[level] = (...args) => {
+    printed.push(args.map((arg) => inspect(arg, { depth: null })).join(" "));
+    real(...args);
+  };
+}
+const errors = []; // the error text that each read ended with
 const path = (gid, rel) => `groups/${gid}/${rel}`;
 const base = (gid) => "groups/" + gid;
 const haveAll = (gid, name) => [1, 2, 3].every((i) => data.get(path(gid, `${name}/${i}`)));
@@ -122,9 +135,11 @@ step("amount text, token account decode and the USDC address");
 const requests = []; // every request for a file under /sol: { url, init }
 let policy = PLAIN_WORKER_POLICY;
 let policyStatus = 200;
+let hang = null; // the path of a request that gets no answer
 const pageFetch = globalThis.fetch;
 globalThis.fetch = async (url, init) => {
   if (String(url).startsWith("/sol/")) requests.push({ url: String(url), init });
+  if (String(url) === hang) return new Promise(() => {});
   if (String(url) !== "/sol/plain/worker.js") return pageFetch(url, init);
   const headers = policy === null ? {} : { "content-security-policy": policy };
   return new Response("// the plain Worker\n", { status: policyStatus, headers });
@@ -139,12 +154,17 @@ const sent = []; // every message that a Worker got: { cmd, args }
 const made = []; // every Worker that the page started
 const chain = { lamports: new Map(), accounts: new Map() };
 let hold = null; // a promise that the answers of `balance` wait for
+let holdInit = null; // a promise that the answer of `init` waits for
 const balanceAnswer = async ({ address }) => {
   await hold;
   return { lamports: chain.lamports.get(address) ?? "0" };
 };
+const initAnswer = async ({ cluster }) => {
+  await holdInit;
+  return { cluster, genesis: GENESIS[cluster] };
+};
 const answers = {
-  init: ({ cluster }) => ({ cluster, genesis: GENESIS[cluster] }),
+  init: initAnswer,
   balance: balanceAnswer,
   accounts: ({ addresses }) => ({ accounts: addresses.map((a) => chain.accounts.get(a) ?? null) }),
 };
@@ -190,13 +210,50 @@ const passes = async (n) => {
   }
 };
 // A read ends with a new balance (`at`) or with an error. `before` is the state to leave.
-const readDone = (record, before) => waitFor("the read",
-  () => record.at !== before.at || record.error !== before.error);
+const readDone = async (record, before) => {
+  await waitFor("the read", () => record.at !== before.at || record.error !== before.error);
+  errors.push(record.error);
+};
 const snapshot = () => ({ at: c.balances.at, error: c.balances.error });
 // ── A mainnet wallet whose seats agree (the plain ceremony ends) ──
 const gid = await rig.wallet({ name: "Reads", network: "mainnet", n: 3, k: 2 });
 const plain = await attach(t.solHost());
 const c = plain.ctl;
+// The strings under `root` (keys of objects and maps too) that hold the key. Bytes are skipped.
+const entriesOf = (v) => {
+  if (v instanceof Map) return [...v];
+  if (v instanceof Set) return [...v].map((member) => ["<member>", member]);
+  return Object.entries(v);
+};
+function keyPaths(root, name) {
+  const found = [];
+  const seen = new WeakSet();
+  const visit = (v, path) => {
+    if (typeof v === "string") return void (v.includes(KEY) && found.push(path));
+    if (typeof v !== "object" || v === null || ArrayBuffer.isView(v) || seen.has(v)) return;
+    seen.add(v);
+    for (const [k, x] of entriesOf(v)) {
+      visit(k, path + ".<key>");
+      visit(x, path + "." + String(k));
+    }
+  };
+  visit(root, name);
+  return found;
+}
+// The host and the wasm are the page's, not the state of the controller.
+const ownState = () =>
+  Object.fromEntries(Object.entries(c).filter(([k]) => k !== "host" && k !== "W"));
+function assertNoKey(when) {
+  const places = {
+    controller: ownState(), state: t.state, banner: t.banner, storage, session, store: data,
+  };
+  const found = [
+    ...Object.entries(places).flatMap(([name, root]) => keyPaths(root, name)),
+    ...printed.filter((line) => line.includes(KEY)).map((line) => "the console: " + line),
+    ...errors.filter((text) => text.includes(KEY)).map((text) => "an error text: " + text),
+  ];
+  assert.equal(found.length, 0, `the key is in ${found.join("; ")} (${when})`);
+}
 const pump = async (what, ok, ms = 60000) => {
   for (const t0 = Date.now(); !ok();) {
     if (Date.now() - t0 > ms) throw new Error("timeout: " + what);
@@ -331,19 +388,12 @@ reset();
 }
 step("the first read starts the plain Worker and reads the group and the fee addresses");
 
-// ── The URL stays out of storage, log, banner, page text and the balances ──
+// ── The URL stays out of storage, log, banner, state, store, console and error texts ──
 {
-  const url = mainnetConfig.rpcUrl;
-  const key = url.split("=").pop(); // the key of the fake URL
-  const places = [...storage.entries()].flat().concat([...session.entries()].flat(),
-    t.state.log, t.banner?.text ?? "", Object.entries(c.balances).map(String),
-    Object.values(c).filter((v) => typeof v === "string"));
-  for (const place of places.flat()) {
-    assert.ok(!String(place).includes(key), "the key is in " + String(place).slice(0, 50));
-  }
+  assertNoKey("after the first read");
   assert.deepEqual(Object.keys(c.worker).sort(), ["call", "close"], "the handle has no URL");
 }
-step("the Helius URL is in no storage, log, banner or balance");
+step("the Helius URL is in no storage, state, store, log, banner, console or balance");
 
 // ── The pace: one read in 30 s, no read in a hidden tab, one job at a time ──
 {
@@ -480,7 +530,7 @@ step("amounts stay exact and a System-owned USDC address means not enabled");
   assert.equal(made.length, mark[0] + 1, "a Worker started");
   assert.ok(made.at(-1).closed, "and it was closed");
   assert.equal(calls("balance"), mark[1], "no read went to it");
-  answers.init = ({ cluster }) => ({ cluster, genesis: GENESIS[cluster] });
+  answers.init = initAnswer;
 }
 step("a Worker that answers for another cluster is closed and not used");
 
@@ -540,6 +590,89 @@ step("a wallet switch closes the Worker and the gap of the wallet stays");
   assert.equal(c.balances.error, "", "a later read works: the job of the closed wallet ended");
 }
 step("a close during a read ends the job and frees the read key");
+
+// ── A close during init closes the Worker that starts and frees the read key ──
+{
+  plain.close();
+  await opened(gid);
+  later(31_000);
+  let release;
+  holdInit = new Promise((done) => void (release = done));
+  const mark = [made.length, calls("init")];
+  plain.observe(gid);
+  await waitFor("the held init", () => calls("init") > mark[1]);
+  const starting = made.at(-1);
+  assert.equal(made.length, mark[0] + 1, "one Worker is in init");
+  plain.close();
+  assert.ok(starting.closed, "the close stopped the Worker that was still in init");
+  await opened(gid);
+  release();
+  holdInit = null;
+  await sleep(100);
+  assert.equal(c.balances.error, "", "a start cut by the close leaves no error");
+  later(31_000);
+  const before = snapshot();
+  plain.observe(gid);
+  await readDone(c.balances, before);
+  assert.equal(c.balances.error, "", "a later read works: the job of the closed wallet ended");
+  assert.equal(made.length, mark[0] + 2, "the later read started its own Worker");
+  assert.ok(starting.closed, "the old Worker stays closed");
+  assert.ok(!made.at(-1).closed, "and the new one is open");
+}
+step("a close during init closes the Worker and frees the read key");
+
+// ── A step of the start that hangs ends after 20 s (START_MS of control.js) ──
+// The limit runs on the real timer, so the test shortens that one delay.
+{
+  const realSetTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = (fn, ms, ...rest) => realSetTimeout(fn, ms === 20_000 ? 30 : ms, ...rest);
+  try {
+    const steps = [
+      ["the policy check", () => (hang = "/sol/plain/worker.js")],
+      ["the config request", () => (hang = "/sol/config-mainnet.json")],
+      ["init", () => (holdInit = new Promise(() => {}))],
+    ];
+    for (const [what, start] of steps) {
+      plain.close();
+      await opened(gid);
+      later(31_000);
+      const [mark, before] = [made.length, snapshot()];
+      start();
+      plain.observe(gid);
+      await readDone(c.balances, before);
+      [hang, holdInit] = [null, null];
+      assert.match(c.balances.error, /did not start in time/, "a hung " + what + " ends");
+      assert.ok(made.slice(mark).every((w) => w.closed), "no Worker stays open after " + what);
+      later(31_000);
+      const next = snapshot();
+      plain.observe(gid);
+      await readDone(c.balances, next);
+      assert.equal(c.balances.error, "", "the read after a hung " + what + " works");
+    }
+  } finally {
+    globalThis.setTimeout = realSetTimeout;
+  }
+}
+step("a step of the start that hangs ends, and the next read works");
+
+// ── A seat that published no fee key is not read ──
+{
+  later(31_000);
+  const saved = c.raw.solfee[2];
+  delete c.raw.solfee[2];
+  const [mark, before] = [calls("balance"), snapshot()];
+  plain.observe(gid);
+  await readDone(c.balances, before);
+  assert.equal(c.balances.error, "", "a seat with no fee key does not fail the read");
+  assert.equal(calls("balance") - mark, 3, "the group and the two published fee addresses");
+  assert.deepEqual(Object.keys(c.balances.fees).sort(), ["1", "3"], "no fee balance for seat 2");
+  assert.deepEqual([c.balances.fees[1], c.balances.fees[3]], [5000000n, 123456789n]);
+  c.raw.solfee[2] = saved;
+}
+step("a seat without a published fee key is left out of the read");
+
+assertNoKey("at the end");
+step("the Helius URL is in no place at the end of the run");
 
 console.log("sol-plain-reads: ok");
 process.exit(0);

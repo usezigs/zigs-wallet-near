@@ -24,6 +24,8 @@ const NO_POLICY =
   "The server did not send the policy of the Solana worker, so the worker was not started.";
 const WRONG_CLUSTER = "The Solana worker answered for another cluster, so it was not used.";
 const CLOSED = "The wallet closed during this Solana read.";
+const TOO_SLOW = "Solana did not start in time. Check your connection.";
+const START_MS = 20_000; // the limit of each step of the start of the Worker
 
 // What belongs to the open wallet. The host, the wasm and the read records outlive it.
 let opens = 0;
@@ -100,24 +102,32 @@ async function requireWorkerPolicy() {
   }
 }
 
+// Ends a step of the start that hangs: a hung start would hold the one read key for every wallet.
+const within = (promise) =>
+  new Promise((ok, bad) => {
+    const timer = setTimeout(() => bad(new Error(TOO_SLOW)), START_MS);
+    promise.then(ok, bad).finally(() => clearTimeout(timer));
+  });
+
 // The Worker of the open wallet: it starts once the server's policy header is the expected one,
-// and its answer to init names the cluster of the wallet. teardown closes it.
+// and its answer to init names the cluster of the wallet. It is on c from its start, so that
+// teardown closes it also while it is in init: that frees the read key.
 async function ensureWorker(c) {
   if (c.worker) return c.worker;
   const { opened, wallet } = c;
-  await requireWorkerPolicy();
-  const rpcUrl = await fetchMainnetUrl();
+  await within(requireWorkerPolicy());
+  const rpcUrl = await within(fetchMainnetUrl());
   if (c.opened !== opened) throw new Error(CLOSED);
   const worker = startSolWorker("/sol/plain/worker.js");
+  c.worker = worker;
   try {
-    const answer = await worker.call("init", { cluster: wallet.cluster, rpcUrl });
+    const answer = await within(worker.call("init", { cluster: wallet.cluster, rpcUrl }));
     if (answer.cluster !== wallet.cluster) throw new Error(WRONG_CLUSTER);
-    if (c.opened !== opened) throw new Error(CLOSED);
   } catch (e) {
+    if (c.worker === worker) c.worker = null;
     worker.close();
     throw e;
   }
-  c.worker = worker;
   return worker;
 }
 

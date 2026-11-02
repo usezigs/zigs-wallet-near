@@ -214,7 +214,8 @@ the SOL of the group address, the USDC of its associated token account and the S
 fee address. The wasm names the token account (`plain_reads`, row `source`); no document or answer
 of the network gives it. The page decodes the token account for display only (the checker parses it
 again before any signature). One read job runs at a time, a wallet is read once in 30 s, a hidden tab
-reads nothing, and a failed read keeps the old balances and waits 30 s.
+reads nothing, and a failed read keeps the old balances and waits 30 s. A step of the start that
+takes more than 20 s ends the read. A close of the wallet closes a Worker that is still in init.
 
 **3.9 Known limits of the plain wallet (P1).**
 

@@ -173,6 +173,7 @@ const plainMutant = (id, what, [file, from, to], detect) =>
 const SOL_PLAIN_READS = ["node", "web/test/sol-plain-reads.mjs"];
 const GATE_TEST = ["node", "cf/test/gate.mjs"];
 const READS_JS = "web/sol/plain/reads.js";
+const INIT_CALL = 'worker.call("init", { cluster: wallet.cluster, rpcUrl })';
 const readsMutant = (id, what, [file, from, to], detect) =>
   mutant(id, what, SOL_PLAIN_READS, [patch(file, from, to)], { detect, ms: 240000 });
 const POOL_AND_REGISTRY =
@@ -1104,6 +1105,47 @@ export const MUTATIONS = [
     [PLAIN_CONTROL, "Object.assign(record, { error: String(e?.message ?? e), next:",
       "Object.assign(record, unread(), { error: String(e?.message ?? e), next:"],
     /the old SOL stays/),
+  readsMutant("PL-start-owner", "a close does not reach a Worker that is still in init",
+    [PLAIN_CONTROL,
+      "  c.worker = worker;\n  try {\n"
+        + `    const answer = await within(${INIT_CALL});\n`
+        + "    if (answer.cluster !== wallet.cluster) throw new Error(WRONG_CLUSTER);\n"
+        + "  } catch (e) {\n    if (c.worker === worker) c.worker = null;\n    worker.close();\n"
+        + "    throw e;\n  }\n  return worker;",
+      "  try {\n"
+        + `    const answer = await within(${INIT_CALL});\n`
+        + "    if (answer.cluster !== wallet.cluster) throw new Error(WRONG_CLUSTER);\n"
+        + "  } catch (e) {\n    worker.close();\n    throw e;\n  }\n  c.worker = worker;\n"
+        + "  return worker;"],
+    /the close stopped the Worker that was still in init/),
+  readsMutant("PL-start-dead", "a Worker that failed init stays on the controller",
+    [PLAIN_CONTROL, "    if (c.worker === worker) c.worker = null;\n", ""],
+    /The Solana worker was closed/),
+  readsMutant("PL-catch-opened", "a read cut by a close writes its error into the record",
+    [PLAIN_CONTROL, "    if (c.opened !== opened) return;\n", ""], /leaves no error/),
+  readsMutant("PL-limit-policy", "the policy check of the start has no time limit",
+    [PLAIN_CONTROL, "await within(requireWorkerPolicy());", "await requireWorkerPolicy();"],
+    /timeout: the read/),
+  readsMutant("PL-limit-config", "the request for the mainnet URL has no time limit",
+    [PLAIN_CONTROL, "await within(fetchMainnetUrl());", "await fetchMainnetUrl();"],
+    /timeout: the read/),
+  readsMutant("PL-limit-init", "init has no time limit",
+    [PLAIN_CONTROL, 'await within(worker.call("init", { cluster: wallet.cluster, rpcUrl }));',
+      'await worker.call("init", { cluster: wallet.cluster, rpcUrl });'],
+    /timeout: the read/),
+  readsMutant("PL-fee-filter", "a seat with no published fee key is read",
+    [READS_JS, ".filter((i) => publishedFee(c, i) !== undefined)", ""],
+    /a seat with no fee key does not fail the read/),
+  readsMutant("PL-leak-console", "the mainnet URL goes to the console",
+    [PLAIN_CONTROL, "  return url;\n}", '  console.debug("rpc", url);\n  return url;\n}'],
+    /the key is in the console/),
+  readsMutant("PL-leak-state", "the mainnet URL is kept in an object of the controller",
+    [PLAIN_CONTROL, '  const worker = startSolWorker("/sol/plain/worker.js");\n',
+      '  const worker = startSolWorker("/sol/plain/worker.js");\n  c.cfg = { rpcUrl };\n'],
+    /the key is in controller\.cfg/),
+  readsMutant("PL-leak-error", "the error of a wrong cluster holds the mainnet URL",
+    [PLAIN_CONTROL, "throw new Error(WRONG_CLUSTER);", "throw new Error(WRONG_CLUSTER + rpcUrl);"],
+    /the key is in an error text/),
   mutant("PL-gate-extra", "the plain-only server also serves a file of the pool", GATE_TEST,
     [patch(INDEX_JS, '"/sol/abort.js", "/sol/backup.js",',
       '"/sol/abort.js", "/sol/store.js", "/sol/backup.js",')],
