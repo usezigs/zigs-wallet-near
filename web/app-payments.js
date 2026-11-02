@@ -18,7 +18,7 @@ import {
   canWriteAs, mayAct, NO_SEAT_KEY, partNow, signedDoc, signedMode, sigPart, writer,
 } from "./app-filter.js";
 import { closeSession, openSession, sdb } from "./app-groups.js";
-import { groupName, isPayee, normalized, payTitle } from "./app-dom.js";
+import { groupName, isPayee, normalized, payeeNormalized, payTitle } from "./app-dom.js";
 import { myVerified, seatCheck } from "./app-dkg.js";
 import { once, react, render } from "./app-loop.js";
 import { openSend } from "./app-send.js";
@@ -1134,7 +1134,7 @@ export const payeesOf = (ss) => Array.isArray(ss.payees) ? ss.payees.filter((p) 
 export function recipientCheck(ss, ins) {
   if (!ins || ins.error) return { rows: [], extra: [], match: null };
   const paid = ins.lines.filter(isPayee);
-  const { rows, extra } = pairPayees(payeesOf(ss), paid, normalized);
+  const { rows, extra } = pairPayees(payeesOf(ss), paid, payeeNormalized);
   const match = allPaid(rows, extra, ss.amount);
   const addr = ss.move ? moveAddress(ss.move) : null;
   const intoNew = addr ? paid.length === 1 && normalized(addr) === paid[0].who : null;

@@ -435,6 +435,10 @@ function feeLabel(ins) {
   return times ? "Priority fee (" + times + " times the standard fee)" : "Network fee";
 }
 
+// A transparent output shows its address and amount on chain to everyone.
+const payeeLabel = (l) => "To " + short(l.who, 10)
+  + (l.pool === "Transparent" ? " (transparent, public)" : "");
+
 function breakdown(ins, ss) {
   const t = decodedTotals(ins);
   const row = (label, zat, cls = "") => el("div", {}, el("span", { class: cls }, label),
@@ -445,7 +449,7 @@ function breakdown(ins, ss) {
     "data-review": "costs" },
     el("h3", {}, "Amounts and network cost"),
     el("div", { class: "lines" },
-      ins.lines.filter(isPayee).map((l) => row("To " + short(l.who, 10), l.value)),
+      ins.lines.filter(isPayee).map((l) => row(payeeLabel(l), l.value)),
       row(feeLabel(ins), t.fee, "neg"),
       el("div", { class: "total" }, el("span", {}, "Leaves the wallet"),
         el("span", { class: "mono" }, zecText(t.leaves))),

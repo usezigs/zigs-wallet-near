@@ -582,8 +582,10 @@ folder path.
   - Expiry and fees: a group payment expires after one day of blocks (75 or 25 seconds each), at
     most up to the next upgrade, also on mainnet at block 3,543,405 (NU7). The approver refuses an
     expired payment, one made for another network upgrade than the next block, and one that stays
-    valid much longer. A fee from the ZIP 317 fee to 10 times it passes, and a transparent or Sapling
-    output inside that range is refused. The id that `inspect` gives is the id of the final
+    valid much longer. A fee from the ZIP 317 fee to 10 times it passes, and a Sapling output
+    inside that range is refused. A P2PKH or P2SH output is a recipient, and its action counts in
+    the ZIP 317 fee. A transparent input, an OP_RETURN output and a fee that leaves out the
+    transparent action are refused. The id that `inspect` gives is the id of the final
     transaction.
   - Session state: "done" and "expired" need the sighash that the device approved, and
     signatures count only under the wallet key. A proposal alone, an unsigned copy, signatures of

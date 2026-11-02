@@ -34,6 +34,7 @@ use zcash_client_backend::{
 use zcash_keys::{address::Address, keys::UnifiedFullViewingKey};
 use zcash_note_encryption::try_compact_note_decryption;
 use zcash_primitives::block::BlockHash;
+use zcash_script::script::Evaluable as _;
 use zcash_protocol::{
     consensus::{BlockHeight, Network},
     memo::MemoBytes,
@@ -46,7 +47,7 @@ use super::{
     memo::{commitment_bytes, parse_memo, received as memos_in, MemoView},
     pczt_from_b64, pczt_to_b64, session,
     snapshot::{decode_note, decode_store, encode_note, encode_store, hex32},
-    Payee, Terms, R,
+    Payee, Terms, To, R,
 };
 
 const BATCH: u32 = 1000;
@@ -654,8 +655,25 @@ pub(crate) fn zip317_fee(spends: usize, outputs: usize) -> u64 {
     MARGINAL_FEE * spends.max(outputs).max(2) as u64
 }
 
+/// The ZIP 317 logical actions of transparent outputs of `bytes` bytes in all, in a transaction
+/// with no transparent input: one for each 34 bytes, rounded up. A P2PKH output has 34 bytes and
+/// a P2SH output 32.
+pub(crate) fn transparent_actions(bytes: usize) -> usize {
+    bytes.div_ceil(34)
+}
+
+/// The bytes of the transparent outputs of `payees` (`transparent_actions`).
+fn transparent_bytes(payees: &[Payee]) -> usize {
+    let size = |to: &To| match to {
+        To::Shielded(_) => 0,
+        To::Transparent(t) => 8 + 1 + t.script().byte_len(),
+    };
+    payees.iter().map(|p| size(&p.0)).sum()
+}
+
 /// `notes` is `(value, height)` of each unspent note. Picks confirmed notes, largest first.
 /// `outputs` counts every output, change included. The fee is `factor` times the ZIP 317 fee.
+#[cfg(test)]
 fn select_notes(
     notes: &[(u64, u32)], amount: u64, outputs: usize, synced: u32, factor: u64,
 ) -> R<Pick> {
@@ -668,15 +686,20 @@ fn select_notes(
 fn pick_notes(
     notes: &[(u64, u32)], amount: u64, outputs: usize, synced: u32, factor: u64,
 ) -> R<Pick> {
-    pick_notes_after(notes, &[], (amount, outputs), synced, factor)
+    pick_notes_after(notes, &[], (amount, outputs, 0), synced, factor)
 }
 
 /// `pick_notes` that spends the notes `first` (indices into `notes`) whatever their value, and
-/// then confirmed notes, largest first, until `want` (amount and outputs) and the fee are covered.
+/// then confirmed notes, largest first, until `want` and the fee are covered. `want` is the
+/// amount, the Ironwood outputs (the change included) and the logical actions of the transparent
+/// outputs (`transparent_actions`).
 fn pick_notes_after(
-    notes: &[(u64, u32)], first: &[usize], want: (u64, usize), synced: u32, factor: u64,
+    notes: &[(u64, u32)], first: &[usize], want: (u64, usize, usize), synced: u32, factor: u64,
 ) -> R<Pick> {
-    let (amount, outputs) = want;
+    let (amount, outputs, transparent) = want;
+    let fee_of = |spends: usize| {
+        (zip317_fee(spends, outputs) + MARGINAL_FEE * transparent as u64) * factor
+    };
     ensure(first.len() <= MAX_SPENDS, &format!(
         "the expired payment spends more than {MAX_SPENDS} notes, the most that one payment can \
          spend now. Propose a new payment instead"))?;
@@ -687,7 +710,7 @@ fn pick_notes_after(
     let (mut picked, mut rest) = (first.to_vec(), rest.into_iter());
     let mut total: u64 = first.iter().map(|&i| notes[i].0).sum();
     loop {
-        let fee = zip317_fee(picked.len(), outputs) * factor;
+        let fee = fee_of(picked.len());
         if !picked.is_empty() && total >= amount.saturating_add(fee) {
             return Ok(Pick { picked, fee, change: total - amount - fee, total });
         }
@@ -698,7 +721,7 @@ fn pick_notes_after(
         picked.push(i);
         total += notes[i].0;
     }
-    let need = amount.saturating_add(zip317_fee(picked.len(), outputs) * factor);
+    let need = amount.saturating_add(fee_of(picked.len()));
     Err(format!("not enough funds: {total} zat spendable, {need} zat needed (amount + fee)"))
 }
 
@@ -761,8 +784,9 @@ const MAX_OUTPUTS: usize = 9;
 /// Most recipients in one payment: the change is one more output.
 pub(crate) const MAX_PAYEES: usize = MAX_OUTPUTS - 1;
 
-/// Parses `[{"to": "<unified address>", "amount": <zat>, "memo": "<text, optional>"}, …]`.
-/// Errors name the row, from 1.
+/// Parses `[{"to": "<address>", "amount": <zat>, "memo": "<text, optional>"}, …]`. An address is
+/// a unified address with an Orchard receiver or a transparent address (`parse_to`). Errors name
+/// the row, from 1.
 fn parse_payees(rows: &[Value], net: Network) -> R<Vec<Payee>> {
     ensure(!rows.is_empty(), "add at least one recipient")?;
     let most = format!("a payment can have at most {MAX_PAYEES} recipients");
@@ -785,8 +809,25 @@ fn parse_payee(n: usize, row: &Value, net: Network) -> R<Payee> {
         memo == MemoBytes::empty() || !transparent,
         &format!("recipient {n}: a transparent address cannot receive a memo"),
     )?;
-    let payee = parse_recipient(to, net).map_err(|err| format!("recipient {n}: {err}"))?;
+    let payee = parse_to(to, net).map_err(|err| format!("recipient {n}: {err}"))?;
     Ok((payee, amount, memo))
+}
+
+/// A recipient of a payment: a unified address with an Orchard receiver, or a P2PKH or P2SH
+/// transparent address. A TEX address (ZIP 320) is refused: it takes funds from transparent
+/// inputs only, and a Zigs wallet pays from the shielded pool.
+pub(crate) fn parse_to(s: &str, net: Network) -> R<To> {
+    let name = if net == Network::MainNetwork { "mainnet" } else { "testnet" };
+    match Address::decode(&net, s.trim()) {
+        Some(Address::Transparent(t)) => Ok(To::Transparent(t)),
+        Some(Address::Tex(_)) => Err("a TEX address takes funds from transparent addresses only \
+             (ZIP 320), and this wallet pays from the shielded pool"
+            .to_string()),
+        None => Err(format!(
+            "the recipient must be a {name} unified address or a transparent address"
+        )),
+        _ => parse_recipient(s, net).map(To::Shielded),
+    }
 }
 
 pub(crate) fn parse_recipient(s: &str, net: Network) -> R<orchard::Address> {
@@ -935,12 +976,10 @@ fn spend_pczt(
     let target = BlockHeight::from_u32(tip + 1);
     let expiry = Some(expiry::expiry_for(&s.net, target));
     let terms = Terms { target, expiry, fee_factor: factor };
-    let outputs = payees.len() + 1;
+    let shielded = payees.iter().filter(|p| matches!(p.0, To::Shielded(_))).count();
+    let want = (amount, shielded + 1, transparent_actions(transparent_bytes(payees)));
     let first = after.map(|p| notes_of(s, p)).transpose()?.unwrap_or_default();
-    let choose = |values: &[(u64, u32)]| match first.as_slice() {
-        [] => select_notes(values, amount, outputs, s.synced, factor),
-        first => pick_notes_after(values, first, (amount, outputs), s.synced, factor),
-    };
+    let choose = |values: &[(u64, u32)]| pick_notes_after(values, &first, want, s.synced, factor);
     let (pczt, pick) = build_spend(s, payees, &terms, choose)?;
     Ok(json!({"pczt": pczt_to_b64(pczt)?, "pool": "ironwood", "amount": amount,
         "change": pick.change, "fee": pick.fee, "note_value": pick.total})
@@ -949,7 +988,7 @@ fn spend_pczt(
 
 /// One output of zero value for each part of the message, all to `to`, each with its text memo.
 fn message_payees(to: &str, text: &str, net: Network) -> R<Vec<Payee>> {
-    let to = parse_recipient(to, net)?;
+    let to = To::Shielded(parse_recipient(to, net)?);
     let parts = account::split(text)?;
     parts.iter().map(|part| Ok((to, 0, parse_memo(&json!(part))?))).collect()
 }
@@ -1292,6 +1331,7 @@ pub(crate) mod native {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use zcash_transparent::address::TransparentAddress;
 
     const SYNCED: u32 = 100;
 
@@ -1346,12 +1386,12 @@ mod tests {
         let at_priority = select_notes(&notes, max - 9 * fee, 2, SYNCED, PRIORITY_FACTOR).unwrap();
         assert_eq!((at_priority.picked.len(), at_priority.change), (MAX_SPENDS, 0));
         let first: Vec<usize> = (0..=MAX_SPENDS).collect();
-        let old = pick_notes_after(&notes, &first, (1, 2), SYNCED, 1).unwrap_err();
+        let old = pick_notes_after(&notes, &first, (1, 2, 0), SYNCED, 1).unwrap_err();
         assert!(old.contains("Propose a new payment"), "{old}");
-        let again = pick_notes_after(&notes, &first[1..], (1, 2), SYNCED, 1).unwrap();
+        let again = pick_notes_after(&notes, &first[1..], (1, 2, 0), SYNCED, 1).unwrap();
         assert_eq!(again.picked, first[1..]);
         // The small notes of an expired payment, and larger notes that came later.
-        let changed = pick_notes_after(&notes, &first[..MAX_SPENDS], (max, 2), SYNCED, 1);
+        let changed = pick_notes_after(&notes, &first[..MAX_SPENDS], (max, 2, 0), SYNCED, 1);
         assert!(changed.unwrap_err().contains("The funds changed"));
     }
 
@@ -1466,7 +1506,20 @@ mod tests {
         let refused = err(&[ok.clone(), to_tex(json!("hello"))]);
         let want = "recipient 2: a transparent address cannot receive a memo";
         assert!(refused.contains(want), "{refused}");
-        assert!(err(&[to_tex(json!(null))]).contains("must be a testnet unified address"));
+        assert!(err(&[to_tex(json!(null))]).contains("ZIP 320"));
+        let tm = Address::Transparent(TransparentAddress::PublicKeyHash([5; 20])).encode(&net);
+        let t2 = Address::Transparent(TransparentAddress::ScriptHash([6; 20])).encode(&net);
+        let rows = parse_payees(&[json!({"to": tm, "amount": 7}), json!({"to": t2, "amount": 8})],
+            net).unwrap();
+        let to: Vec<To> = rows.iter().map(|r| r.0).collect();
+        assert_eq!(to, [To::Transparent(TransparentAddress::PublicKeyHash([5; 20])),
+            To::Transparent(TransparentAddress::ScriptHash([6; 20]))]);
+        let memo = err(&[json!({"to": tm, "amount": 7, "memo": "hi"})]);
+        assert!(memo.contains("a transparent address cannot receive a memo"), "{memo}");
+        let t1 = Address::Transparent(TransparentAddress::PublicKeyHash([5; 20]))
+            .encode(&Network::MainNetwork);
+        let other = err(&[json!({"to": t1, "amount": 7})]);
+        assert!(other.contains("must be a testnet unified address or a transparent"), "{other}");
     }
 
     #[test]
@@ -2412,6 +2465,29 @@ mod tests {
         let ins = inspect(&made);
         assert_eq!((&ins["fee"], &ins["expiry_height"]), (&json!(10_000), &json!(tip + 1 + 120)));
         assert_eq!(made["expiry_height"], ins["expiry_height"], "the message gives its own expiry");
+    }
+
+    /// A payment to a transparent address pays one more ZIP 317 action, and `inspect` lists the
+    /// transparent output with the change and the shielded payee.
+    #[test]
+    fn a_payment_to_a_transparent_address_pays_for_its_output() {
+        let (w, chain) = funded_account(&"0a".repeat(32), &[1_000_000]);
+        let net = Network::TestNetwork;
+        let tm = Address::Transparent(TransparentAddress::PublicKeyHash([5; 20])).encode(&net);
+        let to = address_for(&"0b".repeat(32), 1);
+        let rows = [json!({"to": tm, "amount": 200_000}), json!({"to": to, "amount": 100_000})];
+        let (payees, tip) = (parse_payees(&rows, net).unwrap(), chain.last_height());
+        let fvk = hex::encode(w.ufvk.orchard().unwrap().to_bytes());
+        for (priority, fee) in [(false, 15_000), (true, 150_000)] {
+            let made = v(&spend_pczt(&w, &payees, tip, priority, None).unwrap());
+            assert_eq!((&made["fee"], &made["amount"]), (&json!(fee), &json!(300_000)));
+            assert_eq!(made["change"], json!(700_000 - fee));
+            let ins = v(&crate::inspect(made["pczt"].as_str().unwrap(), &fvk).unwrap());
+            assert_eq!((&ins["fee"], &ins["standard_fee"]), (&json!(fee), &json!(15_000)));
+            let lines = ins["lines"].as_array().unwrap();
+            let t = lines.iter().find(|l| l["pool"] == "Transparent").unwrap();
+            assert_eq!((&t["who"], &t["value"]), (&json!(tm), &json!(200_000)));
+        }
     }
 
     #[test]

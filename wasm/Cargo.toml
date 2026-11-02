@@ -13,10 +13,13 @@ frost-rerandomized = { version = "2.1.0", features = ["serde"] }
 orchard = { version = "=0.16.0", default-features = false, features = ["std", "circuit", "unstable-frost"] }
 pczt = { version = "=0.10.0", features = ["signer", "orchard", "prover", "io-finalizer", "spend-finalizer", "tx-extractor", "zcp-builder"] }
 zcash_primitives = { version = "=0.31.0", default-features = false, features = [
-    "std", "circuits", "non-standard-fees",
+    "std", "circuits", "non-standard-fees", "transparent-inputs",
 ] }
 zcash_protocol = { version = "=0.11.0", features = ["local-consensus"] }
 zcash_keys = { version = "=0.17.0", default-features = false, features = ["orchard", "unstable-frost"] }
+zcash_transparent = "=0.11.0"
+zcash_script = "=0.6.0"
+secp256k1 = "0.33"
 incrementalmerkletree = "=0.9.0"
 shardtree = "=0.8.0"
 zcash_note_encryption = "=0.5.1"

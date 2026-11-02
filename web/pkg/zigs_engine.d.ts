@@ -177,6 +177,8 @@ export function normalizeAddress(addr: string): string;
 
 export function parseRequest(uri: string, net: string): string;
 
+export function payeeAddress(addr: string): string;
+
 export function safetyNumber(wallet_id: string, t: number, n: number, network: string, seats: string): string;
 
 export function secretOpen(secret: string, aad: string, ct: string): string;
@@ -265,6 +267,7 @@ export interface InitOutput {
     readonly makeRequest: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly normalizeAddress: (a: number, b: number) => [number, number, number, number];
     readonly parseRequest: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+    readonly payeeAddress: (a: number, b: number) => [number, number, number, number];
     readonly safetyNumber: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
     readonly secretOpen: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
     readonly secretSeal: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];

@@ -72,7 +72,7 @@ property:
 | Anchor | Target height − 3 (3 confirmations) | Same (`ConfirmationsPolicy` trusted = 3) |
 | Change | One note to the wallet's internal address | Same |
 | Memos | Empty unless a signer writes one for a recipient | Empty unless the user writes one |
-| Transparent parts | None | None for a shielded payment |
+| Transparent parts | None for a shielded payment. A payment to a transparent address has one transparent output for it, and no transparent input | Same |
 | Several recipients | One output per recipient, plus change | Same for a multi-recipient payment (ZIP 321) |
 
 The code is `build_ironwood_pczt` and `spend_pczt` in `wasm/src`.
@@ -86,6 +86,12 @@ pay one. Messages of the personal account keep the expiry and the fee of the sta
 The number of actions is visible on chain, as for every Zcash transaction: it is the larger of
 the inputs and the outputs, at least 2. A payment to 4 recipients has at least 5 actions, so it
 shows that it is a larger payment, but not who or how much.
+
+A payment to a transparent address (`t1` or `t3`, on testnet `tm` or `t2`) is public in part. The
+chain shows that address and its amount to everyone, and the output takes no memo. The spent notes,
+the change and the shielded recipients stay shielded. Send says this under the address. Zigs pays
+no TEX address (ZIP 320): a TEX address takes funds from transparent addresses only, and Zigs
+pays from the shielded pool. A transparent output adds one action to the ZIP 317 fee.
 
 ## Group server (Cloudflare Worker and Durable Objects)
 
@@ -784,8 +790,9 @@ the passkey guards the key share instead. The lock is opt-in.
 - A compromised device can sign with its own share, and can show its user false information.
   Each approving device decodes the transaction itself. It ties every output that carries value
   to the recipient it shows, checks that the outputs are exactly the listed recipients and
-  amounts, and refuses a transaction with a transparent or Sapling part, or a fee below the
-  standard fee or above 10 times it. The web, iPhone and Mac apps also check the memo of each
+  amounts, and refuses a transaction with a transparent input, a transparent output that is not
+  P2PKH or P2SH, a Sapling part, or a fee below the standard fee or above 10 times it. A
+  transparent output shows as a recipient with the address of its script. The web, iPhone and Mac apps also check the memo of each
   recipient. Each approval is tied
   to the transaction's sighash. The device signs later only if the transaction is still the one
   it approved. Otherwise it marks the payment failed. So one honest signer sees the true
