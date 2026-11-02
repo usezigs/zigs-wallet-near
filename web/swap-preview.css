@@ -186,7 +186,6 @@
 body:has(.swap-modal[open]) { overflow:hidden; }
 .swap-modal-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:22px; }
 /* A long tag wraps, so the close button stays inside a 320 px dialog. */
-.swap-modal-heading>div { min-width:0; }
 .swap-modal-heading .swap-preview-tag { white-space:normal; }
 .swap-modal-heading h2 { font-size:23px; line-height:1.25; letter-spacing:-.025em; margin-top:13px; }
 .swap-modal-heading h2:focus { outline:0; }

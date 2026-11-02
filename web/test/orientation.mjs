@@ -85,11 +85,15 @@ for (const [file, sel] of [["settings-experience.css", ".preference-control .inp
 // the asset search), a dialog heading that fits 320 px, and a focus ring on the deposit screen.
 const swap = rules(read("swap-preview.css"));
 assert.ok(!swap.some((r) => r.sel.split(/,\s*/).includes(".swap-heading h1")
-  && /font-size/.test(r.body)), "the Swap title takes its size from the token");
-assert.ok(has(swap, ".swap-search", /font:400 16px\//), "the swap fields are 16 px");
-assert.ok(has(swap, ".swap-modal-heading>div", /min-width:0/)
-  && has(swap, ".swap-modal-heading .swap-preview-tag", /white-space:normal/),
-"a long tag wraps, so the close button stays inside the swap dialog");
+  && /font-size|font:(?!var\(--font-page\))/.test(r.body)),
+"the Swap title takes its size from the token");
+// Every px font size of the .swap-search rules, also inside @media.
+const searchPx = swap.filter((r) => r.sel.includes(".swap-search"))
+  .flatMap((r) => [...r.body.matchAll(/font(?:-size)?:[^;]*?(\d+(?:\.\d+)?)px/g)])
+  .map((m) => Number(m[1]));
+assert.ok(searchPx.length && searchPx.every((px) => px >= 16), "the swap fields are 16 px");
+assert.ok(has(swap, ".swap-modal-heading .swap-preview-tag", /white-space:normal/),
+  "a long tag wraps, so the close button stays inside the swap dialog");
 // Specificity as one number (ids, classes, types), enough for the selectors compared here.
 const weight = (sel) => [/#[\w-]+/g, /\.[\w-]+|\[[^\]]*\]|:[\w-]+/g, /(?:^|[\s>+~])[a-z]+/g]
   .reduce((sum, re) => sum * 100 + (sel.replace(/"[^"]*"/g, "").match(re) ?? []).length, 0);

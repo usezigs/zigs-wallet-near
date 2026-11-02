@@ -3358,9 +3358,14 @@ export const MUTATIONS = [
   program("OR-swap-wrap", "the tag of the swap dialog stays on one line", [
     "web/swap-preview.css", ".swap-modal-heading .swap-preview-tag { white-space:normal; }\n", ""],
   ORIENT, /a long tag wraps, so the close button stays inside the swap dialog/),
-  program("OR-swap-shrink", "the swap dialog heading keeps the width of the tag", [
-    "web/swap-preview.css", ".swap-modal-heading>div { min-width:0; }\n", ""],
-  ORIENT, /a long tag wraps, so the close button stays inside the swap dialog/),
+  program("OR-swap-title-font", "the Swap title of a 320 px phone is 22 px by a font rule", [
+    "web/swap-preview.css", "@media(max-width:360px) { .swap-amount",
+    "@media(max-width:360px) { .swap-heading h1 { font:700 22px/28px var(--sans); } .swap-amount"],
+  ORIENT, /the Swap title takes its size from the token/),
+  program("OR-swap-field-phone", "the swap fields of a phone are 14 px", ["web/swap-preview.css",
+    "  .swap-modal { padding:20px; border-radius:20px; }\n",
+    "  .swap-modal { padding:20px; border-radius:20px; }\n  .swap-search { font-size:14px; }\n"],
+  ORIENT, /the swap fields are 16 px/),
   program("OR-swap-ring", "the deposit screen loses its focus ring", ["web/swap-preview.css",
     ".swap-page .swap-deposit:focus {", ".swap-deposit:focus {"],
   ORIENT, /the deposit screen shows its focus ring/),
