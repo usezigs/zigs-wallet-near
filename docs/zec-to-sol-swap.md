@@ -25,7 +25,7 @@ sections stay as the record of the first proposal.
 | Page | The Swap page runs ZEC to SOL behind `NEAR_LIVE`. The recipient is the plain Solana address of the wallet and `refundTo` is the group transparent address. Nobody types an address. **Propose the payment** opens Send with the deposit address, the exact amount and a swap note | `web/app-swap-preview.js`, `web/app-swap-zec.js` |
 | Approval check | Each device that approves a payment with the swap note reads `/near/status` for the deposit address. It approves only a swap from ZEC to SOL of the exact amount that pays the Solana address of this wallet, refunds to its transparent address and ends at the deadline in the note, with 30 minutes left | `web/app-swap-zec.js` |
 | Send check | No device sends a swap payment in the last 30 minutes before the deadline | `sendRefusal` in `web/app-payments.js` |
-| Sweep of the transparent address | Not built yet. Until it is, Zigs cannot move funds from the group transparent address | — |
+| Move from the transparent address | A device proposes a move of the payments of the group address to the shielded address of the wallet. Each device checks it with its engine (only this wallet, only the ZIP 317 fee, every input signs the whole transaction) and signs each input with its seat key. Any device with t signatures proves it and sends it. Dust stays behind; at most 50 payments in one move | `wasm/src/p2sh.rs`, `web/app-sweep.js` |
 
 Changes against the first proposal:
 
@@ -55,15 +55,18 @@ Changes against the first proposal:
 
 The gaps before the first funded swap:
 
-1. The sweep of the group transparent address. Without it, a refund stays at an address that Zigs
-   cannot move.
-2. A move of the wallet (Change devices) leaves funds at the old transparent address. The sweep
-   must run first, or the move must refuse while that address has a balance.
+1. No move from the transparent address has run on a chain. The cargo test proves a 2-of-3 move
+   and runs its scripts with the interpreter. The first real move (testnet first) needs the
+   owner's yes with the commit, the command and the amounts.
+2. A move of the wallet (Change devices) leaves funds at the old transparent address. The move to
+   the shielded address must run first, or the change must refuse while that address has a
+   balance.
 3. Run L0 with the owner's yes: one live quote, no deposit, and one `/near/status` read of its
    deposit address.
 
 The live runs of section 6.3 change so: L1 pays the refund to the group transparent address, which
-Receive shows with its balance. L2 is the full swap through the group. Each run needs the owner's
+Receive shows with its balance, and then moves it to the shielded address. L2 is the full swap
+through the group. Each run needs the owner's
 yes with the commit, the command and the amounts.
 
 ## 1. Summary

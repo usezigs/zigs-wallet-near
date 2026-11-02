@@ -101,8 +101,16 @@ its secp256k1 key from its own key share and publishes the public key as a signe
 the group server sees that the wallet has such keys, but not the keys: the documents are
 encrypted like the others. This address is public. The chain shows its balance and every payment
 to it to everyone, and all payments to it link to one another. A swap from ZEC sends its refund
-there. Receive shows it below the shielded address and says that it is public. Zigs cannot move
-funds from this address yet.
+there. Receive shows it below the shielded address and says that it is public.
+
+Zigs moves the funds of this address to the shielded address of the wallet when t devices approve
+(`web/app-sweep.js`). The move is a public transaction. The chain shows the payments that it
+spends, their sum, the fee, and the amount that goes into the shielded pool. The shielded
+recipient stays hidden, but everyone can see that these funds became shielded at that time. One
+move spends at most 50 payments. A payment that is worth less than the fee of its own bytes stays
+behind, so dust that anyone can send to the public address does not raise the fee. Each device
+checks the move with its own engine before it signs: it pays only this wallet, and only the ZIP
+317 fee.
 
 ## Group server (Cloudflare Worker and Durable Objects)
 
@@ -450,7 +458,8 @@ What stays visible:
 
 - NEAR Intents links the transparent address of the group to its Solana address. The status of a
   swap names both addresses to anyone who knows the deposit address.
-- A refund lands at the transparent address, where the chain shows it to everyone.
+- A refund lands at the transparent address, where the chain shows it to everyone. The move to
+  the shielded address is public too (see the transparent address of the group above).
 
 ## Solana beta (Helius Devnet)
 

@@ -4,8 +4,8 @@
 // in the balance ("Not in a block yet") and as a row in the activity ("Receiving · not in a block
 // yet"). They never count as Available or Incoming, and never touch the balance or the cap. A
 // call that fails or takes 20 s shows nothing, and the last good list stays for 2 minutes. The page
-// redraws when what it shows changes. The engine is a fake. The last part checks the transparent
-// address of the group on Receive.
+// redraws when what it shows changes. The engine is a fake. The last parts check the transparent
+// address of the group on Receive and the move of its funds to the shielded address.
 // Run: node web/test/mempool.mjs   (Node 26)
 import assert from "node:assert/strict";
 import { loadRig, sleep } from "./sol-rig.mjs";
@@ -521,6 +521,108 @@ console.log("ok  no call for a hidden tab or a closed wallet; the 30 s call asks
   rig.hook.before = (_path, v) => v;
   t.setZ(before);
   console.log("ok  a swapped key blocks the address, and the seat does not write it again");
+}
+// ── The move from the transparent address to the shielded address (app-sweep.js) ──
+// The rig has no light-wallet server, so the chain wallet and the engine calls of the move are
+// stubs. The real engine takes the arguments of each call, and cargo tests the move itself.
+{
+  const engine = await import("../app-engine.js");
+  const { groupTaddress, readTaddressBalance, taddressBalance, taddressSection } =
+    await import("../app-taddress.js");
+  const sweep = await import("../app-sweep.js");
+  const { signedDoc } = await import("../app-filter.js");
+  const sg = await rig.wallet({ name: "Sweep" });
+  await rig.waitFor("the group address of the move", () => groupTaddress().address);
+  const { address, keys } = groupTaddress();
+  const kp = JSON.stringify(t.sec(sg, 1).keyPackage), fvk = t.state.wallet.orchard_fvk;
+  for (const call of [() => Z.sweepCheck("AAAA", 2, keys, kp, fvk, "testnet"),
+    () => Z.sweepSign("AAAA", 2, keys, kp, fvk, "testnet", 100),
+    () => Z.sweepFinish("AAAA", "[]")]) {
+    assert.throws(call, /pczt parse/, "the engine reads the arguments and refuses the PCZT");
+  }
+  console.log("ok  the engine takes the arguments of the move and refuses a bad PCZT");
+
+  const before = engine.Z, calls = [], PCZT = "bW92ZQ==";
+  const ck = { inputs: 2, total: 15e7, value: 14997e4, fee: 30000, txid: "c3".repeat(32),
+    expiry_height: 5000 };
+  const utxo = (value, index) => ({ txid: "ab".repeat(32), index, value, height: 5 });
+  t.setZ({ ...before, latestHeight: async () => 100,
+    transparentUtxos: async () => JSON.stringify({ total: 15e7, utxos: [utxo(1e8, 0),
+      utxo(5e7, 1)], more: false }),
+    sweepCheck: (p, _t, _k, _kp, f) => {
+      if (p !== PCZT || f !== fvk) throw new Error("not a move to this wallet");
+      return JSON.stringify(ck);
+    },
+    sweepSign: (...args) => {
+      calls.push(["sign", args[6]]);
+      return JSON.stringify({ key: "key-" + calls.length, signatures: ["30"] });
+    },
+    sweepFinish: (p, sigs) => {
+      calls.push(["finish", p, JSON.parse(sigs).map((s) => s.key)]);
+      return JSON.stringify({ tx_hex: "beef", txid: ck.txid });
+    },
+    ChainWallet: class {
+      async broadcast(hex) { calls.push(["broadcast", hex]); return JSON.stringify({}); }
+      free() {}
+    } });
+  const cw = new FakeWallet();
+  cw.createSweep = async (utxos, tt, k) => {
+    calls.push(["create", JSON.parse(utxos).length, tt, k.length]);
+    return JSON.stringify({ pczt: PCZT, value: ck.value, fee: ck.fee, inputs: 2 });
+  };
+  const c = { gid: sg, cw, url: server, net: NETWORKS.testnet, birthday: 1, ms: 0, error: null,
+    bal: { height: 100, tip: 100, spendable: 0, pending: 0 }, received: [], sent: new Set(),
+    syncing: false };
+  t.setChain(c);
+  const shown = () => textOf(drawn(() => taddressSection()));
+  const buttons = () => findAll(drawn(() => taddressSection()), (n) => n.tag === "button")
+    .map(textOf).filter((b) => !b.startsWith("Copy"));
+  await readTaddressBalance(address);
+  assert.deepEqual(buttons(), ["Move to the shielded address"]);
+  assert.match(shown(), /moves the funds to the shielded address of this wallet when 2 devices/);
+  await sweep.proposeSweep(keys, taddressBalance().utxos);
+  assert.deepEqual(calls.shift(), ["create", 2, 2, 3], "two payments, 2 of 3 keys");
+  assert.equal(rig.data.get(`groups/${sg}/sweep/proposal`).pczt, PCZT);
+  // A signature of an older move does not count, and does not go into the finish.
+  const old = await signedDoc(sg, "sweep/2", 2, { v: 1, txid: "d4".repeat(32), key: "old",
+    signatures: ["30"] });
+  await rig.db.doc(`groups/${sg}/sweep/2`).set(old);
+  await rig.waitFor("the proposed move", () => /0 of 2 devices approved it/.test(shown()));
+  assert.ok(shown().includes("A move of 1.4997 ZEC to the shielded address of this wallet spends 2 "
+    + "payments of the transparent address. The network fee is 0.0003 ZEC."), shown());
+  assert.deepEqual(buttons(), [1, 2, 3].map((i) => "Approve as device " + i));
+  console.log("ok  a device proposes the move, and each device shows the amounts of its check");
+
+  await sweep.approveSweep(1, keys);
+  await sweep.approveSweep(3, keys);
+  assert.deepEqual(calls.splice(0), [["sign", 100], ["sign", 100]], "signed at the fresh tip");
+  await rig.waitFor("two approvals", () => /2 of 2 devices approved it/.test(shown()));
+  assert.deepEqual(buttons(), ["Approve as device 2", "Send the move"]);
+  const signers = [1, 3].map((i) => rig.data.get(`groups/${sg}/sweep/${i}`).key);
+  await sweep.sendSweep(keys);
+  assert.deepEqual(calls.splice(0), [["finish", PCZT, signers], ["broadcast", "beef"]]);
+  assert.equal(rig.data.get(`groups/${sg}/sweep/sent`).txid, ck.txid);
+  await rig.waitFor("the sent move", () => /It was sent to the network/.test(shown()));
+  assert.deepEqual(buttons(), [], "no new move for the payments that the sent move spends");
+  console.log("ok  two approvals send the move once, with their signatures only");
+
+  const bad = await signedDoc(sg, "sweep/proposal", 2, { v: 1, pczt: "b3RoZXI=" });
+  await rig.db.doc(`groups/${sg}/sweep/proposal`).set(bad);
+  await rig.waitFor("the refused move", () => /does not check/.test(shown()));
+  assert.match(shown(), /not a move to this wallet/);
+  assert.deepEqual(buttons(), ["Move to the shielded address"]);
+  await assert.rejects(sweep.approveSweep(1, keys), /No move waits for an approval/);
+  const again = await signedDoc(sg, "sweep/proposal", 1, { v: 1, pczt: PCZT });
+  await rig.db.doc(`groups/${sg}/sweep/proposal`).set(again);
+  rig.data.delete(`groups/${sg}/sweep/sent`);
+  c.bal.tip = 5000;
+  rig.notify();
+  await rig.waitFor("the expired move", () => /The proposed move expired/.test(shown()));
+  await assert.rejects(sweep.sendSweep(keys), /No move can be sent now/);
+  assert.deepEqual(buttons(), ["Move to the shielded address"]);
+  t.setChain(null);
+  t.setZ(before);
+  console.log("ok  a move that does not check or that expired gets no approval");
 }
 console.log("mempool: ok");
 process.exit(0);

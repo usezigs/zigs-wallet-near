@@ -784,7 +784,8 @@ folder path.
   for each wallet; a failed call, or one that takes 20 seconds, shows no error and the list stays
   for 2 minutes; the drop timer redraws, and an older timer drops no newer list; the explorer
   note below a list with only a waiting row; the empty-wallet texts; the personal account; the
-  call after a finished sync.
+  call after a finished sync. The last part checks the transparent address of the group and its
+  move to the shielded address, with stubs for the chain wallet and the engine calls of the move.
 - `node web/test/lwd.mjs`: the `/lwd` route of `cf/src/index.js` with a stub for `fetch`: the seven
   methods that pass and the 404 for the others (`GetMempoolStream` stays closed), the bound of a
   `GetBlockRange` body (400 for a range over 2,000 blocks or a bad body), the bound of a

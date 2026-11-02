@@ -573,7 +573,7 @@ async function commitNow(ss, i, ins, tip, gid) {
 // The chain height now, from the server of the last sync, else from the other servers of the
 // network in the order of preferredServers. After a server stopped answering, the wallet has no
 // server until the next sync, and the others still answer.
-async function freshTip() {
+export async function freshTip() {
   const c = curChain();
   if (!c || !c.bal) throw new Error("Wait for the first sync to finish, then approve.");
   const net = curNet(), order = preferredServers(net), errors = [];

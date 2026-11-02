@@ -4,6 +4,7 @@
 // device builds the address itself from the n signed keys, so no device can choose it alone.
 // Version 3 wallets only: before, the documents carry no signature. A swap from ZEC gets its
 // refunds at this address. The chain shows the address, its balance and every payment to it.
+// t devices move its funds to the shielded address of the wallet (app-sweep.js).
 import { addrGroups, copyBtn, el, qrBox } from "./app-dom.js";
 import { Z } from "./app-engine.js";
 import { canWriteAs, checkIn, signedDoc, signedMode, signPins } from "./app-filter.js";
@@ -12,6 +13,7 @@ import { sec } from "./app-keystore.js";
 import { render } from "./app-loop.js";
 import { localSeats } from "./app-seats.js";
 import { log, state } from "./app-state.js";
+import { sweepPart, watchSweep } from "./app-sweep.js";
 import { netName, netOf, pickServer } from "./app-chain.js";
 import { pin } from "./chat.js";
 
@@ -90,7 +92,7 @@ export const publishTaddressKeys = () => publish(state.gid);
 export function watchTaddress(gid, db) {
   watched = gid; raw = {}; store = db; balance = null; readError = ""; tried = new Set();
   loaded = false;
-  if (!gid) return () => {};
+  if (!gid) { watchSweep(null); return () => {}; }
   let live = true, stop = () => {};
   const received = (snap) => {
     if (!live || watched !== gid) return;
@@ -107,7 +109,8 @@ export function watchTaddress(gid, db) {
   try {
     stop = db.collection("groups/" + gid + "/p2sh").onSnapshot(received, failed);
   } catch { failed(); }
-  return () => { live = false; stop(); };
+  const stopSweep = watchSweep(gid, db);
+  return () => { live = false; stop(); stopSweep(); };
 }
 
 const NO_SEAT = "This browser holds no device of this wallet, so it cannot build the transparent "
@@ -134,8 +137,9 @@ function groupKeys(gid, n) {
 }
 
 /**
- * The transparent address of the open wallet: {address} when all n devices published a signed
- * key and the engine accepts the set, {published, of} while some keys are missing, or {error}.
+ * The transparent address of the open wallet: {address, keys} when all n devices published a
+ * signed key and the engine accepts the set, {published, of} while some keys are missing, or
+ * {error}.
  */
 export function groupTaddress() {
   const gid = state.gid, g = state.g;
@@ -145,7 +149,7 @@ export function groupTaddress() {
   if (!set.keys) return set;
   try {
     const kp = S(sec(gid, localSeats()[0]).keyPackage);
-    return { address: J(Z.p2shAddress(g.t, set.keys, kp, netName(g))).address };
+    return { address: J(Z.p2shAddress(g.t, set.keys, kp, netName(g))).address, keys: set.keys };
   } catch (e) {
     return { error: "The published keys do not make a group address: " + said(e) };
   }
@@ -173,7 +177,8 @@ export async function readTaddressBalance(address) {
 const PUBLIC_TEXT = (g) => "This address belongs to the group: a payment from it needs " + g.t
   + " of the " + g.n + " devices. The chain shows its balance and every payment to it to "
   + "everyone. A swap from ZEC sends its refund here. Receive other payments at the shielded "
-  + "address above. Zigs cannot move funds from this address yet.";
+  + "address above. Zigs moves the funds to the shielded address of this wallet when " + g.t
+  + " devices approve. The chain shows the amount of the move too.";
 const WAITING_TEXT = (t) => t.published + " of " + t.of + " devices published their key. The "
   + "address shows when each device opened this wallet once.";
 
@@ -197,7 +202,8 @@ export function taddressSection() {
       : [el("p", { class: "small muted" }, PUBLIC_TEXT(g)), qrBox(t.address, "Transparent address"),
         el("div", { class: "addr-full" }, addrGroups(t.address)), balanceLine(t.address),
         el("div", { class: "dialog-actions" },
-          copyBtn(t.address, "Copy transparent address", "btn"))];
+          copyBtn(t.address, "Copy transparent address", "btn")),
+        sweepPart(t.keys, taddressBalance())];
   return el("section", { class: "callout", "data-taddress": "section",
     style: "display:grid;gap:8px" }, head, ...body);
 }

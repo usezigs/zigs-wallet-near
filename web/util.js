@@ -299,7 +299,8 @@ export function backupName(wallet, seat) {
 
 // Engine calls that are slow enough to run in a worker (web/worker.js), or on the main thread when
 // no worker starts. `Z` is the engine module. finalize returns its parsed result with its time in
-// ms; the backup calls return the engine's text.
+// ms, and sweepFinish (the proof of a move from the transparent address) its parsed result; the
+// backup calls return the engine's text.
 const SLOW = {
   finalize: (Z, pczt) => {
     const t0 = performance.now();
@@ -307,6 +308,7 @@ const SLOW = {
     out.ms = Math.round(performance.now() - t0);
     return out;
   },
+  sweepFinish: (Z, pczt, signatures) => JSON.parse(Z.sweepFinish(pczt, signatures)),
   backupSeal: (Z, pass, plain) => Z.backupSeal(passNormal(pass), plain),
   backupOpen: (Z, pass, sealed) => Z.backupOpen(passNormal(pass), sealed),
 };
