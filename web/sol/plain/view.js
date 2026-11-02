@@ -14,7 +14,7 @@ import { DECIMALS, amountText } from "./reads.js";
 import { refusalRows, screenRows } from "./review.js";
 
 const NETWORK = "Solana Mainnet";
-const FACTS = "Real money, public on chain. Not audited. Sending comes later.";
+const FACTS = "Real money, public on chain. Not audited. No sending yet: deposits stay here.";
 const START_NOTE = "Helius sees your IP and wallet address. "
   + "Funding fee addresses links each device to this wallet.";
 const ONLY_DEVICE_1 = "Device 1 adds Solana.";
@@ -26,15 +26,16 @@ const FUNDS_STAY = "Funds sent to this address stay there.";
 const EXPLORER = "https://explorer.solana.com/address/";
 const EXPLORER_TX = "https://explorer.solana.com/tx/";
 const EXPLORER_NOTE = "Helius and the explorer see your IP.";
-const FEE_NOTE = "Fee addresses pay for setup and sending.";
+const FEE_NOTE = "Fee addresses pay for setup now and for sending later.";
 const BACKUP_SAVED = "saved";
-const BACKUP_NONE = "not backed up";
+const BACKUP_NONE = "not backed up. Back up before you deposit.";
 const COPY_FAILED = "Copy failed. Select the text and copy it.";
 const READING = "Reading…";
 const NOT_READ = "Not read";
 const NOT_ENABLED = "No USDC yet";
 const COPIED_MS = 1500;
-const SETUP_TITLE = "Prepare to send";
+const SETUP_TITLE = "Set up sending";
+const COST_NOTE = "Each step spends real SOL from a fee address.";
 const MARKS = { createNonce: "create-nonce", enableUsdc: "enable-usdc" };
 const SIGNS = (seat) => `Device ${seat} signs and pays.`;
 // The checker shows fee and rent in lamports. The SOL form follows, so that the cost can be read.
@@ -351,7 +352,8 @@ function sendSetup(c, actions) {
   if (!localSeats().length) return null;
   const body = STEP_BODY[state?.step ?? "idle"](c, actions, state);
   return el("div", { style: GRID, "data-sol": "send-setup" },
-    SCREENS.has(state?.step) ? null : el("h4", {}, SETUP_TITLE), ...body);
+    SCREENS.has(state?.step) ? null : el("h4", {}, SETUP_TITLE),
+    SCREENS.has(state?.step) ? null : note(c, "direct-cost", COST_NOTE), ...body);
 }
 
 function ready(c, act, actions, done) {

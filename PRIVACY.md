@@ -593,7 +593,8 @@ Four controls keep this part apart from the pool:
 ## Use Zigs over Tor
 
 The web app is prepared to run in Tor Browser, so that neither server sees your IP address. A
-testnet wallet with Solana adds a third host, Helius. A full session in Tor Browser has not been
+wallet with a Solana part (the Devnet pool on testnet, the plain account on mainnet) adds a third
+host, Helius. A full session in Tor Browser has not been
 tested yet.
 
 The app has no Tor connection of its own. The "Tor demo" in the app (the pill "Tor · Demo" and

@@ -1537,7 +1537,8 @@ signature over only its own fields. The path in the signed text is `sessions/<se
 The web app can give a testnet wallet a private balance of SOL on Devnet, in Zolana, the Helius
 shielded pool on Solana. [ZOLANA.md](ZOLANA.md) is the design, the spike results and the risks.
 This section lists only what each party learns. The beta is for testnet wallets, in the web app
-only. A mainnet wallet never loads the Solana code.
+only. A mainnet wallet never loads the pool code. It loads only the plain Solana part, and only
+where the server serves it ([PRIVACY.md](PRIVACY.md#solana-mainnet-plain-wallet)).
 
 The Solana part uses a second key ceremony on the same seats (section 4 does not change), with a
 FROST-Ed25519 group key as the Zolana owner. The Solana documents use their own flat names

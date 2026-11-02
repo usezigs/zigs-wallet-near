@@ -51,15 +51,14 @@ proposer chooses one ([comparison](PRIVACY.md#on-chain)).
   a device adds SOL to the group with Add SOL: the fee address shows on chain next to the group.
   Read [ZOLANA.md](ZOLANA.md) first, then [PRIVACY.md](PRIVACY.md#solana-beta-helius-devnet).
 - Solana on mainnet (plain wallet): a mainnet wallet can add a plain Solana account that holds real
-  SOL and USDC. The group signs for it, but it is a normal account: it has no pool, no hosted prover
-  and no privacy, and every balance and payment is public on chain. The page reads balances through
-  `https://mainnet.helius-rpc.com`. Helius sees your IP address and the group address. The explorer
-  sees the address that you open. Cloudflare, the host, sees the connection data of each call, also
-  of the call for the Helius URL. It is not audited. The web app can receive, create a nonce
-  account and enable USDC. Send of SOL and USDC comes later, so a deposit stays in the wallet
-  until then. The server turns it on with `SOL_MAINNET`: `"1"` on staging, `"0"` on production
-  ([ZOLANA.md](ZOLANA.md) 3.10,
-  [PRIVACY.md](PRIVACY.md#solana-mainnet-plain-wallet)).
+  SOL and USDC. The group will sign for it when send comes. It is a normal account: it has no pool,
+  no hosted prover and no privacy, and every balance and payment is public on chain. The page reads
+  balances through `https://mainnet.helius-rpc.com`. Helius sees your IP address and the group
+  address. The explorer sees the address that you open. Cloudflare, the host, sees the connection
+  data of each call, also of the call for the Helius URL. It is not audited. The web app can
+  receive, create a nonce account and enable USDC. Send of SOL and USDC comes later, so a deposit
+  stays in the wallet until then. The server turns it on with `SOL_MAINNET`: `"1"` on staging, `"0"`
+  on production ([ZOLANA.md](ZOLANA.md) 3.10, [PRIVACY.md](PRIVACY.md#solana-mainnet-plain-wallet)).
 - The wallet follows chain reorganisations of up to 100 blocks
   ([how](PROTOCOL.md#6-receiving-and-sync)). After a deeper one, the web, iPhone and Mac apps
   scan the wallet again from its birthday.
@@ -862,6 +861,8 @@ folder path.
   of Helius sees the witness of each spend unless the group turns on local proving (experimental,
   slower, not tested on phones), the pool has an upgrade key outside the group, and sender and
   recipient of a transfer are public.
+- **Solana mainnet is a plain account on staging.** A mainnet wallet there can hold real SOL and
+  USDC in a public account. It is not audited, and it cannot send SOL or USDC yet.
 
 ## License
 

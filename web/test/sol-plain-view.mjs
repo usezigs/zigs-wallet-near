@@ -18,11 +18,11 @@ import { plainView, readTexts } from "../sol/plain/view.js";
 import { config, loadRig, mainnetConfig, sleep } from "./sol-rig.mjs";
 
 // The words of the tab, as people read them. A change of a word is a change of this file.
-const FACTS = "Real money, public on chain. Not audited. Sending comes later.";
+const FACTS = "Real money, public on chain. Not audited. No sending yet: deposits stay here.";
 const START_NOTE = "Helius sees your IP and wallet address. "
   + "Funding fee addresses links each device to this wallet.";
 const RECEIVE_ONLY = "Only SOL and USDC. Other tokens can be lost.";
-const FEE_NOTE = "Fee addresses pay for setup and sending.";
+const FEE_NOTE = "Fee addresses pay for setup now and for sending later.";
 const EXPLORER_NOTE = "Helius and the explorer see your IP.";
 const EXPOSURE = "Solana mainnet shows every balance and payment of this wallet to everyone. "
   + "Helius sees your IP address and the address of this wallet.";
@@ -30,9 +30,9 @@ const FUNDS_STAY = "Funds sent to this address stay there.";
 const STAYS = "SOL and USDC stay at this wallet’s Solana address. A device left out keeps "
   + "its key share.";
 // The words that the body text of a card may hold: the owner found the tab too text heavy.
-const BUDGET = { start: 30, ready: 26, stopped: 20, running: 20, differs: 15, early: 10,
-  stoppedAndDiffer: 10, forgedFee: 70, noFee: 158, away: 13 };
-// The words that Prepare to send adds to the ready card, for each state of a step. The words of the
+const BUDGET = { start: 33, ready: 38, stopped: 20, running: 20, differs: 15, early: 10,
+  stoppedAndDiffer: 10, forgedFee: 82, noFee: 170, away: 13 };
+// The words that Set up sending adds to the ready card, for each state of a step. The words of the
 // checker and of the network are not counted: they are not copy.
 const STEP_BUDGET = { reading: 3, review: 5, sending: 8, refusal: 3, poor: 18, error: 3,
   done: 5, unknown: 8, failed: 0 };
@@ -443,7 +443,7 @@ const readFrom = async (tab) => {
 }
 step("the tab shows the address of the group key, Copy, the explorer link, the balances and fees");
 
-// ── Prepare to send: the words of each state of a step ──
+// ── Set up sending: the words of each state of a step ──
 {
   const idle = built(() => plainView(c, (fn) => fn, {}));
   const base = bodyWords(card(idle));
@@ -512,7 +512,7 @@ step("the tab shows the address of the group key, Copy, the explorer link, the b
     (fn) => fn, {}));
   assert.equal(text(mark(oddTree, "row-fee")), "unknown", "a fee that is no number is not changed");
 }
-step("each state of Prepare to send stays within its words and names no promise");
+step("each state of Set up sending stays within its words and names no promise");
 
 // ── A bad USDC account and a failed update stay on their own rows ──
 {
@@ -552,6 +552,8 @@ step("a bad USDC account and a failed update stay on their own rows");
   assert.match(text(asset(tree, "sol")), /^SOLSolana Mainnet.*Public.*1\.5SOL/, "the SOL row");
   assert.match(text(asset(tree, "usdc")), /^USDCSolana Mainnet.*Public.*12\.345678USDC/,
     "the USDC row is real");
+  assert.equal(text(one(tree, (n) => n.attrs?.id === "total-balance-title")), "ZEC value",
+    "the USD total counts only ZEC, so its title names ZEC");
   assert.doesNotMatch(text(asset(tree, "sol")), /Unavailable|Demo/);
   for (const id of ["sol", "usdc"]) {
     assert.ok(text(asset(tree, id)).includes(EXPOSURE), id + " row says what Solana mainnet shows");
