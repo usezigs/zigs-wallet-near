@@ -1,5 +1,5 @@
 {
-  "baseCommit": "3ae045dd2cd5883e3e3d7c4ddb235a490f464a64",
+  "baseCommit": "8fe053c2d7076b020cb4cf8827a4838836d8a71f",
   "node": "v26.12.1",
   "tests": {
     "web/test/messaging-presentation.mjs": {
@@ -244,26 +244,27 @@
     }
   },
   "hashes": {
-    "wasm/Cargo.lock": "2dba8c9292eae8f3148251dbe80becb01710eb11d7330a7d324eb2d999ef3f45",
-    "wasm/Cargo.toml": "b3c4ac13961d5fa1b4aa1fda87111f9ddecb34dc040a1fc73b8ec4825a5bdd30",
+    "wasm/Cargo.lock": "1903c756d07889fa5208d858bf6e7fd550f24fd970c913caddc426755bafa18f",
+    "wasm/Cargo.toml": "eff7172bab557358cad705d46e3914538da827a17b1b9624efc59a9c5cdd42bb",
     "wasm/src/account.rs": "fe2d7194d60423bd7873d8ac7109626ba823cac4a68cfa5be43d09f5bd040bc7",
     "wasm/src/backup.rs": "e4e646d5fa284cb0181bef7bb53a80b0ab41176209ba16f07e3eed624c1abbb2",
     "wasm/src/ceremony.rs": "1bc3554c3fe65351c92a85fabfdb076b8fca696290408cf1959fca726e15e2b4",
-    "wasm/src/chain.rs": "cb2e5ac7051890c38ebea2cf4a1e4c5e1ef4a723fbceac984d93a8bd6e2389e1",
+    "wasm/src/chain.rs": "2331c27b7946c2a8284721820b5e40d8ca30edcd40cc767175fe6dbab49932e9",
     "wasm/src/expiry.rs": "7b660240faa47aa8d28e7642772b6e0cc88f4eba3be49a0ff3fbaa362d05a1c5",
-    "wasm/src/ffi.rs": "da2ad331c905ec89a87d19565034111f762f230d6a6f7971fe5d38452f7fe3a6",
-    "wasm/src/lib.rs": "0a390ee7fef4aff784863ea241ddc9384902b3f4d7d3450f0b94f80f172692f9",
+    "wasm/src/ffi.rs": "7fb66496ad33b2be4a75aa5341dc40e5526e41c9672df204e6275f0839267007",
+    "wasm/src/lib.rs": "1c14b7bc0fe0229b468464d4cb8c21a37ea9f6f58a36f9a23e672c5f4bbbd599",
     "wasm/src/memo.rs": "49f6f13dafa2a2fc114cbcd5aa394e839c8ca6b297e7c65a2a68dfed28fe4a40",
+    "wasm/src/p2sh.rs": "fe3d25fe118575fff33438d28ff6bbb00b11aa0c751ec4caa065830f196acbe5",
     "wasm/src/request.rs": "1e75726a2ab038bf1fd4c68e407472748879881fb983bbc2da5bf3a40e135723",
-    "wasm/src/session.rs": "567e450b0922df5f70daff77a5b1dca84135777d288e29e46173be2071caae35",
+    "wasm/src/session.rs": "db0e3f7d38dab8a618b0ccb89d6b236eb1f78d1c8a74a0d3b14852284f9549aa",
     "wasm/src/snapshot.rs": "619654365bbce58bf95105e4e8b14554d522aa0f86fc4ac43c13933b27e41f7e",
     "wasm/src/testchain.rs": "9b5e71c5e00c980ee33b93f79aaff9c03af4a38c559a60a2365c58c716c26863",
     "wasm/src/testdata/sighash-vectors.json": "01b1431c7c3ae3fee207f1be5ce605dca0fd1cc6014309d7c167cb45466e4cbd",
     "wasm/test-vectors/zip2005_use_qsk.json": "fb59e6269fc96463bc02c7ec17b7f64d470b8b1009732b8a04579cab8dd8f016",
-    "web/pkg/zigs_engine.d.ts": "ef5280d5c2f5dfd60f73480ca868b7c0128efa939fd404df435b43f32fd4cf0a",
-    "web/pkg/zigs_engine.js": "848dee2f41efaad7493e2101f1e211b8ccba0c370d6f83e7819ca8116f904e54",
-    "web/pkg/zigs_engine_bg.wasm": "d6d8349c01ca4e793f87e28b9ab2b8a3a6ecdac06b66ff23442d563bb763a4d9",
-    "web/pkg/zigs_engine_bg.wasm.d.ts": "f5497e5164f9ac8aec9734672c98f375f94e91287d846427746f5a612c608345",
+    "web/pkg/zigs_engine.d.ts": "56f1ccd03cb85bba4dcf517706e3a4239bd5a7c9e09448affd992fc48736666d",
+    "web/pkg/zigs_engine.js": "696da0c908620bdd985aee934424ea0de2626360b5b4546e41baf210a89f0301",
+    "web/pkg/zigs_engine_bg.wasm": "e2c8adc067f05c64884cc456f45d3e02861ffd9eff77cf003d7cb4cff8338f5d",
+    "web/pkg/zigs_engine_bg.wasm.d.ts": "1e768ca28615b3daf8c65c7b5e113a95b05434e677c25f65fec835304f7eed2d",
     "web/signed.js": "4c0e86199aa87ec619f399f1ccfe995afcfe662781b0fd804af685c97f0dd3bb"
   },
   "policy": {
