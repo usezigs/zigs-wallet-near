@@ -147,8 +147,8 @@ so the route asks for a deadline of 6 hours.
   plain send.
 - Each device that reviews or approves the proposal makes the Worker ask NEAR Intents for the
   swap again. The Worker sees the IP address of that device.
-- The group server stores the proposal and its `swap` field, signed but not encrypted, as every
-  plain session.
+- The group server stores the proposal and its `swap` field encrypted, as every wallet document.
+  It sees the time of each write.
 
 `PRIVACY.md` has these items in the section of the live swap from SOL to ZEC.
 
@@ -163,7 +163,7 @@ so the route asks for a deadline of 6 hours.
   plain proposal. Then the screen shows the state of the proposal (from the list of sends) and the
   state of the swap (from `/near/status`).
 - The state of the swap is read every 60 seconds on this route, because approvals take hours. The
-  limit of the Worker is 60 reads a minute for each network.
+  Worker allows 60 NEAR Intents calls a minute for each IPv4 address or IPv6 /64.
 - After a reload, the screen cannot show the swap again. The proposal stays in the Solana tab.
 
 ## 9. Tests
