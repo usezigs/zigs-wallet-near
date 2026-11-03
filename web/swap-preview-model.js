@@ -41,6 +41,19 @@ const OVER_CAP = 'The payout would take the wallet over the warning level for un
   + 'wallets. Choose a smaller amount.';
 const STATUS_DOWN = 'The state of the swap is not available now. Zigs asks again.';
 const BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+// The ask of a live swap. Only a swap from SOL that the plain Solana wallet pays carries `group`,
+// so the asks of the other routes stay as they were.
+function swapAsk(s, from, where) {
+  const ask = { from, amountAtomic: s.quote.amountIn, slippageBps: s.slippageBps,
+    recipient: where.recipient, refundTo: where.refundTo };
+  return from === 'sol' && where.group === true ? { ...ask, group: true } : ask;
+}
+// The state of an open live swap. A swap that the group pays is read less often.
+function liveOf(swap, from, group, wallet) {
+  const base = group ? SWAP_GROUP_STATUS_MS : SWAP_STATUS_MS;
+  return { swap, from, group, wallet, status: null, statusError: '', base, wait: base,
+    timer: null };
+}
 
 /** True when `text` is base58 of exactly 32 bytes: the form of a Solana address. */
 export function swapSolAddress(text) {
@@ -257,16 +270,12 @@ export class SwapPreviewModel {
     if (over(s.quote.amountOut)) return this.swapFailed(OVER_CAP);
     const asking = { asking: true };
     s.live = asking; s.swapError = ''; this.emit();
-    const group = from === 'sol' && where.group === true;
-    const swap = await this.provider.openSwap({ from, ...(group && { group }),
-      amountAtomic: s.quote.amountIn, slippageBps: s.slippageBps, recipient: where.recipient,
-      refundTo: where.refundTo }).catch((error) => error);
+    const ask = swapAsk(s, from, where);
+    const swap = await this.provider.openSwap(ask).catch((error) => error);
     if (s.live !== asking) return false;
     if (swap instanceof Error) return this.swapFailed(this.failure(swap));
     if (over(swap.amountOut)) return this.swapFailed(OVER_CAP);
-    const base = group ? SWAP_GROUP_STATUS_MS : SWAP_STATUS_MS;
-    s.live = { swap, from, group, wallet: where.wallet, status: null, statusError: '',
-      base, wait: base, timer: null };
+    s.live = liveOf(swap, from, ask.group === true, where.wallet);
     // The page must hide the address at the deadline, also when no read falls on it.
     const left = Math.max(0, Date.parse(swap.deadline) - this.clock.now());
     s.live.end = this.clock.set(() => this.emit(), left);

@@ -9,7 +9,8 @@ const SOL_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 // A transparent mainnet address of Zcash: the deposit address of a swap from ZEC. The engine checks
 // its checksum before a payment.
 const T_ADDRESS = /^t[13][1-9A-HJ-NP-Za-km-z]{33}$/;
-// The live route of each origin asset, and the form of its deposit address.
+// The live route of each origin asset, and the form of its deposit address. solGroup is the route
+// from SOL that the plain Solana wallet pays.
 const LIVE_ROUTES = Object.freeze({
   sol: { path: '/near/swap', deposit: SOL_ADDRESS },
   solGroup: { path: '/near/swap-sol-group', deposit: SOL_ADDRESS },
@@ -129,8 +130,8 @@ export class NearIntentsSwapProvider {
    * A live swap from `from` ('sol' to ZEC, or 'zec' to SOL): the quote with its deposit address,
    * deadline and addresses. `group` asks for a swap from SOL that the plain Solana wallet pays.
    */
-  async openSwap({ from = 'sol', group = false, amountAtomic, slippageBps, recipient, refundTo }) {
-    const route = group ? (from === 'sol' ? LIVE_ROUTES.solGroup : null) : LIVE_ROUTES[from];
+  async openSwap({ from = 'sol', group, amountAtomic, slippageBps, recipient, refundTo }) {
+    const route = LIVE_ROUTES[group ? from + 'Group' : from];
     if (!route) throw new NearQuoteError('no-route');
     const ask = { amount: amountAtomic, recipient, refundTo, slippageBps };
     const { res, body } = await this.call(route.path, ask);

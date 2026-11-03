@@ -84,7 +84,8 @@ export function formError(c, typed) {
 }
 
 /**
- * Why the plain wallet cannot pay `units` lamports (a BigInt) to the deposit of a swap now, or null.
+ * Why the plain wallet cannot pay `units` lamports (a BigInt) to the deposit of a swap now, or
+ * null.
  * The key setup must have ended and the balance must be read. The balance must hold the amount,
  * and 0 or the rent minimum must stay. A free nonce account and a seat of this browser that pays
  * the fee must be there. The checker still judges the send.
@@ -98,7 +99,11 @@ export function swapPayError(c, units) {
     return `After this payment the Solana address of this wallet would hold ${rest} lamports. `
       + `Solana needs 0 or at least ${RENT_ZERO} lamports there. Change the amount.`;
   }
-  if (freeNonces(c) === 0) return NO_NONCE;
+  return freeNonces(c) === 0 ? NO_NONCE : payerError(c);
+}
+
+// Why no seat of this browser can pay the fee of a send, or null.
+function payerError(c) {
   try {
     payerSeat(c);
   } catch (e) {

@@ -1371,9 +1371,11 @@ step("the watches of the sessions stop with the wallet and with an ended session
     assert.equal(unitsOf(sent.amount, 9), BigInt(lamports), lamports + " lamports round trip");
     assert.equal(sent.swap, swapMark(RECIPIENT, deadline));
   }
-  for (const [what, edit] of [["0 lamports", { lamports: "0" }], ["a fraction", { lamports: "1.5" }],
+  for (const [what, edit] of [["0 lamports", { lamports: "0" }],
+    ["a fraction", { lamports: "1.5" }],
     ["a number", { lamports: 17500000 }], ["no deadline", { deadline: "soon" }],
-    ["a bad deposit", { deposit: "0x76b4" }], ["a deposit with a space", { deposit: RECIPIENT + " " }]]) {
+    ["a bad deposit", { deposit: "0x76b4" }],
+    ["a deposit with a space", { deposit: RECIPIENT + " " }]]) {
     assert.throws(() => swapTyped({ ...swapOfTest, ...edit }), /The swap mark does not fit/, what);
   }
   assert.throws(() => swapTyped({ ...swapOfTest, deadline: inMinutes(29) }),

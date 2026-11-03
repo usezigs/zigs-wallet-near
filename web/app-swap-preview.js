@@ -155,6 +155,31 @@ const quoteBlock = (s) => [text('swap-caption', statusText(s)),
     quoteRows(s.quote, swapAsset(s.from), swapAsset(s.to)))];
 
 /** The provider and clock arguments are for the isolated development harness and the tests. */
+// The deposit of the group: the open wallet (`source`) is the one that the swap refunds to and
+// pays, no send was proposed from this screen, and 30 minutes are left at `now`.
+const sameGroup = (source, w) => source.solGroup?.refundTo === w.refundTo
+  && source.payout?.address === w.recipient;
+function groupPay(source, live, now) {
+  const p = live.proposal ?? {};
+  const left = Date.parse(live.swap.deadline) - now;
+  return !!source.solGroup?.pay && sameGroup(source, live.swap) && !p.id && !p.busy
+    && left >= GROUP_MARGIN_MS;
+}
+// The words of the send `id` in the list of sends of the plain wallet.
+function sendWords(group, id) {
+  const row = group?.proposal?.(id);
+  if (!row) return 'Open the wallet that pays this swap to see its send.';
+  return row.error ? row.word + '. ' + row.error : row.word;
+}
+// The state of the send of the group that pays the deposit of `live`.
+function proposalState(group, live) {
+  const p = live.proposal;
+  if (!live.group || !p) return [];
+  if (p.busy) return [text('swap-caption', 'Checking the send…')];
+  if (p.error) return [text('swap-error', 'Not proposed: ' + p.error)];
+  return [text('swap-deposit-status', 'Send of this wallet: ' + sendWords(group, p.id))];
+}
+
 export function createSwapPreview(context = {}, provider = new NearIntentsSwapProvider(), clock) {
   let source = context, modal = null, observer = null, trigger = null, detailBlock = null;
   let pickerSide = null, searchText = '', rotation = 0;
@@ -682,10 +707,9 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     const waiting = !live.status || ['unknown', 'PENDING_DEPOSIT'].includes(live.status.status);
     const expired = model.swapExpired(), words = DEPOSIT_TEXT[depositKind(live)];
     depositCopy.hidden = expired || !waiting;
-    if (live.from === 'zec') depositCopy.disabled = !zecPay(live.swap);
-    if (live.group) depositCopy.disabled = !groupPay(live);
+    depositCopy.disabled = !payOn(live);
     const tx = (name, list) => (list?.length ? [detail(name, list.map(addressText))] : []);
-    depositState.replaceChildren(...proposalState(live),
+    depositState.replaceChildren(...proposalState(source.solGroup, live),
       el('p', { class: 'swap-deposit-status', role: 'status' }, 'Status: ' + swapState(live)),
       ...(expired ? [text('swap-error', words.expired)] : []),
       ...(live.statusError && !SWAP_FINAL.includes(live.status?.status)
@@ -700,17 +724,16 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     const z = source.zec;
     return z?.pay && z.recipient === w.recipient && z.refundTo === w.refundTo ? z.pay : null;
   }
-  // The deposit of the group: the open wallet is the one that the swap refunds to and pays, no send
-  // was proposed from this screen, and 30 minutes are left.
-  function groupPay(live) {
-    const g = source.solGroup, w = live.swap, p = live.proposal;
-    const left = Date.parse(w.deadline) - model.clock.now();
-    return !!g?.pay && g.refundTo === w.refundTo && source.payout?.address === w.recipient
-      && !p?.id && !p?.busy && left >= GROUP_MARGIN_MS;
+  const groupOk = (live) => groupPay(source, live, model.clock.now());
+  // The button of a deposit that this wallet pays is on only while the open wallet can pay it.
+  // The copy button of a payment from outside is always on.
+  function payOn(live) {
+    if (live.group) return groupOk(live);
+    return live.from === 'zec' ? !!zecPay(live.swap) : true;
   }
   // A click can come after the margin and before the next redraw: it redraws the button as off.
   async function proposeGroup(live) {
-    if (!groupPay(live)) { update(); return; }
+    if (!groupOk(live)) { update(); return; }
     live.proposal = { busy: true }; update();
     try {
       live.proposal = { id: await source.solGroup.pay(live.swap) };
@@ -719,23 +742,12 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     }
     if (model.value.live === live) update();
   }
-  // The state of the send of the group, from the list of sends of the plain wallet.
-  function proposalState(live) {
-    const p = live.proposal;
-    if (!live.group || !p) return [];
-    if (p.busy) return [text('swap-caption', 'Checking the send…')];
-    if (p.error) return [text('swap-error', 'Not proposed: ' + p.error)];
-    const row = source.solGroup?.proposal?.(p.id);
-    const words = row ? row.word + (row.error ? '. ' + row.error : '')
-      : 'Open the wallet that pays this swap to see its send.';
-    return [text('swap-deposit-status', 'Send of this wallet: ' + words)];
-  }
   const depositKind = (live) => (live.group ? 'group' : live.from);
   function depositAction(live) {
     const w = live.swap;
     if (live.group) {
       return button('Propose the payment', 'swap-primary', () => { void proposeGroup(live); },
-        { disabled: !groupPay(live), 'data-key': 'swap-propose' });
+        { disabled: !groupOk(live), 'data-key': 'swap-propose' });
     }
     if (live.from !== 'zec') return copyBtn(w.depositAddress, 'Copy address', 'swap-secondary');
     return button('Propose the payment', 'swap-primary', () => zecPay(w)?.(w),

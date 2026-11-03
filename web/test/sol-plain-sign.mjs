@@ -2262,8 +2262,10 @@ step("51 newer proposals of one seat leave the watches of the older honest sessi
   } finally {
     Date.now = realNow;
   }
-  assert.match((await session(late.id)).error, /^Not sent: the deposit address of this swap closes/);
-  assert.deepEqual([world.sims.length, world.sends.length], [0, 0], "nothing was simulated or sent");
+  assert.match((await session(late.id)).error,
+    /^Not sent: the deposit address of this swap closes/);
+  assert.deepEqual([world.sims.length, world.sends.length], [0, 0],
+    "nothing was simulated or sent");
   assert.equal(world.accounts.get(nonceAddress(1, late.k)), nonceBefore, "the nonce stands");
   assert.ok(names().includes("status"), "the status of the transaction was read first");
 }
