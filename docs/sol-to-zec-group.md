@@ -63,14 +63,16 @@ Before the page asks 1Click for a deposit address, it checks what it can know wi
 - the key setup of the plain wallet agreed (the address exists);
 - this browser read the balance, and the balance holds the amount;
 - the rent rule of section 6;
-- this device has a free nonce account (Create nonce in the Solana tab);
-- a seat of this browser can pay the fee (its fee key holds enough SOL).
+- this browser read the nonce accounts of this device, and one is free (Create nonce in the Solana
+  tab);
+- a seat of this browser can pay the fee, and its fee address holds SOL.
 
 Without these checks the page could get a deposit address for 6 hours that the group cannot pay.
 
 One deposit address gets one session. The page does not propose a second send to a deposit
-address that an open or sent session already pays. An approving device refuses a session when an
-older session that did not fail pays the same deposit address.
+address that any session pays. An approving device refuses a session when any other session pays
+the same deposit address, in any status and of any age. A backdated twin or a failed session that
+was signed could otherwise pay the address twice.
 
 ## 4. The check of each approving device
 
@@ -80,7 +82,7 @@ deposit address and approves only when all of these hold:
 
 - the checker's recipient is the deposit address of the field;
 - the deadline of the field is at least 30 minutes away;
-- no older session that did not fail pays the same deposit address;
+- no other session pays the same deposit address;
 - the state is `PENDING_DEPOSIT`;
 - the swap is from SOL to ZEC, and `plain` is true: no app fee, a slippage that Zigs offers and
   the address types that the Worker sends;
@@ -89,6 +91,12 @@ deposit address and approves only when all of these hold:
 - `amountIn` is the checker's base units of the send;
 - the deadline of the swap is the deadline of the field;
 - the quoted payout keeps the wallet under the 0.5 ZEC cap.
+
+Each approval signs the mark into its commit (`solsessions/<id>/commits/<seat>`). The session
+reader ends a session whose proposal has another mark than its commits, and keeps the approved
+mark for the rule of one deposit per session. So a proposer who writes the proposal again after
+the approvals cannot drop or move the deadline, and honest devices make no package, share or send
+for it.
 
 The check lives in the page (`web/app-swap-sol.js`) and reaches the plain code through the host
 key `swapCheck` of `solHost()`. `web/sol/plain` imports no page module. `approvePlain` runs the
@@ -107,22 +115,28 @@ A plain send uses a durable nonce: the signed transaction never expires. Approva
 so the route asks for a deadline of 6 hours.
 
 - **Approvals.** No device approves in the last 30 minutes before the deadline.
+- **Signing.** A swap deposit that is not signed when the last 30 minutes start ends. No device
+  makes a package, a share or a signature for it, and its nonce account is free again.
 - **Send.** The send step (`web/sol/plain/sign.js`) does not send a swap deposit in the last 30
-  minutes before the deadline. When the status of the transaction is "none" and the nonce
-  account still holds the nonce of the transaction, the step ends the session with a reason. The
-  nonce account is free again, and the next send on it makes the old signature useless.
+  minutes before the deadline. When the status of the transaction is "none", the nonce account
+  still holds the nonce of the transaction and this tab did not send it lately, the step ends the
+  session with a reason. The nonce account is free again, and the next send on it makes the old
+  signature useless.
 - **A late deposit.** The proposal, the fee signature and the group signature are in the store.
   Any reader of the store can still send the signed transaction after the session ended. 1Click
   refunds a deposit that comes after the deadline to the refund address, which is the group
   address, less a refund fee. One live quote showed `refundFee` 105,921 lamports. No real refund
   has run, so this is not verified.
 - **An inactive address.** The live quote of 2026-11-01 had `timeWhenInactive` 72 hours after the
-  deadline of the request. A deposit after that time can be lost.
+  deadline of the request. A deposit after that time can be lost. Neither the Worker nor the
+  devices check `timeWhenInactive`. L0 must confirm it.
 - **The only hard stop** is to advance the nonce account. The intent S5 (`cancelIntent` of
   `web/sol/plain/intent.js`) exists, but no flow proposes it yet (C6). A cancel also needs t
-  approvals. Until C6 exists, the window between the deadline and the inactive time (about 66
-  hours after the 6 hours) protects a late send with a refund, and after it only a new send on
-  the same nonce account protects the group.
+  approvals. Until C6 exists, the 72 hours between the deadline and the inactive time protect a
+  late send with a refund, and after them only a new send on the same nonce account protects the
+  group.
+- **Clocks.** The rules of the last 30 minutes use the clock of each device. A device whose clock
+  is 30 minutes or more slow can still send in the margin.
 
 ## 6. The rent of the group address
 
@@ -195,4 +209,12 @@ so the route asks for a deadline of 6 hours.
 - C6: a flow that advances the nonce of a signed swap deposit after its deadline.
 - The quote signature check (also open for the other routes).
 - A deposit screen that comes back after a reload, from the `swap` field of the proposal.
+- A time source for the 30-minute rules that does not trust the clock of the device (for example
+  the `Date` header of the Worker).
+- A transaction that was signed before the margin and not sent stays valid in the store: any
+  reader can send it late. Only C6 ends it.
+- `createSwapPreview` of `web/app-swap-preview.js` was 538 lines and is now about 610. Split it
+  in its own change.
+- The review defaults to this wallet as the payer when the wallet has a Solana address. The owner
+  confirms this default.
 - The iPhone and Mac apps have no plain Solana wallet, so they do not approve this send.

@@ -1187,8 +1187,11 @@ try {
 // deposit screen proposes one send of this wallet.
 globalThis.document = fakeDocument;
 try {
-  const { createSwapPreview, SOL_GROUP_AGREE, SOL_GROUP_PRIVACY, SOL_GROUP_REFUND, UNTESTED } =
-    await import('../app-swap-preview.js');
+  const { createSwapPreview, GROUP_MARGIN_MS, SOL_GROUP_AGREE, SOL_GROUP_PRIVACY, SOL_GROUP_REFUND,
+    UNTESTED } = await import('../app-swap-preview.js');
+  const margins = [GROUP_MARGIN_MS, (await import('../sol/plain/sessions.js')).SWAP_MARGIN_MS,
+    (await import('../app-swap-zec.js')).SWAP_MARGIN_MS];
+  assert.deepEqual(margins, [1_800_000, 1_800_000, 1_800_000], 'one margin of 30 minutes');
   const PAY_BY = 6 * 3600_000;
   const groupSwap = { ...opened, deadline: new Date(PAY_BY).toISOString() };
   const asks = [], paid = [];
@@ -1285,6 +1288,8 @@ try {
   const waiting = createSwapPreview({ ...context, solGroup: { reason: noKey } }, swapPro(),
     fakeClock());
   await waiting.model.update({ from: sol.id, to: zec.id, amount: '0.0175' });
+  assert.ok(!text(waiting.element).includes(SOL_GROUP_PRIVACY),
+    'a wallet that cannot pay gets no text of a send of the wallet');
   press(waiting.element, 'Review quote');
   const off = walk(body, (n) => n.tag === 'dialog').at(-1);
   assert.deepEqual(payers(off).map((n) => [n.attrs.value, 'checked' in n.attrs,
@@ -1302,7 +1307,7 @@ try {
   const { checkSolSwap, solSwapSource } = await import('../app-swap-sol.js');
   const iso = new Date(Date.now() + 5 * 3600_000).toISOString();
   const ask = { deposit: DEPOSIT, lamports: '17500000', deadline: iso, refundTo: REFUND };
-  const own = { address: UA, room: '50000000' };
+  const own = { address: UA, room: '50000000', refundTo: REFUND };
   const swapOk = { from: 'sol', to: 'zec', recipient: UA, refundTo: REFUND, amountIn: '17500000',
     amountOut: '133000', deadline: iso, plain: true };
   const asked = [];
@@ -1345,7 +1350,9 @@ try {
   { reason: 'This wallet uses Zcash testnet.' });
   assert.deepEqual(await checkSolSwap(ask, near(swapOk)), { why: 'Choose a mainnet wallet to '
     + 'receive the ZEC. This browser did not approve.' }, 'no mainnet wallet open');
-  assert.deepEqual(asked, [], 'a device with no payout address asks nothing');
+  await refused('another wallet open', near(swapOk), /^This browser shows another wallet now\./,
+    { ...own, refundTo: DEPOSIT });
+  assert.deepEqual(asked, [], 'a device with no payout address or another wallet asks nothing');
   assert.match(solSwapSource().reason, /shows after its Solana key setup ends/,
     'no plain wallet: no payer');
   console.log('ok  each approving device checks the swap of a deposit of the plain wallet');

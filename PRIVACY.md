@@ -446,8 +446,9 @@ How it works:
   Worker and NEAR Intents. It does not check the signature of the quote.
 - No device approves or sends the deposit in the last 30 minutes before the deadline. The signed
   transaction uses a durable nonce, so it does not expire, and every device of the group can still
-  send it. A late deposit goes back to the plain Solana address, less a refund fee of NEAR Intents.
-  After the deposit address becomes inactive, a late deposit can be lost.
+  send it. A late deposit should go back to the plain Solana address, less a refund fee of NEAR
+  Intents. No refund has been tested yet. After the deposit address becomes inactive, a late
+  deposit can be lost.
 
 | Party | What it learns |
 |---|---|
@@ -462,7 +463,8 @@ What stays visible:
 
 - NEAR Intents links the plain Solana address of the group to the ZEC address of the wallet. The
   status of a swap names both addresses to anyone who knows the deposit address.
-- A refund lands at the plain Solana address, where the chain shows it to everyone.
+- A refund lands at the plain Solana address, where the chain shows it to everyone. No refund
+  to this address has been tested yet.
 
 ## Live swap from ZEC to SOL (staging only)
 

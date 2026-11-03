@@ -32,7 +32,7 @@ import { proposeSend as proposeStep, swapTyped, unitsOf } from "../sol/plain/pro
 import { usdcAddress } from "../sol/plain/reads.js";
 import { screenRows } from "../sol/plain/review.js";
 import {
-  ENDED, filterSessions, showable, swapMark, swapOf, titleOf, writeProposal,
+  ENDED, filterSessions, otherSwap, showable, swapMark, swapOf, titleOf, writeProposal,
 } from "../sol/plain/sessions.js";
 import * as W from "../sol/wasm/sol_wasm.js";
 import { loadRig, mainnetConfig, sleep } from "./sol-rig.mjs";
@@ -1392,7 +1392,12 @@ step("the watches of the sessions stop with the wallet and with an ended session
   assert.match(plain.swapReady("1.5"), /not a whole number of lamports/);
   Object.assign(c.balances, { at: null });
   assert.match(plain.swapReady("17500000"), /has not read the balance/);
-  Object.assign(c.balances, read);
+  Object.assign(c.balances, { ...read, nonces: null });
+  assert.match(plain.swapReady("17500000"), /has not read the nonce accounts of this device/);
+  const fees = c.balances.fees;
+  Object.assign(c.balances, { ...read, fees: { 1: 0n, 2: 0n, 3: 0n, 4: 0n } });
+  assert.match(plain.swapReady("17500000"), /Device \d has no SOL at its fee address/);
+  Object.assign(c.balances, { ...read, fees });
   // The proposal: the signed mark next to the other fields, and the exact amount.
   const asks = [];
   let answer = () => ({ lines: ["NEAR Intents waits for this deposit."] });
@@ -1428,15 +1433,33 @@ step("the watches of the sessions stop with the wallet and with an ended session
   await refused(2, id, /could not check the swap of this deposit address\. offline/, "no check");
   answer = () => ({ lines: [5] });
   await refused(2, id, /could not check the swap/, "an answer of another shape");
+  answer = () => ({ why: "" });
+  await refused(2, id, /could not check the swap/, "an empty reason");
+  answer = () => ({ lines: [] });
+  await refused(2, id, /could not check the swap/, "no lines");
   answer = () => ({ lines: ["NEAR Intents waits for this deposit."] });
-  // One deposit address, one send: the page proposes none again, and an approver refuses the
-  // newer of two.
+  // The approval signs the mark that its device checked into the commit.
+  await approvePlain(c, ensure, await session(id), 2);
+  const { swap: committed } = data.get(path(gid, "solsessions/" + id + "/commits/2"));
+  assert.equal(committed, part.swap, "the commit carries the checked mark");
+  await seen(id, 2);
+  assert.equal(c.commits[id][2].swap, part.swap, "and the page reads it signed");
+  // One deposit address, one session: the page proposes none again, and an approver refuses
+  // either of two, the older one too.
   await assert.rejects(asSeat(c, 1, () => plain.proposeSwap(swapOfTest)),
     /already pays this deposit address/);
   const twin = await plant(1, { k: 97, units: 17_500_000n }, newId());
   await writeProposal(c, twin.id, { ...twin.fields, swap: part.swap }, 1);
   asks.length = 0;
-  await refused(2, twin.id, /An older send of this wallet pays the same deposit address/, "twin");
+  await refused(2, twin.id, /Another send of this wallet pays the same deposit address/, "twin");
+  await refused(3, id, /Another send of this wallet pays the same deposit address/, "the older");
+  // The rule holds in any status and at any age: a backdated twin and a failed one count.
+  const ours = await session(id), backdated = { ...ours, id: "backdated", createdAt: 1 };
+  assert.equal(otherSwap([ours, backdated], ours), backdated, "a backdated twin counts");
+  assert.equal(otherSwap([ours, backdated], backdated), ours, "and the newer one counts too");
+  assert.equal(otherSwap([ours, { ...backdated, status: "failed" }], ours).id, "backdated",
+    "a failed twin counts");
+  assert.equal(otherSwap([ours], ours), null, "a session is no twin of itself");
   // A mark that names another address than the recipient, and a mark with less than 30 minutes.
   const other = await plant(1, { k: 98, to: OTHER_RECIPIENT, units: 17_500_000n });
   await writeProposal(c, other.id, { ...other.fields, swap: part.swap }, 1);
@@ -1447,6 +1470,18 @@ step("the watches of the sessions stop with the wallet and with an ended session
   await writeProposal(c, lateId, { ...late, swap: lateMark }, 1);
   await refused(2, lateId, /closes in less than 30 minutes/, "a late deposit");
   assert.deepEqual(asks, [], "none of them asked NEAR Intents");
+  // A proposal written again after an approval, with no mark or with a later deadline, ends. The
+  // mark of the approval stays, so its deposit address stays paid.
+  const { swap: _mark, ...bare } = part;
+  for (const swap of [undefined, swapMark(RECIPIENT, inMinutes(48 * 60))]) {
+    await writeProposal(c, id, swap === undefined ? bare : { ...bare, swap }, 1);
+    const moved = await session(id);
+    assert.deepEqual([moved.status, moved.swap], ["failed", part.swap], "a rewrite: " + swap);
+    assert.equal(moved.error,
+      "The swap mark of this proposal is not the one that its approvals carry.");
+  }
+  await assert.rejects(asSeat(c, 1, () => plain.proposeSwap(swapOfTest)),
+    /already pays this deposit address/, "a failed session still pays its deposit address");
   // A mark of another form, or on a send of USDC, is not shown.
   for (const swap of ["near-sol-zec " + RECIPIENT, part.swap + " ", part.swap.replace("Z", ""),
     "near-zec-sol " + RECIPIENT + " " + deadline, 5, null, ""]) {

@@ -15,7 +15,7 @@ import { settledBlock, stillOpen } from "./direct.js";
 import { bytesOfHex, plainPins } from "./intent.js";
 import { canApprove, reviewText, screenRows, stopText } from "./review.js";
 import {
-  SESSIONS, earlierSwap, sameProposal, showable, swapLate, swapOf, titleOf,
+  SESSIONS, otherSwap, sameProposal, showable, swapLate, swapOf, titleOf,
 } from "./sessions.js";
 
 const NOT_SHOWN = "This proposal is not one that this app can show.";
@@ -25,7 +25,7 @@ const OTHER_BYTES = "The saved approval is for other bytes.";
 const NO_COMMITMENT = "This device could not make its signing commitment.";
 const NEW_LINES = "The lines of the checker changed since you looked. Review the proposal again.";
 const NOT_DEPOSIT = "The swap mark names another address than the recipient of this send.";
-const TWICE = "An older send of this wallet pays the same deposit address.";
+const TWICE = "Another send of this wallet pays the same deposit address.";
 const SWAP_LATE = "The deposit address of this swap closes in less than 30 minutes. A late deposit "
   + "can be lost.";
 const NO_CHECK = "This browser could not check the swap of this deposit address.";
@@ -60,15 +60,17 @@ function reviewBlock(c, ss, seat) {
   return null;
 }
 
-// The answer of host.swapCheck as { lines } or { why }. Any other shape is no check.
+// The answer of host.swapCheck as { lines } or { why }. Any other shape, an empty reason and no
+// lines are no check.
 function swapAnswer(out) {
-  if (typeof out?.why === "string") return { why: out.why };
-  const sound = Array.isArray(out?.lines) && out.lines.every((line) => typeof line === "string");
-  return sound ? { lines: out.lines } : { why: NO_CHECK };
+  if (typeof out?.why === "string") return { why: out.why || NO_CHECK };
+  const lines = Array.isArray(out?.lines) ? out.lines : [];
+  const sound = lines.length > 0 && lines.every((line) => typeof line === "string");
+  return sound ? { lines } : { why: NO_CHECK };
 }
 
 // The check of a swap deposit (swapOf): the recipient of the checker is the deposit address of the
-// mark, no older send pays it, 30 minutes are left, and the page finds the swap at NEAR Intents
+// mark, no other send pays it, 30 minutes are left, and the page finds the swap at NEAR Intents
 // (host.swapCheck, web/app-swap-sol.js) with the base units of the checker and the address of
 // this wallet as the refund. Gives { lines } to show or { why }, and {} for a send with no mark.
 async function swapLook(c, ss, review) {
@@ -76,7 +78,7 @@ async function swapLook(c, ss, review) {
   if (!swap) return {};
   const value = (name) => review.lines.find((line) => line.name === name)?.value;
   if (value("recipient") !== swap.deposit) return { why: NOT_DEPOSIT };
-  if (earlierSwap(c.sessions, ss)) return { why: TWICE };
+  if (otherSwap(c.sessions, ss)) return { why: TWICE };
   if (swapLate(ss)) return { why: SWAP_LATE };
   const ask = { deposit: swap.deposit, lamports: value("units"), deadline: swap.iso,
     refundTo: base58(agreement(c).done.groupKey) };
@@ -135,6 +137,13 @@ function unchanged(c, opened, ss) {
   if (stop) throw new Error(stop);
 }
 
+// The signed commit of an approval. It carries the swap mark that this device checked, so that a
+// proposal written again with another mark loses the approval (bindMark of sessions.js).
+function commitFields(entry, ss) {
+  const fields = { commitments: entry.commitments, digest: entry.digest, at: Date.now() };
+  return ss.swap === undefined ? fields : { ...fields, swap: ss.swap };
+}
+
 /**
  * Seat `seat` approves the proposal `ss`. A retry after a crash between the save and the publish
  * publishes the saved commitment again: the nonces are never made twice for one session, and a
@@ -154,7 +163,7 @@ export async function approvePlain(c, ensure, ss, seat, shown = null) {
   if (entry.digest !== review.digest) throw new Error(OTHER_BYTES);
   unchanged(c, opened, ss);
   const rel = `${SESSIONS}/${ss.id}/commits/${seat}`;
-  const fields = { commitments: entry.commitments, digest: entry.digest, at: Date.now() };
+  const fields = commitFields(entry, ss);
   const { base } = c;
   const doc = await c.host.signedDoc(c.gid, rel, seat, fields);
   unchanged(c, opened, ss);

@@ -60,7 +60,7 @@ const SOL_PROPOSE = 'The send needs the approvals of this wallet. Each device as
   + 'is refunded, less a fee, or can be lost.';
 // No device approves or sends the deposit of the group in this time before the deadline
 // (SWAP_MARGIN_MS of web/sol/plain/sessions.js), so the page proposes none either.
-const GROUP_MARGIN_MS = 30 * 60_000;
+export const GROUP_MARGIN_MS = 30 * 60_000;
 const ZEC_PROPOSE = 'The payment needs the approvals of this wallet. Each device asks NEAR '
   + 'Intents for this swap before it approves, and approves only a swap that pays this wallet. '
   + 'Keep the note of the payment as it is: it marks the payment as this swap. No device sends '
@@ -154,7 +154,6 @@ const quoteBlock = (s) => [text('swap-caption', statusText(s)),
   el('dl', { class: 'swap-quote-details' },
     quoteRows(s.quote, swapAsset(s.from), swapAsset(s.to)))];
 
-/** The provider and clock arguments are for the isolated development harness and the tests. */
 // The deposit of the group: the open wallet (`source`) is the one that the swap refunds to and
 // pays, no send was proposed from this screen, and 30 minutes are left at `now`.
 const sameGroup = (source, w) => source.solGroup?.refundTo === w.refundTo
@@ -180,6 +179,7 @@ function proposalState(group, live) {
   return [text('swap-deposit-status', 'Send of this wallet: ' + sendWords(group, p.id))];
 }
 
+/** The provider and clock arguments are for the isolated development harness and the tests. */
 export function createSwapPreview(context = {}, provider = new NearIntentsSwapProvider(), clock) {
   let source = context, modal = null, observer = null, trigger = null, detailBlock = null;
   let pickerSide = null, searchText = '', rotation = 0;
@@ -361,9 +361,9 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   }
 
   // The privacy text of the pair, with the warning of a live route. A swap from SOL can be paid
-  // by the Solana wallet of the group too.
+  // by the Solana wallet of the group too, when the wallet has a Solana address.
   function privacyFor(from, to) {
-    const sol = SWAP_PRIVACY + (source.solGroup ? ' ' + SOL_GROUP_PRIVACY : '');
+    const sol = SWAP_PRIVACY + (source.solGroup?.refundTo ? ' ' + SOL_GROUP_PRIVACY : '');
     return privacy(from.symbol === 'ZEC' || to.symbol === 'ZEC')
       + (liveRoute() ? ' ' + (fromZec() ? ZEC_SWAP_PRIVACY : sol) : '');
   }

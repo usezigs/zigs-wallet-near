@@ -24,6 +24,7 @@ const NOT_LOOKED = "Review the proposal first.";
 // The rent minimum of an account with no data: RENT_ZERO of the checker (wasm-sol/src/consts.rs).
 const RENT_ZERO = 650_240n;
 const NO_SETUP = "The Solana key setup of this wallet has not ended.";
+const NONCES_UNREAD = "Zigs has not read the nonce accounts of this device yet.";
 const PAID = "A send of this wallet already pays this deposit address. Get a new deposit address.";
 const GONE = "This proposal is not in the list any more.";
 const LOG_MAX = 300;
@@ -88,7 +89,7 @@ export function formError(c, typed) {
  * null.
  * The key setup must have ended and the balance must be read. The balance must hold the amount,
  * and 0 or the rent minimum must stay. A free nonce account and a seat of this browser that pays
- * the fee must be there. The checker still judges the send.
+ * the fee, with SOL at its fee address, must be there. The checker still judges the send.
  */
 export function swapPayError(c, units) {
   if (!agreement(c).done) return NO_SETUP;
@@ -99,22 +100,25 @@ export function swapPayError(c, units) {
     return `After this payment the Solana address of this wallet would hold ${rest} lamports. `
       + `Solana needs 0 or at least ${RENT_ZERO} lamports there. Change the amount.`;
   }
-  return freeNonces(c) === 0 ? NO_NONCE : payerError(c);
+  const free = freeNonces(c);
+  if (free === null) return NONCES_UNREAD;
+  return free === 0 ? NO_NONCE : payerError(c);
 }
 
 // Why no seat of this browser can pay the fee of a send, or null.
 function payerError(c) {
+  let seat;
   try {
-    payerSeat(c);
+    seat = payerSeat(c);
   } catch (e) {
     return String(e?.message ?? e);
   }
-  return null;
+  return c.balances.fees?.[seat] === 0n ? `Device ${seat} has no SOL at its fee address.` : null;
 }
 
 /** The reason not to propose a second send to the deposit address `deposit`, or null. */
 export const depositPaid = (c, deposit) =>
-  (c.sessions.some((o) => o.status !== "failed" && swapOf(o)?.deposit === deposit) ? PAID : null);
+  (c.sessions.some((o) => showable(o) && swapOf(o)?.deposit === deposit) ? PAID : null);
 
 /** The nonce accounts of this device that no open proposal holds, or null while unknown. */
 export function freeNonces(c) {

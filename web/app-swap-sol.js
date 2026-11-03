@@ -16,6 +16,8 @@ import { SWAP_ASSETS, swapDecimal } from "./swap-preview-model.js";
 const NO_SOL = "The Solana address of this wallet shows after its Solana key setup ends. Open the "
   + "Solana tab of the wallet.";
 const OTHER_WALLET = "This swap refunds to another wallet. Open the wallet that pays it.";
+const NOT_OPEN = "This browser shows another wallet now. Open the wallet of this send and try "
+  + "again.";
 const OVER_CAP = "The payout would take the wallet over the warning level for unaudited mainnet "
   + "wallets (0.5 ZEC).";
 const [ZEC, SOL] = ["zec", "sol"].map((key) => SWAP_ASSETS.find((a) => a.key === key));
@@ -104,12 +106,14 @@ function mismatch(status, ask, own) {
  * deposit address, the lamports of the checker, the deadline of the proposal and the plain Solana
  * address of this wallet (refundTo). Gives { lines } for the review when NEAR Intents waits for
  * exactly this deposit of a swap from SOL to ZEC that pays the ZEC address of this wallet under
- * the cap, refunds to `refundTo` and ends at the deadline. Else { why }. `own` is swapPayout();
- * the tests give it.
+ * the cap, refunds to `refundTo` and ends at the deadline. Else { why }. `own` is swapPayout() with
+ * the plain Solana address of the open wallet (refundTo), which must be the one of `ask`: the ZEC
+ * address comes from the open wallet. The tests give `own`.
  */
 export async function checkSolSwap(ask, provider = new NearIntentsSwapProvider(),
-  own = swapPayout()) {
+  own = { ...swapPayout(), refundTo: plainSolAddress() }) {
   if (!own.address) return { why: own.reason + " This browser did not approve." };
+  if (ask.refundTo !== own.refundTo) return { why: NOT_OPEN };
   const status = await provider.swapStatus(ask.deposit).catch(() => null);
   if (!status) return { why: "NEAR Intents did not give the state of the swap. Try again." };
   const why = mismatch(status, ask, own);

@@ -42,6 +42,7 @@ export const SUPERSEDED =
 export const TWIN_FEE = "Two devices show one fee address, so this proposal cannot be used.";
 const TITLES = { "send-sol": "Send SOL", "send-token": "Send token" };
 const SWAP_TITLE = "Swap deposit (SOL to ZEC)";
+const MARK_CHANGED = "The swap mark of this proposal is not the one that its approvals carry.";
 const num = (n) => (Number.isFinite(n) ? n : 0);
 
 /** The `swap` field of the deposit of a swap from SOL to ZEC (docs/sol-to-zec-group.md). */
@@ -104,15 +105,15 @@ export function titleOf(ss) {
 }
 
 /**
- * The session that already pays the deposit address of the swap deposit `ss`: an older one that
- * did not fail (by createdAt, then id), or null. One deposit address gets one send.
+ * Another session that pays the deposit address of the swap deposit `ss`, in any status and of any
+ * age, or null. One deposit address gets one session: a backdated twin or a failed one that was
+ * signed could pay the address a second time.
  */
-export function earlierSwap(sessions, ss) {
+export function otherSwap(sessions, ss) {
   const deposit = swapOf(ss)?.deposit;
   if (!deposit) return null;
-  const older = (o) => byAge(o, ss) < 0;
-  return sessions.find((o) => o.id !== ss.id && o.status !== "failed" && showable(o)
-    && swapOf(o)?.deposit === deposit && older(o)) ?? null;
+  return sessions.find((o) => o.id !== ss.id && showable(o) && swapOf(o)?.deposit === deposit)
+    ?? null;
 }
 
 /** True when the swap deposit `ss` has less than SWAP_MARGIN_MS left before its deadline. */
@@ -246,7 +247,18 @@ function addSession(out, [id, d], { raw, check, onBad, twin }) {
   const twinned = !ENDED.has(ss.status) && twin(ss.by);
   if (twinned) Object.assign(ss, { status: "failed", error: TWIN_FEE });
   readBelow(out, { raw, id, check, onBad });
+  bindMark(ss, out.commits[id]);
   out.sessions.push(ss);
+}
+
+// Each approval signs the swap mark that its device checked (approve.js). A proposal with another
+// mark was written again after an approval: it ends, and the approved mark stays for the rules
+// of one deposit per session. A landed send stays landed.
+function bindMark(ss, commits) {
+  const approved = Object.values(commits ?? {}).map((d) => d.swap);
+  if (approved.every((m) => m === ss.swap)) return;
+  ss.swap = approved.find((m) => m !== undefined) ?? ss.swap;
+  if (ss.status !== "sent") Object.assign(ss, { status: "failed", error: MARK_CHANGED });
 }
 
 // A document that makes the reader throw is a bad document, not a stop of every device.

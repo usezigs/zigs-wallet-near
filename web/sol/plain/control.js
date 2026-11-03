@@ -374,12 +374,14 @@ async function proposeSwap(c, ensure, swap) {
   if (why) throw new Error(why);
   let out = { error: new Error(SWAP_BUSY) };
   await c.host.once("sol:propose", async () => {
+    c.host.announce(SAYS.propose[0]);
     try {
       out = { id: await proposeSend(c, ensure, typed) };
     } catch (e) {
       out = { error: e };
     }
   });
+  c.host.announce(out.error ? String(out.error.message ?? out.error) : SAYS.propose[1]);
   if (out.error) throw out.error;
   return out.id;
 }

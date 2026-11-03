@@ -463,9 +463,10 @@ async function land(c, ss, ctx) {
 
 // A swap deposit is not sent in the last 30 minutes before its deadline. The session ends with a
 // reason while the nonce account still holds the nonce of the transaction, so the next send on it
-// makes this signature useless. A moved nonce is a landing: the step waits for its status.
+// makes this signature useless. A moved nonce is a landing, and a send of this tab a moment ago
+// can be one: the step waits for its status.
 async function endLate(c, ss, ctx) {
-  if (!(await nonceKept(ctx.worker, ss, ctx.group))) throw changed(ss);
+  if (lately(c, ss) || !(await nonceKept(ctx.worker, ss, ctx.group))) throw changed(ss);
   await failSession(c, ss, LATE_SWAP, ctx.was);
   return null;
 }
@@ -599,8 +600,14 @@ function endAgain(c, ss) {
   launch(c, "end:" + ss.id, () => failSession(c, ss, c.refused.get(ss.id), was));
 }
 
+// A swap deposit that is not signed when its last 30 minutes start ends: no device makes a package,
+// a share or a signature for it, and its nonce account is free again.
+const endUnsigned = (c, ss) =>
+  launch(c, "late:" + ss.id, () => failSession(c, ss, LATE_SWAP, c.opened));
+
 function stepSession(c, ss, { ensure, group }) {
   if (c.refused.has(ss.id)) return endAgain(c, ss);
+  if (ss.status !== "signed" && swapLate(ss)) return endUnsigned(c, ss);
   const ctx = contextOf(c, ss, group);
   if (!ctx) return;
   if (ss.status === "collecting") return maybePackage(c, ss, ctx);

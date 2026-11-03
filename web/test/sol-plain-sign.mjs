@@ -2253,6 +2253,7 @@ step("51 newer proposals of one seat leave the watches of the older honest sessi
   await pump("the swap deposit is sent", becomes(early.id, "sent"));
   assert.equal(world.sends.length, 1, "a swap deposit with time left is sent");
   assert.equal(asks.length, 2, "each approval checked the swap");
+  // A deposit that is not signed when its last 30 minutes start ends before any signature.
   reset();
   const late = await swapSend(31, base58("66".repeat(32)));
   const nonceBefore = world.accounts.get(nonceAddress(1, late.k));
@@ -2262,11 +2263,30 @@ step("51 newer proposals of one seat leave the watches of the older honest sessi
   } finally {
     Date.now = realNow;
   }
-  assert.match((await session(late.id)).error,
-    /^Not sent: the deposit address of this swap closes/);
+  const unsigned = await session(late.id);
+  assert.match(unsigned.error, /^Not sent: the deposit address of this swap closes/);
+  assert.equal(unsigned.signature, undefined, "no signature was made");
   assert.deepEqual([world.sims.length, world.sends.length], [0, 0],
     "nothing was simulated or sent");
   assert.equal(world.accounts.get(nonceAddress(1, late.k)), nonceBefore, "the nonce stands");
+  // A deposit that is signed when its last 30 minutes start is not sent: the step reads the status
+  // of the transaction first, and the nonce stands. The clock moves once the session is signed.
+  reset();
+  const signedLate = await swapSend(31, base58("67".repeat(32)));
+  const keptNonce = world.accounts.get(nonceAddress(1, signedLate.k));
+  const signedNow = becomes(signedLate.id, "signed");
+  try {
+    Date.now = () => realNow() + (signedNow() ? 2 * 60_000 : 0);
+    await pump("the signed late swap deposit ends", becomes(signedLate.id, "failed"), 200_000);
+  } finally {
+    Date.now = realNow;
+  }
+  const signed = await session(signedLate.id);
+  assert.match(signed.error, /^Not sent: the deposit address of this swap closes/);
+  assert.equal(typeof signed.signature, "string", "the group signed it before the margin");
+  assert.deepEqual([world.sims.length, world.sends.length], [0, 0],
+    "nothing was simulated or sent");
+  assert.equal(world.accounts.get(nonceAddress(1, signedLate.k)), keptNonce, "the nonce stands");
   assert.ok(names().includes("status"), "the status of the transaction was read first");
 }
 step("a swap deposit is sent with time left and ends unsent in its last 30 minutes");
