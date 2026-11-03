@@ -84,9 +84,11 @@ deposit address and approves only when all of these hold:
 - the deadline of the field is at least 30 minutes away;
 - no other session pays the same deposit address;
 - the state is `PENDING_DEPOSIT`;
-- the swap is from SOL to ZEC, and `plain` is true: no app fee (only the fee of NEAR Intents for
-  a call with no partner key: at most 20 bps to its own account), a slippage that Zigs offers and
-  the address types that the Worker sends;
+- the swap is from SOL to ZEC, and `plain` is true: a slippage that Zigs offers, the address
+  types that the Worker sends, a `SIMPLE` deposit (no memo in the request or the quote, no
+  recipient message, no virtual chain; a null field counts as none), and no app fee. The one fee
+  entry that passes is the fee of NEAR Intents for a call with no partner key: account
+  `5880ad2b…47dd` (seen in the L0 status of 2026-11-03), at most 20 bps, no limit order;
 - `refundTo` is the plain Solana address of this wallet;
 - `recipient` is the ZEC address of this wallet, which this device checked;
 - `amountIn` is the checker's base units of the send;

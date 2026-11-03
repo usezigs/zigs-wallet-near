@@ -844,11 +844,18 @@ const status = async (label, address = DEPOSIT, e = LIVE, init = {}) => {
       confidentiality: "public" }, true],
     ["the fee for no key at 10 bps, no limit order", keyless({ fee: 10, limitOrderId: undefined }),
       true],
+    ["the fee for no key at 0 bps", keyless({ fee: 0 }), true],
+    ["the fee for no key at -1 bps", keyless({ fee: -1 }), false],
     ["the fee for no key at 21 bps", keyless({ fee: 21 }), false],
     ["the fee for no key at 100 %", keyless({ fee: 10000 }), false],
     ["the fee for no key at 1.5 bps", keyless({ fee: 1.5 }), false],
     ["the fee for no key as text", keyless({ fee: "20" }), false],
     ["the fee for no key with a limit order", keyless({ limitOrderId: "1" }), false],
+    ["the fee for no key with limit order 0", keyless({ limitOrderId: 0 }), false],
+    ["the fee for no key with an empty limit order", keyless({ limitOrderId: "" }), false],
+    ["the fee for no key and a null entry", { appFees: [...keyless().appFees, null] }, false],
+    ["a memo deposit", { depositMode: "MEMO" }, false],
+    ["no deposit mode", { depositMode: null }, true],
     ["the fee for no key with another field", keyless({ recipientType: "INTENTS" }), false],
     ["the fee for no key twice", { appFees: [...keyless().appFees, ...keyless().appFees] }, false],
     ["the fee for no key and an app fee", { appFees: [...keyless().appFees,
@@ -865,6 +872,14 @@ const status = async (label, address = DEPOSIT, e = LIVE, init = {}) => {
     ["a payout on NEAR", { recipientType: "INTENTS" }, false],
     ["a message to the recipient", { customRecipientMsg: "x" }, false]]) {
     reply = quoted(ask);
+    assert.equal((await json(await status(what, T1))).swap.plain, plain, what);
+  }
+  // NEAR Intents puts a memo in the quote, not in the request.
+  for (const [what, quote, plain] of [["a memo in the quote", { depositMemo: "12345" }, false],
+    ["an empty memo in the quote", { depositMemo: "" }, false],
+    ["a virtual recipient in the quote", { virtualChainRecipient: "0xb4c2" }, false],
+    ["a null memo in the quote", { depositMemo: null }, true]]) {
+    reply = quoted({}, quote);
     assert.equal((await json(await status(what, T1))).swap.plain, plain, what);
   }
   reply = quoted({ originAsset: "nep141:other.near", recipient: "<b>", refundTo: 7,

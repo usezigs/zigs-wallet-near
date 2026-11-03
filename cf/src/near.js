@@ -347,18 +347,19 @@ const nearKeyOf = (id) => [...NEAR_ASSETS].find(([, asset]) => asset.id === id)?
 // The cap stops a proposer with a key from giving most of the deposit to that account.
 const NEAR_KEYLESS_FEE = "5880ad2b362620fadf759cbceb1cd5737ce8c6ed7fb8e9942881e6731f9247dd";
 const NEAR_FEE_KEYS = ["recipient", "fee", "limitOrderId"];
-const nearKeylessFee = (entry) => entry?.recipient === NEAR_KEYLESS_FEE
-  && Number.isInteger(entry.fee) && entry.fee >= 0 && entry.fee <= 20
+const nearFeeBps = (fee) => Number.isInteger(fee) && fee >= 0 && fee <= 20;
+const nearKeylessFee = (entry) => entry?.recipient === NEAR_KEYLESS_FEE && nearFeeBps(entry.fee)
   && entry.limitOrderId == null && Object.keys(entry).every((k) => NEAR_FEE_KEYS.includes(k));
-// True when the request of a swap has the form that nearSwapRequest sends. A proposer can ask
-// NEAR Intents for a quote with the addresses of the group and an app fee or a wide slippage.
-function nearPlainAsk(ask) {
+// True when the swap has the form that nearSwapRequest asks for. A proposer can ask NEAR Intents
+// for a quote with the addresses of the group and an app fee, a wide slippage or a memo deposit:
+// the group sends no memo, so a deposit to a memo address could be lost.
+function nearPlainAsk(ask, quote) {
   const fees = ask.appFees ?? [];
   return [ask.dry === false, ask.swapType === "EXACT_INPUT", ask.depositType === "ORIGIN_CHAIN",
     ask.refundType === "ORIGIN_CHAIN", ask.recipientType === "DESTINATION_CHAIN",
-    NEAR_SLIPPAGE.includes(ask.slippageTolerance),
+    (ask.depositMode ?? "SIMPLE") === "SIMPLE", NEAR_SLIPPAGE.includes(ask.slippageTolerance),
     Array.isArray(fees) && fees.length <= 1 && fees.every(nearKeylessFee),
-    nearNone(ask)].every(Boolean);
+    nearNone(ask) && nearNone(quote)].every(Boolean);
 }
 
 function nearStatusSwap(response) {
@@ -372,7 +373,7 @@ function nearStatusSwap(response) {
     amountIn: NEAR_INTEGER.test(quote.amountIn) ? quote.amountIn : undefined,
     amountOut: NEAR_INTEGER.test(quote.amountOut) ? quote.amountOut : undefined,
     deadline: Number.isNaN(payBy) ? undefined : new Date(payBy).toISOString(),
-    plain: nearPlainAsk(ask),
+    plain: nearPlainAsk(ask, quote),
   };
 }
 
