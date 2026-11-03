@@ -11,7 +11,7 @@ import {
   setupProtectionReady, storageOk, unlockVault, vault,
 } from "./app-keystore.js";
 import { joinWalletLink, openChat } from "./app-links.js";
-import { addrHidden, atCap, balOf, knownTotal, MAINNET_ON, netName, netOf } from "./app-chain.js";
+import { balOf, MAINNET_ON, netOf } from "./app-chain.js";
 import { canWrite, closeSession, db, dbReady, openGroup, toApprove } from "./app-groups.js";
 import {
   act, countBadge, el, guard, mainnetRisk, money, nameField, networkPick, newBadge, requireAck,
@@ -37,6 +37,7 @@ import { focusAfter, once, render } from "./app-loop.js";
 import { currentSection, moveWord, solStays, walletShown } from "./app-wallet.js";
 import { icon } from "./app-icons.js";
 import { createSwapPreview } from "./app-swap-preview.js";
+import { solSwapSource, swapPayout } from "./app-swap-sol.js";
 import { zecSwapSource } from "./app-swap-zec.js";
 import { generalSettings, settingsDisclosure, settingsGroup, settingsRow } from "./app-settings-ui.js";
 import { walletMark } from "./app-wallet-art.js";
@@ -494,29 +495,10 @@ export function recoveryWorkspace() {
 // The Worker marks the page when it runs the live swaps between SOL and ZEC (NEAR_LIVE in
 // cf/src/index.js).
 const nearLive = () => document.documentElement?.dataset?.nearLive === "1";
-// The ZEC address that a live swap pays to: the one of the open mainnet wallet, under the rules of
-// its Receive card, with the room under the cap in zatoshi. Else the reason why there is none.
-function swapPayout() {
-  const g = state.g;
-  if (!g) return { reason: "Choose a mainnet wallet to receive the ZEC." };
-  if (netName(g) !== "mainnet") {
-    return { reason: "This wallet uses Zcash testnet. NEAR Intents pays mainnet ZEC only." };
-  }
-  if (g.movedTo) return { reason: "This wallet was replaced. Open the new wallet to receive." };
-  if (atCap()) {
-    return { reason: "This wallet is at the warning level for unaudited mainnet wallets." };
-  }
-  if (addrHidden() || !state.wallet?.address) {
-    return { reason: "This wallet shows its address after its first sync and after this device "
-      + "checks the address." };
-  }
-  return { address: state.wallet.address, room: String(netOf(g).cap - knownTotal()) };
-}
-
 let swapPreview;
 export function swapWorkspace() {
   const context = { id: state.g?.id, name: state.g?.name, live: nearLive(), payout: swapPayout(),
-    zec: zecSwapSource(),
+    zec: zecSwapSource(), solGroup: solSwapSource(),
     networks: state.g && netOf(state.g).cap ? 'Zcash ' + netOf(state.g).label
       : 'Zcash Testnet · Solana Devnet',
     threshold: state.g ? state.g.t + " of " + state.g.n + " device approvals per payment." : "" };

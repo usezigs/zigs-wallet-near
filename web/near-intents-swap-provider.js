@@ -1,7 +1,7 @@
 // NEAR Intents through the Zigs Worker (cf/src/near.js). /near/quote gives dry quotes of mainnet
 // prices: no funds move. /near/swap opens a live swap from SOL to ZEC with a deposit address,
-// /near/swap-zec one from ZEC to SOL, and /near/status gives the state. The page never calls NEAR
-// Intents itself.
+// /near/swap-sol-group one that the plain Solana wallet pays, /near/swap-zec one from ZEC to SOL,
+// and /near/status gives the state. The page never calls NEAR Intents itself.
 import { SWAP_ASSETS } from './swap-preview-model.js';
 
 const INTEGER = /^\d{1,40}$/;
@@ -12,6 +12,7 @@ const T_ADDRESS = /^t[13][1-9A-HJ-NP-Za-km-z]{33}$/;
 // The live route of each origin asset, and the form of its deposit address.
 const LIVE_ROUTES = Object.freeze({
   sol: { path: '/near/swap', deposit: SOL_ADDRESS },
+  solGroup: { path: '/near/swap-sol-group', deposit: SOL_ADDRESS },
   zec: { path: '/near/swap-zec', deposit: T_ADDRESS },
 });
 const MESSAGES = Object.freeze({
@@ -126,10 +127,10 @@ export class NearIntentsSwapProvider {
   }
   /**
    * A live swap from `from` ('sol' to ZEC, or 'zec' to SOL): the quote with its deposit address,
-   * deadline and addresses.
+   * deadline and addresses. `group` asks for a swap from SOL that the plain Solana wallet pays.
    */
-  async openSwap({ from = 'sol', amountAtomic, slippageBps, recipient, refundTo }) {
-    const route = LIVE_ROUTES[from];
+  async openSwap({ from = 'sol', group = false, amountAtomic, slippageBps, recipient, refundTo }) {
+    const route = group ? (from === 'sol' ? LIVE_ROUTES.solGroup : null) : LIVE_ROUTES[from];
     if (!route) throw new NearQuoteError('no-route');
     const ask = { amount: amountAtomic, recipient, refundTo, slippageBps };
     const { res, body } = await this.call(route.path, ask);

@@ -72,6 +72,7 @@ import "./app-guided-setup.js";
 import "./app-taddress.js";
 import "./app-sweep.js";
 import "./app-swap-zec.js";
+import "./app-swap-sol.js";
 import "./app-funding-preview.js";
 import "./app-recipients.js";
 import "./app-help.js";

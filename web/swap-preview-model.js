@@ -33,6 +33,8 @@ const CLEARED_QUOTE = 'The quote was cleared. Refresh the quote to continue.';
 const DEMO_PHASES = ['DEMO_PROGRESS', 'DEMO_COMPLETE'];
 export const SWAP_STATUS_MS = 10_000; // the wait between two reads of the state of a live swap
 export const SWAP_STATUS_MAX_MS = 60_000; // the longest wait: after errors and after the deadline
+// A swap that the group pays waits hours for its approvals, so its state is read once a minute.
+export const SWAP_GROUP_STATUS_MS = SWAP_STATUS_MAX_MS;
 export const SWAP_FINAL = Object.freeze(['SUCCESS', 'REFUNDED', 'FAILED']);
 const SWAP_WAITING = ['unknown', 'PENDING_DEPOSIT'];
 const OVER_CAP = 'The payout would take the wallet over the warning level for unaudited mainnet '
@@ -245,7 +247,8 @@ export class SwapPreviewModel {
   // The live swap: one at a time, in memory only. It lives apart from the quote: the expiry of
   // the quote, typing and stale() keep it. Only closeSwap() ends it. `where` holds the payout
   // address (recipient), the name of the wallet, the refund address and, for a payout in ZEC, the
-  // room under the cap in zatoshi. A swap from ZEC pays SOL, so no ZEC cap applies.
+  // room under the cap in zatoshi. A swap from ZEC pays SOL, so no ZEC cap applies. `group` says
+  // that the plain Solana wallet pays a swap from SOL (docs/sol-to-zec-group.md).
   async openSwap(where) {
     const s = this.value;
     if (s.live || s.phase !== 'REVIEW_OPEN') return false;
@@ -254,14 +257,16 @@ export class SwapPreviewModel {
     if (over(s.quote.amountOut)) return this.swapFailed(OVER_CAP);
     const asking = { asking: true };
     s.live = asking; s.swapError = ''; this.emit();
-    const swap = await this.provider.openSwap({ from, amountAtomic: s.quote.amountIn,
-      slippageBps: s.slippageBps, recipient: where.recipient, refundTo: where.refundTo })
-      .catch((error) => error);
+    const group = from === 'sol' && where.group === true;
+    const swap = await this.provider.openSwap({ from, ...(group && { group }),
+      amountAtomic: s.quote.amountIn, slippageBps: s.slippageBps, recipient: where.recipient,
+      refundTo: where.refundTo }).catch((error) => error);
     if (s.live !== asking) return false;
     if (swap instanceof Error) return this.swapFailed(this.failure(swap));
     if (over(swap.amountOut)) return this.swapFailed(OVER_CAP);
-    s.live = { swap, from, wallet: where.wallet, status: null, statusError: '',
-      wait: SWAP_STATUS_MS, timer: null };
+    const base = group ? SWAP_GROUP_STATUS_MS : SWAP_STATUS_MS;
+    s.live = { swap, from, group, wallet: where.wallet, status: null, statusError: '',
+      base, wait: base, timer: null };
     // The page must hide the address at the deadline, also when no read falls on it.
     const left = Math.max(0, Date.parse(swap.deadline) - this.clock.now());
     s.live.end = this.clock.set(() => this.emit(), left);
@@ -280,7 +285,7 @@ export class SwapPreviewModel {
     try {
       const status = await this.provider.swapStatus(live.swap.depositAddress);
       if (this.value.live !== live) return;
-      Object.assign(live, { status, statusError: '', wait: SWAP_STATUS_MS });
+      Object.assign(live, { status, statusError: '', wait: live.base });
     } catch {
       if (this.value.live !== live) return;
       Object.assign(live, { statusError: STATUS_DOWN,

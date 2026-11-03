@@ -16,6 +16,7 @@ import { act, announce, el, guard } from "./app-dom.js";
 import { confirmedNo, groupVersion, safetyNo, seatCheck } from "./app-dkg.js";
 import { openBackupCheck, restore, sealAndSave } from "./app-backups.js";
 import { focusAfter, once, react, render } from "./app-loop.js";
+import { checkSolSwap } from "./app-swap-sol.js";
 
 // Devnet, for version 3 wallets on the testnet that the people of the wallet confirmed (SOL-34).
 // web/sol loads from the Solana tab, a signed solstart document, or the unsigned Solana hint
@@ -152,6 +153,7 @@ export const solHost = () => ({
   groupVersion, sealAndSave, network: () => netName(state.g), netConfirmed, mode: "pool",
   askBackup: (words) => { ui.backup = { words, made: false, busy: false }; render(); },
   newWallet,
+  swapCheck: (ask) => checkSolSwap(ask),
 });
 // A server with SOL off does not serve the module (its config answers 503), and the text says so.
 // Any other failure is the connection (SOL-26). view.js is part of the module: it gives the setup

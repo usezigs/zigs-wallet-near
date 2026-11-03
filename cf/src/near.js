@@ -5,8 +5,8 @@
 // forbid a standalone proxy and a cache of their data over 24 hours).
 // POST /near/swap, POST /near/swap-sol-group, POST /near/swap-zec and GET /near/status: a live swap
 // from SOL to ZEC paid from a wallet outside Zigs, one paid by the plain Solana wallet of the
-// group, one from ZEC to SOL, and the state of a swap. They answer 404 unless the var NEAR_LIVE is "1"
-// (cf/wrangler.jsonc: staging only).
+// group, one from ZEC to SOL, and the state of a swap. They answer 404 unless the var NEAR_LIVE is
+// "1" (cf/wrangler.jsonc: staging only).
 // The partner key of NEAR Intents is the secret NEAR_API_KEY. Without it every route still works,
 // at the higher fee of NEAR Intents for calls with no key.
 const NEAR_URL = "https://1click.chaindefuser.com/v0/quote";

@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { MockSwapProvider, SwapPreviewModel, SWAP_ASSETS, SWAP_DEMO_STEPS, SWAP_QUOTE_TTL_MS,
-  SWAP_STATUS_MAX_MS, SWAP_STATUS_MS, SWAP_TYPING_MS, swapAtomic, swapDecimal, swapRate,
+  SWAP_GROUP_STATUS_MS, SWAP_STATUS_MAX_MS, SWAP_STATUS_MS, SWAP_TYPING_MS, swapAtomic,
+  swapDecimal, swapRate,
   swapSolAddress, swapTime, swapUsd } from '../swap-preview-model.js';
 import { readFileSync } from 'node:fs';
 import { NearIntentsSwapProvider, NearQuoteError } from '../near-intents-swap-provider.js';
-import { loadRig, storage } from './sol-rig.mjs';
+import { loadRig, sleep, storage } from './sol-rig.mjs';
 
 const [zec, sol, usdcSol] = SWAP_ASSETS;
 assert.deepEqual(SWAP_ASSETS.map((a) => a.symbol), ['ZEC', 'SOL', 'USDC']);
@@ -527,6 +528,9 @@ async function reviewed(pro, clock = fakeClock()) {
 // ── The demos say what they are: the Tor demo, the funding checkout and the swap pages ──
 // A small fake page: enough of the DOM to draw the real modules and to press their buttons.
 await loadRig();
+// The rig schedules one draw of the page (app-loop.js waits up to 120 ms). It runs here, on the
+// document of the rig: the fake page below has no shell to draw.
+await sleep(150);
 const realDocument = globalThis.document;
 const text = (n) => (n === null || n === undefined ? '' : n.text ?? n.kids.map(text).join(''));
 const walk = (n, ok) => (n.kids
@@ -1144,6 +1148,207 @@ try {
   assert.equal(named(none, 'Get deposit address').disabled, true, 'not ready: no deposit address');
   press(none, 'Back to swap');
   console.log('ok  the live swap from ZEC: fixed addresses, public payment, Send has the deposit');
+} finally {
+  globalThis.document = realDocument;
+}
+// The live swap from SOL that the plain Solana wallet of the group pays (docs/sol-to-zec-group.md).
+// The provider asks /near/swap-sol-group, and the model reads the state once a minute.
+{
+  const calls = [];
+  const provider = new NearIntentsSwapProvider(async (url, init) => {
+    calls.push({ url, body: JSON.parse(init.body) });
+    return Response.json(opened);
+  });
+  const input = { amountAtomic: '17500000', slippageBps: 100, recipient: UA, refundTo: REFUND };
+  assert.equal((await provider.openSwap({ ...input, group: true })).depositAddress, DEPOSIT);
+  assert.deepEqual(calls, [{ url: '/near/swap-sol-group',
+    body: { amount: '17500000', recipient: UA, refundTo: REFUND, slippageBps: 100 } }]);
+  await assert.rejects(provider.openSwap({ ...input, from: 'zec', group: true }),
+    (e) => e.code === 'no-route', 'the group route takes SOL only');
+  assert.equal(calls.length, 1, 'and asks nothing');
+  const clock = fakeClock(), pro = swapPro();
+  const m = await reviewed(pro, clock);
+  assert.equal(await m.openSwap({ ...where, group: true }), true);
+  assert.equal(pro.log.open[0].group, true, 'the model asks for the group route');
+  await settle();
+  assert.equal(pro.log.reads.length, 1, 'the state is read at once');
+  await clock.tick(SWAP_STATUS_MS);
+  assert.equal(pro.log.reads.length, 1, 'not after 10 s');
+  await clock.tick(SWAP_GROUP_STATUS_MS - SWAP_STATUS_MS);
+  assert.equal(pro.log.reads.length, 2, 'then once a minute');
+  m.closeSwap();
+  const outside = await reviewed(swapPro());
+  await outside.openSwap(where);
+  assert.equal(outside.value.live.group, false, 'a swap paid from outside stays on /near/swap');
+  outside.closeSwap();
+  console.log('ok  the group route asks /near/swap-sol-group and reads the state once a minute');
+}
+// The page: the wallet pays, its Solana address gets a refund, nobody types an address, and the
+// deposit screen proposes one send of this wallet.
+globalThis.document = fakeDocument;
+try {
+  const { createSwapPreview, SOL_GROUP_AGREE, SOL_GROUP_PRIVACY, SOL_GROUP_REFUND, UNTESTED } =
+    await import('../app-swap-preview.js');
+  const PAY_BY = 6 * 3600_000;
+  const groupSwap = { ...opened, deadline: new Date(PAY_BY).toISOString() };
+  const asks = [], paid = [];
+  let reason = 'The balance is 0.01 SOL.', row = { word: 'Waiting for approvals', error: '' };
+  let pay = async (w) => { paid.push(w); return 'ss1'; };
+  const solGroup = { refundTo: REFUND, ready: (lamports) => { asks.push(lamports); return reason; },
+    pay: (w) => pay(w), proposal: (id) => (id === 'ss1' ? row : null) };
+  const context = { id: 'g1', name: 'Savings', threshold: 'Any 2 of 3 devices',
+    networks: 'Zcash Mainnet', live: true, payout: { address: UA, room: '50000000' }, solGroup };
+  const clock = fakeClock(), pro = swapPro({ open: () => groupSwap });
+  const swap = createSwapPreview(context, pro, clock);
+  const root = swap.element;
+  const payers = (modal) => walk(modal, (n) => n.tag === 'input' && n.attrs.name === 'swap-payer');
+  await swap.model.update({ from: sol.id, to: zec.id, amount: '0.0175' });
+  assert.ok(text(root).includes(SOL_GROUP_PRIVACY),
+    'the page says what a send of the wallet shows');
+  press(root, 'Review quote');
+  const modal = walk(body, (n) => n.tag === 'dialog').at(-1);
+  for (const part of [UNTESTED, SOL_GROUP_PRIVACY, SOL_GROUP_REFUND, SOL_GROUP_AGREE,
+    'Who pays the SOL', 'Pay fromThis wallet · Any 2 of 3 devices',
+    'Refund addressThe Solana address of this wallet · CZ8YUVdk7z…xzfSky9t']) {
+    assert.ok(text(modal).includes(part), 'the review of the group shows ' + part.slice(0, 40));
+  }
+  assert.deepEqual(payers(modal).map((n) => [n.attrs.value, 'checked' in n.attrs]),
+    [['group', true], ['outside', false]], 'the wallet pays by default');
+  assert.equal(modal.querySelector('#swap-refund'), null, 'nobody types a refund address');
+  const go = named(modal, 'Get deposit address');
+  fire(modal.querySelector('#swap-agree'), 'change', { target: { checked: true } });
+  assert.equal(go.disabled, true, 'a wallet that cannot pay gets no deposit address');
+  assert.ok(text(modal).includes(reason), 'and the review says why');
+  assert.equal(asks.at(-1), '17500000', 'the wallet is asked for the lamports of the quote');
+  reason = null;
+  swap.setContext(context);
+  assert.equal(go.disabled, false, 'a wallet that can pay turns the button on');
+  fire(go, 'click'); await settle(); await settle();
+  assert.deepEqual(pro.log.open, [{ from: 'sol', group: true, amountAtomic: '17500000',
+    slippageBps: 50, recipient: UA, refundTo: REFUND }], 'the swap asks for the group route');
+  const deposit = root.querySelector('#swap-deposit');
+  for (const part of ['Live swap: SOL to ZEC', 'Send of this wallet',
+    'Each device asks NEAR Intents for this swap before it approves',
+    'Pay exactly0.0175 SOL (17,500,000 lamports)', 'To this address' + DEPOSIT,
+    'Refund address' + REFUND, 'Paid toSavings · ' + UA]) {
+    assert.ok(text(deposit).includes(part), 'the deposit of the group shows ' + part.slice(0, 40));
+  }
+  assert.equal(named(deposit, 'Copy address'), undefined, 'the wallet pays: no copy button');
+  press(deposit, 'Propose the payment'); await settle();
+  assert.deepEqual(paid, [groupSwap], 'the button proposes the send of the swap');
+  assert.match(text(deposit), /Send of this wallet: Waiting for approvals/);
+  assert.equal(named(deposit, 'Propose the payment').disabled, true, 'one send from this screen');
+  row = { word: 'Failed', error: 'Not sent: the deposit address of this swap closes' };
+  swap.setContext(context);
+  assert.match(text(deposit), /Send of this wallet: Failed\. Not sent: the deposit address/);
+  row = null;
+  swap.setContext(context);
+  assert.match(text(deposit), /Open the wallet that pays this swap to see its send\./);
+  press(deposit, 'Close');
+  // A refused proposal says why and can be tried again. Another wallet, and the last 30 minutes,
+  // propose nothing.
+  let tries = 0;
+  pay = async () => {
+    tries += 1;
+    throw new Error('A send of this wallet already pays this deposit address.');
+  };
+  await swap.model.update({ amount: '0.0175' });
+  press(root, 'Review quote');
+  const again = walk(body, (n) => n.tag === 'dialog').at(-1);
+  fire(again.querySelector('#swap-agree'), 'change', { target: { checked: true } });
+  fire(named(again, 'Get deposit address'), 'click'); await settle(); await settle();
+  swap.setContext({ ...context, id: 'g2', solGroup: { ...solGroup, refundTo: DEPOSIT } });
+  assert.equal(named(deposit, 'Propose the payment').disabled, true, 'no send of another wallet');
+  swap.setContext(context);
+  press(deposit, 'Propose the payment'); await settle();
+  assert.match(text(deposit), /Not proposed: A send of this wallet already pays this deposit/);
+  assert.equal(named(deposit, 'Propose the payment').disabled, false, 'a refusal can be retried');
+  await clock.tick(PAY_BY - 30 * 60_000 + 1 - clock.now());
+  press(deposit, 'Propose the payment'); await settle();
+  assert.equal(tries, 1, 'a click in the last 30 minutes proposes nothing');
+  assert.equal(named(deposit, 'Propose the payment').disabled, true, 'and turns the button off');
+  press(deposit, 'Close');
+  // The payer can change: a wallet from outside types its refund address on /near/swap.
+  await swap.model.update({ amount: '0.0175' });
+  press(root, 'Review quote');
+  const choose = walk(body, (n) => n.tag === 'dialog').at(-1);
+  fire(payers(choose)[1], 'change');
+  assert.ok(text(choose).includes('Pay fromA Solana wallet outside Zigs'));
+  fire(choose.querySelector('#swap-refund'), 'input', { target: { value: REFUND } });
+  fire(choose.querySelector('#swap-agree'), 'change', { target: { checked: true } });
+  fire(named(choose, 'Get deposit address'), 'click'); await settle(); await settle();
+  assert.equal('group' in pro.log.open.at(-1), false, 'a payer from outside asks /near/swap');
+  assert.equal(named(deposit, 'Copy address').hidden, false, 'and copies the deposit address');
+  press(deposit, 'Close');
+  // A wallet with no Solana address: the choice is off and says why.
+  const noKey = 'The Solana address of this wallet shows after its Solana key setup ends.';
+  const waiting = createSwapPreview({ ...context, solGroup: { reason: noKey } }, swapPro(),
+    fakeClock());
+  await waiting.model.update({ from: sol.id, to: zec.id, amount: '0.0175' });
+  press(waiting.element, 'Review quote');
+  const off = walk(body, (n) => n.tag === 'dialog').at(-1);
+  assert.deepEqual(payers(off).map((n) => [n.attrs.value, 'checked' in n.attrs,
+    'disabled' in n.attrs]), [['group', false, true], ['outside', true, false]]);
+  assert.ok(text(off).includes(noKey), 'the review says why the wallet cannot pay');
+  assert.ok(off.querySelector('#swap-refund'), 'a payer from outside types the refund address');
+  press(off, 'Back to swap');
+  console.log('ok  the live swap from SOL paid by the wallet: review, proposal, refusals, payer');
+} finally {
+  globalThis.document = realDocument;
+}
+// ── The check of each approving device for a deposit of the plain wallet (app-swap-sol.js) ──
+globalThis.document = fakeDocument;
+try {
+  const { checkSolSwap, solSwapSource } = await import('../app-swap-sol.js');
+  const iso = new Date(Date.now() + 5 * 3600_000).toISOString();
+  const ask = { deposit: DEPOSIT, lamports: '17500000', deadline: iso, refundTo: REFUND };
+  const own = { address: UA, room: '50000000' };
+  const swapOk = { from: 'sol', to: 'zec', recipient: UA, refundTo: REFUND, amountIn: '17500000',
+    amountOut: '133000', deadline: iso, plain: true };
+  const asked = [];
+  const near = (swap, status = 'PENDING_DEPOSIT') => ({ async swapStatus(address) {
+    asked.push(address);
+    return { status, swap };
+  } });
+  assert.deepEqual(await checkSolSwap(ask, near(swapOk), own), { lines: [
+    'This send pays the deposit address ' + DEPOSIT + ' of a swap from SOL to ZEC through NEAR '
+      + 'Intents.',
+    'NEAR Intents waits for 0.0175 SOL and pays about 0.00133 ZEC to the ZEC address of this '
+      + 'wallet. A refund goes to the Solana address of this wallet.',
+    'Pay before ' + iso.slice(0, 10) + ' ' + iso.slice(11, 19) + ' UTC. No device approves or '
+      + 'sends it in the last 30 minutes.'] });
+  assert.deepEqual(asked, [DEPOSIT], 'the device asks for the swap of the deposit address');
+  const refused = async (what, provider, pattern, mine = own) => {
+    const out = await checkSolSwap(ask, provider, mine);
+    assert.deepEqual(Object.keys(out), ['why'], what);
+    assert.match(out.why, pattern, what);
+  };
+  const NOT = / This browser did not approve\.$/;
+  for (const [what, edit] of [
+    ['another ZEC address', { recipient: UA.slice(0, -1) + 'q' }],
+    ['another refund', { refundTo: DEPOSIT }], ['another amount', { amountIn: '17500001' }],
+    ['another origin', { from: 'zec' }], ['another asset out', { to: 'usdc' }],
+    ['another deadline', { deadline: '2030-01-01T00:00:00.000Z' }],
+    ['an app fee or another slippage', { plain: false }],
+    ['a payout over the room', { amountOut: '50000001' }],
+    ['no payout amount', { amountOut: undefined }]]) {
+    await refused(what, near({ ...swapOk, ...edit }), NOT);
+  }
+  await refused('no swap fields', near(undefined), NOT);
+  await refused('a deposit already seen', near(swapOk, 'KNOWN_DEPOSIT_TX'),
+    /does not wait for a deposit at this address\. This browser did not approve\.$/);
+  await refused('NEAR is down', { swapStatus: async () => { throw new Error('down'); } },
+    /^NEAR Intents did not give the state of the swap\. Try again\.$/);
+  asked.length = 0;
+  await refused('a wallet with no payout address', near(swapOk),
+    /^This wallet uses Zcash testnet\. This browser did not approve\.$/,
+  { reason: 'This wallet uses Zcash testnet.' });
+  assert.deepEqual(await checkSolSwap(ask, near(swapOk)), { why: 'Choose a mainnet wallet to '
+    + 'receive the ZEC. This browser did not approve.' }, 'no mainnet wallet open');
+  assert.deepEqual(asked, [], 'a device with no payout address asks nothing');
+  assert.match(solSwapSource().reason, /shows after its Solana key setup ends/,
+    'no plain wallet: no payer');
+  console.log('ok  each approving device checks the swap of a deposit of the plain wallet');
 } finally {
   globalThis.document = realDocument;
 }
