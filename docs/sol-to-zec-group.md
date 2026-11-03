@@ -1,7 +1,7 @@
 # Design record: a swap from SOL to ZEC paid by the plain Solana wallet
 
-Staging only (`NEAR_LIVE` "1"). Production stays frozen. Base: `8fe053c2` (the merge of the ZEC to
-SOL swap into staging).
+Staging only (`NEAR_LIVE` "1"). Production stays frozen. Base: `bdc38bf6` of `staging-combo` (the
+merge of the ZEC to SOL swap into staging, `8fe053c2`, and its baseline).
 
 ## 1. Summary
 
