@@ -3,8 +3,9 @@
 // sends only a pair, an amount and a slippage. The addresses are fixed samples, never an address
 // of a user. No header of the user goes upstream. Nothing is cached (the terms of NEAR Intents
 // forbid a standalone proxy and a cache of their data over 24 hours).
-// POST /near/swap, POST /near/swap-zec and GET /near/status: a live swap from SOL to ZEC, one from
-// ZEC to SOL, and the state of a swap. They answer 404 unless the var NEAR_LIVE is "1"
+// POST /near/swap, POST /near/swap-sol-group, POST /near/swap-zec and GET /near/status: a live swap
+// from SOL to ZEC paid from a wallet outside Zigs, one paid by the plain Solana wallet of the
+// group, one from ZEC to SOL, and the state of a swap. They answer 404 unless the var NEAR_LIVE is "1"
 // (cf/wrangler.jsonc: staging only).
 // The partner key of NEAR Intents is the secret NEAR_API_KEY. Without it every route still works,
 // at the higher fee of NEAR Intents for calls with no key.
@@ -20,9 +21,10 @@ const NEAR_SWAP_DEADLINE_MS = 1_800_000;
 // A live quote with less time left than this to pay is refused: the person could pay after the
 // deadline, and NEAR Intents can then refund or lose the deposit.
 const NEAR_SWAP_MIN_LEFT_MS = 300_000;
-// A swap from ZEC is a group payment: the devices approve it in hours, not minutes. Its deadline is
-// 6 hours after the quote, and a quote with less than 4 hours left to pay is refused. A deposit
-// after the deadline goes back to the transparent refund address of the group.
+// A swap from ZEC, and a swap from SOL that the plain wallet pays, is a group payment: the devices
+// approve it in hours, not minutes. Its deadline is 6 hours after the quote, and a quote with less
+// than 4 hours left to pay is refused. A deposit after the deadline goes back to the refund address
+// of the group.
 const NEAR_ZEC_DEADLINE_MS = 21_600_000;
 const NEAR_ZEC_MIN_LEFT_MS = 14_400_000;
 const NEAR_NO_STORE = { "Cache-Control": "no-store" };
@@ -84,12 +86,16 @@ function nearZecTransparent(text) {
   return hex.length === 52 && NEAR_T_VERSIONS.has(hex.slice(0, 4));
 }
 
-// The two live routes. `recipient` checks the address that gets the payout, `refund` the address
-// of a refund on the origin chain, and `deposit` the deposit address of the answer.
+// The live routes. `recipient` checks the address that gets the payout, `refund` the address of a
+// refund on the origin chain, and `deposit` the deposit address of the answer. The Worker cannot
+// know the group key, so the devices that approve a group-paid swap check its refund address.
 const NEAR_LIVE_ROUTES = {
   fromSol: { origin: "sol", destination: "zec", recipient: (a) => NEAR_UA.test(a),
     refund: nearSolAddress, deposit: nearSolAddress, deadline: NEAR_SWAP_DEADLINE_MS,
     minLeft: NEAR_SWAP_MIN_LEFT_MS },
+  fromSolGroup: { origin: "sol", destination: "zec", recipient: (a) => NEAR_UA.test(a),
+    refund: nearSolAddress, deposit: nearSolAddress, deadline: NEAR_ZEC_DEADLINE_MS,
+    minLeft: NEAR_ZEC_MIN_LEFT_MS },
   fromZec: { origin: "zec", destination: "sol", recipient: nearSolAddress,
     refund: nearZecTransparent, deposit: nearZecTransparent, deadline: NEAR_ZEC_DEADLINE_MS,
     minLeft: NEAR_ZEC_MIN_LEFT_MS },
@@ -296,8 +302,15 @@ async function nearLiveSwap(req, env, { key, readBody }, route) {
     (json) => nearSwapAnswer(json, request, now));
 }
 
-/** The /near/swap route: a live quote from SOL to ZEC. */
+/** The /near/swap route: a live quote from SOL to ZEC, paid from a wallet outside Zigs. */
 export const nearSwap = (req, env, ctx) => nearLiveSwap(req, env, ctx, NEAR_LIVE_ROUTES.fromSol);
+
+/**
+ * The /near/swap-sol-group route: a live quote from SOL to ZEC that the plain Solana wallet of the
+ * group pays with a send that its devices approve (docs/sol-to-zec-group.md).
+ */
+export const nearSwapSolGroup = (req, env, ctx) =>
+  nearLiveSwap(req, env, ctx, NEAR_LIVE_ROUTES.fromSolGroup);
 
 /**
  * The /near/swap-zec route: a live quote from ZEC to SOL. The refund address is a transparent

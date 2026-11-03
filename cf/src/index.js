@@ -2,7 +2,7 @@
 // pushes every change of that group to its connected members over a WebSocket.
 import { DurableObject } from "cloudflare:workers";
 import { gate, withCookie } from "./gate.js";
-import { nearQuote, nearStatus, nearSwap, nearSwapZec } from "./near.js";
+import { nearQuote, nearStatus, nearSwap, nearSwapSolGroup, nearSwapZec } from "./near.js";
 
 const GROUP_ID = /^[0-9a-f]{20}$/;
 // The light-wallet servers in NETWORKS (web/app-chain.js) that the page calls itself. The page may
@@ -522,7 +522,7 @@ async function groupSocket(req, env, url) {
 
 // The NEAR Intents routes that take a small JSON body.
 const NEAR_POSTS = new Map([["/near/quote", nearQuote], ["/near/swap", nearSwap],
-  ["/near/swap-zec", nearSwapZec]]);
+  ["/near/swap-sol-group", nearSwapSolGroup], ["/near/swap-zec", nearSwapZec]]);
 
 async function route(req, env, ctx) {
   const url = new URL(req.url);

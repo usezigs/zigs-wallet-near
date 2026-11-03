@@ -849,6 +849,67 @@ const status = async (label, address = DEPOSIT, e = LIVE, init = {}) => {
     + "deposit address and 4 hours left; /near/status takes a transparent deposit address");
 }
 
+// ── /near/swap-sol-group: a live swap from SOL to ZEC that the plain wallet pays ──
+{
+  const fromGroup = (label, body, e = LIVE) => post(label, body, {}, e, "/near/swap-sol-group");
+  const hours = (n) => minutes(n * 60);
+  const groupGood = (sent, edit) => liveGood(sent, (b) => {
+    Object.assign(b.quote, { deadline: hours(6), timeWhenInactive: hours(78) });
+    edit?.(b);
+  });
+  for (const NEAR_LIVE of [undefined, "0", "true"]) {
+    const off = await fromGroup("off " + NEAR_LIVE, swapAsk, { ...env, NEAR_LIVE });
+    assert.equal(off.status, 404, "/near/swap-sol-group is off unless NEAR_LIVE is 1");
+  }
+  reply = groupGood;
+  const res = await fromGroup("live from the group", swapAsk);
+  assert.equal(res.status, 200);
+  assert.deepEqual(taken()[0].sent, {
+    dry: false, swapType: "EXACT_INPUT", slippageTolerance: 100, originAsset: ID.sol,
+    depositType: "ORIGIN_CHAIN", destinationAsset: ID.zec, amount: "17500000", refundTo: REFUND,
+    refundType: "ORIGIN_CHAIN", recipient: UA, recipientType: "DESTINATION_CHAIN",
+    deadline: hours(6),
+  }, "the whole live request from the group, with a deadline of 6 hours");
+  const body = await json(res);
+  assert.deepEqual([body.depositAddress, body.recipient, body.refundTo, body.deadline],
+    [DEPOSIT, UA, REFUND, hours(6)]);
+  // The route from a wallet outside Zigs keeps its 30 minutes.
+  reply = groupGood;
+  assert.equal((await swap("outside", swapAsk)).status, 200);
+  assert.equal(taken()[0].sent.deadline, minutes(30), "/near/swap still asks for 30 minutes");
+  for (const [what, ask] of [
+    ["a transparent recipient", { ...swapAsk, recipient: "t1Hsc1LR8yKnbbe3twRp88p6vFfC5t7DLbs" }],
+    ["a Solana recipient", { ...swapAsk, recipient: REFUND }],
+    ["a transparent refund", { ...swapAsk, refundTo: "t3Vz22vK5z2LcKEdg16Yv4FFneEL1zg9ojd" }],
+    ["a refund of 31 bytes",
+      { ...swapAsk, refundTo: "4uQeVj5tqViQh7yWWGStvkEG1Zmhx6uasJtWCJziofL" }],
+    ["no refund", { amount: "17500000", recipient: UA, slippageBps: 100 }],
+    ["an extra field", { ...swapAsk, payer: REFUND }],
+    ["a slippage of 3 %", { ...swapAsk, slippageBps: 300 }],
+  ]) {
+    assert.equal((await fromGroup(what, ask)).status, 400, what + " gives 400");
+  }
+  assert.equal(calls.length, 0, "no call upstream for a refused swap from the group");
+  for (const [what, edit] of [
+    ["a deadline in 3 hours", (b) => { b.quote.deadline = hours(3); }],
+    ["a transparent deposit address", (b) => {
+      b.quote.depositAddress = "t1Hsc1LR8yKnbbe3twRp88p6vFfC5t7DLbs"; }],
+    ["another refund", (b) => { b.quoteRequest.refundTo = DEPOSIT; }],
+    ["another recipient", (b) => { b.quoteRequest.recipient = UA.slice(0, -1) + "q"; }],
+    ["another origin", (b) => { b.quoteRequest.originAsset = ID.usdc; }],
+    ["a memo", (b) => { b.quote.depositMemo = "1"; }],
+  ]) {
+    reply = (sent) => groupGood(sent, edit);
+    assert.equal((await fromGroup(what, swapAsk)).status, 502, "the group check: " + what);
+  }
+  reply = (sent) => groupGood(sent, (b) => { b.quote.deadline = hours(4.5); });
+  assert.equal((await fromGroup("4.5 hours", swapAsk)).status, 200, "4.5 hours left pass");
+  reply = good;
+  taken();
+  step("/near/swap-sol-group asks for a swap from SOL with a deadline of 6 hours, checks a Solana "
+    + "deposit address and 4 hours left; /near/swap keeps 30 minutes");
+}
+
 // ── The limit per network counts the live routes too, before the body and the address ──
 {
   const keys = [];
