@@ -610,13 +610,15 @@ console.log("ok  no call for a hidden tab or a closed wallet; the 30 s call asks
   await sweep.approveSweep(1, keys, "dg1");
   await rig.waitFor("the approval of seat 1", () => /1 of 2 devices approved it/.test(shown()));
   const key1 = rig.data.get(`groups/${sg}/sweep/1`).key;
-  // Seat 2 copies the key of seat 1, also in capital letters: one key counts once.
-  const upper = await signedDoc(sg, "sweep/2", 2, { v: 1, digest: "dg1", key: key1.toUpperCase(),
-    signatures: ["30"] });
-  await rig.db.doc(`groups/${sg}/sweep/2`).set(upper);
-  await rig.waitFor("the check of the capital key", () => verdict(upper) === "yes");
-  assert.match(shown(), /1 of 2 devices approved it/);
-  assert.deepEqual(buttons(), ["Approve as device 2", "Approve as device 3"]);
+  // Seat 2 copies the key of seat 1, also in capital letters or in a list: one key counts once.
+  for (const key of [key1.toUpperCase(), [key1]]) {
+    const like = await signedDoc(sg, "sweep/2", 2, { v: 1, digest: "dg1", key,
+      signatures: ["30"] });
+    await rig.db.doc(`groups/${sg}/sweep/2`).set(like);
+    await rig.waitFor("the check of the copied key", () => verdict(like) === "yes");
+    assert.match(shown(), /1 of 2 devices approved it/, JSON.stringify(key));
+    assert.deepEqual(buttons(), ["Approve as device 2", "Approve as device 3"]);
+  }
   const copy = await signedDoc(sg, "sweep/2", 2, { v: 1, digest: "dg1", key: key1,
     signatures: ["30"] });
   await rig.db.doc(`groups/${sg}/sweep/2`).set(copy);

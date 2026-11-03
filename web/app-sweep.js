@@ -86,7 +86,7 @@ const KEY = /^0[23][0-9a-f]{64}$/;
 function approvals(gid, digest) {
   return Array.from({ length: state.g.n }, (_, i) => i + 1).filter((i) => {
     const d = signed(gid, String(i), i);
-    return d?.digest === digest && KEY.test(d.key) && Array.isArray(d.signatures);
+    return d?.digest === digest && isStr(d.key) && KEY.test(d.key) && Array.isArray(d.signatures);
   });
 }
 
