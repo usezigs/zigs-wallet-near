@@ -109,6 +109,15 @@ export function sendForm(c, act, actions) {
 const lookFor = (c, row) => (c.look?.id === row.id && row.seats.includes(c.look.seat)
   && c.look.ss && sameProposal(c.sessions, c.look.ss) ? c.look : null);
 
+// The sentences of the swap check of a swap deposit (approve.js): a block apart from the rows of
+// the checker, which stay as the checker wrote them.
+function swapPart(c, lines) {
+  const { el } = c.host;
+  if (!lines?.length) return null;
+  return el("div", { class: "callout", "data-sol": "look-swap" }, el("strong", {}, "Swap deposit"),
+    ...lines.map((line) => el("p", { class: "small" }, line)));
+}
+
 function lookBody(c, actions, look) {
   const { el } = c.host;
   const close = el("button", { class: "btn", type: "button", "data-sol": "look-close",
@@ -116,7 +125,7 @@ function lookBody(c, actions, look) {
   if (look.step === "reading") return [el("p", { class: "small", "data-sol": "look-busy" },
     BUSY.reading)];
   if (look.step === "shown") {
-    return [rowList(c, look.result.rows, "look-rows"),
+    return [swapPart(c, look.result.swap), rowList(c, look.result.rows, "look-rows"),
       el("p", { class: "small", "data-sol": "look-signs" }, approves(look.seat)),
       look.note ? el("p", { class: "callout bad", "data-sol": "look-note" }, look.note) : null,
       el("div", { class: "row-actions" }, el("button", { class: "btn primary", type: "button",

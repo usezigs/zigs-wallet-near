@@ -39,7 +39,9 @@ import {
 } from "../sol/plain/intent.js";
 import { proposeSend as proposeStep } from "../sol/plain/propose.js";
 import { usdcAddress } from "../sol/plain/reads.js";
-import { filterSessions, writePart, writeProposal } from "../sol/plain/sessions.js";
+import {
+  filterSessions, swapMark, writePart, writeProposal,
+} from "../sol/plain/sessions.js";
 import { nonceOf } from "../sol/plain/sign.js";
 import * as W from "../sol/wasm/sol_wasm.js";
 import { loadRig, mainnetConfig, sleep } from "./sol-rig.mjs";
@@ -2223,6 +2225,49 @@ step("a package and a send wait while another device holds the lease");
   await cleanup(stuck);
 }
 step("51 newer proposals of one seat leave the watches of the older honest session");
+
+// ── A swap deposit is sent while 30 minutes are left, and ends unsent after ──
+{
+  const realNow = Date.now;
+  const asks = [];
+  c.host.swapCheck = async (ask) => {
+    asks.push(ask);
+    return { lines: ["NEAR Intents waits for this deposit."] };
+  };
+  // One deposit address gets one send, so each swap has its own.
+  const swapSend = async (minutes, deposit) => {
+    const k = nextK++;
+    world.accounts.delete(nonceAddress(1, k - 1));
+    setNonce(1, k);
+    const swap = swapMark(deposit, new Date(Date.now() + minutes * 60_000).toISOString());
+    const id = await asSeat(c, 1, () =>
+      proposeSend(c, ensure, { ...typed("0.005", "sol", deposit), swap }));
+    for (const seat of [2, 3]) {
+      await approvePlain(c, ensure, await session(id), seat);
+      keep(seat, id);
+    }
+    return { id, k };
+  };
+  reset();
+  const early = await swapSend(6 * 60, RECIPIENT);
+  await pump("the swap deposit is sent", becomes(early.id, "sent"));
+  assert.equal(world.sends.length, 1, "a swap deposit with time left is sent");
+  assert.equal(asks.length, 2, "each approval checked the swap");
+  reset();
+  const late = await swapSend(31, base58("66".repeat(32)));
+  const nonceBefore = world.accounts.get(nonceAddress(1, late.k));
+  try {
+    Date.now = () => realNow() + 2 * 60_000;
+    await pump("the late swap deposit ends", becomes(late.id, "failed"));
+  } finally {
+    Date.now = realNow;
+  }
+  assert.match((await session(late.id)).error, /^Not sent: the deposit address of this swap closes/);
+  assert.deepEqual([world.sims.length, world.sends.length], [0, 0], "nothing was simulated or sent");
+  assert.equal(world.accounts.get(nonceAddress(1, late.k)), nonceBefore, "the nonce stands");
+  assert.ok(names().includes("status"), "the status of the transaction was read first");
+}
+step("a swap deposit is sent with time left and ends unsent in its last 30 minutes");
 
 // ── A stopped wallet drops every nonce ──
 {

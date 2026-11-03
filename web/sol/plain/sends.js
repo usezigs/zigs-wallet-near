@@ -8,11 +8,11 @@ import { base58 } from "../docs.js";
 import { payerOf } from "../fee.js";
 import { holdsShare, solOf } from "../secrets.js";
 import { approvePlain, reviewSession } from "./approve.js";
-import { blockNow } from "./direct.js";
+import { blockNow, payerSeat } from "./direct.js";
 import { checkTyped } from "./propose.js";
 import { DECIMALS, amountText } from "./reads.js";
 import {
-  ENDED, SESSIONS, SHARED, SUPERSEDED, heldIndexes, sameProposal, showable, titleOf,
+  ENDED, SESSIONS, SHARED, SUPERSEDED, heldIndexes, sameProposal, showable, swapOf, titleOf,
 } from "./sessions.js";
 
 const UNITS = { sol: "SOL", usdc: "USDC" };
@@ -21,6 +21,10 @@ const NOT_READ = "Zigs has not read the balance yet.";
 const OWN_ADDRESS = "That is the address of this wallet. Enter another address.";
 const NO_NONCE = "No free nonce account. Create one first.";
 const NOT_LOOKED = "Review the proposal first.";
+// The rent minimum of an account with no data: RENT_ZERO of the checker (wasm-sol/src/consts.rs).
+const RENT_ZERO = 650_240n;
+const NO_SETUP = "The Solana key setup of this wallet has not ended.";
+const PAID = "A send of this wallet already pays this deposit address. Get a new deposit address.";
 const GONE = "This proposal is not in the list any more.";
 const LOG_MAX = 300;
 export const NOTHING_PROPOSED = "Nothing was proposed.";
@@ -78,6 +82,34 @@ export function formError(c, typed) {
   if (bad) return bad;
   return freeNonces(c) === 0 ? { field: "asset", text: NO_NONCE } : null;
 }
+
+/**
+ * Why the plain wallet cannot pay `units` lamports (a BigInt) to the deposit of a swap now, or null.
+ * The key setup must have ended and the balance must be read. The balance must hold the amount,
+ * and 0 or the rent minimum must stay. A free nonce account and a seat of this browser that pays
+ * the fee must be there. The checker still judges the send.
+ */
+export function swapPayError(c, units) {
+  if (!agreement(c).done) return NO_SETUP;
+  const bad = balanceError(c, "sol", units);
+  if (bad) return bad.text;
+  const rest = c.balances.sol - units;
+  if (rest !== 0n && rest < RENT_ZERO) {
+    return `After this payment the Solana address of this wallet would hold ${rest} lamports. `
+      + `Solana needs 0 or at least ${RENT_ZERO} lamports there. Change the amount.`;
+  }
+  if (freeNonces(c) === 0) return NO_NONCE;
+  try {
+    payerSeat(c);
+  } catch (e) {
+    return String(e?.message ?? e);
+  }
+  return null;
+}
+
+/** The reason not to propose a second send to the deposit address `deposit`, or null. */
+export const depositPaid = (c, deposit) =>
+  (c.sessions.some((o) => o.status !== "failed" && swapOf(o)?.deposit === deposit) ? PAID : null);
 
 /** The nonce accounts of this device that no open proposal holds, or null while unknown. */
 export function freeNonces(c) {

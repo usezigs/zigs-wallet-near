@@ -13,9 +13,9 @@ import {
 } from "./direct.js";
 import { base64Bytes } from "./guard.js";
 import { hexOfBytes, plainPins, sendSolIntent, sendTokenIntent } from "./intent.js";
-import { DECIMALS, USDC } from "./reads.js";
+import { DECIMALS, USDC, amountText } from "./reads.js";
 import { canApprove, reviewText, stopText } from "./review.js";
-import { heldIndexes, writeProposal } from "./sessions.js";
+import { heldIndexes, swapLate, swapMark, swapOf, writeProposal } from "./sessions.js";
 
 const SYSTEM_PROGRAM = "11111111111111111111111111111111";
 const NONCE_LEN = 80;
@@ -29,6 +29,10 @@ const NO_NONCE = "Create a nonce account first.";
 const NO_ASSET = "Choose SOL or USDC.";
 const NO_RECIPIENT = "Enter the Solana address of the recipient.";
 const TAKEN = "Another proposal took this nonce account. Propose it again.";
+const NO_SWAP = "The swap mark does not fit this send.";
+const SWAP_LATE = "The deposit address of this swap closes in less than 30 minutes. A late "
+  + "deposit can be lost. Get a new deposit address.";
+const LAMPORTS = /^[1-9][0-9]{0,19}$/;
 const ASSETS = {
   sol: {
     symbol: "SOL", example: "0.005",
@@ -76,6 +80,32 @@ export function checkTyped({ asset, recipient, amount }) {
   return { units, to, build: (k, nonce) => build(k, nonce, to, units) };
 }
 
+/**
+ * The typed send of the deposit of a swap from SOL to ZEC (docs/sol-to-zec-group.md): exactly
+ * `lamports` (a decimal text) to the deposit address `deposit`, with the `swap` mark of the
+ * deadline `deadline` (an ISO time). A value of another form, or less than 30 minutes left,
+ * throws.
+ */
+export function swapTyped({ deposit, lamports, deadline }) {
+  const at = typeof deadline === "string" ? Date.parse(deadline) : NaN;
+  const iso = Number.isFinite(at) ? new Date(at).toISOString() : "";
+  const swap = swapMark(deposit, iso);
+  const sound = typeof lamports === "string" && LAMPORTS.test(lamports)
+    && swapOf({ swap })?.deposit === deposit;
+  if (!sound) throw new Error(NO_SWAP);
+  if (swapLate({ swap })) throw new Error(SWAP_LATE);
+  return { asset: "sol", recipient: deposit, amount: amountText(lamports, DECIMALS.sol), swap };
+}
+
+// The `swap` field of a typed send: none, or the mark of a SOL send to its deposit address.
+function swapField(typed) {
+  if (typed.swap === undefined) return {};
+  const deposit = swapOf(typed)?.deposit;
+  const fits = typed.asset === "sol" && deposit === String(typed.recipient ?? "").trim();
+  if (!fits) throw new Error(NO_SWAP);
+  return { swap: typed.swap };
+}
+
 // The stored nonce value (hex) of a nonce account that the group controls, or null: the System
 // program owns it, it has 80 bytes, version 1, state initialised, and the group key is its
 // authority (plain_chain.rs parse_nonce). It only picks an account: the checker judges it again.
@@ -109,12 +139,14 @@ async function freeNonce(c, worker, { pins, groupKey, seat }) {
 
 /**
  * The first ready device of this browser proposes a send: `asset` is "sol" or "usdc", `recipient`
- * a Solana address and `amount` a decimal text. Its fee key pays. Resolves with the session id.
+ * a Solana address and `amount` a decimal text. `swap` marks the deposit of a swap (swapTyped).
+ * Its fee key pays. Resolves with the session id.
  * ponytail: two proposals that read the chain at once can pick the same index; the later one ends
  * with a reason when both are in the store (sessions.js), so no nonce is spent twice.
  */
 export async function proposeSend(c, ensure, typed) {
   const { build } = checkTyped(typed);
+  const extra = swapField(typed);
   const why = await settledBlock(c);
   if (why) throw new Error(why);
   const opened = c.opened;
@@ -141,6 +173,7 @@ export async function proposeSend(c, ensure, typed) {
   const id = newId();
   const fields = {
     intent: hexOfBytes(intent), message: hexOfBytes(message), feeSig, createdAt: Date.now(),
+    ...extra,
   };
   await writeProposal(c, id, fields, seat, () => stillOpen(c, opened));
   c.host.log("device " + seat + ": proposed a send");

@@ -28,7 +28,9 @@ import { toBase64 } from "./guard.js";
 import { bytesOfHex, hexOfBytes, join, plainPins } from "./intent.js";
 import { nonceValue } from "./propose.js";
 import { canApprove, reviewText, stopText } from "./review.js";
-import { ENDED, SESSIONS, sameProposal, showable, titleOf, writePart } from "./sessions.js";
+import {
+  ENDED, SESSIONS, sameProposal, showable, swapLate, titleOf, writePart,
+} from "./sessions.js";
 
 const J = JSON.parse,
   S = JSON.stringify;
@@ -53,6 +55,8 @@ const KEYS_AT = 42;
 const CONFIG_SIZES = [[0b11, 8], [0b100, 4], [0b1000, 4], [0b10000, 4]]; // [mask bit, bytes]
 const SYSTEM_KEY = "00".repeat(KEY_BYTES);
 const ADVANCE_NONCE = "04000000"; // the System instruction 4, as a u32
+const LATE_SWAP = "Not sent: the deposit address of this swap closes in less than 30 minutes, and "
+  + "a late deposit can be lost. Propose the swap again from the Swap page.";
 const decimal = (v) => typeof v === "string" && /^[0-9]{1,20}$/.test(v);
 // The words of the Worker for a transaction: status gives this set, confirm gives DONE.
 const SEEN = new Set(["none", "pending", "confirmed", "finalized", "failed"]);
@@ -457,19 +461,29 @@ async function land(c, ss, ctx) {
   return waitFor(worker, txId);
 }
 
+// A swap deposit is not sent in the last 30 minutes before its deadline. The session ends with a
+// reason while the nonce account still holds the nonce of the transaction, so the next send on it
+// makes this signature useless. A moved nonce is a landing: the step waits for its status.
+async function endLate(c, ss, ctx) {
+  if (!(await nonceKept(ctx.worker, ss, ctx.group))) throw changed(ss);
+  await failSession(c, ss, LATE_SWAP, ctx.was);
+  return null;
+}
+
 // The result of the transaction. A transaction that landed is never sent again: the status comes
 // first, for a device that is late.
 async function resultOf(c, ss, ctx) {
   let result = await statusOf(ctx.worker, ctx.txId);
   if (moved(c, ctx.was, ss, SIGNED)) return null;
   if (result.status === "pending") result = await waitFor(ctx.worker, ctx.txId);
-  return result.status === "none" ? land(c, ss, ctx) : result;
+  if (result.status !== "none") return result;
+  return swapLate(ss) ? endLate(c, ss, ctx) : land(c, ss, ctx);
 }
 
-async function attemptSend(c, ss, { seat, worker }) {
+async function attemptSend(c, ss, { seat, worker, group }) {
   const was = c.opened;
   const txId = base58(ss.feeSig);
-  const ctx = { worker, tx: txOf(ss), txId, was };
+  const ctx = { worker, tx: txOf(ss), txId, was, group };
   if (!(await leased(sessionRef(c, ss), 60000))) return sleep(RETRY_MS);
   if (moved(c, was, ss, SIGNED)) return;
   const result = await resultOf(c, ss, ctx);
@@ -556,7 +570,7 @@ async function sendSigned(c, ss, { seat, worker, group }) {
   const was = c.opened,
     how = { key: "send:" + ss.id, was };
   try {
-    await attemptSend(c, ss, { seat, worker });
+    await attemptSend(c, ss, { seat, worker, group });
     c.fails.delete(how.key);
   } catch (e) {
     if (e instanceof Halt || c.opened !== was) throw e;

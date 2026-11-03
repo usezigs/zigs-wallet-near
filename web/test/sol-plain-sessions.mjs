@@ -28,11 +28,11 @@ import {
   bytesOfHex, createNonceIntent, hexOfBytes, indexOfSend, plainPins, sendSolIntent,
   sendTokenIntent,
 } from "../sol/plain/intent.js";
-import { proposeSend as proposeStep, unitsOf } from "../sol/plain/propose.js";
+import { proposeSend as proposeStep, swapTyped, unitsOf } from "../sol/plain/propose.js";
 import { usdcAddress } from "../sol/plain/reads.js";
 import { screenRows } from "../sol/plain/review.js";
 import {
-  ENDED, filterSessions, showable, titleOf, writeProposal,
+  ENDED, filterSessions, showable, swapMark, swapOf, titleOf, writeProposal,
 } from "../sol/plain/sessions.js";
 import * as W from "../sol/wasm/sol_wasm.js";
 import { loadRig, mainnetConfig, sleep } from "./sol-rig.mjs";
@@ -1359,6 +1359,103 @@ step("the controller offers propose, review and approve; the words go to the liv
   assert.equal(open.size, 0, "a close gives every watch back");
 }
 step("the watches of the sessions stop with the wallet and with an ended session; 8 a seat");
+
+// ── The deposit of a swap from SOL to ZEC (docs/sol-to-zec-group.md) ──
+{
+  const inMinutes = (n) => new Date(Date.now() + n * 60_000).toISOString();
+  const deadline = inMinutes(6 * 60);
+  const swapOfTest = { deposit: RECIPIENT, lamports: "17500000", deadline };
+  // The exact lamports: the decimal text reads back to the same base units.
+  for (const lamports of ["17500000", "17500001", "1", "18446744073709551615"]) {
+    const sent = swapTyped({ ...swapOfTest, lamports });
+    assert.equal(unitsOf(sent.amount, 9), BigInt(lamports), lamports + " lamports round trip");
+    assert.equal(sent.swap, swapMark(RECIPIENT, deadline));
+  }
+  for (const [what, edit] of [["0 lamports", { lamports: "0" }], ["a fraction", { lamports: "1.5" }],
+    ["a number", { lamports: 17500000 }], ["no deadline", { deadline: "soon" }],
+    ["a bad deposit", { deposit: "0x76b4" }], ["a deposit with a space", { deposit: RECIPIENT + " " }]]) {
+    assert.throws(() => swapTyped({ ...swapOfTest, ...edit }), /The swap mark does not fit/, what);
+  }
+  assert.throws(() => swapTyped({ ...swapOfTest, deadline: inMinutes(29) }),
+    /closes in less than 30 minutes/, "no proposal in the last 30 minutes");
+  // What the page asks before it gets a deposit address: the balance, the rent, the nonce, the fee.
+  for (const k of [95, 96, 97, 98]) setNonce(1, k);
+  const read = { at: Date.now(), sol: 1_000_000_000n, nonces: { seat: 1, have: 4, ks: [95, 96] } };
+  Object.assign(c.balances, read);
+  assert.equal(plain.swapReady("17500000"), null, "the wallet can pay this deposit");
+  assert.match(plain.swapReady("1000000001"), /The balance is 1 SOL/);
+  assert.match(plain.swapReady("999999000"),
+    /would hold 1000 lamports\. Solana needs 0 or at least 650240 lamports/);
+  assert.equal(plain.swapReady("1000000000"), null, "the whole balance leaves 0, which is allowed");
+  assert.match(plain.swapReady("1.5"), /not a whole number of lamports/);
+  Object.assign(c.balances, { at: null });
+  assert.match(plain.swapReady("17500000"), /has not read the balance/);
+  Object.assign(c.balances, read);
+  // The proposal: the signed mark next to the other fields, and the exact amount.
+  const asks = [];
+  let answer = () => ({ lines: ["NEAR Intents waits for this deposit."] });
+  c.host.swapCheck = async (ask) => {
+    asks.push(ask);
+    return answer(ask);
+  };
+  reset();
+  const id = await asSeat(c, 1, () => plain.proposeSwap(swapOfTest));
+  const { by, sig, ...part } = data.get(path(gid, "solsessions/" + id));
+  assert.deepEqual(Object.keys(part).sort(), ["createdAt", "feeSig", "intent", "message", "swap"],
+    "the proposal holds the swap mark and nothing else new");
+  assert.equal(part.swap, "near-sol-zec " + RECIPIENT + " " + deadline);
+  const ss = await session(id);
+  assert.ok(ss && showable(ss), "the signed mark verifies");
+  assert.deepEqual(swapOf(ss), { deposit: RECIPIENT, deadline: Date.parse(deadline),
+    iso: deadline });
+  assert.equal(titleOf(ss), "Swap deposit (SOL to ZEC)");
+  assert.equal(by, 1);
+  assert.equal(typeof sig, "string");
+  // The review: the rows of the checker, and the sentences of the swap check apart from them.
+  const review = await reviewSession(c, ensure, ss, 2);
+  assert.ok(review.ok, "the review passes");
+  assert.deepEqual(review.swap, ["NEAR Intents waits for this deposit."]);
+  assert.ok(review.rows.some((r) => r.label === "To" && r.value === RECIPIENT));
+  assert.ok(review.rows.some((r) => r.label === "Base units" && r.value === "17500000"));
+  assert.deepEqual(asks, [{ deposit: RECIPIENT, lamports: "17500000", deadline,
+    refundTo: base58(group) }], "the check gets the lines of the checker and the group address");
+  // A swap that NEAR Intents does not confirm, a check that fails and an odd answer: no approval.
+  answer = () => ({ why: "The swap pays another ZEC address than the one of this wallet." });
+  await refused(2, id, /another ZEC address/, "a swap of another wallet");
+  answer = () => { throw new Error("offline"); };
+  await refused(2, id, /could not check the swap of this deposit address\. offline/, "no check");
+  answer = () => ({ lines: [5] });
+  await refused(2, id, /could not check the swap/, "an answer of another shape");
+  answer = () => ({ lines: ["NEAR Intents waits for this deposit."] });
+  // One deposit address, one send: the page proposes none again, and an approver refuses the
+  // newer of two.
+  await assert.rejects(asSeat(c, 1, () => plain.proposeSwap(swapOfTest)),
+    /already pays this deposit address/);
+  const twin = await plant(1, { k: 97, units: 17_500_000n }, newId());
+  await writeProposal(c, twin.id, { ...twin.fields, swap: part.swap }, 1);
+  asks.length = 0;
+  await refused(2, twin.id, /An older send of this wallet pays the same deposit address/, "twin");
+  // A mark that names another address than the recipient, and a mark with less than 30 minutes.
+  const other = await plant(1, { k: 98, to: OTHER_RECIPIENT, units: 17_500_000n });
+  await writeProposal(c, other.id, { ...other.fields, swap: part.swap }, 1);
+  await refused(2, other.id, /names another address than the recipient/, "another recipient");
+  const lateId = newId();
+  const late = forged(1, { k: 96, to: OTHER_RECIPIENT, units: 17_500_000n });
+  const lateMark = swapMark(base58(OTHER_RECIPIENT), inMinutes(10));
+  await writeProposal(c, lateId, { ...late, swap: lateMark }, 1);
+  await refused(2, lateId, /closes in less than 30 minutes/, "a late deposit");
+  assert.deepEqual(asks, [], "none of them asked NEAR Intents");
+  // A mark of another form, or on a send of USDC, is not shown.
+  for (const swap of ["near-sol-zec " + RECIPIENT, part.swap + " ", part.swap.replace("Z", ""),
+    "near-zec-sol " + RECIPIENT + " " + deadline, 5, null, ""]) {
+    assert.equal(showable({ ...ss, swap }), false, JSON.stringify(swap) + " is no swap mark");
+  }
+  const usdc = sendTokenIntent(0, nonceValue(1, 0), 0, recipient, 1n);
+  assert.equal(showable({ ...ss, intent: hex(usdc) }), false, "no swap mark on a USDC send");
+  const { swap: _, ...plainSend } = ss;
+  assert.equal(titleOf(plainSend), "Send SOL", "a send with no mark keeps its title");
+}
+step("a swap deposit carries a signed mark; the approval checks it, once per deposit, in time");
 
 // ── Nothing leaked at the end ──
 assert.deepEqual(leaks(), [], "the nonces and the key shares are nowhere in the open");

@@ -10,8 +10,15 @@ import { indexOfSend, isSendIntent, kindOfIntent } from "./intent.js";
 
 export const SESSIONS = "solsessions";
 export const ENDED = new Set(["sent", "failed"]);
-/** The fields that the proposer signs, in the order of the signature. */
-export const PROPOSAL = ["intent", "message", "feeSig", "createdAt"];
+/**
+ * The fields that the proposer signs, in the order of the signature. `swap` is there only on the
+ * deposit of a swap (swapOf), so a proposal without it signs the fields that it signed before.
+ */
+export const PROPOSAL = ["intent", "message", "feeSig", "createdAt", "swap"];
+/** No device approves or sends a swap deposit in this time before its deadline. */
+export const SWAP_MARGIN_MS = 30 * 60_000;
+const SWAP_MARK =
+  /^near-sol-zec ([1-9A-HJ-NP-Za-km-z]{32,44}) (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)$/;
 
 /** The signed parts of a session document, as the pool names them (web/sol/sessions.js). */
 export const PARTS = {
@@ -34,7 +41,26 @@ export const SUPERSEDED =
   "Propose it again.";
 export const TWIN_FEE = "Two devices show one fee address, so this proposal cannot be used.";
 const TITLES = { "send-sol": "Send SOL", "send-token": "Send token" };
+const SWAP_TITLE = "Swap deposit (SOL to ZEC)";
 const num = (n) => (Number.isFinite(n) ? n : 0);
+
+/** The `swap` field of the deposit of a swap from SOL to ZEC (docs/sol-to-zec-group.md). */
+export const swapMark = (deposit, deadline) => `near-sol-zec ${deposit} ${deadline}`;
+
+/**
+ * The swap that the proposal `ss` pays: { deposit, deadline (ms), iso }, or null when it has no
+ * `swap` field or a field of another form.
+ */
+export function swapOf(ss) {
+  const m = typeof ss?.swap === "string" ? SWAP_MARK.exec(ss.swap) : null;
+  const at = m ? Date.parse(m[2]) : NaN;
+  if (!m || !Number.isFinite(at) || new Date(at).toISOString() !== m[2]) return null;
+  return { deposit: m[1], deadline: at, iso: m[2] };
+}
+
+// A proposal with no `swap` field, or the deposit of a swap: a SOL send with a field of the form.
+const swapFits = (ss) =>
+  ss.swap === undefined || (kindOfIntent(ss.intent) === "send-sol" && swapOf(ss) !== null);
 
 /** The signed fields of part `name` in the document `d`, in the order of the signature. */
 export function partFields(name, d) {
@@ -65,10 +91,35 @@ export const showable = (ss) =>
   fits(ss.message, HEX) &&
   ss.message.length <= MAX_MESSAGE_HEX &&
   fits(ss.feeSig, SIGNATURE) &&
-  timeOk(ss.createdAt);
+  timeOk(ss.createdAt) &&
+  swapFits(ss);
 
-/** The title of a session from its tag. A recipient or an amount comes from the checker only. */
-export const titleOf = (ss) => (showable(ss) ? TITLES[kindOfIntent(ss.intent)] : null);
+/**
+ * The title of a session from its tag and its `swap` field. A recipient or an amount comes from
+ * the checker only.
+ */
+export function titleOf(ss) {
+  if (!showable(ss)) return null;
+  return ss.swap === undefined ? TITLES[kindOfIntent(ss.intent)] : SWAP_TITLE;
+}
+
+/**
+ * The session that already pays the deposit address of the swap deposit `ss`: an older one that
+ * did not fail (by createdAt, then id), or null. One deposit address gets one send.
+ */
+export function earlierSwap(sessions, ss) {
+  const deposit = swapOf(ss)?.deposit;
+  if (!deposit) return null;
+  const older = (o) => byAge(o, ss) < 0;
+  return sessions.find((o) => o.id !== ss.id && o.status !== "failed" && showable(o)
+    && swapOf(o)?.deposit === deposit && older(o)) ?? null;
+}
+
+/** True when the swap deposit `ss` has less than SWAP_MARGIN_MS left before its deadline. */
+export const swapLate = (ss, now = Date.now()) => {
+  const swap = swapOf(ss);
+  return swap !== null && swap.deadline - now < SWAP_MARGIN_MS;
+};
 
 /**
  * True when the valid fee document of another seat shows the same key as the one of `seat`

@@ -6,6 +6,7 @@
 // its commitment. The signing rounds and the send come later (a share needs the nonces of here).
 // The nonces and the key share never leave the device: only the commitments are published.
 import { agreement } from "../ceremony.js";
+import { base58 } from "../docs.js";
 import { payerOf } from "../fee.js";
 import { approvalOnce } from "../nonces.js";
 import { holdsShare, solOf } from "../secrets.js";
@@ -13,7 +14,9 @@ import { readChain } from "./chain.js";
 import { settledBlock, stillOpen } from "./direct.js";
 import { bytesOfHex, plainPins } from "./intent.js";
 import { canApprove, reviewText, screenRows, stopText } from "./review.js";
-import { SESSIONS, sameProposal, showable, titleOf } from "./sessions.js";
+import {
+  SESSIONS, earlierSwap, sameProposal, showable, swapLate, swapOf, titleOf,
+} from "./sessions.js";
 
 const NOT_SHOWN = "This proposal is not one that this app can show.";
 const NOT_COLLECTING = "This proposal is not collecting approvals any more.";
@@ -21,6 +24,11 @@ const CHANGED = "The proposal changed while Zigs checked it. Nothing was publish
 const OTHER_BYTES = "The saved approval is for other bytes.";
 const NO_COMMITMENT = "This device could not make its signing commitment.";
 const NEW_LINES = "The lines of the checker changed since you looked. Review the proposal again.";
+const NOT_DEPOSIT = "The swap mark names another address than the recipient of this send.";
+const TWICE = "An older send of this wallet pays the same deposit address.";
+const SWAP_LATE = "The deposit address of this swap closes in less than 30 minutes. A late deposit "
+  + "can be lost.";
+const NO_CHECK = "This browser could not check the swap of this deposit address.";
 
 // Why the copy `ss` that the caller holds may not be approved, or null: the page no longer holds
 // this proposal (the proposer wrote other bytes), or the session ended. The status of the page
@@ -52,11 +60,39 @@ function reviewBlock(c, ss, seat) {
   return null;
 }
 
+// The answer of host.swapCheck as { lines } or { why }. Any other shape is no check.
+function swapAnswer(out) {
+  if (typeof out?.why === "string") return { why: out.why };
+  const sound = Array.isArray(out?.lines) && out.lines.every((line) => typeof line === "string");
+  return sound ? { lines: out.lines } : { why: NO_CHECK };
+}
+
+// The check of a swap deposit (swapOf): the recipient of the checker is the deposit address of the
+// mark, no older send pays it, 30 minutes are left, and the page finds the swap at NEAR Intents
+// (host.swapCheck, web/app-swap-sol.js) with the base units of the checker and the address of
+// this wallet as the refund. Gives { lines } to show or { why }, and {} for a send with no mark.
+async function swapLook(c, ss, review) {
+  const swap = swapOf(ss);
+  if (!swap) return {};
+  const value = (name) => review.lines.find((line) => line.name === name)?.value;
+  if (value("recipient") !== swap.deposit) return { why: NOT_DEPOSIT };
+  if (earlierSwap(c.sessions, ss)) return { why: TWICE };
+  if (swapLate(ss)) return { why: SWAP_LATE };
+  const ask = { deposit: swap.deposit, lamports: value("units"), deadline: swap.iso,
+    refundTo: base58(agreement(c).done.groupKey) };
+  try {
+    return swapAnswer(await c.host.swapCheck(ask));
+  } catch (e) {
+    return { why: NO_CHECK + " " + String(e?.message ?? e) };
+  }
+}
+
 /**
- * What seat `seat` sees of the proposal `ss`: { ok: true, review, rows, title, digest, payer, by }
- * when the checker accepts the exact message on a fresh read of the chain, else { ok: false,
- * why }. `payer` is the fee key (hex) that seat `ss.by` published. `rows` are the lines of the
- * checker and `title` comes from the tag. A failed read throws.
+ * What seat `seat` sees of the proposal `ss`: { ok: true, review, rows, title, digest, payer, by,
+ * swap } when the checker accepts the exact message on a fresh read of the chain, else { ok:
+ * false, why }. `payer` is the fee key (hex) that seat `ss.by` published. `rows` are the lines of
+ * the checker and `title` comes from the tag. `swap` holds the sentences of the swap check of a
+ * swap deposit, apart from the rows. A failed read throws.
  */
 export async function reviewSession(c, ensure, ss, seat) {
   const opened = c.opened;
@@ -72,9 +108,13 @@ export async function reviewSession(c, ensure, ss, seat) {
   stillOpen(c, opened);
   const review = reviewText(c, message, intent, pins, chain);
   if (!canApprove(review)) return { ok: false, why: stopText(review), review };
+  const swap = await swapLook(c, ss, review);
+  stillOpen(c, opened);
+  if (swap.why) return { ok: false, why: swap.why };
   const digest = c.W.sol_plain_digest(pins, message);
   const rows = screenRows(review);
-  return { ok: true, review, rows, title: titleOf(ss), digest, payer, by: ss.by };
+  return { ok: true, review, rows, title: titleOf(ss), digest, payer, by: ss.by,
+    swap: swap.lines };
 }
 
 // Fresh nonces for this digest. The wasm text could echo the key package, so none is passed on.

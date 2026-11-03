@@ -16,11 +16,12 @@ import { approvePlain, reviewSession } from "./approve.js";
 import { closeDirect, confirmDirect, startDirect } from "./direct.js";
 import { PLAIN_WORKER_POLICY } from "./guard.js";
 import { readHeld } from "./held.js";
-import { proposeSend } from "./propose.js";
+import { proposeSend, swapTyped, unitsOf } from "./propose.js";
 import { readBalances } from "./reads.js";
 import { ENDED, SESSIONS, feeShared, filterSessions, showable } from "./sessions.js";
 import {
-  NOTHING_PROPOSED, announceChanges, approveLooked, closeLook, pendingList, pendingRows, startLook,
+  NOTHING_PROPOSED, announceChanges, approveLooked, closeLook, depositPaid, pendingList,
+  pendingRows, rowsOf, startLook, swapPayError,
 } from "./sends.js";
 import { limited, reactSessions } from "./sign.js";
 import { plainSetup, plainView, readTexts } from "./view.js";
@@ -363,6 +364,39 @@ const sessionActions = (c) => {
   };
 };
 
+// The deposit of a live swap from SOL to ZEC, from the Swap page (docs/sol-to-zec-group.md):
+// { deposit, lamports, deadline } of the swap. The key of Propose lets one proposal run at a time,
+// and the send form keeps its own text. Resolves with the session id, or throws the reason.
+const SWAP_BUSY = "Another proposal of this wallet runs now. Try again when it ends.";
+async function proposeSwap(c, ensure, swap) {
+  const typed = swapTyped(swap);
+  const why = swapPayError(c, BigInt(swap.lamports)) ?? depositPaid(c, swap.deposit);
+  if (why) throw new Error(why);
+  let out = { error: new Error(SWAP_BUSY) };
+  await c.host.once("sol:propose", async () => {
+    try {
+      out = { id: await proposeSend(c, ensure, typed) };
+    } catch (e) {
+      out = { error: e };
+    }
+  });
+  if (out.error) throw out.error;
+  return out.id;
+}
+
+// What the Swap page asks of the plain wallet: why it cannot pay `lamports` (a decimal text) now,
+// or null, and the row of a send by its id, or null.
+const NOT_YET = "Zigs has not read the Solana documents of this wallet yet.";
+const swapActions = (c) => ({
+  swapReady: (lamports) => fresh(c, (it) => {
+    const units = unitsOf(String(lamports ?? ""), 0);
+    return units === null ? "The amount is not a whole number of lamports."
+      : swapPayError(it, units);
+  }, NOT_YET),
+  sendRow: (id) => fresh(c, (it) => rowsOf(it).find((row) => row.id === id) ?? null, null),
+  proposeSwap: (swap) => proposeSwap(c, () => ensureWorker(c), swap),
+});
+
 // What the Solana tab calls: the choice of the asset, the review of a proposal and the approval of
 // the proposal that was reviewed (sends.js). A failed review or approval stays on the screen of the
 // review as its text, and is announced; it is no banner.
@@ -407,6 +441,7 @@ export async function attach(host) {
     react: () => react(c),
     add: () => addSolana(c),
     ...sessions,
+    ...swapActions(c),
     observe,
     view: (act, actions) => plainView(c, act,
       { ...actions, add: () => addSolana(c), ...directActions(c), ...shown }),
