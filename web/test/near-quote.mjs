@@ -635,6 +635,11 @@ const status = async (label, address = DEPOSIT, e = LIVE, init = {}) => {
     ["no inactive time", (b) => { delete b.quote.timeWhenInactive; }, minutes(30)],
     ["no correlation id or signature", (b) => { delete b.correlationId; b.signature = "<x>"; },
       minutes(30)],
+    ["a null memo and null virtual chains", (b) => {
+      b.quote.depositMemo = null;
+      Object.assign(b.quoteRequest, { virtualChainRecipient: null,
+        virtualChainRefundRecipient: null });
+    }, minutes(30)],
   ]) {
     reply = (sent) => liveGood(sent, edit);
     const out = await swap(what, swapAsk);
@@ -828,8 +833,32 @@ const status = async (label, address = DEPOSIT, e = LIVE, init = {}) => {
   assert.deepEqual((await json(await status("the swap of a deposit", T1))).swap, { from: "zec",
     to: "sol", recipient: REFUND, refundTo: T3, amountIn: "200000", amountOut: "133000",
     deadline: hours(5), plain: true });
+  // The request as NEAR Intents lists it for a call with no partner key (L0, 2026-11-03).
+  const KEYLESS = "5880ad2b362620fadf759cbceb1cd5737ce8c6ed7fb8e9942881e6731f9247dd";
+  const keyless = (edit) => ({ appFees: [{ limitOrderId: null, recipient: KEYLESS, fee: 20,
+    ...edit }] });
   for (const [what, ask, plain] of [["no app fee", { appFees: [] }, true],
+    ["app fees null", { appFees: null }, true],
+    ["the request of a call with no key", { ...keyless(), depositMode: "SIMPLE",
+      virtualChainRecipient: null, virtualChainRefundRecipient: null, referral: null,
+      confidentiality: "public" }, true],
+    ["the fee for no key at 10 bps, no limit order", keyless({ fee: 10, limitOrderId: undefined }),
+      true],
+    ["the fee for no key at 21 bps", keyless({ fee: 21 }), false],
+    ["the fee for no key at 100 %", keyless({ fee: 10000 }), false],
+    ["the fee for no key at 1.5 bps", keyless({ fee: 1.5 }), false],
+    ["the fee for no key as text", keyless({ fee: "20" }), false],
+    ["the fee for no key with a limit order", keyless({ limitOrderId: "1" }), false],
+    ["the fee for no key with another field", keyless({ recipientType: "INTENTS" }), false],
+    ["the fee for no key twice", { appFees: [...keyless().appFees, ...keyless().appFees] }, false],
+    ["the fee for no key and an app fee", { appFees: [...keyless().appFees,
+      { recipient: "x.near", fee: 1 }] }, false],
+    ["20 bps to another account", keyless({ recipient: "x.near" }), false],
+    ["app fees that are no list", { appFees: { recipient: KEYLESS, fee: 20 } }, false],
+    ["a null fee entry", { appFees: [null] }, false],
     ["an app fee", { appFees: [{ recipient: "x.near", fee: 9000 }] }, false],
+    ["a virtual recipient", { virtualChainRecipient: "0xb4c2" }, false],
+    ["an empty memo", { depositMemo: "" }, false],
     ["a slippage of 99 %", { slippageTolerance: 9900 }, false],
     ["a dry quote", { dry: true }, false], ["exact output", { swapType: "EXACT_OUTPUT" }, false],
     ["a refund on NEAR", { refundType: "INTENTS" }, false],

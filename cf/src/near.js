@@ -183,6 +183,8 @@ const NEAR_SWAP_ECHO = ["dry", "swapType", "originAsset", "destinationAsset", "a
 // The page shows no memo and no virtual chain: a deposit that needs one could be lost.
 const NEAR_SWAP_NONE = ["depositMemo", "customRecipientMsg", "virtualChainRecipient",
   "virtualChainRefundRecipient"];
+// NEAR Intents writes these fields as null when a swap has none.
+const nearNone = (obj) => NEAR_SWAP_NONE.every((k) => obj[k] == null);
 const NEAR_QUOTE_AMOUNTS = ["amountIn", "amountOut", "minAmountOut"];
 const nearIntegers = (quote) => NEAR_QUOTE_AMOUNTS.every(
   (k) => typeof quote?.[k] === "string" && NEAR_INTEGER.test(quote[k]));
@@ -211,7 +213,7 @@ function nearSwapSound(json, sent, now, route) {
   const left = nearPayBy(quote, sent) - now;
   const sound = [quote.amountIn === sent.amount,
     BigInt(quote.minAmountOut) <= BigInt(quote.amountOut),
-    NEAR_SWAP_NONE.every((k) => !(k in quote) && !(k in echo)),
+    nearNone(quote) && nearNone(echo),
     route.deposit(quote.depositAddress),
     left >= route.minLeft];
   return sound.every(Boolean);
@@ -341,15 +343,22 @@ function nearStatusSound(json, address) {
 // another form stays behind.
 const NEAR_ADDRESS = /^[0-9A-Za-z]{20,400}$/;
 const nearKeyOf = (id) => [...NEAR_ASSETS].find(([, asset]) => asset.id === id)?.[0];
+// NEAR Intents adds this fee (0.2 % to its own account) to each request without a partner key.
+// The cap stops a proposer with a key from giving most of the deposit to that account.
+const NEAR_KEYLESS_FEE = "5880ad2b362620fadf759cbceb1cd5737ce8c6ed7fb8e9942881e6731f9247dd";
+const NEAR_FEE_KEYS = ["recipient", "fee", "limitOrderId"];
+const nearKeylessFee = (entry) => entry?.recipient === NEAR_KEYLESS_FEE
+  && Number.isInteger(entry.fee) && entry.fee >= 0 && entry.fee <= 20
+  && entry.limitOrderId == null && Object.keys(entry).every((k) => NEAR_FEE_KEYS.includes(k));
 // True when the request of a swap has the form that nearSwapRequest sends. A proposer can ask
 // NEAR Intents for a quote with the addresses of the group and an app fee or a wide slippage.
 function nearPlainAsk(ask) {
-  const fees = ask.appFees;
+  const fees = ask.appFees ?? [];
   return [ask.dry === false, ask.swapType === "EXACT_INPUT", ask.depositType === "ORIGIN_CHAIN",
     ask.refundType === "ORIGIN_CHAIN", ask.recipientType === "DESTINATION_CHAIN",
     NEAR_SLIPPAGE.includes(ask.slippageTolerance),
-    fees === undefined || (Array.isArray(fees) && fees.length === 0),
-    NEAR_SWAP_NONE.every((k) => !(k in ask))].every(Boolean);
+    Array.isArray(fees) && fees.length <= 1 && fees.every(nearKeylessFee),
+    nearNone(ask)].every(Boolean);
 }
 
 function nearStatusSwap(response) {

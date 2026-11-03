@@ -199,7 +199,8 @@ Each device then does these checks:
 6. **Price.** `slippageTolerance` is 50, 100 or 200 (`cf/src/near.js:42`). `minAmountOut` is at
    least `floor(amountOut × (10000 - bps) / 10000)`, the floor rule of the `pq-swap` adapter.
 7. **No extras.** The answer has no `depositMemo`, `customRecipientMsg`, `virtualChainRecipient`
-   or `virtualChainRefundRecipient` (the list of `cf/src/near.js:148-149`).
+   or `virtualChainRefundRecipient` (`NEAR_SWAP_NONE` of `cf/src/near.js`). A null value counts
+   as none.
 8. **Time.** See section 3.5.
 9. **Once.** The device keeps the deposit addresses that it approved. It refuses a second payment
    to the same deposit address.

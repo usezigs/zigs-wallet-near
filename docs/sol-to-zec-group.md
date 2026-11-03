@@ -84,7 +84,8 @@ deposit address and approves only when all of these hold:
 - the deadline of the field is at least 30 minutes away;
 - no other session pays the same deposit address;
 - the state is `PENDING_DEPOSIT`;
-- the swap is from SOL to ZEC, and `plain` is true: no app fee, a slippage that Zigs offers and
+- the swap is from SOL to ZEC, and `plain` is true: no app fee (only the fee of NEAR Intents for
+  a call with no partner key: at most 20 bps to its own account), a slippage that Zigs offers and
   the address types that the Worker sends;
 - `refundTo` is the plain Solana address of this wallet;
 - `recipient` is the ZEC address of this wallet, which this device checked;
@@ -195,7 +196,9 @@ so the route asks for a deadline of 6 hours.
 
 - **L0:** one live quote on `/near/swap-sol-group`, no deposit, and one `/near/status` read of its
   deposit address. It checks the 6-hour deadline, the inactive time and that the deposit address
-  is on the curve.
+  is on the curve. The run of 2026-11-03 passed these checks. Its status gave `plain` false: NEAR
+  Intents lists a fee of 20 bps for a call with no partner key, and null virtual chain fields.
+  The check now accepts both.
 - **Nonce account:** a Create nonce of the proposing device, when it has none. It costs the rent
   of a nonce account (1,056,640 lamports) and a fee, paid by the fee key.
 - **L3, the funded run:** a group-paid swap of a small amount L (at least the 1Click minimum) from
