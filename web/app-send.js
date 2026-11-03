@@ -11,8 +11,8 @@ import { gkeys } from "./app-keystore.js";
 import { DRAFT_MS, draftLive, draftOf, emptyForm, reviewFresh } from "./payment-model.js";
 import { addrHidden, atCap, capUnknown, curChain, curNet, netName } from "./app-chain.js";
 import {
-  act, addrGroups, copyBtn, el, groupName, memoRow, money, normalized, noteFor, onNetwork, qrBox,
-  setNote,
+  act, addrGroups, copyBtn, el, groupName, memoRow, money, normalized, noteFor, onNetwork,
+  payeeOnNetwork, qrBox, setNote, transparentOnNetwork,
 } from "./app-dom.js";
 import {
   feeEstimate, inspectOf, newSpend, prepareSpend, PRIORITY_FACTOR, proposeMoveNow, proposePrepared,
@@ -28,6 +28,7 @@ import {
 import { solOn } from "./app-sol.js";
 import { recipientSelect } from "./app-recipients.js";
 import { securityExplanation } from "./app-tutorial.js";
+import { taddressSection } from "./app-taddress.js";
 import { privacyNotice, ZEC_EXPOSURE } from "./privacy-language.js";
 import { walletAvatarFor } from "./app-wallet-identity.js";
 
@@ -64,6 +65,7 @@ export function receiveDialog() {
   privacyNotice(el, hidden || moved ? "unknown" : "shielded",
     hidden || moved ? "Address unavailable" : "Shielded · Zcash " + curNet().label,
     ZEC_EXPOSURE),
+  hidden || moved ? null : taddressSection(),
   securityExplanation("receive"));
 }
 
@@ -115,11 +117,17 @@ const ownAddress = (to) => {
 // The note under a typed address, which reads valid only for an address that Send takes.
 function addressNote(v) {
   const net = curNet(), name = net.label.toLowerCase();
-  if (!onNetwork(v)) {
-    return ["Not a shielded Zcash " + name + " address. It starts with " + net.prefix + ".", "bad"];
+  if (!payeeOnNetwork(v)) {
+    return ["Not a Zcash " + name + " address. A shielded address starts with " + net.prefix
+      + ".", "bad"];
   }
+  if (transparentOnNetwork(v)) return [TRANSPARENT_NOTE(name), "ok"];
   return ownAddress(v) ? [OWN_ADDRESS, "bad"] : ["Valid " + name + " address", "ok"];
 }
+// A payment to a transparent address takes no memo, and the chain shows its address and amount.
+const TRANSPARENT_NOTE = (name) => "Valid transparent " + name + " address. The chain shows "
+  + "this address and the amount to everyone, and it takes no memo.";
+const TRANSPARENT_MEMO = "A transparent address cannot receive a memo. Remove the memo.";
 
 function addressHint(hint, to) {
   const v = to.trim(), [text, cls] = v ? addressNote(v) : ["", ""];
@@ -129,7 +137,7 @@ function addressHint(hint, to) {
 // A recipient field holds an address or, in a testnet wallet, a ZNS name. Text that is an address
 // on this network is never a name. A mainnet wallet looks no name up.
 const znsOn = () => netName(state.g) === "testnet";
-const nameIn = (to) => (znsOn() && !onNetwork(to.trim()) ? nameOf(to) : null);
+const nameIn = (to) => (znsOn() && !payeeOnNetwork(to.trim()) ? nameOf(to) : null);
 const toLabel = () => (znsOn() ? "Recipient address or ZNS name" : "Recipient address");
 const toPlaceholder = () => curNet().prefix + (znsOn() ? "… or alice.zec" : "…");
 
@@ -202,13 +210,16 @@ function amountHint(hint, text, done = false) {
   setNote(hint, bad ? AMOUNT_BAD : "", "hint" + (bad ? " bad" : ""));
 }
 
-// The most that one payment can send, or a number of 0 or less when the fee takes it all.
+// The most that one payment to `to` can send, or a number of 0 or less when the fee takes it all.
 // max_send leaves only max_fee, the standard fee of spending its notes. A priority fee is
-// PRIORITY_FACTOR times that fee, so Max leaves the extra as well.
-function maxSend(bal, priority) {
+// PRIORITY_FACTOR times that fee, so Max leaves the extra as well. A transparent output is one
+// more ZIP 317 action (MARGINAL_FEE), also multiplied for a priority fee.
+const MARGINAL_FEE = 5000;
+function maxSend(bal, priority, to) {
   if (!bal || !(bal.max_send > 0)) return 0;
-  const extra = priority ? (PRIORITY_FACTOR - 1) * bal.max_fee : 0;
-  return bal.max_send - extra;
+  const factor = priority ? PRIORITY_FACTOR : 1;
+  const output = transparentOnNetwork(to) ? factor * MARGINAL_FEE : 0;
+  return bal.max_send - (factor - 1) * bal.max_fee - output;
 }
 const noRoom = () => "The balance does not cover the " + (ui.priority ? "priority" : "network")
   + " fee.";
@@ -219,10 +230,11 @@ const amountFields = new WeakMap();
 // An amount that is the maximum stays the maximum when the priority box changes. Any other amount
 // stays, and its note is judged again.
 function followMax(rows) {
-  const [r] = rows, bal = curChain()?.bal, was = maxSend(bal, !ui.priority);
+  const [r] = rows, bal = curChain()?.bal, was = maxSend(bal, !ui.priority, r.to);
   clearNotice();
   const field = amountFields.get(r);
-  if (rows.length === 1 && was > 0 && toZat(r.amt) === was) field?.put(maxSend(bal, ui.priority));
+  const max = maxSend(bal, ui.priority, r.to);
+  if (rows.length === 1 && was > 0 && toZat(r.amt) === was) field?.put(max);
   else field?.show();
 }
 
@@ -246,7 +258,7 @@ function amountField(r, n, rows, sumUp) {
   amountFields.set(r, { put, show: () => amountHint(hint, r.amt, true) });
   const max = rows.length === 1 ? el("button", {
     class: "btn sm", type: "button",
-    onclick: () => { clearNotice(); put(maxSend(curChain()?.bal, ui.priority)); sumUp(); },
+    onclick: () => { clearNotice(); put(maxSend(curChain()?.bal, ui.priority, r.to)); sumUp(); },
   }, "Max") : null;
   noteFor(hint, amt);
   amountHint(hint, r.amt, true);
@@ -398,13 +410,14 @@ async function resolveNames(rows) {
 
 const addressError = (net, hit) => (hit
   ? `The name ${zecName(hit.name)} gives an address that Zigs cannot pay.`
-  : "Enter a shielded Zcash " + net.label.toLowerCase() + " address. It starts with "
+  : "Enter a Zcash " + net.label.toLowerCase() + " address. A shielded address starts with "
     + net.prefix + ".");
 
-// Why Send refuses the address of a row, or "". A name `hit` shows by its name. The hint of a name
-// asks the same, so that it reads valid only for an address that Send takes.
+// Why Send refuses the address of a row, or "". A name `hit` shows by its name, and a name pays a
+// shielded address only. The hint of a name asks the same, so that it reads valid only for an
+// address that Send takes.
 function addressRefusal(to, hit) {
-  if (!onNetwork(to)) return addressError(curNet(), hit);
+  if (!(hit ? onNetwork(to) : payeeOnNetwork(to))) return addressError(curNet(), hit);
   return ownAddress(to) ? OWN_ADDRESS : "";
 }
 
@@ -428,6 +441,7 @@ function readPayees(rows, found) {
     if (refusal) throw new Error(who + refusal);
     if (!amount) throw new Error(who + AMOUNT_BAD);
     if (memoError(memo)) throw new Error(who + memoError(memo));
+    if (memo && transparentOnNetwork(to)) throw new Error(who + TRANSPARENT_MEMO);
     return payeeOf(to, amount, memo, nameOfRow(r, hit));
   });
 }
@@ -677,7 +691,9 @@ function inDialog(fn) {
 async function submitSend(rows, spendable, why, ev) {
   if (why) throw new Error(why);
   const run = sendRun, payees = readPayees(rows, await resolveNames(rows));
-  const need = payees.reduce((n, p) => n + p.amount, 0) + feeEstimate(payees.length, ui.priority);
+  const open = payees.filter((p) => transparentOnNetwork(p.to)).length;
+  const need = payees.reduce((n, p) => n + p.amount, 0)
+    + feeEstimate(payees.length, ui.priority, open);
   if (need > spendable) throw new Error(fundsText(spendable, need));
   const note = String(new FormData(ev.target).get("note") || "").trim();
   if (!ui.after) return openReview(payees, note, run);
@@ -694,7 +710,8 @@ export function sendDialog() {
   const rows = ui.pay;
   const fee = el("span", {}), total = el("span", { id: "s-total" });
   const sumUp = () => {
-    const f = feeEstimate(rows.length, ui.priority);
+    const open = rows.filter((r) => transparentOnNetwork(r.to)).length;
+    const f = feeEstimate(rows.length, ui.priority, open);
     fee.replaceChildren(money(f));
     total.replaceChildren(money(rows.reduce((n, r) => n + (toZat(r.amt) || 0), 0) + f));
   };

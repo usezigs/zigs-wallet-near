@@ -1,6 +1,7 @@
 // The state of the swap page. It keeps data in memory only: no wallet, storage or signer. A
 // provider gives the quotes: NEAR Intents for the swap page, MockSwapProvider for the demos. The
 // live swap from SOL to ZEC (openSwap) is paid from a wallet outside Zigs, so Zigs signs nothing.
+// A live swap from ZEC to SOL is paid by a group payment that the page proposes after openSwap.
 /**
  * @typedef {'IDLE'|'INPUT_VALID'|'QUOTING'|'QUOTE_READY'|'QUOTE_ERROR'|'QUOTE_STALE'|'REVIEW_OPEN'
  *   |'REVIEW_CANCELLED'|'DEMO_PROGRESS'|'DEMO_COMPLETE'} SwapUiState
@@ -242,22 +243,25 @@ export class SwapPreviewModel {
     this.value.phase = 'QUOTE_READY'; this.emit();
   }
   // The live swap: one at a time, in memory only. It lives apart from the quote: the expiry of
-  // the quote, typing and stale() keep it. Only closeSwap() ends it. `where` holds the ZEC address
-  // of the wallet (recipient), its name, its room under the cap in zatoshi, and the refund address.
+  // the quote, typing and stale() keep it. Only closeSwap() ends it. `where` holds the payout
+  // address (recipient), the name of the wallet, the refund address and, for a payout in ZEC, the
+  // room under the cap in zatoshi. A swap from ZEC pays SOL, so no ZEC cap applies.
   async openSwap(where) {
     const s = this.value;
     if (s.live || s.phase !== 'REVIEW_OPEN') return false;
-    if (BigInt(s.quote.amountOut) > BigInt(where.room)) return this.swapFailed(OVER_CAP);
+    const from = swapAsset(s.from).key;
+    const over = (zat) => from === 'sol' && BigInt(zat) > BigInt(where.room);
+    if (over(s.quote.amountOut)) return this.swapFailed(OVER_CAP);
     const asking = { asking: true };
     s.live = asking; s.swapError = ''; this.emit();
-    const swap = await this.provider.openSwap({ amountAtomic: s.quote.amountIn,
+    const swap = await this.provider.openSwap({ from, amountAtomic: s.quote.amountIn,
       slippageBps: s.slippageBps, recipient: where.recipient, refundTo: where.refundTo })
       .catch((error) => error);
     if (s.live !== asking) return false;
     if (swap instanceof Error) return this.swapFailed(this.failure(swap));
-    if (BigInt(swap.amountOut) > BigInt(where.room)) return this.swapFailed(OVER_CAP);
-    s.live = { swap, wallet: where.wallet, status: null, statusError: '', wait: SWAP_STATUS_MS,
-      timer: null };
+    if (over(swap.amountOut)) return this.swapFailed(OVER_CAP);
+    s.live = { swap, from, wallet: where.wallet, status: null, statusError: '',
+      wait: SWAP_STATUS_MS, timer: null };
     // The page must hide the address at the deadline, also when no read falls on it.
     const left = Math.max(0, Date.parse(swap.deadline) - this.clock.now());
     s.live.end = this.clock.set(() => this.emit(), left);

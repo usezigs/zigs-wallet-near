@@ -37,6 +37,7 @@ import { focusAfter, once, render } from "./app-loop.js";
 import { currentSection, moveWord, solStays, walletShown } from "./app-wallet.js";
 import { icon } from "./app-icons.js";
 import { createSwapPreview } from "./app-swap-preview.js";
+import { zecSwapSource } from "./app-swap-zec.js";
 import { generalSettings, settingsDisclosure, settingsGroup, settingsRow } from "./app-settings-ui.js";
 import { walletMark } from "./app-wallet-art.js";
 import { networkPrivacySettings } from "./app-network-privacy.js";
@@ -490,7 +491,7 @@ export function recoveryWorkspace() {
       } }, "Manage browser access in Settings")));
 }
 
-// The Worker marks the page when it runs the live swap from SOL to ZEC (NEAR_LIVE in
+// The Worker marks the page when it runs the live swaps between SOL and ZEC (NEAR_LIVE in
 // cf/src/index.js).
 const nearLive = () => document.documentElement?.dataset?.nearLive === "1";
 // The ZEC address that a live swap pays to: the one of the open mainnet wallet, under the rules of
@@ -515,6 +516,7 @@ function swapPayout() {
 let swapPreview;
 export function swapWorkspace() {
   const context = { id: state.g?.id, name: state.g?.name, live: nearLive(), payout: swapPayout(),
+    zec: zecSwapSource(),
     networks: state.g && netOf(state.g).cap ? 'Zcash ' + netOf(state.g).label
       : 'Zcash Testnet · Solana Devnet',
     threshold: state.g ? state.g.t + " of " + state.g.n + " device approvals per payment." : "" };

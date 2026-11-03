@@ -15,7 +15,7 @@ use pczt::{
 };
 use serde_json::json;
 
-use super::{ensure, pczt_from_b64, shielded_only, sighash, txid_of, Custom, R};
+use super::{ensure, pczt_from_b64, shielded_spends_only, sighash, txid_of, Custom, R};
 
 /// A block reorganisation of up to this many blocks can still bring a transaction on chain after
 /// its expiry height, or take back a spend. The web app waits the same margin (`EXPIRY_MARGIN` in
@@ -37,7 +37,7 @@ pub(crate) struct Facts {
 /// `signed`, every such spend must also carry a valid spend authorization signature over the
 /// PCZT's own sighash: only t seats together can make one.
 pub(crate) fn facts(p: &Pczt, fvk: &FullViewingKey, signed: bool) -> R<Facts> {
-    shielded_only(p)?;
+    shielded_spends_only(p)?;
     let (_, h) = sighash(p)?;
     let ak = SpendValidatingKey::from(fvk.clone());
     let (mut nullifiers, mut wallet, mut bad) = (vec![], 0usize, None);
@@ -84,7 +84,8 @@ fn wallet_spend(
 }
 
 /// The id of a transaction from its sighash. For a transaction without transparent inputs the
-/// sighash is the txid digest (ZIP 244), and Zigs makes no other kind (`shielded_only`).
+/// sighash is the txid digest (ZIP 244), also with transparent outputs, and Zigs makes no other
+/// kind (`shielded_spends_only`).
 fn txid_from_sighash(h: &[u8; 32]) -> String {
     h.iter().rev().map(|b| format!("{b:02x}")).collect()
 }

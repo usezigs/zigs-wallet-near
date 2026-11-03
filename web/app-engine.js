@@ -114,6 +114,6 @@ function startInWorker(method, args) {
 export function engineOffThread(method, ...args) {
   let run;
   try { run = startInWorker(method, args); } catch { return onMainThread(method, args); }
-  if (method === "finalize") return run;
+  if (method === "finalize" || method === "sweepFinish") return run;
   return run.catch((e) => { if (e && e.workerFailed) return onMainThread(method, args); throw e; });
 }

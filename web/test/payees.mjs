@@ -1,5 +1,7 @@
 // Checks the payment list parser. Run: node web/test/payees.mjs
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import * as Z from "../pkg/zigs_engine.js";
 import {
   allPaid, MEMO_BYTES, memoBytes, memoError, memoShown, outputMemo, pairPayees, parsePayeeList,
   toZat, zatText,
@@ -124,4 +126,20 @@ assert.equal(allPaid(pr.rows, pr.extra, 5), false);
 pr = pair([{ to: A, amount: 5 }, { to: B, amount: 1 }], [out(A, 5)]);
 assert.deepEqual([pr.rows[1].ok, pr.rows[1].got], [false, undefined]);
 assert.equal(allPaid([], [], 0), false, "a proposal with no recipients matches nothing");
+
+// A transparent payee pairs with the transparent output of `inspect` through payeeAddress. The
+// shielded-only normalizeAddress pairs nothing, so the review would show no match.
+Z.initSync({ module: fs.readFileSync(new URL("../pkg/zigs_engine_bg.wasm", import.meta.url)) });
+const t1 = "t1Hsc1LR8yKnbbe3twRp88p6vFfC5t7DLbs", t3 = "t3Vz22vK5z2LcKEdg16Yv4FFneEL1zg9ojd";
+assert.equal(Z.payeeAddress(" " + t1 + " "), t1);
+assert.equal(Z.payeeAddress(t3), t3);
+assert.throws(() => Z.payeeAddress("tex1s2rt77ggv6q989lr49rkgzmh5slsksa9khdgte"), /ZIP 320/);
+const ua = JSON.parse(Z.accountKeys("01".repeat(32), "testnet")).address;
+assert.equal(Z.payeeAddress(ua), Z.normalizeAddress(ua));
+const tOut = { kind: "output", pool: "Transparent", who: t1, value: 40000, memo_status: "empty" };
+pr = pairPayees([{ to: " " + t1, amount: 40000 }], [tOut], Z.payeeAddress);
+assert.equal(allPaid(pr.rows, pr.extra, 40000), true);
+const shieldedOnly = (a) => { try { return Z.normalizeAddress(a); } catch { return null; } };
+pr = pairPayees([{ to: t1, amount: 40000 }], [tOut], shieldedOnly);
+assert.equal(allPaid(pr.rows, pr.extra, 40000), false);
 console.log("payees.js ok");

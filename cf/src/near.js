@@ -3,8 +3,9 @@
 // sends only a pair, an amount and a slippage. The addresses are fixed samples, never an address
 // of a user. No header of the user goes upstream. Nothing is cached (the terms of NEAR Intents
 // forbid a standalone proxy and a cache of their data over 24 hours).
-// POST /near/swap and GET /near/status: a live swap from SOL to ZEC and its state. They answer
-// 404 unless the var NEAR_LIVE is "1" (cf/wrangler.jsonc: staging only).
+// POST /near/swap, POST /near/swap-zec and GET /near/status: a live swap from SOL to ZEC, one from
+// ZEC to SOL, and the state of a swap. They answer 404 unless the var NEAR_LIVE is "1"
+// (cf/wrangler.jsonc: staging only).
 // The partner key of NEAR Intents is the secret NEAR_API_KEY. Without it every route still works,
 // at the higher fee of NEAR Intents for calls with no key.
 const NEAR_URL = "https://1click.chaindefuser.com/v0/quote";
@@ -19,6 +20,11 @@ const NEAR_SWAP_DEADLINE_MS = 1_800_000;
 // A live quote with less time left than this to pay is refused: the person could pay after the
 // deadline, and NEAR Intents can then refund or lose the deposit.
 const NEAR_SWAP_MIN_LEFT_MS = 300_000;
+// A swap from ZEC is a group payment: the devices approve it in hours, not minutes. Its deadline is
+// 6 hours after the quote, and a quote with less than 4 hours left to pay is refused. A deposit
+// after the deadline goes back to the transparent refund address of the group.
+const NEAR_ZEC_DEADLINE_MS = 21_600_000;
+const NEAR_ZEC_MIN_LEFT_MS = 14_400_000;
 const NEAR_NO_STORE = { "Cache-Control": "no-store" };
 
 // The keys that the page may send. The samples are a public ZIP-316 test vector (Orchard only)
@@ -66,6 +72,29 @@ function nearSolAddress(text) {
   return zeros + (value ? Math.ceil(value.toString(16).length / 2) : 0) === 32;
 }
 
+// True when `text` has the form of a transparent mainnet address of Zcash: Base58Check of 26 bytes
+// with the version of t1 (P2PKH) or t3 (P2SH). The checksum is not checked here: NEAR Intents
+// and the engine of the page check it.
+const NEAR_T_VERSIONS = new Set(["1cb8", "1cbd"]);
+function nearZecTransparent(text) {
+  if (typeof text !== "string" || !/^t[13][1-9A-HJ-NP-Za-km-z]{33}$/.test(text)) return false;
+  let value = 0n;
+  for (const c of text) value = value * 58n + BigInt(NEAR_BASE58.indexOf(c));
+  const hex = value.toString(16);
+  return hex.length === 52 && NEAR_T_VERSIONS.has(hex.slice(0, 4));
+}
+
+// The two live routes. `recipient` checks the address that gets the payout, `refund` the address
+// of a refund on the origin chain, and `deposit` the deposit address of the answer.
+const NEAR_LIVE_ROUTES = {
+  fromSol: { origin: "sol", destination: "zec", recipient: (a) => NEAR_UA.test(a),
+    refund: nearSolAddress, deposit: nearSolAddress, deadline: NEAR_SWAP_DEADLINE_MS,
+    minLeft: NEAR_SWAP_MIN_LEFT_MS },
+  fromZec: { origin: "zec", destination: "sol", recipient: nearSolAddress,
+    refund: nearZecTransparent, deposit: nearZecTransparent, deadline: NEAR_ZEC_DEADLINE_MS,
+    minLeft: NEAR_ZEC_MIN_LEFT_MS },
+};
+
 // The JSON object of the body when it has exactly the keys `keys`, else null.
 function nearParse(bytes, keys) {
   let ask = null;
@@ -88,15 +117,16 @@ function nearAsk(bytes) {
   return sound.every(Boolean) ? ask : null;
 }
 
-// The ask of a live swap: the amount of SOL, the slippage, the ZEC address that gets the payout
-// and the Solana address that gets a refund. Null when a field is missing, extra or not sound.
-function nearSwapAsk(bytes) {
+// The ask of a live swap on `route`: the amount of the origin asset, the slippage, the address
+// that gets the payout and the address that gets a refund. Null when a field is missing, extra or
+// not sound.
+function nearSwapAsk(bytes, route) {
   const ask = nearParse(bytes, NEAR_SWAP_KEYS);
   if (!ask) return null;
   const { amount, recipient, refundTo, slippageBps } = ask;
   const sound = [typeof amount === "string" && NEAR_AMOUNT.test(amount),
-    NEAR_SLIPPAGE.includes(slippageBps), typeof recipient === "string" && NEAR_UA.test(recipient),
-    nearSolAddress(refundTo)];
+    NEAR_SLIPPAGE.includes(slippageBps),
+    typeof recipient === "string" && route.recipient(recipient), route.refund(refundTo)];
   return sound.every(Boolean) ? ask : null;
 }
 
@@ -111,13 +141,13 @@ function nearRequest({ from, to, amount, slippageBps }, now) {
   };
 }
 
-function nearSwapRequest({ amount, recipient, refundTo, slippageBps }, now) {
+function nearSwapRequest({ amount, recipient, refundTo, slippageBps }, now, route) {
   return {
     dry: false, swapType: "EXACT_INPUT", slippageTolerance: slippageBps,
-    originAsset: NEAR_ASSETS.get("sol").id, depositType: "ORIGIN_CHAIN",
-    destinationAsset: NEAR_ASSETS.get("zec").id, amount, refundTo, refundType: "ORIGIN_CHAIN",
-    recipient, recipientType: "DESTINATION_CHAIN",
-    deadline: new Date(now + NEAR_SWAP_DEADLINE_MS).toISOString(),
+    originAsset: NEAR_ASSETS.get(route.origin).id, depositType: "ORIGIN_CHAIN",
+    destinationAsset: NEAR_ASSETS.get(route.destination).id, amount, refundTo,
+    refundType: "ORIGIN_CHAIN", recipient, recipientType: "DESTINATION_CHAIN",
+    deadline: new Date(now + route.deadline).toISOString(),
   };
 }
 
@@ -166,8 +196,9 @@ function nearSound(json, sent) {
 }
 
 // True when the answer is a live quote for the swap that was sent: the same addresses, sound
-// amounts, a Solana deposit address with no memo, and a deadline the person can meet.
-function nearSwapSound(json, sent, now) {
+// amounts, a deposit address of the origin chain with no memo, and a deadline the person or the
+// group can meet.
+function nearSwapSound(json, sent, now, route) {
   const { quote, quoteRequest: echo } = json ?? {};
   const echoed = NEAR_SWAP_ECHO.every((k) => echo?.[k] === sent[k]);
   if (!echoed || !nearIntegers(quote)) return false;
@@ -175,8 +206,8 @@ function nearSwapSound(json, sent, now) {
   const sound = [quote.amountIn === sent.amount,
     BigInt(quote.minAmountOut) <= BigInt(quote.amountOut),
     NEAR_SWAP_NONE.every((k) => !(k in quote) && !(k in echo)),
-    nearSolAddress(quote.depositAddress),
-    left >= NEAR_SWAP_MIN_LEFT_MS];
+    route.deposit(quote.depositAddress),
+    left >= route.minLeft];
   return sound.every(Boolean);
 }
 
@@ -252,17 +283,28 @@ export async function nearQuote(req, env, { key, readBody }) {
     (json) => nearAnswer(json, now));
 }
 
-/** The /near/swap route: a live quote from SOL to ZEC with a deposit address. Like nearQuote. */
-export async function nearSwap(req, env, { key, readBody }) {
+// A live quote on `route` with a deposit address. Like nearQuote.
+async function nearLiveSwap(req, env, { key, readBody }, route) {
   if (env.NEAR_LIVE !== "1") return nearOff();
   if (req.method !== "POST") return nearText("Use POST.\n", 405, { Allow: "POST" });
   if (await nearOverLimit(env, key)) return nearText(NEAR_TOO_MANY, 429);
-  const ask = nearSwapAsk(await readBody(req, NEAR_SWAP_MAX_BODY));
+  const ask = nearSwapAsk(await readBody(req, NEAR_SWAP_MAX_BODY), route);
   if (!ask) return nearText("Send JSON with amount, recipient, refundTo and slippageBps.\n", 400);
-  const now = Date.now(), request = nearSwapRequest(ask, now);
+  const now = Date.now(), request = nearSwapRequest(ask, now, route);
   return nearReply(await nearCall(env, NEAR_URL, request),
-    (json) => nearSwapSound(json, request, now), (json) => nearSwapAnswer(json, request, now));
+    (json) => nearSwapSound(json, request, now, route),
+    (json) => nearSwapAnswer(json, request, now));
 }
+
+/** The /near/swap route: a live quote from SOL to ZEC. */
+export const nearSwap = (req, env, ctx) => nearLiveSwap(req, env, ctx, NEAR_LIVE_ROUTES.fromSol);
+
+/**
+ * The /near/swap-zec route: a live quote from ZEC to SOL. The refund address is a transparent
+ * address, and the deposit address is a transparent address that a group payment pays.
+ */
+export const nearSwapZec = (req, env, ctx) =>
+  nearLiveSwap(req, env, ctx, NEAR_LIVE_ROUTES.fromZec);
 
 const NEAR_STATES = new Set(["KNOWN_DEPOSIT_TX", "PENDING_DEPOSIT", "INCOMPLETE_DEPOSIT",
   "PROCESSING", "SUCCESS", "REFUNDED", "FAILED"]);
@@ -280,6 +322,38 @@ function nearStatusSound(json, address) {
     && json.quoteResponse?.quote?.depositAddress === address;
 }
 
+// The swap that the deposit address belongs to, from the quote in the state: the asset keys, the
+// two addresses, the amount in and the time to pay before. Each device that approves a group
+// payment to the deposit address compares them with its own (web/app-swap-zec.js). A field of
+// another form stays behind.
+const NEAR_ADDRESS = /^[0-9A-Za-z]{20,400}$/;
+const nearKeyOf = (id) => [...NEAR_ASSETS].find(([, asset]) => asset.id === id)?.[0];
+// True when the request of a swap has the form that nearSwapRequest sends. A proposer can ask
+// NEAR Intents for a quote with the addresses of the group and an app fee or a wide slippage.
+function nearPlainAsk(ask) {
+  const fees = ask.appFees;
+  return [ask.dry === false, ask.swapType === "EXACT_INPUT", ask.depositType === "ORIGIN_CHAIN",
+    ask.refundType === "ORIGIN_CHAIN", ask.recipientType === "DESTINATION_CHAIN",
+    NEAR_SLIPPAGE.includes(ask.slippageTolerance),
+    fees === undefined || (Array.isArray(fees) && fees.length === 0),
+    NEAR_SWAP_NONE.every((k) => !(k in ask))].every(Boolean);
+}
+
+function nearStatusSwap(response) {
+  const { quote, quoteRequest: ask } = response;
+  if (!ask || typeof ask !== "object") return undefined;
+  const address = (v) => (typeof v === "string" && NEAR_ADDRESS.test(v) ? v : undefined);
+  const payBy = nearPayBy(quote, ask);
+  return {
+    from: nearKeyOf(ask.originAsset), to: nearKeyOf(ask.destinationAsset),
+    recipient: address(ask.recipient), refundTo: address(ask.refundTo),
+    amountIn: NEAR_INTEGER.test(quote.amountIn) ? quote.amountIn : undefined,
+    amountOut: NEAR_INTEGER.test(quote.amountOut) ? quote.amountOut : undefined,
+    deadline: Number.isNaN(payBy) ? undefined : new Date(payBy).toISOString(),
+    plain: nearPlainAsk(ask),
+  };
+}
+
 // Only these fields of a state go to the page. A state that is not known is "other": "unknown"
 // is for a swap that NEAR Intents does not list (404).
 function nearStatusAnswer(json) {
@@ -290,6 +364,7 @@ function nearStatusAnswer(json) {
     originTxs: nearHashes(details.originChainTxHashes),
     destinationTxs: nearHashes(details.destinationChainTxHashes),
     refundReason: NEAR_REASON.test(details.refundReason) ? details.refundReason : undefined,
+    swap: nearStatusSwap(json.quoteResponse),
   };
   for (const k of NEAR_STATUS_AMOUNTS) {
     if (typeof details[k] === "string" && NEAR_INTEGER.test(details[k])) out[k] = details[k];
@@ -311,7 +386,8 @@ export async function nearStatus(req, env, url, { key }) {
   if (req.method !== "GET") return nearText("Use GET.\n", 405, { Allow: "GET" });
   if (await nearOverLimit(env, key)) return nearText(NEAR_TOO_MANY, 429);
   const address = url.searchParams.get("depositAddress");
-  if (!nearSolAddress(address)) return nearText("Add ?depositAddress= with the address.\n", 400);
+  const known = nearSolAddress(address) || nearZecTransparent(address);
+  if (!known) return nearText("Add ?depositAddress= with the address.\n", 400);
   return nearStatusReply(await nearCall(env, NEAR_STATUS_URL + "?depositAddress=" + address),
     address);
 }

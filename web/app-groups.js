@@ -23,6 +23,7 @@ import { resetSolStart, sol, solWatch } from "./app-sol.js";
 import { confirmedNetwork } from "./app-dkg.js";
 import { dropReview } from "./app-send.js";
 import { watchGuidedReports } from "./app-guided-setup.js";
+import { watchTaddress } from "./app-taddress.js";
 
 export let db = null, sdb = null, user = null, downloads = null, me = null, canWrite = null, dbReady = false;
 export function setDb(v) { sdb = v; db = v; }
@@ -215,7 +216,7 @@ export function learnNetwork() {
 
 export function openGroup(gid) {
   for (const u of unsubGroup) u(); unsubGroup = [];
-  if (sdb) unsubGroup.push(watchGuidedReports(gid, sdb));
+  if (sdb) unsubGroup.push(watchGuidedReports(gid, sdb), watchTaddress(gid, sdb));
   groupDoc = null;
   sol?.close();
   closeSession();

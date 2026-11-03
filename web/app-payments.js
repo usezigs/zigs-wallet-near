@@ -18,11 +18,12 @@ import {
   canWriteAs, mayAct, NO_SEAT_KEY, partNow, signedDoc, signedMode, sigPart, writer,
 } from "./app-filter.js";
 import { closeSession, openSession, sdb } from "./app-groups.js";
-import { groupName, isPayee, normalized, payTitle } from "./app-dom.js";
+import { groupName, isPayee, normalized, payeeNormalized, payTitle } from "./app-dom.js";
 import { myVerified, seatCheck } from "./app-dkg.js";
 import { once, react, render } from "./app-loop.js";
 import { openSend } from "./app-send.js";
 import { nameRefusal, registry } from "./zns.js";
+import { checkSwap, swapSendRefusal } from "./app-swap-zec.js";
 
 const inspectCache = new Map();
 
@@ -404,11 +405,13 @@ export const approvedTxid = (ss) => markOf(state.gid, ss.id).approved
   ? txidOf({ pczt: afterOf(ss) }) : txidOf(ss);
 
 // Null when the finished transaction has the approved id, else why it does not go out. Nothing
-// that cannot be read goes out.
+// that cannot be read goes out, and no swap payment in the last 30 minutes before its deadline.
 // ponytail: compares the `final.txid` that one seat wrote; it does not prove that `tx_hex` carries
 // it. The FROST signatures still bind the approved sighash. ZEC-18: an engine check of the bytes.
 export function sendRefusal(ss) {
   if (!isStr(ss.final?.txid)) return "The finished transaction cannot be read.";
+  const late = swapSendRefusal(ss);
+  if (late) return late;
   const bound = !!markOf(state.gid, ss.id).approved, want = approvedTxid(ss);
   if (!want) return unread(bound ? "the approved transaction" : "the proposal");
   if (ss.final.txid === want) return null;
@@ -520,6 +523,7 @@ async function approveNow(ss, i) {
   // last sync can be minutes old.
   const tip = await freshTip();
   await checkNames(ss, tip);
+  await checkSwap(ss);
   // Under the lock of the secrets: a write here neither brings back a burned nonce nor drops a
   // new one of another tab.
   const doc = await withSecrets(() => commitNow(ss, i, ins, tip, gid));
@@ -569,7 +573,7 @@ async function commitNow(ss, i, ins, tip, gid) {
 // The chain height now, from the server of the last sync, else from the other servers of the
 // network in the order of preferredServers. After a server stopped answering, the wallet has no
 // server until the next sync, and the others still answer.
-async function freshTip() {
+export async function freshTip() {
   const c = curChain();
   if (!c || !c.bal) throw new Error("Wait for the first sync to finish, then approve.");
   const net = curNet(), order = preferredServers(net), errors = [];
@@ -674,11 +678,12 @@ export async function failSession(gid, ss, error) {
   const sig = await sigPart(gid, ss.id, "failure", { error });
   await sdb.doc(sessionPath(ss, gid)).update({ error, status: "failed", ...sig });
 }
-// ZIP 317 for a payment from up to `outputs` notes: one action per output, change included. A
+// ZIP 317 for a payment from up to `outputs` notes: one action per shielded output, change
+// included, and one more for each of the `transparent` payees (a P2PKH or P2SH output). A
 // priority payment pays PRIORITY_FACTOR times as much (the engine's cap).
 export const PRIORITY_FACTOR = 10;
-export const feeEstimate = (payees, priority = false) =>
-  5000 * Math.max(2, payees + 1) * (priority ? PRIORITY_FACTOR : 1);
+export const feeEstimate = (payees, priority = false, transparent = 0) =>
+  5000 * (Math.max(2, payees - transparent + 1) + transparent) * (priority ? PRIORITY_FACTOR : 1);
 
 export const sendBlocker = () => setupBlocker() || holdBlocker() || fundsBlocker(curChain().bal);
 
@@ -1134,7 +1139,7 @@ export const payeesOf = (ss) => Array.isArray(ss.payees) ? ss.payees.filter((p) 
 export function recipientCheck(ss, ins) {
   if (!ins || ins.error) return { rows: [], extra: [], match: null };
   const paid = ins.lines.filter(isPayee);
-  const { rows, extra } = pairPayees(payeesOf(ss), paid, normalized);
+  const { rows, extra } = pairPayees(payeesOf(ss), paid, payeeNormalized);
   const match = allPaid(rows, extra, ss.amount);
   const addr = ss.move ? moveAddress(ss.move) : null;
   const intoNew = addr ? paid.length === 1 && normalized(addr) === paid[0].who : null;

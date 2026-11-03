@@ -26,10 +26,10 @@ export const MAINNET_ON = true;
 export const NETWORKS = {
   testnet: { label: "Testnet",
     servers: [location.origin + "/lwd", "https://zcash-testnet.chainsafe.dev"],
-    explorer: "https://testnet.zecblock.com/tx/", prefix: "utest1",
+    explorer: "https://testnet.zecblock.com/tx/", prefix: "utest1", tPrefixes: ["tm", "t2"],
     faucet: "https://faucet.testnet.valargroup.dev/" },
   mainnet: { label: "Mainnet", servers: ["https://zcash-mainnet.chainsafe.dev"],
-    explorer: "https://zecblock.com/tx/", prefix: "u1", cap: 50000000 },
+    explorer: "https://zecblock.com/tx/", prefix: "u1", tPrefixes: ["t1", "t3"], cap: 50000000 },
 };
 export const validNet = (x) => typeof x === "string" && Object.hasOwn(NETWORKS, x);
 export const netName = (g) => g && validNet(g.network) ? g.network : "testnet";

@@ -761,14 +761,16 @@ the web, on iPhone and on Mac at the same time.
   | Mainnet | `zcash-mainnet.chainsafe.dev` | `u1` | Real ZEC. Warning and hidden address at 0.5 ZEC |
 
 - **Light-wallet relay.** `/lwd` is behind the password gate. It accepts POST only, and only the
-  six methods of `cash.z.wallet.sdk.rpc.CompactTxStreamer` that the engine calls (`GetLatestBlock`,
-  `GetTreeState`, `GetBlockRange`, `GetTransaction`, `SendTransaction`, `GetMempoolTx`), so it is
-  no open proxy. `GetMempoolTx` ends with the mempool; `GetMempoolStream`, which stays open, is
-  closed. A `GetBlockRange` body must be one uncompressed
-  gRPC-web frame of 256 bytes at most, for at most 2,000 blocks (`LWD_MAX_BLOCKS`; the engine
-  asks for 1,000), so no call asks for the whole chain; any other body gets 400. A `GetMempoolTx`
-  body has 64 bytes at most (the engine sends 8: no exclude list, one pool type); a larger body
-  gets 400. The Worker adds the
+  seven methods of `cash.z.wallet.sdk.rpc.CompactTxStreamer` that the engine calls
+  (`GetLatestBlock`, `GetTreeState`, `GetBlockRange`, `GetTransaction`, `SendTransaction`,
+  `GetMempoolTx`, `GetAddressUtxos`), so it is no open proxy. `GetMempoolTx` ends with the mempool;
+  `GetMempoolStream`, which stays open, is closed. A `GetBlockRange` body must be one uncompressed
+  gRPC-web frame of 256 bytes at most, for at most 2,000 blocks (`LWD_MAX_BLOCKS`; the engine asks
+  for 1,000), so no call asks for the whole chain; any other body gets 400. A `GetMempoolTx` body
+  has 64 bytes at most (the engine sends 8: no exclude list, one pool type); a larger body gets 400.
+  A `GetAddressUtxos` body also has 64 bytes at most (the engine sends 44: one transparent address
+  and at most 100 outputs). The route bounds only the size: a caller can leave out the limit of 100
+  outputs. The Worker adds the
   secret header `x-zigs-lwd-key` (secret `LWD_KEY`) and sends no header of the user, so neither the
   password nor a cookie reaches the node. Envoy on the node host (`infra/lwd`) serves the tunnel
   listener only with that key. A second listener, for the devices of the owner's tailnet, has no
@@ -1418,6 +1420,8 @@ column "Writer". A document with another `by` is ignored.
 | `dkg2/<i>-<j>` | seat `i`, the sender |
 | `meta/wallet` | seat 1, the seat of the creator |
 | `sessions/<session id>/commits/<i>`, `sessions/<session id>/shares/<i>` | seat `i` |
+| `p2sh/<i>`, `sweep/<i>` | seat `i` |
+| `sweep/proposal`, `sweep/sent` | any seat, named by `by` |
 
 - The seat document `seats/<i>` holds `uid`, `name`, `boxPk`, `signPk` and `at`. The seat signs it
   with the new key when it takes the seat. Until a key is pinned for the seat, a reader checks the
@@ -1431,6 +1435,25 @@ column "Writer". A document with another `by` is ignored.
   flag. The document is a claim of the seat. No payment or signing step reads it, and it does not
   decide whether the setup is complete. The guided setup shows it as the backup progress of seat
   `i`. It holds no file, key or hash.
+- The key document `p2sh/<i>` holds `v` (1) and `key`: the ZIP 48 public key of seat `i` for the
+  transparent address of the group (`web/app-taddress.js`). The address shows only when all n
+  key documents verify. A reader keeps the first key that it saw for each seat. When a seat later
+  signs another key, the reader does not show the address.
+- The move documents move the funds of that address to the shielded address of the wallet
+  (`web/app-sweep.js`, `wasm/src/p2sh.rs`). Each holds `v` (1).
+  - `sweep/proposal` holds `pczt`: the move, built by the chain wallet of the proposer
+    (`createSweep`). A new proposal replaces the old one.
+  - `sweep/<i>` holds `digest`, `key` and `signatures`. Seat `i` writes it after its engine
+    checks the move (`sweepSign`): one DER signature with the sighash type for each input.
+    `key` is the compressed secp256k1 key of the seat in lower-case hex.
+    `digest` is the BLAKE2b-256 hash (personal `Zigs_SweepMove01`) of the PCZT text: the txid does
+    not cover the value and the script of each input.
+  - `sweep/sent` holds the `txid` of the move that a device sent.
+  - A reader shows the amounts of its own check (`sweepCheck`), never a field of a document. It
+    counts the distinct keys of the approvals whose `digest` is the one of its check, and only a
+    key in the form above. `sweepFinish` skips a set that does not verify, that names another key
+    than its signer, or whose key (as bytes) signed already. It refuses before the proof when
+    fewer than t sets verify.
 - A reader takes names and identities only from a seat document that verifies. So a holder of the
   link cannot rename a seat or copy the identity of another.
 - A seat chooses its own name, and two seats can use one name. So the apps show the seat number

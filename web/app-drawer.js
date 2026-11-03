@@ -27,6 +27,7 @@ import { outcomePanel } from "./outcome-seal.js";
 import { privacyNotice, ZEC_EXPOSURE } from "./privacy-language.js";
 import { icon } from "./app-icons.js";
 import { solStays } from "./app-wallet.js";
+import { swapDeadline, swapReview } from "./app-swap-zec.js";
 import { zecApprovalMotionValue } from "./app-motion.js";
 import { ApprovalVisualization } from "./app-approval-visualization.js";
 import { walletAvatarFor } from "./app-wallet-identity.js";
@@ -435,6 +436,29 @@ function feeLabel(ins) {
   return times ? "Priority fee (" + times + " times the standard fee)" : "Network fee";
 }
 
+// A transparent output shows its address and amount on chain to everyone.
+const payeeLabel = (l) => "To " + short(l.who, 10)
+  + (l.pool === "Transparent" ? " (transparent, public)" : "");
+
+// Whether this device checks a payment to a transparent address as a swap: only the note of the
+// Swap page starts the check, and a note that only reads like it must not look checked.
+export const SWAP_CHECKED = "A swap of the Swap page: before this device approves, it asks NEAR "
+  + "Intents whether the swap pays the Solana address of this wallet.";
+export const NOT_CHECKED = "Zigs does not check what this transparent address is for. Only a swap "
+  + "of the Swap page gets a check with NEAR Intents before a device approves.";
+function transparentNote(ins, ss) {
+  if (!ins.lines.some((l) => isPayee(l) && l.pool === "Transparent")) return null;
+  return el("p", { class: "small", "data-review": "transparent" },
+    swapDeadline(ss.note) === null ? NOT_CHECKED : SWAP_CHECKED);
+}
+// What a swap payment is for: the deposit, the ZEC amount, and the SOL and the Solana address of
+// the quote.
+function swapBlock(ss) {
+  const lines = swapReview(ss);
+  return lines && el("div", { class: "small", "data-review": "swap" },
+    ...lines.map((line) => el("p", {}, line)));
+}
+
 function breakdown(ins, ss) {
   const t = decodedTotals(ins);
   const row = (label, zat, cls = "") => el("div", {}, el("span", { class: cls }, label),
@@ -445,7 +469,7 @@ function breakdown(ins, ss) {
     "data-review": "costs" },
     el("h3", {}, "Amounts and network cost"),
     el("div", { class: "lines" },
-      ins.lines.filter(isPayee).map((l) => row("To " + short(l.who, 10), l.value)),
+      ins.lines.filter(isPayee).map((l) => row(payeeLabel(l), l.value)),
       row(feeLabel(ins), t.fee, "neg"),
       el("div", { class: "total" }, el("span", {}, "Leaves the wallet"),
         el("span", { class: "mono" }, zecText(t.leaves))),
@@ -454,6 +478,7 @@ function breakdown(ins, ss) {
       ins.lines.filter(own).map((l) => row("Change back to this wallet", l.value, "neg"))),
     el("p", { class: "small faint" }, "Your browser decoded this from the transaction itself, "
       + "not from the proposer's description."),
+    transparentNote(ins, ss), swapBlock(ss),
     ss.broadcastTxid ? null : el("p", { class: "small faint" }, ON_CHAIN_PUBLIC));
 }
 

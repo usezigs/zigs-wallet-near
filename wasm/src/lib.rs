@@ -54,6 +54,7 @@ mod ceremony;
 mod chain;
 mod expiry;
 mod memo;
+mod p2sh;
 mod request;
 mod session;
 mod snapshot;
@@ -62,6 +63,8 @@ mod testchain;
 #[cfg(not(target_arch = "wasm32"))]
 mod ffi;
 use zcash_keys::{address::UnifiedAddress, keys::UnifiedFullViewingKey};
+use zcash_script::script::Evaluable as _;
+use zcash_transparent::address::TransparentAddress;
 use zcash_primitives::transaction::{
     builder::{BuildConfig, Builder, BundlePadding, PcztResult},
     fees::zip317,
@@ -224,6 +227,19 @@ pub fn normalize_address(addr: &str) -> R<String> {
         .ok_or_else(|| "not a unified address with an Orchard receiver".to_string())?
 }
 
+/// The canonical form of a payment recipient: a unified address with its Orchard receiver only
+/// (as `normalize_address`), or a P2PKH or P2SH transparent address. The error says why Zigs
+/// cannot pay the address, for example a TEX address (`chain::parse_to`).
+pub fn payee_address(addr: &str) -> R<String> {
+    let nets = [Network::MainNetwork, Network::TestNetwork];
+    let decodes = |net: &Network| zcash_keys::address::Address::decode(net, addr.trim()).is_some();
+    let net = nets.into_iter().find(decodes).ok_or("not a Zcash address")?;
+    match chain::parse_to(addr, net)? {
+        To::Shielded(a) => receiver_address(a, net),
+        To::Transparent(t) => Ok(zcash_keys::address::Address::Transparent(t).encode(&net)),
+    }
+}
+
 fn parse_fvk(hex_fvk: &str) -> R<FullViewingKey> {
     let raw: [u8; 96] = hex::decode(hex_fvk)
         .map_err(e("fvk hex"))?
@@ -291,8 +307,16 @@ fn pczt_to_b64(p: Pczt) -> R<String> {
     Ok(B64.encode(p.serialize().map_err(e("pczt serialize"))?))
 }
 
-/// A recipient of a payment: address, amount in zatoshis and memo.
-pub(crate) type Payee = (orchard::Address, u64, MemoBytes);
+/// Where a payment output goes: an Orchard receiver, paid in Ironwood, or a transparent address.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum To {
+    Shielded(orchard::Address),
+    Transparent(TransparentAddress),
+}
+
+/// A recipient of a payment: address, amount in zatoshis and memo. A transparent recipient has
+/// no memo.
+pub(crate) type Payee = (To, u64, MemoBytes);
 
 /// The block that a payment is built for, its expiry height (None keeps the builder's default of
 /// target + 40, and target + 120 from NU7) and its fee: `fee_factor` times the ZIP 317 fee.
@@ -345,11 +369,14 @@ fn build_ironwood_pczt<P: Parameters>(
         builder.add_ironwood_spend::<zip317::FeeRule>(fvk.clone(), note, path).map_err(e("builder"))?;
     }
     let eo = Some(fvk.to_ovk(Scope::External));
-    for (payee, amount, memo) in payees {
+    for (to, amount, memo) in payees {
         let az = Zatoshis::from_u64(*amount).map_err(e("amount"))?;
-        builder
-            .add_ironwood_output::<zip317::FeeRule>(eo.clone(), *payee, az, memo.clone())
-            .map_err(e("builder"))?;
+        match to {
+            To::Shielded(payee) => builder
+                .add_ironwood_output::<zip317::FeeRule>(eo.clone(), *payee, az, memo.clone())
+                .map_err(e("builder"))?,
+            To::Transparent(t) => builder.add_transparent_output(t, az).map_err(e("builder"))?,
+        }
     }
     let cz = Zatoshis::from_u64(change).map_err(e("change"))?;
     let io = Some(fvk.to_ovk(Scope::Internal));
@@ -413,20 +440,45 @@ struct Inspected {
     standard_fee: u64,
 }
 
-/// The pools that `inspect_inner` decodes are the only ones that a payment may touch. A part in
-/// another pool, such as a transparent output, could take value that the fee check would show
-/// as a higher fee.
-fn shielded_only(p: &Pczt) -> R<()> {
-    let t = p.transparent();
-    let none = t.inputs().is_empty() && t.outputs().is_empty();
-    ensure(none, "the transaction has a transparent part")?;
+/// A payment spends from the shielded pools only. It may pay transparent outputs, which
+/// `inspect_inner` decodes and counts, but a transparent input or a Sapling part is refused: a
+/// part that the engine does not decode could take value that the fee check would show as a
+/// higher fee.
+fn shielded_spends_only(p: &Pczt) -> R<()> {
+    ensure(p.transparent().inputs().is_empty(), "the transaction has a transparent input")?;
     let s = p.sapling();
     ensure(s.spends().is_empty() && s.outputs().is_empty(), "the transaction has a Sapling part")?;
     ensure(*p.global().expiry_height() != 0, "the transaction never expires")
 }
 
+/// A transparent output of a payment: its address, read from its script, its value, and its
+/// size in the transaction.
+struct TransparentOut {
+    address: String,
+    value: u64,
+    bytes: usize,
+}
+
+/// The transparent outputs of `p`. Each one must have a P2PKH or a P2SH script. The address
+/// comes from the script; the `user_address` of the PCZT is a claim that nothing signs.
+fn transparent_outputs(p: &Pczt, net: Network) -> R<Vec<TransparentOut>> {
+    let read = |(i, o): (usize, &pczt::transparent::Output)| -> R<TransparentOut> {
+        let script = o.script_pubkey();
+        let code = zcash_script::script::Code(script.clone());
+        let parsed = zcash_script::script::FromChain::parse(&code).ok();
+        let to = parsed.as_ref().and_then(TransparentAddress::from_script_from_chain);
+        let to = to.filter(|t| t.script().to_bytes() == *script);
+        let to = to
+            .ok_or_else(|| err!("transparent output {i} has a script that is not P2PKH or P2SH"))?;
+        let address = zcash_keys::address::Address::Transparent(to).encode(&net);
+        // A value (8 bytes), the script length (1 byte: these scripts are short) and the script.
+        Ok(TransparentOut { address, value: *o.value(), bytes: 8 + 1 + script.len() })
+    };
+    p.transparent().outputs().iter().enumerate().map(read).collect()
+}
+
 fn inspect_inner(p: &Pczt, fvk: &FullViewingKey) -> R<Inspected> {
-    shielded_only(p)?;
+    shielded_spends_only(p)?;
     let (version, h) = sighash(p)?;
     let pools: &[Pool] = if version == TxVersion::V6 {
         &[Pool::Orchard, Pool::Ironwood]
@@ -502,21 +554,31 @@ fn inspect_inner(p: &Pczt, fvk: &FullViewingKey) -> R<Inspected> {
     ensure(!pending.is_empty(), "this transaction spends nothing from this wallet")?;
     // The note commitment binds the recipient and the value, but not the ciphertexts. An output
     // that the outgoing viewing keys cannot open may be one that its recipient never finds.
-    let memos = memo::recover(p, fvk)?;
+    let mut memos = memo::recover(p, fvk)?;
     let unread = outputs.iter().find(|(pool, i, _)| !memos.contains_key(&(pool.clone(), *i)));
     if let Some((pool, i, who)) = unread {
         return Err(err!(
             "the output to {who} ({pool} action {i}) does not open with the outgoing viewing keys \
              of this wallet, so its recipient may never find the funds"));
     }
-    // With no part in another pool, the value that leaves the shielded pools is the fee. It is
-    // at least the ZIP 317 fee and at most the priority fee.
-    let standard_fee = chain::zip317_fee(actions, 0);
+    let transparent = transparent_outputs(p, net)?;
+    for (i, t) in transparent.iter().enumerate() {
+        lines.push(json!({"kind": "output", "action": i, "pool": "Transparent", "value": t.value,
+            "who": t.address}));
+        memos.insert(("Transparent".into(), i), memo::MemoView::Empty);
+        outflow -= i128::from(t.value);
+    }
+    // The value that leaves the shielded pools, less the transparent outputs, is the fee. It is
+    // at least the ZIP 317 fee, with the logical actions of the transparent outputs, and at most
+    // the priority fee.
+    let t_actions = chain::transparent_actions(transparent.iter().map(|t| t.bytes).sum());
+    let standard_fee = chain::zip317_fee(actions + t_actions, 0);
     let most = standard_fee * chain::PRIORITY_FACTOR;
     let fee = u64::try_from(outflow).ok().filter(|f| (standard_fee..=most).contains(f));
     let fee = fee.ok_or_else(|| err!(
         "the transaction pays a fee of {outflow} zat, but the network fee for {actions} actions \
-         is {standard_fee} zat, and Zigs pays at most {most} zat"))?;
+         and {t_actions} transparent actions is {standard_fee} zat, and Zigs pays at most {most} \
+         zat"))?;
     Ok(Inspected { pending, lines, memos, sighash: h, version, fee, standard_fee })
 }
 
@@ -912,6 +974,10 @@ pub fn js_wallet_verify_v2(wallet: &str, pkp: &str, sk: &str) -> Result<String, 
 pub fn js_normalize_address(addr: &str) -> Result<String, JsError> {
     js(normalize_address(addr))
 }
+#[wasm_bindgen(js_name = payeeAddress)]
+pub fn js_payee_address(addr: &str) -> Result<String, JsError> {
+    js(payee_address(addr))
+}
 #[wasm_bindgen(js_name = walletVerify)]
 pub fn js_wallet_verify(wallet: &str, pkp: &str) -> Result<String, JsError> {
     js(wallet_verify(wallet, pkp))
@@ -1144,10 +1210,11 @@ mod tests {
             .enumerate()
             .map(|(i, sk)| {
                 let memo = if ironwood { demo_memo(i) } else { MemoBytes::empty() };
-                (FullViewingKey::from(sk).address_at(0u32, Scope::External), amount, memo)
+                let to = FullViewingKey::from(sk).address_at(0u32, Scope::External);
+                (To::Shielded(to), amount, memo)
             })
             .collect();
-        let payee = payees[0].0;
+        let To::Shielded(payee) = payees[0].0 else { unreachable!() };
         let pczt = if ironwood {
             let spends = (vec![(note, path)], anchor);
             let terms = group_terms(1);
@@ -1490,7 +1557,8 @@ mod tests {
         // One payee, the change, and one padding output.
         let (spends, anchor) = incoming_notes(&fvk, &[40_000, 50_000, 60_000], true).unwrap();
         let payee = FullViewingKey::from(&random_sk()).address_at(0u32, Scope::External);
-        let outs = (&[(payee, 100_000, MemoBytes::empty())][..], 150_000 - 100_000 - 15_000);
+        let pay = [(To::Shielded(payee), 100_000, MemoBytes::empty())];
+        let outs = (&pay[..], 150_000 - 100_000 - 15_000);
         let terms = group_terms(1);
         let pczt = build_ironwood_pczt(regtest(true), &terms, &fvk, (spends, anchor), outs);
         let raw = B64.decode(pczt_to_b64(pczt.unwrap()).unwrap()).unwrap();
@@ -1610,7 +1678,8 @@ mod tests {
         let payee = FullViewingKey::from(&random_sk()).address_at(0u32, Scope::External);
         let fee = chain::zip317_fee(3, 2);
         assert_eq!(fee, 15_000);
-        let outs = (&[(payee, 100_000, MemoBytes::empty())][..], 150_000 - 100_000 - fee);
+        let pay = [(To::Shielded(payee), 100_000, MemoBytes::empty())];
+        let outs = (&pay[..], 150_000 - 100_000 - fee);
         let pczt = build_ironwood_pczt(regtest(true), &group_terms(1), &fvk, (spends, anchor), outs)
             .unwrap();
         let ins = v(&inspect(&pczt_to_b64(pczt).unwrap(), &hex::encode(fvk.to_bytes())).unwrap());
@@ -1634,7 +1703,8 @@ mod tests {
         let (spends, anchor) = incoming_notes(fvk, &[1_000_000], true)?;
         let payee = FullViewingKey::from(&random_sk()).address_at(0u32, Scope::External);
         let fee = chain::zip317_fee(1, 2) * terms.fee_factor;
-        let outs = (&[(payee, 100_000, MemoBytes::empty())][..], 1_000_000 - 100_000 - fee);
+        let pay = [(To::Shielded(payee), 100_000, MemoBytes::empty())];
+        let outs = (&pay[..], 1_000_000 - 100_000 - fee);
         pczt_to_b64(build_ironwood_pczt(net, terms, fvk, (spends, anchor), outs)?)
     }
 
@@ -1654,10 +1724,12 @@ mod tests {
         }
     }
 
-    /// Value that leaves through a transparent output would look like a higher fee, inside the
-    /// range of the priority fee. So `inspect` refuses any transparent part.
-    #[test]
-    fn inspect_refuses_a_transparent_output() {
+    /// A spend of one Ironwood note that pays 100,000 zat to a shielded payee, 40,000 zat to the
+    /// transparent address `t1`, and the change. `fee` is the fee of the builder; `extra` adds
+    /// more transparent outputs (`None` for a P2PKH output, `Some(data)` for an OP_RETURN one).
+    fn with_transparent<F: zcash_primitives::transaction::fees::FeeRule<Error: std::fmt::Debug>>(
+        fee: &F, change: u64, extra: &[Option<&[u8]>],
+    ) -> (String, String) {
         use zcash_keys::address::Address;
         let fvk = FullViewingKey::from(&random_sk());
         let (mut spends, anchor) = incoming_notes(&fvk, &[1_000_000], true).unwrap();
@@ -1677,19 +1749,160 @@ mod tests {
         let z = |n: u64| Zatoshis::from_u64(n).unwrap();
         let payee = FullViewingKey::from(&random_sk()).address_at(0u32, Scope::External);
         let back = fvk.address_at(0u32, Scope::Internal);
+        b.add_ironwood_spend::<zip317::FeeRule>(fvk.clone(), note, path).unwrap();
+        let (eo, io) = (fvk.to_ovk(Scope::External), fvk.to_ovk(Scope::Internal));
+        b.add_ironwood_output::<zip317::FeeRule>(Some(eo), payee, z(100_000), MemoBytes::empty())
+            .unwrap();
+        b.add_ironwood_output::<zip317::FeeRule>(Some(io), back, z(change), MemoBytes::empty())
+            .unwrap();
+        b.add_transparent_output(&taddr, z(40_000)).unwrap();
+        for data in extra {
+            match data {
+                None => b.add_transparent_output(&taddr, z(1_000)).unwrap(),
+                Some(d) => {
+                    b.add_transparent_null_data_output::<std::convert::Infallible>(d).unwrap()
+                }
+            }
+        }
+        let parts = b.build_for_pczt(rng(), fee).unwrap().pczt_parts;
+        let pczt = Creator::build_from_parts(parts).unwrap();
+        let pczt = IoFinalizer::new(pczt).finalize_io(rng()).unwrap();
+        (pczt_to_b64(pczt).unwrap(), hex::encode(fvk.to_bytes()))
+    }
+
+    /// A transparent output is a recipient: `inspect` lists it with the address from its script,
+    /// and its value is no part of the fee. ZIP 317 counts it as one more action.
+    #[test]
+    fn inspect_lists_a_transparent_output() {
+        use zcash_keys::address::Address;
         // ZIP 317: two Ironwood actions and one transparent output.
         let change = 1_000_000 - 100_000 - 40_000 - 15_000;
+        let (pczt, key) = with_transparent(&zip317::FeeRule::standard(), change, &[]);
+        let ins: Value = serde_json::from_str(&inspect(&pczt, &key).unwrap()).unwrap();
+        assert_eq!((&ins["fee"], &ins["standard_fee"]), (&json!(15_000), &json!(15_000)));
+        let t1 = "t1Hsc1LR8yKnbbe3twRp88p6vFfC5t7DLbs";
+        let Some(Address::Transparent(t)) = Address::decode(&Network::MainNetwork, t1) else {
+            panic!("not a transparent address");
+        };
+        // The regtest PCZT has the coin type of testnet, so the address shows as a tm address.
+        let who = Address::Transparent(t).encode(&Network::TestNetwork);
+        let line = ins["lines"].as_array().unwrap().iter().find(|l| l["pool"] == "Transparent");
+        assert_eq!(line, Some(&json!({"kind": "output", "action": 0, "pool": "Transparent",
+            "value": 40_000, "who": who, "memo_status": "empty"})));
+        let p = pczt_from_b64(&pczt).unwrap();
+        assert_eq!(session::facts(&p, &parse_fvk(&key).unwrap(), false).unwrap().txid,
+            txid_of(&p).unwrap());
+    }
+
+    /// A fee that leaves out the action of the transparent output is below the ZIP 317 fee. Two
+    /// transparent outputs (68 bytes) count as two actions.
+    #[test]
+    fn inspect_counts_the_actions_of_transparent_outputs() {
+        use zcash_primitives::transaction::fees::fixed;
+        let low = fixed::FeeRule::non_standard(Zatoshis::from_u64(10_000).unwrap());
+        let (pczt, key) = with_transparent(&low, 1_000_000 - 100_000 - 40_000 - 10_000, &[]);
+        let err = inspect(&pczt, &key).unwrap_err();
+        assert!(err.contains("1 transparent actions is 15000 zat"), "{err}");
+        let change = 1_000_000 - 100_000 - 41_000 - 20_000;
+        let (pczt, key) = with_transparent(&zip317::FeeRule::standard(), change, &[None]);
+        let ins: Value = serde_json::from_str(&inspect(&pczt, &key).unwrap()).unwrap();
+        assert_eq!(ins["fee"], json!(20_000));
+    }
+
+    /// The highest fee counts the action of the transparent output: 10 times 15,000 zat passes,
+    /// though it is 15 times the fee of the two shielded actions alone. One zat more is refused.
+    #[test]
+    fn inspect_counts_the_transparent_action_in_the_highest_fee() {
+        use zcash_primitives::transaction::fees::fixed;
+        for (fee, ok) in [(150_000, true), (150_001, false)] {
+            let rule = fixed::FeeRule::non_standard(Zatoshis::from_u64(fee).unwrap());
+            let (pczt, key) = with_transparent(&rule, 1_000_000 - 100_000 - 40_000 - fee, &[]);
+            let out = inspect(&pczt, &key);
+            if ok {
+                assert_eq!(v(&out.unwrap())["fee"], json!(150_000));
+            } else {
+                let err = out.unwrap_err();
+                assert!(err.contains("Zigs pays at most 150000 zat"), "{err}");
+            }
+        }
+    }
+
+    /// A transparent output must pay a P2PKH or a P2SH script: an OP_RETURN output is refused.
+    #[test]
+    fn inspect_refuses_another_transparent_script() {
+        let fee = zip317::FeeRule::standard();
+        let change = 1_000_000 - 100_000 - 40_000 - 20_000;
+        let (pczt, key) = with_transparent(&fee, change, &[Some(b"zigs")]);
+        let err = inspect(&pczt, &key).unwrap_err();
+        assert_eq!(err, "transparent output 1 has a script that is not P2PKH or P2SH");
+    }
+
+    /// A payment spends from the shielded pools only: a transparent input is refused.
+    #[test]
+    fn inspect_refuses_a_transparent_input() {
+        use zcash_transparent::{
+            address::TransparentAddress,
+            bundle::{OutPoint, TxOut},
+        };
+        let fvk = FullViewingKey::from(&random_sk());
+        let (mut spends, anchor) = incoming_notes(&fvk, &[1_000_000], true).unwrap();
+        let (note, path) = spends.remove(0);
+        let config = BuildConfig::Standard {
+            sapling_anchor: None,
+            orchard_anchor: None,
+            ironwood_anchor: Some(anchor),
+            orchard_padding: BundlePadding::DEFAULT,
+            ironwood_padding: BundlePadding::DEFAULT,
+        };
+        let mut b = Builder::new(regtest(true), (TIP + 1).into(), config);
+        let z = |n: u64| Zatoshis::from_u64(n).unwrap();
+        let key = secp256k1::SecretKey::from_secret_bytes([7; 32]).unwrap();
+        let pubkey = secp256k1::PublicKey::from_secret_key(&key);
+        let coin = TxOut::new(z(50_000), TransparentAddress::from_pubkey(&pubkey).script().into());
+        b.add_transparent_p2pkh_input(pubkey, OutPoint::new([1; 32], 1), coin).unwrap();
+        let payee = FullViewingKey::from(&random_sk()).address_at(0u32, Scope::External);
+        let back = fvk.address_at(0u32, Scope::Internal);
+        // ZIP 317: two Ironwood actions and one transparent input.
+        let change = 1_000_000 + 50_000 - 100_000 - 15_000;
         b.add_ironwood_spend::<zip317::FeeRule>(fvk.clone(), note, path).unwrap();
         b.add_ironwood_output::<zip317::FeeRule>(None, payee, z(100_000), MemoBytes::empty())
             .unwrap();
         b.add_ironwood_output::<zip317::FeeRule>(None, back, z(change), MemoBytes::empty())
             .unwrap();
-        b.add_transparent_output(&taddr, z(40_000)).unwrap();
         let parts = b.build_for_pczt(rng(), &zip317::FeeRule::standard()).unwrap().pczt_parts;
         let pczt = Creator::build_from_parts(parts).unwrap();
         let pczt = IoFinalizer::new(pczt).finalize_io(rng()).unwrap();
         let err = inspect(&pczt_to_b64(pczt).unwrap(), &hex::encode(fvk.to_bytes())).unwrap_err();
-        assert_eq!(err, "the transaction has a transparent part");
+        assert_eq!(err, "the transaction has a transparent input");
+    }
+
+    /// A recipient is a shielded unified address or a P2PKH or P2SH address, on its network. A
+    /// TEX address is refused.
+    #[test]
+    fn payee_address_takes_transparent_addresses() {
+        let t1 = "t1Hsc1LR8yKnbbe3twRp88p6vFfC5t7DLbs";
+        assert_eq!(payee_address(&format!(" {t1} ")).unwrap(), t1);
+        let t3 = "t3Vz22vK5z2LcKEdg16Yv4FFneEL1zg9ojd";
+        assert_eq!(payee_address(t3).unwrap(), t3);
+        let tex = "tex1s2rt77ggv6q989lr49rkgzmh5slsksa9khdgte";
+        assert!(payee_address(tex).unwrap_err().contains("ZIP 320"));
+        assert_eq!(payee_address("t1nope").unwrap_err(), "not a Zcash address");
+    }
+
+    /// The key packages of a real DKG give each seat its own ZIP 48 key, and the three seats
+    /// make the same group address.
+    #[test]
+    fn p2sh_keys_come_from_real_key_packages() {
+        let (results, _) = run_dkg(false);
+        let packages: Vec<String> = results.iter().map(|r| r["key_package"].to_string()).collect();
+        let keys: Vec<String> =
+            packages.iter().map(|p| p2sh::p2sh_key(p, "mainnet").unwrap()).collect();
+        let unique: std::collections::HashSet<&String> = keys.iter().collect();
+        assert_eq!(unique.len(), 3, "one key per seat");
+        let address = |p: &String| v(&p2sh::p2sh_address(2, &keys, p, "mainnet").unwrap());
+        let first = address(&packages[0]);
+        assert!(first["address"].as_str().unwrap().starts_with("t3"));
+        assert!(packages[1..].iter().all(|p| address(p) == first));
     }
 
     /// The same for a Sapling output: its value would also look like a higher fee.
@@ -2084,5 +2297,244 @@ mod tests {
         for other in [("x", "confirm/1", 1), ("w", "confirm/2", 1), ("w", "confirm/1", 2)] {
             assert_ne!(base, doc_payload(other.0, other.1, other.2, r#"{"n":"1"}"#).unwrap());
         }
+    }
+
+    // ──────────────── The sweep of the group transparent address ────────────────
+
+    /// The key packages and the testnet ZIP 48 keys of a group of three seats.
+    fn sweep_seats() -> (Vec<String>, Vec<String>) {
+        let packages: Vec<String> = (1..=3u8)
+            .map(|s| json!({"signing_share": hex::encode([s; 32]),
+                "verifying_key": hex::encode([9u8; 32])}).to_string())
+            .collect();
+        let keys = packages.iter().map(|p| p2sh::p2sh_key(p, "testnet").unwrap()).collect();
+        (packages, keys)
+    }
+
+    /// The group with threshold `t` as seat `seat` (1 to 3) sees it.
+    fn sweep_group(t: u32, seat: usize) -> p2sh::Group {
+        let (packages, keys) = sweep_seats();
+        p2sh::Group { t, keys, key_package: packages[seat - 1].clone() }
+    }
+
+    fn sweep_script() -> (TransparentAddress, zcash_script::script::Redeem) {
+        sweep_group(2, 1).script(&Network::TestNetwork).unwrap()
+    }
+
+    /// Payments of `values` to the group address, as `transparentUtxos` lists them.
+    fn sweep_coins(values: &[u64]) -> Vec<p2sh::Coin> {
+        let list: Vec<Value> = values.iter().enumerate()
+            .map(|(i, v)| json!({"txid": hex::encode([i as u8 + 1; 32]), "index": i, "value": v,
+                "height": 9_000_000}))
+            .collect();
+        serde_json::from_value(Value::Array(list)).unwrap()
+    }
+
+    /// A sweep of `values` of the 2-of-3 group of `sweep_seats` to the wallet `fvk`.
+    fn sweep_of(fvk: &FullViewingKey, values: &[u64]) -> R<(String, u64, u64, usize)> {
+        let (_, anchor) = incoming_notes(fvk, &[1], true)?;
+        let coins = sweep_coins(values);
+        let script = sweep_script();
+        let (p, value, fee, n) =
+            p2sh::build_sweep(regtest(true), &group_terms(1), (fvk, anchor), &coins, &script)?;
+        Ok((pczt_to_b64(p)?, value, fee, n))
+    }
+
+    type Spends = Vec<(orchard::Note, orchard::tree::MerklePath)>;
+
+    /// A sweep of `coins` group payments of 1,000,000 zat each that the test builds by hand: `pay`
+    /// adds the outputs, with a note of 50,000 zat of the wallet that it may spend, and `rule` is
+    /// the fee rule.
+    fn forged_sweep(
+        fvk: &FullViewingKey,
+        rule: &zip317::FeeRule,
+        coins: u8,
+        pay: impl FnOnce(&mut Builder<LocalNetwork, ()>, Spends),
+    ) -> String {
+        let (address, redeem) = sweep_script();
+        let (spends, anchor) = incoming_notes(fvk, &[50_000], true).unwrap();
+        let terms = group_terms(1);
+        let mut b = Builder::new(regtest(true), terms.target, BuildConfig::Standard {
+            sapling_anchor: None,
+            orchard_anchor: None,
+            ironwood_anchor: Some(anchor),
+            orchard_padding: BundlePadding::DEFAULT,
+            ironwood_padding: BundlePadding::DEFAULT,
+        })
+        .with_expiry_height(terms.expiry.unwrap());
+        for i in 0..coins {
+            let coin = zcash_transparent::bundle::TxOut::new(
+                Zatoshis::const_from_u64(1_000_000), address.script().into());
+            let at = zcash_transparent::bundle::OutPoint::new([i + 1; 32], 0);
+            b.add_transparent_p2sh_input(redeem.clone().weaken(), at, coin).unwrap();
+        }
+        pay(&mut b, spends);
+        let PcztResult { pczt_parts, .. } = b.build_for_pczt(rng(), rule).unwrap();
+        let pczt = Creator::build_from_parts(pczt_parts).unwrap();
+        pczt_to_b64(IoFinalizer::new(pczt).finalize_io(rng()).unwrap()).unwrap()
+    }
+
+    /// Runs the script of each input of the raw transaction `raw` with the interpreter of the
+    /// network. `unsigned` is its PCZT before the signatures and `values` the value of each input.
+    fn scripts_verify(unsigned: &str, raw: &[u8], values: &[u64]) {
+        use zcash_protocol::consensus::BranchId;
+        use zcash_script::{interpreter, script, signature::SignedOutputs};
+        use zcash_transparent::{address::Script, sighash::SighashType};
+        let branch = BranchId::for_height(&regtest(true), BlockHeight::from_u32(TIP + 1));
+        let tx = Transaction::read(raw, branch).unwrap();
+        let effects = pczt_from_b64(unsigned).unwrap().into_effects().unwrap();
+        let pre = PrecomputedSighashData::new_zip244(effects).unwrap();
+        let bundle = tx.transparent_bundle().unwrap();
+        let (address, redeem) = sweep_script();
+        let spk: Script = address.script().into();
+        let estimate = p2sh::input_size(&redeem).unwrap();
+        assert_eq!(bundle.vin.len(), values.len());
+        for (i, txin) in bundle.vin.iter().enumerate() {
+            let value = Zatoshis::const_from_u64(values[i]);
+            let sighasher = |code: &script::Code, kind: &zcash_script::signature::HashType| {
+                let all =
+                    matches!(kind.signed_outputs(), SignedOutputs::All) && !kind.anyone_can_pay();
+                let script_code = Script(code.clone());
+                let input = zcash_transparent::sighash::SignableInput::from_parts(
+                    bundle, SighashType::ALL, i, &script_code, &spk, value).ok()?;
+                let hash = pre.signature_hash(&SignableInput::Transparent(input));
+                all.then(|| hash.as_ref().to_owned())
+            };
+            let checker = interpreter::CallbackTransactionSignatureChecker {
+                sighash: &sighasher,
+                lock_time: tx.lock_time().into(),
+                is_final: txin.sequence() == 0xFFFF_FFFF,
+            };
+            let run = script::Raw::from_raw_parts(txin.script_sig().0.to_bytes(),
+                address.script().to_bytes());
+            assert_eq!(run.eval(interpreter::Flags::all(), &checker), Ok(true), "input {i}");
+            let mut bytes = vec![];
+            txin.write(&mut bytes).unwrap();
+            assert!(bytes.len() <= estimate, "input {i}: {} bytes, the fee pays {estimate}",
+                bytes.len());
+        }
+    }
+
+    #[test]
+    fn p2sh_sweep_moves_the_group_payments_to_the_wallet() {
+        let fvk = FullViewingKey::from(&random_sk());
+        let fvk_hex = hex::encode(fvk.to_bytes());
+        // A payment of 1,000 zat adds more fee than value: it stays behind.
+        let (pczt, value, fee, n) = sweep_of(&fvk, &[500_000, 1_000_000, 1_000]).unwrap();
+        assert_eq!((n, fee, value), (2, 30_000, 1_470_000));
+        let check =
+            v(&p2sh::sweep_check(&pczt, &sweep_group(2, 2), &fvk_hex, "testnet").unwrap());
+        assert_eq!(check["inputs"], 2);
+        assert_eq!((&check["total"], &check["value"], &check["fee"]),
+            (&json!(1_500_000), &json!(1_470_000), &json!(30_000)));
+        assert_eq!(check["expiry_height"], u32::from(group_terms(1).expiry.unwrap()));
+        let signs = |seat: usize| {
+            v(&p2sh::sweep_sign(&pczt, &sweep_group(2, seat), &fvk_hex, "testnet", TIP).unwrap())
+        };
+        let (first, third) = (signs(1), signs(3));
+        assert_eq!(first["signatures"].as_array().unwrap().len(), 2);
+        assert_eq!(first["digest"], check["digest"], "the approval names the checked move");
+        // Bad sets fail before the proof: signatures on the wrong inputs, another sighash type, one
+        // seat alone, and one seat twice.
+        let mut turned = first.clone();
+        turned["signatures"].as_array_mut().unwrap().reverse();
+        let mut weak = first.clone();
+        let sig = weak["signatures"][0].as_str().unwrap().to_string();
+        weak["signatures"][0] = json!(format!("{}02", &sig[..sig.len() - 2]));
+        let finish = |sets: Value| p2sh::sweep_finish(&pczt, &sets.to_string(), 2);
+        let err = finish(json!([turned, weak, third])).unwrap_err();
+        assert!(err.starts_with("1 of the 2 signature sets"), "{err}");
+        assert!(err.contains("on input 0 does not verify"), "{err}");
+        assert!(err.contains("signs less than the whole transaction"), "{err}");
+        let upper = json!({"key": first["key"].as_str().unwrap().to_uppercase(),
+            "signatures": first["signatures"]});
+        for twice in [json!([first, first]), json!([first, upper])] {
+            let err = finish(twice).unwrap_err();
+            assert!(err.starts_with("1 of the 2 signature sets"), "{err}");
+            assert!(err.contains("signed twice"), "{err}");
+        }
+        // A seat that sends bad signatures, or copies the key of another, does not block the move.
+        let copied = json!({"key": third["key"], "signatures": first["signatures"]});
+        let out = v(&finish(json!([turned, copied, first, upper, third])).unwrap());
+        assert_eq!(out["txid"], check["txid"]);
+        let raw = hex::decode(out["tx_hex"].as_str().unwrap()).unwrap();
+        scripts_verify(&pczt, &raw, &[1_000_000, 500_000]);
+        // Another move has another digest, and a move that carries signatures gets no check.
+        let (other, ..) = sweep_of(&fvk, &[500_000, 1_000_000]).unwrap();
+        let other = v(&p2sh::sweep_check(&other, &sweep_group(2, 2), &fvk_hex, "testnet").unwrap());
+        assert_ne!(other["digest"], check["digest"]);
+        let mut signer = pczt::roles::signer::Signer::new(pczt_from_b64(&pczt).unwrap()).unwrap();
+        p2sh::append_set(&mut signer, &first, 2).unwrap();
+        let signed = pczt_to_b64(signer.finish()).unwrap();
+        let err = p2sh::sweep_check(&signed, &sweep_group(2, 2), &fvk_hex, "testnet").unwrap_err();
+        assert!(err.contains("carries signatures already"), "{err}");
+    }
+
+    #[test]
+    fn p2sh_sweep_refuses_another_move() {
+        let fvk = FullViewingKey::from(&random_sk());
+        let fvk_hex = hex::encode(fvk.to_bytes());
+        let check = |pczt: &str| p2sh::sweep_check(pczt, &sweep_group(2, 1), &fvk_hex, "testnet");
+        let refused = |pczt: &str, why: &str| {
+            let err = check(pczt).unwrap_err();
+            assert!(err.contains(why), "{why}: {err}");
+        };
+        let err = sweep_of(&fvk, &[1_000, 5_000]).unwrap_err();
+        assert!(err.contains("no payment worth more than the fee"), "{err}");
+        let standard = zip317::FeeRule::standard();
+        let ovk = Some(fvk.to_ovk(Scope::External));
+        let mine = fvk.address_at(0u32, Scope::External);
+        let z = Zatoshis::const_from_u64;
+        let to_me = |b: &mut Builder<LocalNetwork, ()>, value: u64| {
+            let memo = MemoBytes::empty();
+            b.add_ironwood_output::<zip317::FeeRule>(ovk.clone(), mine, z(value), memo).unwrap();
+        };
+        let stranger = FullViewingKey::from(&random_sk()).address_at(0u32, Scope::External);
+        let to_stranger = |b: &mut Builder<LocalNetwork, ()>, value: u64| {
+            let memo = MemoBytes::empty();
+            b.add_ironwood_output::<zip317::FeeRule>(None, stranger, z(value), memo).unwrap();
+        };
+        let honest = forged_sweep(&fvk, &standard, 1, |b, _| to_me(b, 980_000));
+        assert_eq!(v(&check(&honest).unwrap())["fee"], 20_000);
+        let to_both = forged_sweep(&fvk, &standard, 1, |b, _| {
+            to_me(b, 490_000);
+            to_stranger(b, 490_000);
+        });
+        refused(&to_both, "pays another address than this wallet");
+        let t1 = TransparentAddress::PublicKeyHash([7; 20]);
+        let out_too = forged_sweep(&fvk, &standard, 1, |b, _| {
+            to_me(b, 970_000);
+            b.add_transparent_output(&t1, z(10_000)).unwrap();
+        });
+        refused(&out_too, "no transparent output");
+        // Two outputs of zero value pad the move to 3 actions and raise the fee by 5,000 zat.
+        let padded = forged_sweep(&fvk, &standard, 1, |b, _| {
+            to_me(b, 975_000);
+            to_stranger(b, 0);
+            to_stranger(b, 0);
+        });
+        refused(&padded, "a move has 2 shielded actions, not 3");
+        let size = p2sh::input_size(&sweep_script().1).unwrap();
+        let fee = p2sh::sweep_fee(51, size, 2).unwrap();
+        let wide = forged_sweep(&fvk, &standard, 51, |b, _| to_me(b, 51_000_000 - fee));
+        refused(&wide, "a move spends at most 50 payments, not 51");
+        let spends = forged_sweep(&fvk, &standard, 1, |b, mut notes| {
+            let (note, path) = notes.remove(0);
+            b.add_ironwood_spend::<zip317::FeeRule>(fvk.clone(), note, path).unwrap();
+            to_me(b, 1_030_000);
+        });
+        refused(&spends, "spends a note");
+        let rule = |marginal| zip317::FeeRule::non_standard(z(marginal), zip317::GRACE_ACTIONS,
+            zip317::P2PKH_STANDARD_INPUT_SIZE, zip317::P2PKH_STANDARD_OUTPUT_SIZE).unwrap();
+        let dear = forged_sweep(&fvk, &rule(5_001), 1, |b, _| to_me(b, 979_996));
+        refused(&dear, "a fee of 20004 zat, not the ZIP 317 fee of 20000 zat");
+        let cheap = forged_sweep(&fvk, &rule(4_999), 1, |b, _| to_me(b, 980_004));
+        refused(&cheap, "a fee of 19996 zat, not the ZIP 317 fee of 20000 zat");
+        let other = p2sh::sweep_check(&honest, &sweep_group(3, 1), &fvk_hex, "testnet");
+        assert!(other.unwrap_err().contains("another address than the group address"));
+        let late = u32::from(group_terms(1).expiry.unwrap());
+        let err = p2sh::sweep_sign(&honest, &sweep_group(2, 1), &fvk_hex, "testnet", late)
+            .unwrap_err();
+        assert!(err.contains("expired"), "{err}");
     }
 }

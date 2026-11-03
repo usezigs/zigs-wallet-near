@@ -1480,6 +1480,8 @@ final class GroupModel {
     }
 
     func normalized(_ address: String) -> String? { try? Engine.call("normalizeAddress", [address]) }
+    /// The canonical form of a payee: a shielded address or a P2PKH or P2SH transparent address.
+    func payeeNormalized(_ address: String) -> String? { try? Engine.call("payeeAddress", [address]) }
 
     func pendingApprovals(_ ss: Session) -> [Int] {
         guard let gid, !has(ss.doc["package"]), !has(ss.doc["error"]) else { return [] }

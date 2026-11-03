@@ -192,6 +192,15 @@ export const proposer = (ss) => Number.isInteger(ss.by)
   : isMe(ss.createdBy) ? "you" : seatNameOf(ss.createdBy);
 export function normalized(addr) { try { return Z.normalizeAddress(addr); } catch { return null; } }
 export const onNetwork = (addr) => (normalized(addr) || "").startsWith(curNet().prefix);
+// A payee is a shielded address or a P2PKH or P2SH transparent address (the engine's payeeAddress).
+export function payeeNormalized(addr) {
+  try { return Z.payeeAddress(addr); } catch { return null; }
+}
+export const transparentOnNetwork = (addr) => {
+  const a = payeeNormalized(addr) || "";
+  return curNet().tPrefixes.some((p) => a.startsWith(p));
+};
+export const payeeOnNetwork = (addr) => onNetwork(addr) || transparentOnNetwork(addr);
 
 export const unreadChip = (u) => u ? el("span", { class: "side-unread", role: "img", title: u + " unread",
   "aria-label": u + " unread" }, String(u)) : null;

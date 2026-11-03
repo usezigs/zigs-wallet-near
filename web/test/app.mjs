@@ -896,6 +896,15 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
     const { [ma.id]: _ma, ...marksA } = t.sec(gid, 3).marks;
     await seedSec(gid, 3, { nonces: noncesA, marks: marksA });
     await drop(pathOf(ma));
+    // A note that names a swap, on a payment to a transparent address, that is not the note of
+    // the Swap page gets no approval (checkSwap in app-swap-zec.js).
+    const sw = await propose("sw", 4);
+    const swapLike = { ...liveOf(sw), note: "ZEC to SOL swap through NEAR Intents",
+      payees: [{ to: "t1Hsc1LR8yKnbbe3twRp88p6vFfC5t7DLbs", amount: 4 }] };
+    assert.match(await t.approve(swapLike, 3).then(() => "approved", (e) => e.message),
+      /it is not the note of the Swap page/);
+    assert.equal(data.has(pathOf(sw) + "/commits/3"), false, "no approval went out");
+    await drop(pathOf(sw));
     // A locked step with a damaged or a missing record keeps this tab's copy, and its save writes
     // that copy again.
     for (const bad of ["not json", null]) {
@@ -2458,7 +2467,9 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
         PH: { ...tx("hh", "tx-h"), fee: 20000 },
         PE: { ...tx("ee", "tx-e"), expiry_height: 4400000 },
         PF: { ...tx("ff", "tx-f"), expiry_height: 4999999 },
-        PG: { ...tx("aa", "tx-a"), expiry_height: 4503556 } };
+        PG: { ...tx("aa", "tx-a"), expiry_height: 4503556 },
+        PT: { ...tx("tt", "tx-t"), lines: [{ kind: "output", pool: "Transparent",
+          who: "tmEZhbWHTpdKMw5it8YDspUXSMGQyFwovpU", value: 5, memo_status: "empty" }] } };
       const asked = [];
       let answer = () => ({ state: "unknown", txid: null, why: "no transaction" });
       const S = JSON.stringify;
@@ -2479,7 +2490,7 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
         return c;
       };
       t.setZ({ ...fakeZ, latestHeight: async () => 4500001, normalizeAddress: (a) => a,
-        inspect: (p) => { if (!decodes[p]) throw new Error("unreadable"); return S(decodes[p]); },
+        payeeAddress: (a) => a, inspect: (p) => { if (!decodes[p]) throw new Error("unreadable"); return S(decodes[p]); },
         signCommit: () => S({ nonces: ["n"], commitments: ["c"] }) });
       const [me, other, third] = t.localSeats();
       const markOf = (seat, sid) => (t.sec(t.state.gid, seat).marks || {})[sid];
@@ -2688,7 +2699,7 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
       release();
       await assert.rejects(waiting, /signing of this payment started before/);
       const z8 = { ...fakeZ, latestHeight: async () => 4500001, normalizeAddress: (a) => a,
-        inspect: (p) => { if (!decodes[p]) throw new Error("unreadable"); return S(decodes[p]); },
+        payeeAddress: (a) => a, inspect: (p) => { if (!decodes[p]) throw new Error("unreadable"); return S(decodes[p]); },
         signCommit: () => S({ nonces: ["n"], commitments: ["c"] }) };
       t.setZ(z8);
 
@@ -3005,6 +3016,21 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
           (x) => x.attrs?.["data-review"]).map((x) => x.attrs["data-review"]);
         assert.deepEqual(reviewOrder.slice(0, 3), ["warnings", "context", "amount"],
           "an expired payment explains the block before its wallet context and amount");
+        // A payment to a transparent address says whether this device checks it as a swap.
+        const { swapNote } = await import("../app-swap-zec.js");
+        const { NOT_CHECKED, SWAP_CHECKED } = await import("../app-drawer.js");
+        const tNote = (note) => textOf(all(t.sessionLayer({ ...open("ht1", "PT"), note }),
+          (x) => x.attrs?.["data-review"] === "transparent")[0] ?? { children: [] });
+        assert.equal(tNote("ZEC to SOL swap through NEAR Intents"), NOT_CHECKED);
+        assert.equal(tNote(swapNote("2030-01-01T00:00:00.000Z")), SWAP_CHECKED);
+        const deposit = { ...open("ht1", "PT"), note: swapNote("2030-01-02T00:00:00.000Z"),
+          payees: [{ to: "t1Hsc1LR8yKnbbe3twRp88p6vFfC5t7DLbs", amount: 200000 }] };
+        const swapText = textOf(all(t.sessionLayer(deposit),
+          (x) => x.attrs?.["data-review"] === "swap")[0] ?? { children: [] });
+        assert.match(swapText, /^This payment pays 0\.002 ZEC to the deposit address t1Hsc1LR8/,
+          "the review of a swap names the deposit, the amount and the quote");
+        assert.equal(all(t.sessionLayer(open("hd2", "PA")),
+          (x) => x.attrs?.["data-review"] === "transparent").length, 0, "no transparent payee");
         assert.match(oldOne.head, /^Payment expiredNo device can send it now\./,
           "headline: an expired proposal ends");
         assert.deepEqual(oldOne.now, [], "an expired payment has no step that waits");
@@ -4267,7 +4293,8 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
       const znsDown = () => new Response("down", { status: 503 });
       const ZNS_DOWN = "The ZNS registry cannot be read. Try again.";
       const zStub = (normalizeAddress = (a) => a) => ({ ...fakeZ, latestHeight: async () => 4500001,
-        normalizeAddress, signCommit: () => S({ nonces: ["n"], commitments: ["c"] }),
+        normalizeAddress, payeeAddress: normalizeAddress,
+        signCommit: () => S({ nonces: ["n"], commitments: ["c"] }),
         inspect: (p) => {
           if (!decodes[p]) throw new Error("unreadable");
           return S(decodes[p]);
@@ -4394,9 +4421,15 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
           "the address of this wallet reads as refused");
         assert.equal(boxOf(form).attrs["aria-invalid"], "true",
           "the address of this wallet marks the field as invalid, as Review refuses it");
+        // Send pays a transparent address of this network, and says that the chain shows it.
         const tAddress = "tmBsTi2xWTjUdEXnuTceL7fecEQKeWaPDJd";
-        assert.deepEqual(shows(typeIn(form, tAddress)),
-          ["Not a shielded Zcash testnet address. It starts with utest1.", "hint bad"]);
+        assert.deepEqual(shows(typeIn(form, tAddress)), ["Valid transparent testnet address. The "
+          + "chain shows this address and the amount to everyone, and it takes no memo.",
+        "hint ok"]);
+        assert.equal(boxOf(form).attrs["aria-invalid"], "false");
+        const mainT = "t1Hsc1LR8yKnbbe3twRp88p6vFfC5t7DLbs";
+        const NOT_TESTNET = "Not a Zcash testnet address. A shielded address starts with utest1.";
+        assert.deepEqual(shows(typeIn(form, mainT)), [NOT_TESTNET, "hint bad"]);
         assert.equal(boxOf(form).attrs["aria-invalid"], "true",
           "a red hint marks the recipient field as invalid");
         assert.equal(typeIn(form, "tex1" + "q".repeat(30)).className, "hint bad");
@@ -4406,8 +4439,10 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
         await quiet(() => sleep(20));
         assert.deepEqual([gets, fetches], [0, 0],
           "no address, request or t-address asks the registry");
-        await refused(rowsOf([tAddress]), "Enter a shielded Zcash testnet address. It starts with "
-          + "utest1.");
+        await refused(rowsOf([mainT]), "Enter a Zcash testnet address. A shielded address starts "
+          + "with utest1.");
+        await refused(rowsOf([tAddress, "0.5", "rent"]), "A transparent address cannot receive a "
+          + "memo. Remove the memo.");
         assert.deepEqual([gets, fetches], [0, 0], "the submit asks no registry either");
 
         // A late answer does not overwrite the hint of newer text.
@@ -4991,9 +5026,9 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
           ["Zcash Mainnet"], "the badge names the network of the open wallet");
         assert.match(textOf(form), /One address and amount per line, then an optional memo/);
         assert.deepEqual(shows(typeIn(form, "alice.zec")),
-          ["Not a shielded Zcash mainnet address. It starts with u1.", "hint bad"]);
-        await refused(rowsOf(["alice.zec"]), "Enter a shielded Zcash mainnet address. It starts "
-          + "with u1.");
+          ["Not a Zcash mainnet address. A shielded address starts with u1.", "hint bad"]);
+        await refused(rowsOf(["alice.zec"]), "Enter a Zcash mainnet address. A shielded address "
+          + "starts with u1.");
         assert.deepEqual([gets, fetches], [0, 0], "a mainnet wallet makes no lookup");
         // "Propose again" on a mainnet wallet keeps no name: no name text in the hint, and the
         // payee is {to, amount}.

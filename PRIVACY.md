@@ -44,8 +44,10 @@ is a bug: please report it.
   Worker asks for each quote. It sends the pair, the amount and the slippage, with sample addresses
   and no address of yours. NEAR Intents sees the Worker and not your IP address. A server with
   live swaps (staging only) also runs a real swap from SOL to ZEC: it sends the amount, the ZEC
-  address of the wallet and your refund address. Read [Swap quotes](#swap-quotes-near-intents)
-  and [Live swap from SOL to ZEC](#live-swap-from-sol-to-zec-staging-only).
+  address of the wallet and your refund address. It also runs a real swap from ZEC to SOL, which
+  a public payment of the wallet pays. Read [Swap quotes](#swap-quotes-near-intents),
+  [Live swap from SOL to ZEC](#live-swap-from-sol-to-zec-staging-only) and
+  [Live swap from ZEC to SOL](#live-swap-from-zec-to-sol-staging-only).
 - The Overview of a mainnet wallet (web app only) shows a USD total. It asks for the price of a
   fixed 1 ZEC from NEAR Intents, through the same route, about every 5 minutes while it shows, and
   at most once a minute after a failed call. The call holds no balance and no address. NEAR
@@ -71,7 +73,7 @@ property:
 | Anchor | Target height − 3 (3 confirmations) | Same (`ConfirmationsPolicy` trusted = 3) |
 | Change | One note to the wallet's internal address | Same |
 | Memos | Empty unless a signer writes one for a recipient | Empty unless the user writes one |
-| Transparent parts | None | None for a shielded payment |
+| Transparent parts | None for a shielded payment. A payment to a transparent address has one transparent output for it, and no transparent input | Same |
 | Several recipients | One output per recipient, plus change | Same for a multi-recipient payment (ZIP 321) |
 
 The code is `build_ironwood_pczt` and `spend_pczt` in `wasm/src`.
@@ -85,6 +87,29 @@ pay one. Messages of the personal account keep the expiry and the fee of the sta
 The number of actions is visible on chain, as for every Zcash transaction: it is the larger of
 the inputs and the outputs, at least 2. A payment to 4 recipients has at least 5 actions, so it
 shows that it is a larger payment, but not who or how much.
+
+A payment to a transparent address (`t1` or `t3`, on testnet `tm` or `t2`) is public in part. The
+chain shows that address and its amount to everyone, and the output takes no memo. The spent notes,
+the change and the shielded recipients stay shielded. Send says this under the address. Zigs pays
+no TEX address (ZIP 320): a TEX address takes funds from transparent addresses only, and Zigs
+pays from the shielded pool. A transparent output adds one action to the ZIP 317 fee.
+
+A version 3 wallet also has a transparent address of the group (`t3`, on testnet `t2`): a P2SH
+multisig address (ZIP 48) that needs the signatures of t of the n devices. Each device derives
+its secp256k1 key from its own key share and publishes the public key as a signed document, so
+the group server sees that the wallet has such keys, but not the keys: the documents are
+encrypted like the others. This address is public. The chain shows its balance and every payment
+to it to everyone, and all payments to it link to one another. A swap from ZEC sends its refund
+there. Receive shows it below the shielded address and says that it is public.
+
+Zigs moves the funds of this address to the shielded address of the wallet when t devices approve
+(`web/app-sweep.js`). The move is a public transaction. The chain shows the payments that it
+spends, their sum, the fee, and the amount that goes into the shielded pool. The shielded
+recipient stays hidden, but everyone can see that these funds became shielded at that time. One
+move spends at most 50 payments. A payment that is worth less than the fee of its own bytes stays
+behind, so dust that anyone can send to the public address does not raise the fee. Each device
+checks the move with its own engine before it signs: it pays only this wallet, and only the ZIP
+317 fee.
 
 ## Group server (Cloudflare Worker and Durable Objects)
 
@@ -154,6 +179,13 @@ The app downloads compact blocks and finds the wallet's notes on the device. The
   does not apply. The server also sees the transaction that carries each message that the account
   sends, and the moment it is sent. The server does not see the text of any message, because the
   text is encrypted for the recipient.
+- the transparent address of the group (`GetAddressUtxos`), with your IP address, the first time
+  Receive shows it after the wallet opens. On mainnet, the page asks ChainSafe's server
+  (`zcash-mainnet.chainsafe.dev`) directly, so ChainSafe sees the address with your IP address.
+  On testnet, the Zigs server sees the app Worker, and the ChainSafe backup
+  (`zcash-testnet.chainsafe.dev`) sees your IP address. The page asks for that one address and
+  reads at most 100 of its unspent outputs. So the server can link this IP address to the group's
+  transparent address and to its balance.
 
 While it serves blocks, it does not learn which notes or outputs are yours: every wallet
 downloads the same blocks. The fetch for a memo is the exception. The app asks for a transaction
@@ -287,8 +319,9 @@ What the app trusts, and what it checks:
 **Status:** live quotes. The Swap page of the web app shows prices from NEAR Intents (the 1Click
 API). The Overview of a mainnet wallet also uses one such quote, of a fixed 1 ZEC, to show a USD
 total. A quote moves no funds and makes no deposit address. A server with live swaps (the var
-`NEAR_LIVE`, on staging only) also runs a real swap from SOL to ZEC: read
-[Live swap from SOL to ZEC](#live-swap-from-sol-to-zec-staging-only).
+`NEAR_LIVE`, on staging only) also runs real swaps: read
+[Live swap from SOL to ZEC](#live-swap-from-sol-to-zec-staging-only) and
+[Live swap from ZEC to SOL](#live-swap-from-zec-to-sol-staging-only).
 
 How a quote works:
 
@@ -327,7 +360,7 @@ What stays visible:
 - The Swap page clears a quote older than 60 seconds. It asks for a new quote only after
   an action of yours: when you type, change the pair or the slippage, press **Refresh quote**, or
   leave the simulation with **Back to swap**.
-- A real swap from ZEC would leave the shielded pool. NEAR Intents takes ZEC only at a transparent
+- A real swap from ZEC leaves the shielded pool. NEAR Intents takes ZEC only at a transparent
   deposit address, which is public. NEAR Intents accepts a shielded address as the recipient of a
   swap to ZEC, but no real swap has tested this. The page says this next to the quote.
 - The basis of the shielded claim: a live dry quote accepted an Orchard-only unified address as
@@ -387,6 +420,50 @@ What stays visible:
 - NEAR Intents links your Solana address to the ZEC address of the wallet.
 - A failed swap sends the SOL back to the refund address after the deadline. NEAR Intents has no
   duty to refund a deposit that it cannot process (its terms).
+
+## Live swap from ZEC to SOL (staging only)
+
+**Status:** built for staging.zigs.app, behind `NEAR_LIVE`. No real swap from ZEC has run yet. A
+mainnet wallet pays ZEC with a group payment to a deposit address of NEAR Intents. NEAR Intents
+pays SOL to the plain Solana address of the same wallet. A refund goes to the transparent address
+of the group (`t3`). The devices of the wallet move a refund from there to the shielded address
+(see the transparent address of the group above).
+
+How a live swap from ZEC works:
+
+- The page needs the plain Solana address of the wallet and its transparent address. It posts the
+  amount, the slippage and these two addresses to `/near/swap-zec` of the app Worker. Nobody
+  types an address.
+- The Worker asks for a live quote from ZEC to SOL with a deadline 6 hours later, and checks the
+  answer as for a swap from SOL. The deposit address must be a transparent address with no memo,
+  and at least 4 hours must be left.
+- **Propose the payment** opens Send with the deposit address, the exact amount and a note that
+  marks the payment as this swap. The person proposes it as any other payment.
+- Each device that approves the payment reads `/near/status` for the deposit address. The Worker
+  now also passes the swap of that address: the assets, the two addresses, the amount in, the
+  quoted amount out and the deadline. The review of the payment shows the deposit address, the ZEC
+  amount, and the SOL amount and the Solana address of the quote. The device approves only when
+  NEAR Intents waits for a deposit of the exact amount, for a swap from ZEC to SOL that pays the
+  Solana address of this wallet, refunds to its transparent address and ends at the deadline in
+  the note, with 30 minutes left. This check trusts the Worker and NEAR Intents. It does not check
+  the signature of the quote.
+- No device sends the payment in the last 30 minutes before the deadline: a late deposit can be
+  lost.
+
+| Party | What it learns |
+|---|---|
+| NEAR Intents (`1click.chaindefuser.com`) | The amount, the Solana address and the transparent address of the wallet, linked to the deposit address. Each device that opens the review of the payment, and each device that approves it, makes it read the swap again. It sees the Worker, not your IP address |
+| App Worker | The IP address of each device that opens or checks the swap, the amount and both addresses. It keeps no log. The same Worker runs the group server, so its operator can link a check of a swap to the group socket of that device |
+| Zcash observers | The payment to the deposit address and its amount: a transparent output. The spent notes and the change stay shielded |
+| Solana observers | The payout to the Solana address of the wallet |
+| Group server | The payment, as for any payment. Its note says that it is a swap from ZEC to SOL, and the note is encrypted like the rest |
+
+What stays visible:
+
+- NEAR Intents links the transparent address of the group to its Solana address. The status of a
+  swap names both addresses to anyone who knows the deposit address.
+- A refund lands at the transparent address, where the chain shows it to everyone. The move to
+  the shielded address is public too (see the transparent address of the group above).
 
 ## Solana beta (Helius Devnet)
 
@@ -791,8 +868,9 @@ the passkey guards the key share instead. The lock is opt-in.
 - A compromised device can sign with its own share, and can show its user false information.
   Each approving device decodes the transaction itself. It ties every output that carries value
   to the recipient it shows, checks that the outputs are exactly the listed recipients and
-  amounts, and refuses a transaction with a transparent or Sapling part, or a fee below the
-  standard fee or above 10 times it. The web, iPhone and Mac apps also check the memo of each
+  amounts, and refuses a transaction with a transparent input, a transparent output that is not
+  P2PKH or P2SH, a Sapling part, or a fee below the standard fee or above 10 times it. A
+  transparent output shows as a recipient with the address of its script. The web, iPhone and Mac apps also check the memo of each
   recipient. Each approval is tied
   to the transaction's sighash. The device signs later only if the transaction is still the one
   it approved. Otherwise it marks the payment failed. So one honest signer sees the true

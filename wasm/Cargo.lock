@@ -2942,6 +2942,7 @@ dependencies = [
  "rand_core 0.10.1",
  "redjubjub",
  "sapling-crypto",
+ "secp256k1",
  "sha2 0.10.8",
  "zcash_encoding",
  "zcash_note_encryption",
@@ -3078,6 +3079,7 @@ dependencies = [
  "rand_core 0.10.1",
  "rand_core 0.6.4",
  "reddsa 0.5.1",
+ "secp256k1",
  "serde",
  "serde_json",
  "shardtree",
@@ -3091,6 +3093,9 @@ dependencies = [
  "zcash_note_encryption",
  "zcash_primitives",
  "zcash_protocol",
+ "zcash_script",
+ "zcash_transparent",
+ "zip32",
  "zip321",
 ]
 
