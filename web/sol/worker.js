@@ -8,10 +8,9 @@ import * as sdk from "/sol/zolana.bundle.js";
 import { checkCommand, makeRedactor } from "/sol/guard.js";
 import {
   POOL_CHANGED,
-  POOL_SLOT,
-  PROVE_PATH,
   isKeyFetch,
   localProver,
+  pinnedSlot,
   poolSlot,
   proverText,
   testProof,
@@ -40,6 +39,9 @@ const U64_MAX = 0xffff_ffff_ffff_ffffn;
 const CONFIRM_MS = 45_000;
 // The loopback URL that the SDK client takes as prover. It is never fetched over the network.
 const PROVER_URL = "http://127.0.0.1:3001";
+// A path of the Helius origin with a segment that starts with "prove": the gateway's /v1/spr/prove
+// and any other spelling of a prove route. The SDK never posts there (its prover URL is loopback).
+const PROVE_SEGMENT = /(^|\/)prove/;
 
 const redact = makeRedactor();
 let session = null;
@@ -56,8 +58,8 @@ function need() {
 /**
  * All SDK traffic goes through here: one origin only, and GET of a pinned key file of the local
  * prover. Every call checks its own URL and fetches the URL that it checked. A redirect is an
- * error, so no second URL is ever fetched without a check. Once this Worker proved on the device,
- * no request to the prove path of Helius passes: the switch of the group is one-way.
+ * error, so no second URL is ever fetched without a check. No request to the prove path of Helius
+ * passes, and no request to the loopback prover URL: proofs are made on this device only.
  */
 export function guardedFetch(origin, s) {
   return async (input, init) => {
@@ -80,8 +82,8 @@ export function guardedFetch(origin, s) {
 function passes(origin, s, url, init) {
   const ours = url.origin === origin;
   if (!ours && !isKeyFetch(url, init)) throw new Error(`blocked a request to ${url.host}`);
-  if (s.local && ours && url.pathname.startsWith(PROVE_PATH)) {
-    throw new Error("blocked a hosted proof: this group proves on its devices");
+  if (ours && PROVE_SEGMENT.test(url.pathname)) {
+    throw new Error("blocked a hosted proof: proofs are made on this device");
   }
   return ours;
 }
@@ -89,7 +91,9 @@ function passes(origin, s, url, init) {
 // The page answers each gate (client.js) with { mode: "local" }, { mode: "hosted" } or { refuse }.
 const GATE_MS = 30_000;
 const GATE_LATE = "The page did not say how this group proves, so nothing was proved. Try again.";
-const LATCHED = "This Worker proved in this browser before, so it does not use the hosted prover.";
+const HOSTED_OFF =
+  "Proofs are made on the devices of the group only. Run the test of this browser first, then " +
+  "pay again. Nothing was sent to Helius.";
 const gates = new Map();
 let gateIds = 0;
 
@@ -126,23 +130,24 @@ async function localFailure(s, reply) {
     .clone()
     .json()
     .catch(() => ({}));
-  const slot = await poolSlot(s.client.solanaRpc).catch(() => POOL_SLOT);
-  return slot === POOL_SLOT ? proverText(code) : POOL_CHANGED;
+  const slot = await poolSlot(s.client.solanaRpc).catch(() => s.poolSlot);
+  return slot === s.poolSlot ? proverText(code) : POOL_CHANGED;
 }
 
 /** The web prover answers the prove call on this device. Nothing of it reaches Helius. */
 async function proveHere(s, input, init) {
-  s.local = true;
   s.prover ??= localProver(s.proverUrl, s.guarded);
   const reply = await s.prover.createFetch()(input, init);
-  if (!reply.ok) proverFailure = await localFailure(s, reply);
+  // An SDK retry that works ends the text of an earlier refusal or failure.
+  proverFailure = reply.ok ? null : await localFailure(s, reply);
   return reply;
 }
 
 /**
- * The fetch of the SDK (SOL-4). A prove call keeps its body for prepare, then waits for the page:
- * with the switch of the group on, the web prover answers it here; off, the guarded fetch sends
- * it to the hosted prover; a refusal (the page could not read the switch) proves nothing.
+ * The fetch of the SDK (SOL-4). A prove call to the loopback prover URL keeps its body for
+ * prepare, then waits for the page: with the switch of the group on, the web prover answers it
+ * here; off, or when the page could not read the switch, nothing is proved. A call to any other
+ * origin never gets here: the guarded fetch refuses it.
  */
 function sdkFetch(s) {
   return async (input, init) => {
@@ -157,20 +162,17 @@ function sdkFetch(s) {
   };
 }
 
-// Every call to the prove path that can carry a body waits for the gate; GET and HEAD carry none.
+// A call to the /prove routes of the loopback prover URL that can carry a body waits for the
+// gate; GET and HEAD carry none. The SDK posts to /prove/<key>.
 const isProveCall = (s, url, input, init) =>
-  url.origin === s.origin &&
-  url.pathname.startsWith(PROVE_PATH) &&
+  url.origin === s.proverOrigin &&
+  (url.pathname === "/prove" || url.pathname.startsWith("/prove/")) &&
   !["GET", "HEAD"].includes(methodOf(input, init));
 
-/** The prove call as the page answered: here, at the hosted prover, or not at all. */
+/** The prove call as the page answered: here, or not at all (never hosted). */
 function route(s, answer, input, init) {
   if (answer.mode === "local") return proveHere(s, input, init);
-  if (answer.mode === "hosted" && !s.local) {
-    proverFailure = null; // an SDK retry that goes hosted ends any earlier "nothing was sent"
-    return s.guarded(input, init);
-  }
-  const why = answer.mode === "hosted" ? LATCHED : (answer.refuse ?? GATE_LATE);
+  const why = answer.mode === "hosted" ? HOSTED_OFF : (answer.refuse ?? GATE_LATE);
   proverFailure = String(why).slice(0, 400);
   throw new Error(proverFailure);
 }
@@ -226,7 +228,9 @@ async function init(args) {
   redact.add(args.viewingSecret, args.pdaNullifierSecret);
   const gateway = new URL(url);
   gateway.pathname = "/v1/spr";
-  const s = { trace: { prove: null }, origin: url.origin, proverUrl: PROVER_URL, local: false };
+  const s = { trace: { prove: null }, origin: url.origin, proverUrl: PROVER_URL };
+  s.proverOrigin = new URL(PROVER_URL).origin;
+  s.poolSlot = pinnedSlot(url.host);
   s.guarded = guardedFetch(url.origin, s);
   const client = await sdk.createSprClient({
     solanaRpcUrl: args.rpcUrl,
@@ -601,8 +605,10 @@ async function selftest() {
 
 /** The deploy slot of the pool now, and the one that the local prover was tested against. */
 async function poolDeploy() {
-  const slot = await poolSlot(need().client.solanaRpc);
-  return { slot, pinned: POOL_SLOT, text: slot === POOL_SLOT ? null : POOL_CHANGED };
+  const s = need();
+  if (s.poolSlot === undefined) throw new Error("this Helius host has no pinned pool deploy slot");
+  const slot = await poolSlot(s.client.solanaRpc);
+  return { slot, pinned: s.poolSlot, text: slot === s.poolSlot ? null : POOL_CHANGED };
 }
 
 const HANDLERS = {

@@ -1,7 +1,7 @@
-// A stand-in for web/sol/prover/prover.js in worker.test.mjs: the key folder of the real bundle
-// (prover-build.test.mjs checks that they are equal) and a ZolanaWebProver that records what the
+// A stand-in for web/sol/prover/index.js in worker.test.mjs: the key folder of the real dist
+// (prover-files.test.mjs checks that they are equal) and a SprWebProver that records what the
 // Worker asked for and answers from `proverControl`. Nothing here proves or reaches a network.
-export const KEY_BASE_URL = "https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/3a1c88f90f609eb1/";
+export const KEY_BASE_URL = "https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/78751f5d1c591777/";
 
 export const proverControl = {
   /** The options of each prover that the Worker made. */
@@ -14,7 +14,7 @@ export const proverControl = {
   proveRequest: async () => ({ proof: "{}", proveMs: 1, verifyMs: 1 }),
 };
 
-export class ZolanaWebProver {
+export class SprWebProver {
   constructor(options) {
     proverControl.made.push(options);
   }

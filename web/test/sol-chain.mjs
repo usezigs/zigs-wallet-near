@@ -22,10 +22,10 @@ import { config } from "./sol-rig.mjs";
 const POLICY =
   "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; " +
   "connect-src 'self' https://devnet.helius-rpc.com " +
-  "https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/3a1c88f90f609eb1/; base-uri 'none'";
+  "https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/78751f5d1c591777/; base-uri 'none'";
 export const RPC = config.rpcUrl;
-// The deploy slot of the pool that web/sol/localprover.js pins.
-export const POOL_SLOT = "512563584";
+// The deploy slot of the Devnet pool (ring1G) that web/sol/localprover.js pins.
+export const POOL_SLOT = "520179383";
 const SPKI = Buffer.from("302a300506032b6570032100", "hex");
 const hex = (bytes) => Buffer.from(bytes).toString("hex");
 

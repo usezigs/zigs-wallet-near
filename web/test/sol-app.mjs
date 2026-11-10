@@ -593,7 +593,7 @@ const zcashFile = saved.at(-1);
 const POLICY =
   "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; " +
   "connect-src 'self' https://devnet.helius-rpc.com " +
-  "https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/3a1c88f90f609eb1/; base-uri 'none'";
+  "https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/78751f5d1c591777/; base-uri 'none'";
 const RPC = `https://devnet.helius-rpc.com/?${KEY_NAME}=not-a-real-key`;
 const realFetch = globalThis.fetch;
 const serve = (policy) => async (url) => {

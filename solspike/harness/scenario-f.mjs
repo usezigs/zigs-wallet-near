@@ -324,7 +324,7 @@ async function localSwitch(pages) {
 const hostedProofs = (pages) =>
   pages.flatMap((page) =>
     facts.requests(page.records).filter(
-      (r) => r.host === "devnet.helius-rpc.com" && r.path.startsWith("/v1/zolana/prove"),
+      (r) => r.host === "devnet.helius-rpc.com" && r.path.startsWith("/v1/spr/prove"),
     ),
   );
 

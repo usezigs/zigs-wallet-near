@@ -22,7 +22,7 @@ export const UNAVAILABLE = "Solana is not available on this server";
 const WORKER_POLICY =
   "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; " +
   "connect-src 'self' https://devnet.helius-rpc.com " +
-  "https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/3a1c88f90f609eb1/; base-uri 'none'";
+  "https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/78751f5d1c591777/; base-uri 'none'";
 
 // The text of app-sol.js for a load that failed on the connection (SOL_DOWN, S12): the page
 // shows it as it is, and the tab turns it into the text of its Try again button.

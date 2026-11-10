@@ -33,7 +33,7 @@ const SOL_HOST = "https://devnet.helius-rpc.com";
 const SOL_HOST_MAINNET = "https://mainnet.helius-rpc.com";
 // The pinned key folder of the local prover (SOL-4): a path source, so no other object of that
 // host. Only the /sol policy names it: the Solana Worker fetches the keys, the page does not.
-const SOL_KEYS = "https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/3a1c88f90f609eb1/";
+const SOL_KEYS = "https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/78751f5d1c591777/";
 const SOL_CONFIG = "/sol/config.json";
 const SOL_CONFIG_MAINNET = "/sol/config-mainnet.json";
 // With SOL off and SOL_MAINNET "1", only these files of /sol answer, in this spelling: no other

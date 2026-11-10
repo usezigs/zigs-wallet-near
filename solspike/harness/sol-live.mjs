@@ -25,12 +25,12 @@ const TREE_ACCOUNT = "777pvSGe5LaBd9nCczvE2FXEauiwtfGJ5XRpjKyniGor";
 const HELIUS = "devnet.helius-rpc.com";
 // SOL-4: the key host of the local prover, and the one folder and the file names it may serve.
 const KEY_HOST = "d3gbdb0egjwcw9.cloudfront.net";
-const KEY_PATH = /^\/proving-keys\/3a1c88f90f609eb1\/transfer_confidential_[1-9]\d?_2\.key$/;
+const KEY_PATH = /^\/proving-keys\/78751f5d1c591777\/transfer_confidential_[1-68]_2\.zopro$/;
 const WORKER = "worker:/sol/worker.js";
 const WORKER_POLICY =
   "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; " +
   "connect-src 'self' https://devnet.helius-rpc.com " +
-  "https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/3a1c88f90f609eb1/; base-uri 'none'";
+  "https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/78751f5d1c591777/; base-uri 'none'";
 const FEE_FIELDS = ["feePerTree", "appendReimbursement", "closeReimbursement", "feeBalance"];
 
 // Runs in the page: fn must not use outer variables (see run() in page.mjs).
@@ -148,14 +148,14 @@ function liveFacts(run1, truth) {
 function proverChecks(run1, f) {
   const keys = f.workerOut.filter((r) => r.host === KEY_HOST);
   const keyOk = (r) => r.method === "GET" && KEY_PATH.test(r.path) && r.blocked === null;
-  const hosted = (r) => r.host === HELIUS && r.path.startsWith("/v1/zolana/prove");
+  const hosted = (r) => r.host === HELIUS && r.path.startsWith("/v1/spr/prove");
   return [
     ["the key host serves only GET of a pinned N x 2 key", keys.length > 0 && keys.every(keyOk)],
     ["no Worker call reaches the prove path of Helius", !f.workerOut.some(hosted)],
     is("poolSlot reads the deploy slot that the prover pins", run1.pool.slot, run1.pool.pinned),
-    is("the pinned deploy slot is the one of 18 October 2026", run1.pool.pinned, "512563584"),
+    is("the pinned deploy slot is the Devnet deploy of ring1G", run1.pool.pinned, "520179383"),
     [
-      "selftest makes a test proof on this device (nested prover Worker, Go only)",
+      "selftest makes a test proof on this device (nested prover Worker, one thread)",
       typeof run1.selftest.ms === "number",
     ],
   ];

@@ -25,7 +25,7 @@ const URLS = ["http://localhost:8795/", "https://app.zigs.app/", "http://127.0.0
 const WORKER_POLICY =
   "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; " +
   "connect-src 'self' https://devnet.helius-rpc.com " +
-  "https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/3a1c88f90f609eb1/; base-uri 'none'";
+  "https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/78751f5d1c591777/; base-uri 'none'";
 // The nested Worker of the local prover (SOL-4) holds the witness: it connects to no other host.
 const PROVER_POLICY =
   "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; base-uri 'none'";
@@ -142,7 +142,7 @@ async function workerHeaders(worker) {
 // Every spelling of a path below /sol/prover, and paths next to it that are not below it.
 const PROVER_PATHS = [
   "/sol/prover/prover.worker.js",
-  "/sol/prover/zolana-prover.wasm",
+  "/sol/prover/runtime/single/zopro_spr_bg.wasm",
   "/SOL/Prover/prover.worker.js",
   "/sol//prover/prover.worker.js",
   "/sol/%70rover/prover.worker.js",

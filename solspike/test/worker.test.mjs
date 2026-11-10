@@ -31,7 +31,7 @@ registerHooks({
   resolve(specifier, context, next) {
     if (specifier === "/sol/zolana.bundle.js") return { url: STUB, shortCircuit: true };
     if (specifier === "/sol/transfer.js") return { url: STUB, shortCircuit: true };
-    if (specifier === "/sol/prover/prover.js") return { url: PROVER_STUB, shortCircuit: true };
+    if (specifier === "/sol/prover/index.js") return { url: PROVER_STUB, shortCircuit: true };
     if (!specifier.startsWith("/sol/")) return next(specifier, context);
     const { search } = new URL(context.parentURL);
     return { url: new URL(specifier.slice(5), WEB_SOL).href + search, shortCircuit: true };
@@ -67,6 +67,7 @@ const SYSTEM = "11111111111111111111111111111111";
 const NONCE_ACCOUNT = "4kf6Z6LTZC7E7PRvUAoADayFXQfDGppBx8m1AuUvUndE";
 const OWNER = "B1o5q9sWLRVY2uk43bd1GLLPcNmhqJQ53CfKKxKzeShD";
 const POOL = "ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW";
+const LOOPBACK = "http://127.0.0.1:3001";
 
 // ---- the Worker under test: a fresh module instance, a fake self and a fake network ----
 
@@ -99,7 +100,7 @@ async function freshWorker({ testMode = false } = {}) {
   posted.length = 0;
   Object.assign(proverControl, { made: [], calls: [] });
   proverControl.reply = () => new Response('{"proof":"local"}', { status: 200 });
-  gate.answer = { mode: "hosted" };
+  gate.answer = { mode: "local" };
   gate.asked = 0;
   gate.queue.length = 0;
   globalThis.self = {
@@ -116,7 +117,7 @@ async function freshWorker({ testMode = false } = {}) {
 
 /** The page side of the gate (client.js): it answers each prove call with `gate.answer`. */
 // `gate.queue` answers the next gates in order; then `gate.answer` answers the rest.
-const gate = { answer: { mode: "hosted" }, asked: 0, queue: [] };
+const gate = { answer: { mode: "local" }, asked: 0, queue: [] };
 function answerGate(id) {
   gate.asked += 1;
   const answer = gate.queue.shift() ?? gate.answer;
@@ -218,7 +219,7 @@ const prover =
   async () => {
     if (body !== null) {
       const init = { method: "POST", body: JSON.stringify(body) };
-      const url = `https://devnet.helius-rpc.com/v1/zolana/prove?${KEY_NAME}=k`;
+      const url = `${LOOPBACK}/prove/transfer_confidential_1_2`;
       await control.options.fetch(url, init);
     }
     return data;
@@ -772,10 +773,13 @@ async function inspectCommand() {
 
 // ---- SOL-4: local proving behind the switch of the group ----
 
-const PROVE_URL = "https://devnet.helius-rpc.com/v1/zolana/prove";
-const KEYS = "https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/3a1c88f90f609eb1/";
+const HELIUS_PROVE = "https://devnet.helius-rpc.com/v1/spr/prove";
+const PROVE_URL = `${LOOPBACK}/prove/transfer_confidential_1_2`;
+const KEYS = "https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/78751f5d1c591777/";
+const SHAPES = [1, 2, 3, 4, 5, 6, 8];
 const LOADER = "BPFLoaderUpgradeab1e11111111111111111111111";
-const toHelius = () => fetched.filter((url) => url.startsWith(PROVE_URL));
+const DEVNET_SLOT = "520179383";
+const toHelius = () => fetched.filter((url) => url.startsWith(HELIUS_PROVE));
 
 /** The ProgramData of the pool as the RPC gives it (a slice of 8 bytes: the deploy slot). */
 function poolData(slot, owner = LOADER) {
@@ -808,36 +812,37 @@ async function payWith(answer) {
   return ask("prepare", { ...PREPARE, kind: "pay", avoid: [] });
 }
 
-/** Off: the page answers "hosted", and the prove call goes to Helius after one gate. */
-async function hostedAfterTheGate() {
+/** Off: the page answers "hosted", and nothing is proved: the Worker never proves hosted. */
+async function hostedIsRefused() {
   await initialised();
   const done = await payWith({ mode: "hosted" });
-  assert.equal(done.ok, true, done.error);
-  assert.equal(gate.asked, 1, "the Worker proved without asking the page");
-  assert.equal(toHelius().length, 1, "the hosted prover did not get the call");
-  assert.deepEqual(proverControl.made, [], "a local prover was made for a hosted group");
-  step("SOL-4 off: one gate per proof, then the hosted prover");
+  assert.equal(done.ok, false, "a payment was proved with the switch off");
+  assert.match(done.error, /^Proofs are made on the devices of the group only.*Nothing was sent/);
+  assert.equal(gate.asked, 1, "the Worker did not ask the page");
+  assert.deepEqual(toHelius(), [], "the hosted prover got a call");
+  assert.deepEqual([proverControl.made, proverControl.calls], [[], []], "a prover ran");
+  step("SOL-4 off: the gate answer hosted is refused, nothing is proved or sent");
 }
 
-/** On: the web prover answers on the device; Helius gets nothing of the proof, ever after. */
+/** On: the web prover answers on the device; Helius gets nothing of the proof. */
 async function localStaysOnTheDevice() {
   await initialised();
   const done = await payWith({ mode: "local" });
   assert.equal(done.ok, true, done.error);
   assert.deepEqual(toHelius(), [], "a local proof reached Helius");
   assert.equal(proverControl.calls.length, 1, "the web prover did not get the prove call");
-  assert.match(proverControl.calls[0].url, /\/v1\/zolana\/prove\?/);
+  assert.equal(proverControl.calls[0].url, PROVE_URL);
   const [made] = proverControl.made;
-  assert.deepEqual([made.threads, made.proverUrl], [0, ZOLANA], "Go only, on the SDK prover URL");
-  assert.equal(made.wasmUrl, "https://app.zigs.app/sol/prover/zolana-prover.wasm");
+  assert.deepEqual(Object.keys(made).sort(), ["fetch", "proverUrl", "threads"]);
+  assert.deepEqual([made.threads, made.proverUrl], [0, LOOPBACK], "one thread, loopback URL");
   assert.equal(done.result.expiry, "1792048408", "prepare did not read the traced body");
   const again = await payWith({ mode: "hosted" });
   assert.equal(again.ok, false, "a hosted proof after a local one");
-  assert.match(again.error, /proved in this browser before/);
   const { fetch: sdkFetch } = control.options;
-  await assert.rejects(sdkFetch(`${PROVE_URL}/status?${KEY_NAME}=k`), /blocked a hosted proof/);
-  assert.deepEqual(toHelius(), [], "the latch let a prove path through");
-  step("SOL-4 on: the web prover answers here, and the Worker never proves hosted after it");
+  await assert.rejects(sdkFetch(`${HELIUS_PROVE}/transfer_confidential_1_2`), /hosted proof/);
+  await assert.rejects(sdkFetch(HELIUS_PROVE, { method: "POST", body: "{}" }), /hosted proof/);
+  assert.deepEqual(toHelius(), [], "a prove path reached Helius");
+  step("SOL-4 on: the web prover answers here on the loopback URL, Helius gets no prove call");
 }
 
 /** A refusal of the page proves nothing and sends nothing. */
@@ -858,7 +863,7 @@ async function localFailureTexts() {
   await initialised();
   proverControl.reply = () =>
     new Response('{"code":"wasm_key_download_failed"}', { status: 500 });
-  poolData("512563584");
+  poolData(DEVNET_SLOT);
   const down = await payWith({ mode: "local" });
   assert.equal(down.ok, false);
   assert.match(down.error, /could not load the proving key.*Nothing was sent to Helius\.$/);
@@ -869,50 +874,89 @@ async function localFailureTexts() {
   step("SOL-4 a failed local proof names its cause, and a moved pool first");
 }
 
-/** The guard lets GET of a key of our circuits pass, in the pinned folder only. */
+/** The guard lets GET of a zopro key of our circuits pass, in the pinned folder only. */
 async function keyFetchGuard() {
   await initialised();
   const { fetch: sdkFetch } = control.options;
-  await sdkFetch(`${KEYS}transfer_confidential_1_2.key`);
-  await sdkFetch(`${KEYS}transfer_confidential_8_2.key`, { method: "GET" });
-  assert.equal(fetched.length, 2, "a key download was blocked");
+  const names = SHAPES.map((n) => `transfer_confidential_${n}_2.zopro`);
+  for (const name of names) await sdkFetch(`${KEYS}${name}`, { headers: { Range: "bytes=0-9" } });
+  await sdkFetch(`${KEYS}${names[0]}`, { method: "GET" });
+  assert.equal(fetched.length, names.length + 1, "a key download was blocked");
   const blocked = [
-    [`${KEYS}transfer_confidential_1_2.key`, { method: "POST", body: "x" }],
-    [`${KEYS}transfer_confidential_1_4.key`],
-    [`${KEYS}merge_8_1.key`],
-    [`${KEYS}transfer_confidential_1_2.key?x=1`],
-    [`${KEYS}sub/transfer_confidential_1_2.key`],
-    ["https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/other/transfer_confidential_1_2.key"],
-    ["https://d3gbdb0egjwcw9.cloudfront.net/v1/zolana/prove"],
+    [`${KEYS}transfer_confidential_1_2.key`],
+    [`${KEYS}transfer_confidential_1_2.zopro`, { method: "POST", body: "x" }],
+    [`${KEYS}transfer_confidential_1_4.zopro`],
+    [`${KEYS}transfer_confidential_7_2.zopro`],
+    [`${KEYS}transfer_confidential_9_2.zopro`],
+    [`${KEYS}transfer_confidential_12_2.zopro`],
+    [`${KEYS}merge_8_1.zopro`],
+    [`${KEYS}transfer_confidential_1_2.zopro?x=1`],
+    [`${KEYS}sub/transfer_confidential_1_2.zopro`],
+    [`${KEYS}%2e%2e/other/transfer_confidential_1_2.zopro`],
+    [`${KEYS}transfer_confidential_1_2.zopro/`],
+    ["https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/other/transfer_confidential_1_2.zopro"],
+    ["https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/3a1c88f90f609eb1/x_1_2.zopro"],
+    ["https://d3gbdb0egjwcw9.cloudfront.net/v1/spr/prove"],
+    ["http://d3gbdb0egjwcw9.cloudfront.net/proving-keys/78751f5d1c591777/a_1_2.zopro"],
   ];
   for (const [url, init] of blocked) {
     await assert.rejects(async () => sdkFetch(url, init), /blocked a request to/, url);
   }
-  const posted = new Request(`${KEYS}transfer_confidential_1_2.key`, { method: "POST", body: "w" });
+  const posted = new Request(`${KEYS}${names[0]}`, { method: "POST", body: "w" });
   await assert.rejects(async () => sdkFetch(posted), /blocked a request to/, "a POST Request");
-  assert.equal(fetched.length, 2, "a blocked request reached the network");
-  step("SOL-4 the guard passes GET of a pinned N x 2 key and nothing else of that host");
+  assert.equal(fetched.length, names.length + 1, "a blocked request reached the network");
+  step("SOL-4 the guard passes GET of the 7 pinned N x 2 zopro keys and nothing else");
 }
 
-/** Any call to the prove path that can carry a body waits for the gate; GET and HEAD do not. */
+/** Only the loopback /prove routes that can carry a body wait for the gate and reach the prover. */
 async function everyBodyIsGated() {
   await initialised();
   const { fetch: sdkFetch } = control.options;
-  await sdkFetch(`${PROVE_URL}?${KEY_NAME}=k`, { method: "PUT", body: "{}" });
+  await sdkFetch(PROVE_URL, { method: "PUT", body: "{}" });
   assert.equal(gate.asked, 1, "a PUT with a body went out with no gate");
-  await sdkFetch(new Request(`${PROVE_URL}?${KEY_NAME}=k`, { method: "POST", body: "{}" }));
+  await sdkFetch(new Request(PROVE_URL, { method: "POST", body: "{}" }));
   assert.equal(gate.asked, 2, "a POST Request went out with no gate");
-  // The keyed route that a coming SDK posts to instead of the bare /prove (Zolana #436).
-  const keyed = `${PROVE_URL}/transfer_confidential_1_2?${KEY_NAME}=k`;
-  await sdkFetch(keyed, { method: "POST", body: "{}" });
-  assert.equal(gate.asked, 3, "a POST to /prove/<key> went out with no gate");
-  await sdkFetch(`${PROVE_URL}/status?${KEY_NAME}=k`);
-  await sdkFetch(`${PROVE_URL}/status?${KEY_NAME}=k`, { method: "HEAD" });
+  await sdkFetch(`${LOOPBACK}/prove`, { method: "POST", body: "{}" });
+  assert.equal(gate.asked, 3, "a POST to /prove went out with no gate");
+  await assert.rejects(sdkFetch(`${PROVE_URL}`, { method: "GET" }), /blocked a request/);
+  await assert.rejects(sdkFetch(PROVE_URL, { method: "HEAD" }), /blocked a request/);
   assert.equal(gate.asked, 3, "a GET or a HEAD asked the gate");
-  step("SOL-4 every call to the prove path that can carry a body waits for the gate");
+  assert.equal(proverControl.calls.length, 3, "the prover did not get every gated call");
+  step("SOL-4 every loopback /prove call that can carry a body waits for the gate");
 }
 
-/** An SDK retry that goes hosted after a refusal does not end with "nothing was sent". */
+/** Everything else, at the loopback URL or at another origin, is refused and never reaches the
+ * prover, the network or the page. These cases run in process: no socket gets the paths. */
+async function otherProveCallsAreRefused() {
+  await initialised();
+  const { fetch: sdkFetch } = control.options;
+  const post = { method: "POST", body: "{}" };
+  const refusedCalls = [
+    [`${LOOPBACK}/health`],
+    [`${LOOPBACK}/health`, post],
+    [`${LOOPBACK}/proving-keys`],
+    [`${LOOPBACK}/proves/transfer_confidential_1_2`, post],
+    [`${LOOPBACK}/prove/../health`, post],
+    [`${LOOPBACK}/prove/%2e%2e/health`, post],
+    ["http://127.0.0.1:3002/prove/transfer_confidential_1_2", post],
+    ["http://localhost:3001/prove/transfer_confidential_1_2", post],
+    ["https://127.0.0.1:3001/prove/transfer_confidential_1_2", post],
+    ["http://[::1]:3001/prove/transfer_confidential_1_2", post],
+    ["https://evil.example/prove/transfer_confidential_1_2", post],
+    ["https://devnet.helius-rpc.com/prove/transfer_confidential_1_2", post],
+    [`${HELIUS_PROVE}/transfer_confidential_1_2`, post],
+    [`${HELIUS_PROVE}?${KEY_NAME}=k`, post],
+    ["https://devnet.helius-rpc.com/v1/zolana/prove", post],
+    ["https://d55y5ksdsm1vw.cloudfront.net/v1/spr/prove/transfer_confidential_1_2", post],
+  ];
+  for (const [url, init] of refusedCalls) {
+    await assert.rejects(async () => sdkFetch(url, init), /blocked (a request|a hosted)/, url);
+  }
+  assert.deepEqual([gate.asked, proverControl.calls, fetched], [0, [], []], "a call got through");
+  step("SOL-4 a prove call to any other path or origin is refused: no gate, no prover, no network");
+}
+
+/** An SDK retry after a refusal that works leaves no stale "nothing was sent" text behind. */
 async function retryAfterRefusal() {
   await initialised();
   gate.queue.push({ refuse: "Could not read the proving setting. Nothing was sent to Helius." });
@@ -920,16 +964,16 @@ async function retryAfterRefusal() {
   giveProof(proveBody());
   control.prove = async () => {
     const init = { method: "POST", body: JSON.stringify(proveBody()) };
-    const url = `${PROVE_URL}?${KEY_NAME}=k`;
-    await control.options.fetch(url, init).catch(() => null); // the SDK tries again
-    await control.options.fetch(url, init);
+    await control.options.fetch(PROVE_URL, init).catch(() => null); // the SDK tries again
+    await control.options.fetch(PROVE_URL, init);
     throw new Error("CLIENT_PROVER_HTTP");
   };
   const done = await ask("prepare", { ...PREPARE, kind: "pay", avoid: [] });
   assert.equal(done.ok, false);
-  assert.doesNotMatch(done.error, /Nothing was sent/, "a hosted retry kept the refusal text");
-  assert.equal(toHelius().length, 1, "the retry went to the hosted prover");
-  step("SOL-4 a hosted retry after a refusal does not say that nothing was sent");
+  assert.doesNotMatch(done.error, /Nothing was sent/, "a local retry kept the refusal text");
+  assert.equal(proverControl.calls.length, 1, "the retry did not reach the prover");
+  assert.deepEqual(toHelius(), []);
+  step("SOL-4 a local retry after a refusal does not say that nothing was sent");
 }
 
 /** selftest proves the pinned test request here; poolSlot reads the deploy slot of the pool. */
@@ -946,14 +990,33 @@ async function deviceCheckAndPool() {
   const failed = await ask("selftest", {});
   assert.match(failed.error, /could not start the local prover.*Nothing was sent/);
   proverControl.proveRequest = async () => ({ proof: "{}" });
-  poolData("512563584");
+  poolData(DEVNET_SLOT);
   const same = await ask("poolSlot", {});
-  assert.deepEqual(same.result, { slot: "512563584", pinned: "512563584", text: null });
+  assert.deepEqual(same.result, { slot: DEVNET_SLOT, pinned: DEVNET_SLOT, text: null });
   poolData("600000000");
   assert.match((await ask("poolSlot", {})).result.text, /Helius changed the pool/);
-  poolData("512563584", SYSTEM);
+  poolData(DEVNET_SLOT, SYSTEM);
   assert.match((await ask("poolSlot", {})).error, /pool program data is missing/);
   step("SOL-4 selftest proves on the device; poolSlot reads the deploy slot of the pool");
+}
+
+/** The deploy slot pin is by Helius host; another host has none and poolSlot says so. */
+async function poolSlotByHost() {
+  const { pinnedSlot, POOL_SLOTS } = await import("../../web/sol/localprover.js");
+  assert.deepEqual(POOL_SLOTS, {
+    "devnet.helius-rpc.com": DEVNET_SLOT,
+    "mainnet.helius-rpc.com": "467127839",
+  });
+  assert.equal(pinnedSlot("mainnet.helius-rpc.com"), "467127839");
+  for (const host of ["evil.example", "127.0.0.1:8899", "toString", "__proto__", ""]) {
+    assert.equal(pinnedSlot(host), undefined, host);
+  }
+  await freshWorker({ testMode: true });
+  const loopback = { ...INIT, rpcUrl: `http://127.0.0.1:8899/?${KEY_NAME}=${KEY}` };
+  assert.equal((await ask("init", loopback)).ok, true);
+  poolData(DEVNET_SLOT);
+  assert.match((await ask("poolSlot", {})).error, /no pinned pool deploy slot/);
+  step("SOL-4 the pool deploy slot is pinned by Helius host, and an unknown host has no pin");
 }
 
 await refusalsBeforeInit();
@@ -974,12 +1037,14 @@ await prepareRefusals();
 await commandOrder();
 await readCommands();
 await inspectCommand();
-await hostedAfterTheGate();
+await hostedIsRefused();
 await localStaysOnTheDevice();
 await refusedProvesNothing();
 await localFailureTexts();
 await keyFetchGuard();
 await everyBodyIsGated();
+await otherProveCallsAreRefused();
 await retryAfterRefusal();
 await deviceCheckAndPool();
+await poolSlotByHost();
 console.log("worker tests passed");

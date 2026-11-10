@@ -19,7 +19,7 @@ const CONFIG_SPELLINGS = ["/SOL/config.json", "/sol//config.json", "/sol/config.
 const POLICY =
   "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; " +
   "connect-src 'self' https://devnet.helius-rpc.com " +
-  "https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/3a1c88f90f609eb1/; base-uri 'none'";
+  "https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/78751f5d1c591777/; base-uri 'none'";
 const SOL_PATHS = [
   "/sol/worker.js", "/sol/worker.js?x=1", "/sol/guard.js", "/sol/zolana.bundle.js",
   "/sol/hasher_wasm_simd_bg.wasm", "/sol/wasm/sol_wasm_bg.wasm", "/sol", "/sol/", "/SOL/worker.js",
@@ -32,7 +32,7 @@ const OTHER_PATHS = ["/app.js", "/sol-nothing.js", "/solar.js", "/nosuch.js"];
 const PROVER_POLICY =
   "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; base-uri 'none'";
 const PROVER_PATHS = ["/sol/prover/prover.worker.js", "/SOL/prover/prover.worker.js",
-  "/sol/prover/zolana-prover.wasm"];
+  "/sol/prover/runtime/single/zopro_spr_bg.wasm"];
 
 /** One GET with the path as given. Resolves { status, csp, location, cache, body }. */
 const get = (path) =>
