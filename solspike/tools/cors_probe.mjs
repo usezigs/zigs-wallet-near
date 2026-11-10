@@ -12,12 +12,10 @@ import { heliusFile } from "./paths.mjs";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FILE = process.argv[2] ?? heliusFile();
 const ORIGINS = ["http://localhost:8795", "http://127.0.0.1:8795"];
-// [name, path, keyed]: the prover paths take no key (ZOLANA.md 6.4), the others do.
+// [name, path, keyed]: a keyed path gets the key of the URL.
 const PATHS = [
   ["rpc", "/", true],
-  ["indexer", "/v1/zolana/getShieldedTransactionsByTags", true],
-  ["prove", "/v1/zolana/prove", false],
-  ["prove-status", "/v1/zolana/prove/status", false],
+  ["indexer", "/v1/spr/getShieldedTransactionsByTags", true],
 ];
 const SHOWN = [
   "access-control-allow-origin",

@@ -304,7 +304,7 @@ function redaction() {
   const messages = [
     `fetch failed for ${init().rpcUrl}`,
     `bad key ${KEY} and ${SECRET} twice ${SECRET}`,
-    `GET /v1/zolana/x?${KEY_NAME}=${"z".repeat(30)}&b=1 failed`,
+    `GET /v1/spr/x?${KEY_NAME}=${"z".repeat(30)}&b=1 failed`,
     "short: abc",
   ];
   const out = messages.map(redact);

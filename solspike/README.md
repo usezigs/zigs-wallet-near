@@ -90,7 +90,7 @@ with `SOLSPIKE_ORIGIN=https://app.zigs.app`:
 | `harness/scenario-g.mjs` | S3 and S4 on a new group where only the fee address of seat 1 has SOL: fund seat 1 (6,000,000 lamports), Add SOL (3,000,000), P1 create and execute (seats 2 and 3 approve, seat 1 executes), P2 create and execute (it holds the only note while taps of P3 and P4 are refused). Six transactions. Set `SOLSPIKE_INTERIM` to another file than for scenario-f. `--resume` continues a run that stopped. `--mock` writes `logs/mock-g.json` |
 | `live-batch.sh` | Runs `scenario-e.mjs`, `scenario-f.mjs` and `scenario-g.mjs` on Devnet from a clean checkout of one commit, for the coordinator only (see "The live batch" below) |
 | `harness/sol-live.mjs` | Read only: the Worker syncs an empty wallet and reads a nonce account and the tree fees, and the policy probes |
-| `harness/scenario-d.mjs`, `harness/sol-cors.mjs` | Checks of the spike. They have not run in this tree |
+| `harness/scenario-d.mjs` | A check of the spike. It has not run in this tree |
 
 Run `scenario-e.mjs` and `scenario-f.mjs` with `--mock` first. A mock run makes no Devnet call:
 

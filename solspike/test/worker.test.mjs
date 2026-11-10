@@ -295,20 +295,20 @@ async function fetchGuard() {
   await initialised();
   const { fetch: guarded } = control.options;
   const blocked = [
-    "https://evil.example/v1/zolana/x",
+    "https://evil.example/v1/spr/x",
     "https://devnet.helius-rpc.com:8443/",
     "http://devnet.helius-rpc.com/",
     "https://mainnet.helius-rpc.com/",
     "https://lwd.zigs.app/",
     // The attested enclave prover that the newest SDK uses by default (TICKETS.md SOL-4).
-    "https://d55y5ksdsm1vw.cloudfront.net/v1/zolana/prove",
+    "https://d55y5ksdsm1vw.cloudfront.net/v1/spr/prove",
   ];
   for (const url of blocked) {
     await assert.rejects(async () => guarded(url), /blocked a request to/, url);
     await assert.rejects(async () => guarded(new Request(url)), /blocked a request to/, url);
   }
   assert.deepEqual(fetched, [], "a blocked request reached the network");
-  await guarded(`https://devnet.helius-rpc.com/v1/zolana/getEncryptedUtxosByTags?${KEY_NAME}=k`);
+  await guarded(`https://devnet.helius-rpc.com/v1/spr/getEncryptedUtxosByTags?${KEY_NAME}=k`);
   await guarded(new Request("https://devnet.helius-rpc.com/"));
   assert.equal(fetched.length, 2, "a request to the RPC origin was blocked");
   step("U15 the Worker's fetch passes the RPC origin only, also as a Request, and nothing else");
@@ -318,13 +318,13 @@ async function fetchGuard() {
 async function everyUrlIsChecked() {
   await initialised();
   const { fetch: guarded } = control.options;
-  const good = `https://devnet.helius-rpc.com/v1/zolana/getEncryptedUtxosByTags?${KEY_NAME}=k`;
-  const evil = "https://evil.example/v1/zolana/x";
+  const good = `https://devnet.helius-rpc.com/v1/spr/getEncryptedUtxosByTags?${KEY_NAME}=k`;
+  const evil = "https://evil.example/v1/spr/x";
   await guarded(good);
   await assert.rejects(guarded(evil), /blocked a request to evil.example/);
   await guarded(new URL(good));
   await assert.rejects(guarded(new URL(evil)), /blocked a request to/);
-  await assert.rejects(guarded("/v1/zolana/x"), /Invalid URL/, "a relative URL");
+  await assert.rejects(guarded("/v1/spr/x"), /Invalid URL/, "a relative URL");
   await assert.rejects(guarded(undefined), /Invalid URL/, "no URL");
   await guarded(good);
   assert.deepEqual(fetched, [good, good, good], "a blocked URL or an unchecked URL was fetched");
@@ -950,7 +950,6 @@ async function otherProveCallsAreRefused() {
     ["https://devnet.helius-rpc.com/prove/transfer_confidential_1_2", post],
     [`${HELIUS_PROVE}/transfer_confidential_1_2`, post],
     [`${HELIUS_PROVE}?${KEY_NAME}=k`, post],
-    ["https://devnet.helius-rpc.com/v1/zolana/prove", post],
     ["https://d55y5ksdsm1vw.cloudfront.net/v1/spr/prove/transfer_confidential_1_2", post],
   ];
   for (const [url, init] of refusedCalls) {
