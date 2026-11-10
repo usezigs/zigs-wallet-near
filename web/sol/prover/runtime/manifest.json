@@ -1,0 +1,53 @@
+{
+  "format": 3,
+  "zoproRevision": "fac2a2b5d9e000ef2c13649492d4b4c33f9b25a8",
+  "rustToolchain": "nightly-2025-11-15",
+  "wasmBindgen": "0.2.128",
+  "files": [
+    {
+      "path": "LICENSE-APACHE",
+      "size": 10846,
+      "sha256": "e8d77d4bbe96e1b46ec0f40d1f12e19825e718c764bb3e9a695633ade9289f9e"
+    },
+    {
+      "path": "LICENSE-MIT",
+      "size": 1046,
+      "sha256": "8f71659370c5268d9a1dc962a46232540e8fca63462586d8efaa95aab492a208"
+    },
+    {
+      "path": "single/zopro_spr_bg.wasm",
+      "size": 7243001,
+      "sha256": "59189ddfcbd5963661ded711410f892ba8b6fdfc165111eb52040a77899826e1"
+    },
+    {
+      "path": "single/zopro_spr.d.ts",
+      "size": 12479,
+      "sha256": "e1805bd7e26f22072515afdd29a211b78c96d0b82f9c71472fba91f7919ffce6"
+    },
+    {
+      "path": "single/zopro_spr.js",
+      "size": 74529,
+      "sha256": "7897a2f08bc34a64e0674bcbd8d95ce072b9d3c157d72c45bf725837c6e5a3ad"
+    },
+    {
+      "path": "threads/snippets/wasm-bindgen-rayon-38edf6e439f6d70d/src/workerHelpers.js",
+      "size": 4559,
+      "sha256": "e040b29bae51baa0d5d683e25eb9a52c4a401e0b3baecbaad3882b6b9e07db30"
+    },
+    {
+      "path": "threads/zopro_spr_bg.wasm",
+      "size": 7296679,
+      "sha256": "ba4a73755cb666344cf0894042385388b47dcd8df977f613ff4d7c9227a9a150"
+    },
+    {
+      "path": "threads/zopro_spr.d.ts",
+      "size": 13903,
+      "sha256": "8e84961e51482ab3c8a0a6a53f603d53b7241c6af9b9f3d6029906318b3563b8"
+    },
+    {
+      "path": "threads/zopro_spr.js",
+      "size": 82002,
+      "sha256": "f7951a1bf7495650742bde2dbc5d9f58c411b5ccc6125dc760821998250e009c"
+    }
+  ]
+}

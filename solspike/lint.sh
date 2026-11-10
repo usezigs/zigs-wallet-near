@@ -8,7 +8,7 @@
 cd "$(dirname "$0")/.." || exit 1
 OX=solspike/node_modules/.bin/oxlint
 [ -x "$OX" ] || { echo "lint.sh: $OX is missing, run npm ci in solspike" >&2; exit 2; }
-JS=(solspike/harness/*.mjs solspike/tools/*.mjs solspike/build.mjs solspike/build-prover.mjs
+JS=(solspike/harness/*.mjs solspike/tools/*.mjs solspike/build.mjs solspike/vendor-prover.mjs
   solspike/src/*.js solspike/smoke.mjs solspike/stubs/*.js solspike/test/*.mjs solspike/mock/*.mjs
   solspike/mock/page/*.js web/sol/guard.js web/sol/prepare.js web/sol/worker.js web/sol/client.js
   web/sol/main.js web/sol/docs.js web/sol/secrets.js web/sol/ceremony.js web/sol/view.js
