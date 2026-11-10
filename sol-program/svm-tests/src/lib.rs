@@ -28,6 +28,10 @@ use spr_interface::instruction::{
 /// The Devnet program id, so that the approval of the Devnet vector verifies.
 pub const PROGRAM_ID: Pubkey =
     Pubkey::from_str_const("5PHZEHBMaYbFL9SFmMyP8kUayh3TFEyq2dvEYY3UGjkL");
+/// The mainnet approvals program (`9mE7…`). The ELF of the mainnet build reads its own id at run
+/// time, so the rig loads it at this address.
+pub const MAINNET_PROGRAM_ID: Pubkey =
+    Pubkey::from_str_const("9mE7WUJHK6dQwzK6AP6wf1eyPmePULZrGeRbXqke2ukq");
 pub const POOL_ID: Pubkey = Pubkey::from_str_const("ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW");
 pub const SYSTEM_ID: Pubkey = Pubkey::from_str_const("11111111111111111111111111111111");
 pub const ED25519_ID: Pubkey =
@@ -67,6 +71,23 @@ pub fn settlements(transact: &TransactIxData) -> Vec<(Pubkey, Pubkey)> {
         .map(|leg| (sol_interface(), recipient(leg)))
         .collect()
 }
+
+/// The program address and the genesis hash of one cluster: the two values, besides the domain,
+/// that an approval digest binds.
+#[derive(Clone, Copy, Debug)]
+pub struct Deploy {
+    pub program: Pubkey,
+    pub genesis: Pubkey,
+}
+
+pub const DEVNET: Deploy = Deploy {
+    program: PROGRAM_ID,
+    genesis: DEVNET_GENESIS,
+};
+pub const MAINNET: Deploy = Deploy {
+    program: MAINNET_PROGRAM_ID,
+    genesis: MAINNET_GENESIS,
+};
 
 /// The custom error codes of the program (`src/error.rs`) and of the pool CPI helper.
 pub mod code {
@@ -109,6 +130,7 @@ pub struct Body {
     pub expiry: u64,
     pub rent_recipient: Pubkey,
     pub authorities: Vec<Pubkey>,
+    pub deploy: Deploy,
 }
 
 impl Body {
@@ -138,29 +160,36 @@ impl Body {
                 &self.commitment,
                 &body_hash,
             ],
-            &PROGRAM_ID,
+            &self.deploy.program,
         )
     }
 
     pub fn owner(&self) -> Pubkey {
-        owner_address(&self.group)
+        owner_under(&self.deploy.program, &self.group).0
     }
 
     pub fn cancellation(&self) -> Pubkey {
-        cancellation_address(&self.proposal())
+        cancellation_under(&self.deploy.program, &self.proposal()).0
     }
 
     pub fn digest(&self) -> [u8; 32] {
-        approval_digest(&self.proposal(), &self.bytes())
+        let Deploy { program, genesis } = self.deploy;
+        digest_with(DOMAIN, &genesis, &program, &self.proposal(), &self.bytes())
     }
 }
 
-pub fn owner_address(group: &Pubkey) -> Pubkey {
-    Pubkey::find_program_address(&[b"multisig", group.as_ref()], &PROGRAM_ID).0
+/// The owner PDA `["multisig", group]` under `program`, with its bump.
+pub fn owner_under(program: &Pubkey, group: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[b"multisig", group.as_ref()], program)
 }
 
-pub fn cancellation_address(proposal: &Pubkey) -> Pubkey {
-    Pubkey::find_program_address(&[b"cancelled_transaction", proposal.as_ref()], &PROGRAM_ID).0
+/// The cancellation PDA `["cancelled_transaction", proposal]` under `program`, with its bump.
+pub fn cancellation_under(program: &Pubkey, proposal: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[b"cancelled_transaction", proposal.as_ref()], program)
+}
+
+pub fn owner_address(group: &Pubkey) -> Pubkey {
+    owner_under(&PROGRAM_ID, group).0
 }
 
 /// `SHA-256(domain || Devnet genesis hash || program id || proposal address || body)`.
@@ -464,24 +493,27 @@ pub struct Rig {
     pub rent_recipient: Pubkey,
     /// The pool that the program calls: the stub, or the real pool of the pinned commit.
     pub pool: Pubkey,
+    /// Where the program sits and which genesis hash it takes.
+    pub deploy: Deploy,
 }
 
 impl Rig {
     /// The Devnet build of the program, with the stub pool at the pool id.
     pub fn new() -> Self {
         let program = program_dir().join("target/deploy/zigs_min_multisig.so");
-        Self::with_program(program)
+        Self::with_program(program, DEVNET)
     }
 
-    /// The mainnet build of the program (`build.sh test`), with the stub at the pool id.
+    /// The mainnet build of the program (`build.sh test`) at the mainnet program id, with the stub
+    /// at the pool id.
     pub fn mainnet() -> Self {
         let program = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(MAINNET_ELF);
-        Self::with_program(program)
+        Self::with_program(program, MAINNET)
     }
 
-    fn with_program(program: PathBuf) -> Self {
+    fn with_program(program: PathBuf, deploy: Deploy) -> Self {
         let mut svm = LiteSVM::new();
-        svm.add_program_from_file(PROGRAM_ID, build_output(program))
+        svm.add_program_from_file(deploy.program, build_output(program))
             .expect("load the program");
         svm.add_program_from_file(
             POOL_ID,
@@ -498,6 +530,7 @@ impl Rig {
             authority: Keypair::new(),
             rent_recipient: Pubkey::new_unique(),
             pool: POOL_ID,
+            deploy,
         };
         rig.set_time(NOW);
         rig
@@ -506,12 +539,20 @@ impl Rig {
     /// A rig with the shielded pool of the pinned privacy-rings commit in place of the stub
     /// (`build.sh test` builds it).
     pub fn with_real_pool() -> Self {
-        let mut rig = Self::new();
+        Self::new().real_pool()
+    }
+
+    /// The mainnet rig with the real pool in place of the stub.
+    pub fn mainnet_with_real_pool() -> Self {
+        Self::mainnet().real_pool()
+    }
+
+    fn real_pool(mut self) -> Self {
         let pool = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(REAL_POOL);
-        rig.svm
+        self.svm
             .add_program_from_file(POOL_ID, build_output(pool))
             .expect("load the real pool");
-        rig
+        self
     }
 
     /// Deploys the stub at another address, where it accepts every instruction.
@@ -545,10 +586,21 @@ impl Rig {
             expiry: NOW + DAY,
             rent_recipient: self.rent_recipient,
             authorities: vec![self.authority.pubkey()],
+            deploy: self.deploy,
         }
     }
 
+    /// Sends the instructions. The builders of this crate address the Devnet program id; on the
+    /// mainnet rig they are re-addressed to the mainnet program id.
     pub fn send(&mut self, instructions: &[Instruction], signers: &[&Keypair]) -> TxResult {
+        let mut instructions = instructions.to_vec();
+        for ix in instructions
+            .iter_mut()
+            .filter(|ix| ix.program_id == PROGRAM_ID)
+        {
+            ix.program_id = self.deploy.program;
+        }
+        let instructions = instructions.as_slice();
         self.svm.expire_blockhash();
         let mut all: Vec<&Keypair> = vec![&self.payer];
         all.extend_from_slice(signers);

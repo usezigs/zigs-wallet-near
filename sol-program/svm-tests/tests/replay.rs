@@ -49,7 +49,7 @@ use spr_transaction::{instructions::transact::PrivateTxHash, Utxo};
 use spr_tree::TreeAccount;
 use zigs_min_multisig_svm_tests::{
     approval_ix, execute_ix, owner_address, program_dir, recipient, refused_with, serialize, Body,
-    Rig, TxResult, NOW, POOL_ID, PROGRAM_ID,
+    Rig, TxResult, DEVNET, NOW, POOL_ID, PROGRAM_ID,
 };
 
 const AMOUNT: u64 = 1_000_000_000;
@@ -307,6 +307,7 @@ fn rig_over(pool: Pool, group: Keypair) -> Rig {
         authority: Keypair::new(),
         rent_recipient: Pubkey::new_unique(),
         pool: POOL_ID,
+        deploy: DEVNET,
     };
     let elf = program_dir().join("target/deploy/zigs_min_multisig.so");
     rig.svm

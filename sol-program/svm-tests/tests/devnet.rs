@@ -10,7 +10,7 @@ use solana_pubkey::Pubkey;
 use solana_signer::Signer;
 use zigs_min_multisig_svm_tests::{
     approval_digest, approval_ix, code, commitment, execute_ix, execute_metas, refused_with, Body,
-    Rig, TxResult, ED25519_ID, PROGRAM_ID,
+    Rig, TxResult, DEVNET, ED25519_ID, PROGRAM_ID,
 };
 
 struct Vector {
@@ -62,6 +62,7 @@ fn landed_body(v: &Vector, group: Pubkey) -> Body {
         expiry: u64::from_le_bytes(body[64..72].try_into().expect("expiry")),
         rent_recipient: key(72),
         authorities: (0..count).map(|i| key(105 + 32 * i)).collect(),
+        deploy: DEVNET,
     }
 }
 
