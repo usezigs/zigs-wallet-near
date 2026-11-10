@@ -398,7 +398,7 @@ do not change.
 
 | Topic | Rule |
 |---|---|
-| No registration | The beta never registers the group. The PDA identity of 7.2 needs no record: the pool and the indexer accept a PDA owner with no record (6.10). Nothing signs the old `register` intent (`intent-retired`). A record would be permanent and public: `register` fails if a record exists, no instruction changes the nullifier key, and no operation deletes a record [Z]programs/user-registry/src/instructions/register.rs:36-42,57-60; docs/spec.md:2805. Since 3c018b82 the record has 100 bytes (it had 134), `register` has no P-256 owner key and no secp256r1 instruction, and the wasm has no `register` intent: it refuses every registry instruction (privacy-rings 3c018b82: program-libs/user-registry-interface/src/state.rs:7-18,47-48; instruction.rs:11-15). Payers use the full shielded address of the PDA identity |
+| No registration | The beta never registers the group. The PDA identity of 7.2 needs no record: the pool and the indexer accept a PDA owner with no record (6.10). The wasm has no `register` intent: tag 1 of the intent is unknown. A record would be permanent and public: `register` fails if a record exists, no instruction changes the nullifier key, and no operation deletes a record [Z]programs/user-registry/src/instructions/register.rs:36-42,57-60; docs/spec.md:2805. Since 3c018b82 the record has 100 bytes (it had 134), `register` has no P-256 owner key and no secp256r1 instruction, and the wasm has no `register` intent: it refuses every registry instruction (privacy-rings 3c018b82: program-libs/user-registry-interface/src/state.rs:7-18,47-48; instruction.rs:11-15). Payers use the full shielded address of the PDA identity |
 | Refused by default | `set_merging_enabled(true)` (tag 1, named `set_merge_encryption` since 3c018b82) and `update_keys` (tag 2, with only the viewing key) are separate intents with their own screens. The first version does not offer them. `merging_enabled` stays false, the registration default [Z]programs/user-registry/src/instructions/register.rs:60 |
 | Merge | When `merging_enabled` is true, anyone can submit `merge_transact` with no owner signature [Z]docs/spec.md:2270-2274. A merge consolidates inputs into the same owner, so no funds move. It does spend the inputs of an open proposal, and the proposal then fails. That is a denial of service. The group merges with a normal approved self-transfer |
 | Members | A removed member keeps the secrets and reads the history permanently. A member change needs a new wallet and group key (PROTOCOL.md section 8). The beta has no Solana move: Change devices moves the Zcash funds only, so the Solana funds stay with the old group key, and a member that the change leaves out keeps its key share of the old group. A Solana move would be one approved payment that links the old key to the new key in public |
@@ -472,8 +472,8 @@ recipient, and its life depends on a nonce, an expiry and roots.
 | Propose (5.1) | The approvals program `create` (the payer funds the proposal account). A recent blockhash: the fee key of the proposing seat signs alone | None | None |
 | Execute (5.1) | The Ed25519 instruction with the approval, then the program `execute` with the `transact` accounts and the owner PDA last (a withdrawal: then the SOL interface and the recipient). A recent blockhash: the fee key of the executing seat signs alone | None (a withdrawal: one SOL withdrawal leg) | Payee, change to the PDA identity, dummies (a withdrawal: no payee) |
 
-Nothing signs the intents of the beta that the program design retired: register, a nonce
-withdrawal (tag 4) and a nonce cancel (`intent-retired`). A withdrawal goes through the program
+Nothing signs the intents of the beta that the program design retired: a nonce
+withdrawal (tag 4) and a nonce cancel (`intent-retired`). The `register` intent is deleted. A withdrawal goes through the program
 (5.1, step 7; SOL-32).
 
 The wasm refuses these in every intent: a pool `deposit` (tag 15) outside the Shield intent,
@@ -1111,8 +1111,8 @@ the pool that runs on Devnet; no state change):
   merged: `alex/x25519-everywhere` (16 October) moves viewing encryption to X25519. Its tag
   `custom-ring-keys-v19` is a GitHub prerelease of rotated custom-ring proving keys, not an SDK
   release. It changes `ViewingKey` and shielded addresses, and its changelog tells users to migrate
-  P-256 viewing keys. If it reaches main, the viewing key of 4.2, the 99-byte address and the
-  ciphertext rule of the checker (P-256 ECDH) change. SOL-37 watches it.
+  P-256 viewing keys. It reached the pool v1.0.0, and since the branch zolana-v1 (10 November
+  2026) the viewing key of 4.2 and the ciphertext rule of the checker use X25519.
 
 **6.12 SOL-36 live run, 16 October 2026** (the page of the SOL-36 branch at commit `52a12b0`,
 under the origin `https://app.zigs.app` on a local server; three seats in three browser contexts;

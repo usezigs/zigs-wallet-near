@@ -235,8 +235,7 @@ rules! {
     MigrationPayee, "migration-payee", Policy,
         "a nonce payment pays its inputs whole to the program address of the group, no change";
     IntentRetired, "intent-retired", Policy,
-        "no register, nonce withdrawal or nonce cancel, and the group key signs no program \
-         message";
+        "no nonce withdrawal or nonce cancel, and the group key signs no program message";
 }
 
 impl Rule {
