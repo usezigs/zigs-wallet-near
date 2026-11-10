@@ -972,8 +972,8 @@ step("a copied share is ignored, a failed save sends nothing");
     assert.equal(all.includes(secret), false, "no secret reaches the group server");
   }
   const init = chain.commands.find((m) => m.cmd === "init");
-  const fields = ["groupKey", "nullifierSecret", "pda", "pdaNullifierSecret", "rpcUrl"];
-  fields.push("viewingSecret");
+  const fields = ["cluster", "groupKey", "nullifierSecret", "pda", "pdaNullifierSecret"];
+  fields.push("rpcUrl", "viewingSecret");
   assert.deepEqual(Object.keys(init.args).sort(), fields);
 }
 

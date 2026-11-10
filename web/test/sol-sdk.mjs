@@ -32,6 +32,7 @@ const json = (name) => J(readFileSync(new URL(name, import.meta.url), "utf8"));
 
 const POOL = "ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW";
 const TREE_BYTES = 40_080;
+const DEVNET_GENESIS = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
 let treeAccount = { owner: POOL, data: Buffer.alloc(TREE_BYTES) };
 function rpcAnswer(init) {
   const body = init?.body ? J(init.body) : null;
@@ -48,6 +49,7 @@ function rpcAnswer(init) {
     getSlot: 9,
     getBalance: { context: { slot: 9 }, value: 5 },
     getAccountInfo: { context: { slot: 9 }, value },
+    getGenesisHash: DEVNET_GENESIS,
   };
   return Response.json({ jsonrpc: "2.0", id: body?.id, result: results[body?.method] ?? null });
 }
@@ -124,6 +126,7 @@ const RPC_URL = "https://devnet.helius-rpc.com/?api-key=" + "k3y9".repeat(5);
 
 async function initOf(seed, roles) {
   const answer = await ask("init", {
+    cluster: "devnet",
     rpcUrl: RPC_URL,
     nullifierSecret: roles.nullifier_secret,
     pdaNullifierSecret: roles.pda.nullifier_secret,
@@ -152,6 +155,7 @@ for (const seed of seeds) {
   assert.equal(init.pda, base58(roles.pda.pda), `${shown}: PDA`);
   assert.equal(init.ownerHash, roles.owner_hash, `${shown}: group owner hash`);
   assert.equal(init.pdaOwnerHash, roles.pda.owner_hash, `${shown}: PDA owner hash`);
+  assert.deepEqual([init.cluster, init.genesis], ["devnet", DEVNET_GENESIS], `${shown}: genesis`);
 }
 step("the group and PDA addresses of the Worker equal those of the wasm for 5 seeds");
 

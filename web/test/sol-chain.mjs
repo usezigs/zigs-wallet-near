@@ -314,6 +314,8 @@ const proveAnswers = (chain) => ({
 export function answersOf(chain) {
   const answers = {
     init: () => ({
+      cluster: "devnet",
+      genesis: GENESIS,
       hasherMs: 1,
       ownerHash: "00",
       pdaOwnerHash: "00",

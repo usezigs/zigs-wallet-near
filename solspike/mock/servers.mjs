@@ -25,8 +25,20 @@ const body = (req) =>
 
 const recorded = () => JSON.parse(readFileSync(join(HERE, "fixtures/sync.json"), "utf8")).entries;
 
+// The Worker reads the genesis hash at init and refuses any but the one of Devnet.
+const genesisEntry = {
+  seq: 109,
+  method: "POST",
+  path: "/",
+  rpcMethod: "getGenesisHash",
+  status: 200,
+  contentType: "application/json",
+  synthetic: true,
+  body: JSON.stringify({ jsonrpc: "2.0", result: "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG" }),
+};
+
 /** The recorded sync entries plus the synthetic ones that the Worker commands need. */
-const fixtureEntries = (extra) => [...recorded(), ...syntheticEntries(), ...extra];
+const fixtureEntries = (extra) => [...recorded(), ...syntheticEntries(), genesisEntry, ...extra];
 
 const matches = (entry, path, rpc, call) =>
   entry.path === path &&

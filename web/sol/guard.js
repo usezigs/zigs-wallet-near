@@ -4,7 +4,21 @@
 // is refused by name, so a FROST share, solSeed or a nonce cannot reach it.
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]"]);
-const HELIUS_HOST = "devnet.helius-rpc.com";
+
+/** Per cluster: the Helius host, the genesis hash and the approvals program of the pool wallet. */
+export const CLUSTERS = {
+  devnet: {
+    host: "devnet.helius-rpc.com",
+    genesis: "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+    program: "5PHZEHBMaYbFL9SFmMyP8kUayh3TFEyq2dvEYY3UGjkL",
+  },
+  mainnet: {
+    host: "mainnet.helius-rpc.com",
+    genesis: "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
+    program: "9mE7WUJHK6dQwzK6AP6wf1eyPmePULZrGeRbXqke2ukq",
+  },
+};
+const HOSTS = new Set(Object.values(CLUSTERS).map((row) => row.host));
 
 let loopbackAllowed = false;
 
@@ -35,10 +49,22 @@ function hostAllowed(url) {
   if (LOOPBACK.has(url.hostname)) {
     return loopbackAllowed && (url.protocol === "http:" || url.protocol === "https:");
   }
-  return url.protocol === "https:" && url.host === HELIUS_HOST;
+  return url.protocol === "https:" && HOSTS.has(url.host);
 }
 
-/** An https URL on the Devnet Helius host (default port). In test mode also a loopback URL. */
+/**
+ * True when `rpcUrl` (a URL that passed the schema) is on the Helius host of `cluster`. In test
+ * mode a loopback URL also fits: the genesis check of the Worker still runs.
+ */
+export function onClusterHost(rpcUrl, cluster) {
+  const url = new URL(rpcUrl);
+  if (LOOPBACK.has(url.hostname)) return loopbackAllowed;
+  return url.host === CLUSTERS[cluster].host;
+}
+
+const cluster = (v) => typeof v === "string" && Object.hasOwn(CLUSTERS, v);
+
+/** An https URL on a Helius host of `CLUSTERS` (default port). In test mode also a loopback URL. */
 function rpcUrl(v) {
   if (typeof v !== "string") return false;
   let url;
@@ -53,6 +79,7 @@ function rpcUrl(v) {
 /** Per command: the allowed fields, each with its check. A field must be present and valid. */
 export const SCHEMA = {
   init: {
+    cluster,
     rpcUrl,
     nullifierSecret: hexOf(31),
     pdaNullifierSecret: hexOf(31),

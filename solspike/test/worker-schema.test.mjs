@@ -1,12 +1,22 @@
 // Schema tests of the Solana Worker (P8c). Usage: node solspike/test/worker-schema.test.mjs
-// init takes the role secrets (the viewing key and the nullifier secrets of the group key and of
-// the PDA identity), the group key, the PDA and the RPC URL, and nothing else. A FROST key
-// package, solSeed, a nonce or any other field is refused by name. Errors never carry a value.
+// init takes the cluster, the role secrets (the viewing key and the nullifier secrets of the group
+// key and of the PDA identity), the group key, the PDA and the RPC URL, and nothing else. A FROST
+// key package, solSeed, a nonce or any other field is refused by name. Errors never carry a value.
+// The cluster table of guard.js equals the constants of the wasm source.
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { allowLoopbackForTests, checkCommand, makeRedactor, SCHEMA } from "../../web/sol/guard.js";
+import {
+  allowLoopbackForTests,
+  checkCommand,
+  CLUSTERS,
+  makeRedactor,
+  onClusterHost,
+  SCHEMA,
+} from "../../web/sol/guard.js";
+import { GENESIS } from "../../web/sol/plain/guard.js";
+import { decode58 } from "../mock/synthetic.mjs";
 
 const KEY_NAME = "api-key";
 
@@ -14,6 +24,7 @@ const step = (name) => console.log(`ok  ${name}`);
 const SECRET = "ab".repeat(32);
 const KEY = "k".repeat(24);
 const init = () => ({
+  cluster: "devnet",
   rpcUrl: `https://devnet.helius-rpc.com/?${KEY_NAME}=${KEY}`,
   nullifierSecret: "cd".repeat(31),
   pdaNullifierSecret: "ce".repeat(31),
@@ -28,6 +39,30 @@ const LOOPBACK_URLS = [
   "https://127.0.0.1:9/",
   "https://localhost/",
 ];
+// Accepted spellings of each Helius host, and the refused spellings of the mainnet host (the
+// Devnet ones are in initValues).
+const HOST_SPELLINGS = Object.fromEntries(
+  ["devnet", "mainnet"].map((name) => [
+    name,
+    [
+      `https://${name}.helius-rpc.com/?${KEY_NAME}=x`,
+      `https://${name}.helius-rpc.com:443/?${KEY_NAME}=x`,
+      `https://${name.toUpperCase()}.helius-rpc.com/?${KEY_NAME}=x`,
+    ],
+  ]),
+);
+const MAINNET_BAD = [
+  `http://mainnet.helius-rpc.com/?${KEY_NAME}=x`,
+  "https://mainnet.helius-rpc.com.evil.example/",
+  "https://user:pass@mainnet.helius-rpc.com/",
+  `https://a.mainnet.helius-rpc.com/?${KEY_NAME}=x`,
+  `https://xmainnet.helius-rpc.com/?${KEY_NAME}=x`,
+  `https://mainnet.helius-rpc.com./?${KEY_NAME}=x`,
+  `https://mainnet.helius-rpc.com:8443/?${KEY_NAME}=x`,
+  "https://mainnet.helius-rpc.com/#frag",
+  `https://mainnet-beta.helius-rpc.com/?${KEY_NAME}=x`,
+];
+const MAINNET_PROGRAM = "8231e0852aa8441b13d1375bddc094443e468b103b8fb99f4d649baddc970996";
 const text = (fn) => {
   try {
     fn();
@@ -52,11 +87,12 @@ function initFields() {
       /missing or malformed/,
     );
   }
-  step("init takes exactly the six fields; keyPackage, solSeed and nonces are refused by name");
+  step("init takes exactly the seven fields; keyPackage, solSeed and nonces are refused by name");
 }
 
 function initValues() {
   const bad = {
+    cluster: ["", "Devnet", "testnet", "mainnet-private", "__proto__", "toString", ["devnet"], 5],
     nullifierSecret: ["", "cd".repeat(32), "CD".repeat(31), `${"cd".repeat(30)}zz`, 5],
     pdaNullifierSecret: ["", "ce".repeat(32), "CE".repeat(31)],
     viewingSecret: ["ab".repeat(31), `${SECRET}00`, null],
@@ -67,7 +103,6 @@ function initValues() {
       `https://evil.example/?${KEY_NAME}=x`,
       "https://devnet.helius-rpc.com.evil.example/",
       "https://user:pass@devnet.helius-rpc.com/",
-      `https://mainnet.helius-rpc.com/?${KEY_NAME}=x`,
       `https://beta.helius-rpc.com/?${KEY_NAME}=x`,
       `https://a.devnet.helius-rpc.com/?${KEY_NAME}=x`,
       `https://xdevnet.helius-rpc.com/?${KEY_NAME}=x`,
@@ -79,6 +114,7 @@ function initValues() {
       "ftp://127.0.0.1/",
       "not a url",
       42,
+      ...MAINNET_BAD,
     ],
   };
   for (const [field, values] of Object.entries(bad)) {
@@ -91,11 +127,7 @@ function initValues() {
       );
     }
   }
-  for (const rpcUrl of [
-    `https://devnet.helius-rpc.com/?${KEY_NAME}=x`,
-    `https://devnet.helius-rpc.com:443/?${KEY_NAME}=x`,
-    `https://DEVNET.helius-rpc.com/?${KEY_NAME}=x`,
-  ]) {
+  for (const rpcUrl of [...HOST_SPELLINGS.devnet, ...HOST_SPELLINGS.mainnet]) {
     checkCommand("init", { ...init(), rpcUrl });
   }
   for (const rpcUrl of LOOPBACK_URLS) {
@@ -106,8 +138,49 @@ function initValues() {
       `${rpcUrl} passed without the test mode`,
     );
   }
-  step("init takes the Devnet Helius host only (not mainnet, a sibling, a port or a suffix)");
+  step("init takes the Helius host of Devnet or mainnet only (not a sibling, a port or a suffix)");
   step("init refuses a loopback URL while the test mode is off (the default)");
+}
+
+/** init binds the host of the RPC URL to the cluster; only the test mode lets a loopback URL in. */
+function clusterHosts() {
+  for (const [cluster, other] of [
+    ["devnet", "mainnet"],
+    ["mainnet", "devnet"],
+  ]) {
+    for (const rpcUrl of HOST_SPELLINGS[cluster]) {
+      assert.equal(onClusterHost(rpcUrl, cluster), true, `${rpcUrl} on ${cluster}`);
+      assert.equal(onClusterHost(rpcUrl, other), false, `${rpcUrl} passed as ${other}`);
+    }
+  }
+  for (const rpcUrl of LOOPBACK_URLS) {
+    assert.equal(onClusterHost(rpcUrl, "devnet"), false, `${rpcUrl} passed without the test mode`);
+  }
+  step("init binds the RPC host to the cluster: a Devnet URL never passes as mainnet, nor back");
+}
+
+const bytesOf = (v) => decode58(v).toString("hex");
+/** The bytes of a `pub const NAME: Key = [...]` of wasm-sol/src/consts.rs, as hex. */
+function rustKey(name) {
+  const source = readFileSync(new URL("../../wasm-sol/src/consts.rs", import.meta.url), "utf8");
+  const found = source.match(new RegExp(`pub const ${name}: Key = \\[([^\\]]+)\\]`));
+  assert.ok(found, `${name} is not in consts.rs`);
+  return [...found[1].matchAll(/0x([0-9a-f]{2})/g)].map((m) => m[1]).join("");
+}
+
+/** The genesis and program of each cluster equal the wasm source and the plain Worker. */
+function clusterTable() {
+  assert.deepEqual(Object.keys(CLUSTERS), ["devnet", "mainnet"]);
+  assert.equal(bytesOf(CLUSTERS.devnet.genesis), rustKey("DEVNET_GENESIS"));
+  assert.equal(bytesOf(CLUSTERS.mainnet.genesis), rustKey("MAINNET_GENESIS"));
+  assert.equal(bytesOf(CLUSTERS.devnet.program), rustKey("MULTISIG_DEVNET"));
+  // The mainnet approvals program, as the design record of slice 8 reads it (2.1).
+  assert.equal(bytesOf(CLUSTERS.mainnet.program), MAINNET_PROGRAM);
+  for (const cluster of ["devnet", "mainnet"]) {
+    assert.equal(CLUSTERS[cluster].genesis, GENESIS[cluster], `${cluster}: the plain genesis`);
+    assert.equal(CLUSTERS[cluster].host, `${cluster}.helius-rpc.com`);
+  }
+  step("the genesis and the approvals program of each cluster equal the wasm constants");
 }
 
 function otherCommands() {
@@ -338,7 +411,7 @@ function loopbackTestMode() {
     "ftp://127.0.0.1/",
     "ws://localhost/",
     `http://devnet.helius-rpc.com/?${KEY_NAME}=x`,
-    `https://mainnet.helius-rpc.com/?${KEY_NAME}=x`,
+    `http://mainnet.helius-rpc.com/?${KEY_NAME}=x`,
   ];
   for (const rpcUrl of bad) {
     assert.match(
@@ -348,6 +421,10 @@ function loopbackTestMode() {
     );
   }
   checkCommand("init", init());
+  for (const rpcUrl of LOOPBACK_URLS) {
+    assert.equal(onClusterHost(rpcUrl, "mainnet"), true, `${rpcUrl} in test mode`);
+  }
+  assert.equal(onClusterHost(HOST_SPELLINGS.mainnet[0], "devnet"), false, "a host in test mode");
   step("allowLoopbackForTests accepts loopback URLs and nothing else");
 }
 
@@ -372,6 +449,8 @@ function pageNeverEnables() {
 
 initFields();
 initValues();
+clusterHosts();
+clusterTable();
 otherCommands();
 redaction();
 pageNeverEnables();

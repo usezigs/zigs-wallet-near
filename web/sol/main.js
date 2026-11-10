@@ -75,6 +75,7 @@ const blank = () => ({
   rent: null,
   rentDone: null,
   proveChecked: false,
+  genesis: null,
 });
 
 function teardown(c) {

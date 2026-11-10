@@ -5,7 +5,7 @@
 // beta until they move to the PDA. The response of this script carries its own CSP (cf/src), so
 // the policy binds this file and every module that it imports.
 import * as sdk from "/sol/zolana.bundle.js";
-import { checkCommand, makeRedactor } from "/sol/guard.js";
+import { CLUSTERS, checkCommand, makeRedactor, onClusterHost } from "/sol/guard.js";
 import {
   POOL_CHANGED,
   isKeyFetch,
@@ -47,6 +47,8 @@ const PROVE_SEGMENT = /(^|\/)prove/;
 
 const redact = makeRedactor();
 let session = null;
+// The text of a refusal that ends this Worker: the server is not the cluster of the wallet.
+let locked = null;
 
 const bytes = (text) => Uint8Array.from(text.match(/../g) ?? [], (h) => parseInt(h, 16));
 const fromBase64 = (text) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
@@ -223,14 +225,29 @@ function shieldedKeys(args, client) {
   }
 }
 
+/** The genesis hash of the RPC server. A server of another cluster locks this Worker. */
+async function genesisOf(client, cluster) {
+  const genesis = await client.solanaRpc.getGenesisHash().send();
+  if (genesis !== CLUSTERS[cluster].genesis) {
+    locked = `This server is not Solana ${cluster}. This Worker refuses every command.`;
+    session = null;
+    throw new Error(locked);
+  }
+  return genesis;
+}
+
 async function init(args) {
   const started = performance.now();
+  const { cluster } = args;
+  if (!onClusterHost(args.rpcUrl, cluster)) {
+    throw new Error(`init: rpcUrl is not on the Helius host of ${cluster}`);
+  }
   const url = new URL(args.rpcUrl);
   redact.add(args.rpcUrl, url.search, url.searchParams.get("api-key"), args.nullifierSecret);
   redact.add(args.viewingSecret, args.pdaNullifierSecret);
   const gateway = new URL(url);
   gateway.pathname = "/v1/spr";
-  const s = { trace: { prove: null }, origin: url.origin, proverUrl: PROVER_URL };
+  const s = { trace: { prove: null }, cluster, origin: url.origin, proverUrl: PROVER_URL };
   s.proverOrigin = new URL(PROVER_URL).origin;
   s.poolSlot = pinnedSlot(url.host);
   s.guarded = guardedFetch(url.origin, s);
@@ -245,9 +262,12 @@ async function init(args) {
     computeUnitLimit: COMPUTE_UNITS,
   });
   const hasherMs = Math.round(performance.now() - started);
+  const genesis = await genesisOf(client, cluster);
   const { old, pda } = shieldedKeys(args, client);
   session = Object.assign(s, { client, old, pda });
   return {
+    cluster,
+    genesis,
     hasherMs,
     owner: old.owner,
     shielded: hex(old.address.toBytes()),
@@ -344,16 +364,18 @@ async function history({ account: address }) {
   return found.map((x) => ({ signature: x.signature, failed: x.err !== null, slot: `${x.slot}` }));
 }
 
-const PROGRAM = "5PHZEHBMaYbFL9SFmMyP8kUayh3TFEyq2dvEYY3UGjkL";
-
-/** The open proposals of `group` that pay the fee key `fee` (both hex), SOL-52 (owned.js). */
+/**
+ * The open proposals of `group` that pay the fee key `fee` (both hex), SOL-52 (owned.js), under
+ * the approvals program of the cluster.
+ */
 async function owned({ fee, group }) {
-  const { solanaRpc } = need().client;
+  const { client, cluster } = need();
+  const { solanaRpc } = client;
   const filters = proposalFilters(group, fee).map(({ memcmp }) => ({
     memcmp: { ...memcmp, offset: BigInt(memcmp.offset) },
   }));
   const options = { encoding: "base64", commitment: "confirmed", filters };
-  const found = await solanaRpc.getProgramAccounts(PROGRAM, options).send();
+  const found = await solanaRpc.getProgramAccounts(CLUSTERS[cluster].program, options).send();
   return found.map((x) => ({
     address: x.pubkey,
     lamports: x.account.lamports.toString(),
@@ -672,12 +694,18 @@ export function heliusText(err) {
   return null;
 }
 
+/** Throws when this command may not run now: a bad shape, or a locked Worker. */
+function admit(cmd, input) {
+  checkCommand(cmd, input);
+  if (locked !== null) throw new Error(locked);
+}
+
 async function answer({ id, cmd, args }) {
   refusedStatus = null;
   proverFailure = null;
   try {
     const input = args ?? {};
-    checkCommand(cmd, input);
+    admit(cmd, input);
     const result = await HANDLERS[cmd](input);
     self.postMessage({ id, ok: true, result });
   } catch (err) {
