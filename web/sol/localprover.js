@@ -25,7 +25,8 @@ const KEY_FILE = /^transfer_confidential_[1-68]_2\.zopro$/;
 
 if (KEY_BASE_URL !== KEY_FOLDER) throw new Error("the prover bundle names another key folder");
 for (const n of SHAPES) {
-  // The prover checks the size and the SHA-256 of each file against this table.
+  // The prover checks the size and the SHA-256 of a download or a cache hit of the pinned file;
+  // a load of the raw form from Cache Storage checks the headers and the size only.
   const entry = KEY_DIGESTS[`transfer_confidential_${n}_2.key`];
   if (!KEY_FILE.test(entry?.file ?? "")) throw new Error(`the prover has no ${n}x2 zopro key`);
 }

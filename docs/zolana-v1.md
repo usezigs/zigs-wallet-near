@@ -357,11 +357,25 @@ The owner took these decisions. They replace the recommendations above where the
   guard blocks every prove path of the Helius origin and every other loopback or foreign call.
   The page answer "hosted" is refused with a text.
 - `POOL_SLOTS` is keyed by Helius host. `POOL_DATA` is the PDA of ring1G under the upgradeable
-  loader. A test derives it. Nobody read the ProgramData or the program account on chain in this
-  slice (no network access to Helius). The loader guarantees the equality, but it is not checked.
-- Not done: a proof of a request that Zigs builds with the new SDK, a run in a browser (nested
-  Workers, Cache API, CDN CORS for Range), and the UI texts of `view.js` and `payview.js`, which
-  still describe the hosted prover.
+  loader. A test derives it.
+- On-chain check of 2026-11-10: the program accounts of ring1G name the ProgramData account
+  `CMV9fRyA66cwi1ce4bynyXR9zDU7f99gXZWCUNesp8xr` on both clusters. The deploy slots are 520179383
+  (Devnet) and 467127839 (mainnet). The upgrade authority of the pool is
+  `AftkmqRyF25wtqEFq7eqxFGCqdL2jSo8DPGZE845Xyw9` on Devnet and
+  `CuZ42BsoBcLaNTUboJpGhekGmrYMZ7sRhwVki4frz1FB` on mainnet.
+- Key fetch from another origin (Chromium 152): one byte range of the key folder fetched from
+  another origin needs no preflight (answer 206, 16 bytes). An OPTIONS preflight to the CDN
+  answers 403. Safari and Firefox are not checked.
+- The privacy texts of `app-sol.js`, the help answer and the guide say that proofs are made on
+  the device and that a payment is refused with local proving off. `payview.js` keeps one note
+  about first proofs of an older version.
+- The SHA-256 check of the key files covers a download and a cache hit of the pinned file. A load
+  of the raw key form from Cache Storage (`key-store.js` `#cachedRaw`) checks the pin header, the
+  format header and the byte length, and does not hash the content again. Later loads rest on the
+  Cache Storage of the same origin and on the self-verify of each proof. If a stronger guarantee
+  is needed, ask upstream for a content hash of the raw form.
+- Not done: a proof of a request that Zigs builds with the new SDK, and a run in a browser
+  (nested Workers, Cache API).
 
 ## 5. Devnet-first plan
 
