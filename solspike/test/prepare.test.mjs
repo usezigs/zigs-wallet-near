@@ -8,11 +8,10 @@
 //    program (wasm-sol/vectors/program/landed.json) is the commitment of their body, and the plan
 //    of a proposal reads back.
 // 5. A withdrawal adds the SOL interface and the recipient to the commitment, and the SOL
-//    interface is the address that the pool derives (ZOLANA_REPO for @solana/kit).
+//    interface is the constant of the SDK at the pin.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
@@ -26,7 +25,6 @@ import {
   planFromProve,
 } from "../../web/sol/prepare.js";
 import { planHex } from "../../web/sol/intent.js";
-import { zolanaRepo } from "../tools/paths.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SDK = pathToFileURL(resolve(HERE, "../../web/sol/zolana.bundle.js")).href;
@@ -45,6 +43,8 @@ const text = (fn) => {
   return null;
 };
 
+// The two landed messages ran on the retired Devnet pool, before the pool ring1G.
+const RETIRED_POOL = "sppU489D7A4U1exNo1oeMGZtLEofq3a6o2fR7UeoWB6";
 // The expiry of each landed message: the proposal time plus 24 hours (ZOLANA.md 6.6).
 const LANDED = [
   ["chain-p6a.msg", 1792048408n, "4ea913073c961b60db4b5c2efcb2e3ea"],
@@ -53,7 +53,7 @@ const LANDED = [
 
 function landedMessages() {
   for (const [name, expiry, salt] of LANDED) {
-    const data = cutTransact(message(name), sdk.SHIELDED_POOL_PROGRAM_ID);
+    const data = cutTransact(message(name), RETIRED_POOL);
     assert.equal(data[0], 16);
     const parsed = parseTransact(data);
     assert.deepEqual(
@@ -68,7 +68,7 @@ function landedMessages() {
 
 function refusals() {
   const msg = message("chain-p6a.msg");
-  const data = cutTransact(msg, sdk.SHIELDED_POOL_PROGRAM_ID);
+  const data = cutTransact(msg, RETIRED_POOL);
   assert.match(
     text(() => cutTransact(msg, "11111111111111111111111111111112")),
     /0 pool instr/,
@@ -77,7 +77,7 @@ function refusals() {
     text(() => cutTransact({ ...msg, instructionHeaders: undefined }, "x")),
     /not version 1/,
   );
-  const pool = sdk.SHIELDED_POOL_PROGRAM_ID;
+  const pool = RETIRED_POOL;
   const isPool = (h) => msg.staticAccounts[h.programAccountIndex] === pool;
   const at = msg.instructionHeaders.findIndex(isPool);
   const twice = {
@@ -237,17 +237,12 @@ async function withdrawalCommitment() {
   step("a withdrawal commitment hashes the SOL interface and the recipient after the prefix");
 }
 
-/** The SOL interface is the program address `["sol_interface", 0]` of the Devnet pool. */
-async function solInterfaceAddress() {
-  if (!process.env.ZOLANA_REPO)
-    return console.log("skip  the SOL interface against the pool (no ZOLANA_REPO)");
-  const kit = createRequire(join(zolanaRepo(), "package.json"))("@solana/kit");
-  const [derived] = await kit.getProgramDerivedAddress({
-    programAddress: kit.address("ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW"),
-    seeds: [Buffer.from("sol_interface"), Buffer.from([0])],
-  });
-  assert.equal(Buffer.from(kit.getAddressEncoder().encode(derived)).toString("hex"), SOL_INTERFACE);
-  step("the SOL interface of the Worker is the one that the pool derives");
+/** The SOL interface of the Worker is the constant of the SDK at the pin, for the pool ring1G. */
+function solInterfaceAddress() {
+  const encoded = sdk.getAddressEncoder().encode(sdk.SOL_INTERFACE);
+  assert.equal(Buffer.from(encoded).toString("hex"), SOL_INTERFACE);
+  assert.equal(sdk.SHIELDED_POOL_PROGRAM_ID, "ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW");
+  step("the SOL interface of the Worker is the one of the SDK at the pin");
 }
 
 function plansReadBack() {
@@ -274,6 +269,6 @@ plans();
 planRefusals();
 await landedCommitments();
 await withdrawalCommitment();
-await solInterfaceAddress();
+solInterfaceAddress();
 plansReadBack();
 console.log("prepare tests passed");

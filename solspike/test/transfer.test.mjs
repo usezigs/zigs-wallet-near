@@ -6,8 +6,8 @@
 //   2. The hash of the external data follows the expiry.
 //   3. Selection: largest first, SOL, plain, unspent, in the tree of the client, enough to cover.
 //   4. The payment and the change reach the right owners.
-//   5. The fee payer is not the owner: the proof binds both, the group is the owner signer, and
-//      the change tag is inline (the sponsor mode of the SDK, which the fee key of a seat uses).
+//   5. The fee payer is not the owner: the group is the owner signer, and the change tag is
+//      inline (the sponsor mode of the SDK, which the fee key of a seat uses).
 //   6. A payment of the PDA identity (ZOLANA.md 7.2), rebuilt from its plan and its first proof
 //      for another payer, has the commitment of the first proof; another plan has another one.
 import "../tools/quiet.mjs";
@@ -246,7 +246,7 @@ function theFeeKeyPaysAndTheGroupIsTheOwnerSigner() {
   assert.equal(proofInputs.payer, PAYER, "the payer is the fee key");
   assert.notEqual(proofInputs.payer, session.owner);
   assert.deepEqual(ownerSigners(sdk, proofInputs), [session.owner], "the group signs as owner");
-  // Two inputs of one owner give one owner signer. A spend that the owner pays has none.
+  // Two inputs of one owner give one owner signer. A payer that is the owner is listed once.
   const alone = new sdk.ConfidentialTransfer(group.address, [entryInput(1)], session.owner);
   alone.send(payee.address, sdk.SOL_MINT, 10n);
   const prepared = alone.prepare();
@@ -256,7 +256,7 @@ function theFeeKeyPaysAndTheGroupIsTheOwnerSigner() {
     assets: new sdk.AssetRegistry([]),
   });
   const own = prepared.finalize(sealed);
-  assert.deepEqual(ownerSigners(sdk, own), [], "the owner that pays signs once, as payer");
+  assert.deepEqual(ownerSigners(sdk, own), [session.owner], "the owner that pays is listed");
   // With a sponsor every tag is inline: the account index 0 would name the payer.
   for (const out of proofInputs.externalData.outputs) assert.equal(out.ownerTag.kind, "inline");
   assert.equal(own.externalData.outputs[0].ownerTag.kind, "account", "the control: owner pays");
@@ -273,14 +273,10 @@ function theFeeKeyPaysAndTheGroupIsTheOwnerSigner() {
   step("the fee key pays, the group is the owner signer, and no tag names the payer");
 }
 
-/** ownerSigners equals the function of the SDK that the package does not export, when the
- * checkout of the pinned commit is at hand (ZOLANA_REPO): the proof and the instruction must
- * agree on the list. A dummy input and a repeated owner give no signer, nor does the payer. */
-async function ownerSignersEqualTheSdk() {
-  if (!process.env.ZOLANA_REPO)
-    return console.log("skip  ownerSigners against the SDK (no ZOLANA_REPO)");
-  const file = `${process.env.ZOLANA_REPO}/sdk-libs/ts/dist/client/prover/assembly.js`;
-  const { ownerSignerAddresses } = await import(file);
+/** ownerSigners equals ownerSignerAddresses of the SDK at the pin: the proof and the instruction
+ * must agree on the list. A dummy input and a repeated owner give no signer. The payer gets no
+ * special treatment, and an output that carries data adds its owner. */
+function ownerSignersEqualTheSdk() {
   const other = testWallet(0x44);
   const make = (wallet, seed) =>
     sdk.ProofInputUtxo.fromNullifierKey(
@@ -295,13 +291,28 @@ async function ownerSignersEqualTheSdk() {
   const inputs = [make(group, 1), make(other, 2), make(group, 3), make(other, 4)];
   const names = [group.address.solanaAddress(), other.address.solanaAddress(), PAYER];
   for (const payer of names) {
-    const want = [...ownerSignerAddresses(inputs, payer)];
-    assert.deepEqual(ownerSigners(sdk, { inputUtxos: inputs, payer }), want, payer);
+    const want = [...sdk.ownerSignerAddresses(inputs, [])];
+    assert.deepEqual(ownerSigners(sdk, { inputUtxos: inputs, outputs: [], payer }), want, payer);
   }
   assert.deepEqual(
-    ownerSigners(sdk, { inputUtxos: inputs, payer: PAYER }),
+    ownerSigners(sdk, { inputUtxos: inputs, outputs: [], payer: PAYER }),
     [group.address.solanaAddress(), other.address.solanaAddress()],
-    "first-input order, each owner once",
+    "first-input order, each owner once, no payer",
+  );
+  const third = testWallet(0x45);
+  const carrier = (wallet, dataHash) => ({ ownerAddress: wallet.address, dataHash });
+  const outputs = [
+    carrier(third, new Uint8Array(32).fill(7)),
+    carrier(other, new Uint8Array(32).fill(8)),
+    carrier(group, new Uint8Array(32)),
+    { ownerAddress: undefined, dataHash: new Uint8Array(32).fill(9) },
+  ];
+  const withOutputs = { inputUtxos: inputs, outputs, payer: PAYER };
+  assert.deepEqual(ownerSigners(sdk, withOutputs), [...sdk.ownerSignerAddresses(inputs, outputs)]);
+  assert.deepEqual(
+    ownerSigners(sdk, withOutputs),
+    [group, other, third].map((w) => w.address.solanaAddress()),
+    "an output with data adds its owner after the inputs; a zero hash adds none",
   );
   step("ownerSigners equals ownerSignerAddresses of the SDK, in the same order");
 }
@@ -451,7 +462,7 @@ inputCap();
 ownersOfOutputs();
 exactAmountHasNoChange();
 aMoveTakesWholeUtxos();
-await ownerSignersEqualTheSdk();
+ownerSignersEqualTheSdk();
 aPaymentIsRebuiltWithItsCommitmentForAnyPayer();
 aWithdrawalIsRebuiltWithItsLeg();
 aRebuildRefusesTheGroupKeyAMissingInputAndAnAccountTag();

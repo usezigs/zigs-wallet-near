@@ -9,11 +9,11 @@ const ZERO_KEY = "0".repeat(64);
 const SOL_ASSET = 0x2098f5fb9e239eab3ceac3f27b81e481dc3124d55ffed523a839ee8446b64864n;
 const TAG_TRANSACT = 16;
 /**
- * The SOL interface of the Devnet pool (`["sol_interface", 0]` of the pool program, the SDK
+ * The SOL interface of the pool ring1G (`["sol_interface", 0]` of the pool program, the SDK
  * `SOL_INTERFACE`, `sol_interface` of wasm-sol/src/pins.rs): the first settlement account of a
  * withdrawal. solspike/test/prepare.test.mjs derives it again.
  */
-export const SOL_INTERFACE = "196756c885b9985ace5f78749c1d5fd1738ca0fae278321e27235883a4fefc92";
+export const SOL_INTERFACE = "ae09fbb938445069bb9fa14119780f33e3abbfd51227271439ed93e4b9397dfd";
 
 export const hex = (bytes) => Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 const bytes = (text) => Uint8Array.from(text.match(/../g) ?? [], (h) => parseInt(h, 16));

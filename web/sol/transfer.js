@@ -3,8 +3,8 @@
 // set the expiry that the proof binds: finalize() fixes it at u64::MAX. So the Worker selects the
 // inputs, seals the outputs, sets the expiry in the external data and proves the result itself.
 // The fee key of a seat pays (ZOLANA.md 5), so the payer is not the owner: the proof binds the
-// payer and every other input owner as a signer (the SDK sponsor mode, #424), and the instruction
-// lists those owners as owner signers (`ownerSigners`).
+// input owners as signers, not the payer, and the instruction lists them as owner signers
+// (`ownerSigners`).
 //
 // The owner is an identity of the group: the PDA of the approvals program for a payment
 // (ZOLANA.md 7.2), the group key for the move of the beta funds. A payment is approved once and
@@ -147,16 +147,18 @@ function withExpiry(sdk, open, expiry) {
 
 /**
  * The owner signers of a spend, in the order of the SDK (`ownerSignerAddresses` of
- * client/prover/assembly.ts, which the package does not export): the Ed25519 owners of the real
- * inputs that are not the payer, each once. The proof and the instruction must agree on this list.
+ * client/prover/assembly.ts, which the package does not export): the unique Ed25519 and PDA
+ * owners of the real inputs, then the owners of outputs that carry data. The payer is listed only
+ * when it is one of them. The proof and the instruction must agree on this list.
  */
 export function ownerSigners(sdk, proofInputs) {
+  const carriesData = (o) => o.ownerAddress !== undefined && o.dataHash?.some((b) => b !== 0);
+  const owners = [
+    ...proofInputs.inputUtxos.filter((input) => !input.isDummy()).map((i) => i.utxo.owner),
+    ...proofInputs.outputs.filter(carriesData).map((o) => o.ownerAddress.signingPublicKey),
+  ];
   const decoder = sdk.getAddressDecoder();
-  const owners = proofInputs.inputUtxos
-    .filter((input) => !input.isDummy() && input.utxo.owner.signatureType() !== "p256")
-    .map((input) => decoder.decode(input.utxo.owner.confidentialViewTag()))
-    .filter((address) => address !== proofInputs.payer);
-  return [...new Set(owners)];
+  return [...new Set(owners.map((owner) => decoder.decode(owner.confidentialViewTag())))];
 }
 
 /** The group key and the owner of the identity never pay: a fee key of a seat does. */
@@ -254,7 +256,7 @@ export function rebuildProofInputs(sdk, client, identity, wallet, request) {
   }));
   const externalData = sdk.createExternalData({
     expiryUnixTs: first.expiry,
-    txViewingPublicKey: sdk.P256PublicKey.fromBytes(bytesOf(first.txViewingPk)),
+    txViewingPublicKey: sdk.X25519PublicKey.fromBytes(bytesOf(first.txViewingPk)),
     salt: first.salt,
     outputs: published,
     resolvedOwnerTags: published.map((o) => o.ownerTag.value),
