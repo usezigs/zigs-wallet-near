@@ -5,6 +5,7 @@
 //! and two static checks of the program's source and dependencies.
 
 use std::fs;
+use std::path::Path;
 
 use solana_instruction::AccountMeta;
 use solana_signer::Signer;
@@ -12,18 +13,38 @@ use zigs_min_multisig_svm_tests::{
     cancel_ix, close_cancelled_ix, program_dir, sample_transact, Rig, DAY,
 };
 
-/// The program's Rust code without comments, in lower case.
+const TEST_MODULE: &str = "#[cfg(test)]\nmod tests {\n";
+
+/// The program's Rust code without comments and without unit tests, in lower case.
 fn program_code() -> String {
     let mut code = String::new();
     for entry in fs::read_dir(program_dir().join("src")).expect("src") {
-        let text = fs::read_to_string(entry.expect("entry").path()).expect("read");
-        for line in text.lines() {
+        let path = entry.expect("entry").path();
+        let text = fs::read_to_string(&path).expect("read");
+        for line in without_test_module(&text, &path).lines() {
             let without_comment = line.split("//").next().unwrap_or_default();
             code.push_str(&without_comment.to_lowercase());
             code.push('\n');
         }
     }
     code
+}
+
+/// `text` up to its `#[cfg(test)] mod tests` block. The block must end the file: after its first
+/// line, each line is empty or indented, and the last line is `}`. So no program code follows it.
+fn without_test_module<'a>(text: &'a str, path: &Path) -> &'a str {
+    let Some(start) = text.find(TEST_MODULE) else {
+        return text;
+    };
+    let body: Vec<&str> = text[start + TEST_MODULE.len()..].lines().collect();
+    let (last, inner) = body.split_last().expect("a test module has a body");
+    let indented = |line: &&str| line.is_empty() || line.starts_with(char::is_whitespace);
+    assert!(
+        *last == "}" && inner.iter().all(indented),
+        "{}: code follows the test module",
+        path.display()
+    );
+    &text[..start]
 }
 
 #[test]
