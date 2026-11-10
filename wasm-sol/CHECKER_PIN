@@ -366,6 +366,11 @@ and vectors/pay hold X25519 keys and ciphertexts that were made with node:crypto
 Rust code or the SDK). In vectors/pay the externalDataHash and the messageHash come from the Rust
 code, because the SDK of the new pool is not built yet.
 
+The wasm of the Zolana v1 build (10 November 2026, branch zolana-v1, slice D): SHA-256
+4e8e416f2b4e541719e765bf6dfbb50fc7dc0712aca8395162a73bcad2b1138c, 1,106,858 bytes raw, built by
+build.sh with wasm-bindgen 0.2.129 and committed as web/sol/wasm/sol_wasm_bg.wasm. The wasm hashes
+above are of earlier builds.
+
 Check: python3 -I tools/pin_check.py (the manifest below against the tree).
 
 files:
