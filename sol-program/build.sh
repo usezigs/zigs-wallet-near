@@ -24,8 +24,10 @@
 # working folder from the source paths, so the ELF holds no path of this machine; this script
 # checks that.
 #
-# EXPECTED is version 5: version 2 with the fixes of the review, SOL withdrawals, its own
-# transact CPI and the cluster as a build choice (ZOLANA.md 7.2). It is not deployed.
+# EXPECTED is version 6: version 5 (ZOLANA.md 7.2) on the spr crates of privacy-rings 3c018b82, for
+# the Zolana v1 pool ring1G (docs/zolana-v1.md). It is not deployed. The Linux hash comes from CI
+# (run 42873582824). No macOS build with the spr crates exists yet, so EXPECTED_DARWIN is empty and a
+# macOS build stops here until someone pins it.
 set -eu
 cd "$(dirname "$0")"
 unset RUSTFLAGS CARGO_ENCODED_RUSTFLAGS
@@ -33,8 +35,8 @@ unset RUSTFLAGS CARGO_ENCODED_RUSTFLAGS
 # The ELF holds the paths of the standard library inside platform-tools, which differ between its
 # macOS and its Linux build. So each host has its own hash; CI builds on Linux. The two ELFs have
 # the same code (fncmp.py on the unstripped CI artifact).
-EXPECTED_DARWIN=b4bad24c6ae7cf2455b52780f78e35573f014ab3bc618fcbb49772b06c0d6eac
-EXPECTED_LINUX=4dd727b04d585403ce7c23ba70497c3922a166690409dfcd63f38c95bfeb2355
+EXPECTED_DARWIN=
+EXPECTED_LINUX=4cdcfb63b7078617ffe717a39864237041a616f761886e3b0d7f622cce159416
 SBF=${CARGO_BUILD_SBF:-cargo-build-sbf}
 SO=target/deploy/zigs_min_multisig.so
 
@@ -52,6 +54,7 @@ case "$(uname -s)-$(uname -m)" in
   Linux-x86_64) EXPECTED=$EXPECTED_LINUX ;;
   *) fail "no pinned hash for the host $(uname -s) $(uname -m)" ;;
 esac
+[ -n "$EXPECTED" ] || fail "no pinned hash for $(uname -s) $(uname -m) yet; pin it from a build"
 
 # The proofs mode runs on the outputs of `build.sh test`, so it needs no SBF toolchain.
 if [ "${1:-}" = proofs ]; then

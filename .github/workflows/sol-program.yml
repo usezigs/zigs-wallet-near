@@ -73,3 +73,9 @@ jobs:
           name: zigs_min_multisig-linux-unstripped
           path: sol-program/target/sbpf-solana-solana/release/zigs_min_multisig.so
           retention-days: 7
+      # The stripped ELF that build.sh pinned by EXPECTED_LINUX: the file that a deploy uploads.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zigs_min_multisig-linux-deploy
+          path: sol-program/target/deploy/zigs_min_multisig.so
+          retention-days: 30
