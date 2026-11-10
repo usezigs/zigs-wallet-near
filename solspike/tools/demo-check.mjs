@@ -54,9 +54,6 @@ const SOL_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const T_ADDRESS = /^t[m2][1-9A-HJ-NP-Za-km-z]{33}$/;
 const POOL = "ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW";
 const TREE = "777pvSGe5LaBd9nCczvE2FXEauiwtfGJ5XRpjKyniGor";
-// Tree 0 of the retired pool sppU489…: the tree of the recorded rows of the indexer checks. It
-// stays until the first run on the pool is recorded.
-const RECORDED_TREE = "33KVhbT4QtdQDrrrGwwThqD47Dh4Q6tA443t9jMNcWFN";
 const TREE_BYTES = 40_080;
 const ELF_MAGIC = 0x7f454c46;
 // The recorded sync of key B and the execute of the approvals program: old rows of tree 0.
@@ -500,8 +497,8 @@ async function proverCheck() {
 function recorded() {
   const { entries } = JSON.parse(readFileSync(join(ROOT, SYNC_FILE), "utf8"));
   const result = (method) => JSON.parse(entries.find((e) => e.rpcMethod === method).body).result;
-  const [first] = result("getShieldedTransactionsByTags").transactions;
-  const [match] = result("getEncryptedUtxosByTags").matches;
+  const [first] = result("getShieldedTransactionsByTags").data[0].events;
+  const [match] = result("getEncryptedUtxosByTags").data[0].outputs;
   const { hash } = first.outputSlots[0].outputContext;
   return { signature: first.txSignature, hash, viewTag: match.outputSlot.viewTag };
 }
@@ -543,8 +540,8 @@ async function indexedRows(signature) {
   const own = rows.map((row) => row?.transaction).filter((tx) => tx?.txSignature === signature);
   if (own.length === 0) throw new Error(`no row of ${name} has its transaction.txSignature`);
   const trees = own.flatMap((tx) => asList(tx.outputSlots)).map((s) => s?.outputContext?.tree);
-  if (!trees.includes(RECORDED_TREE)) {
-    throw new Error(`${name} has no output in tree 0 (${short(RECORDED_TREE)})`);
+  if (!trees.includes(TREE)) {
+    throw new Error(`${name} has no output in tree 0 (${short(TREE)})`);
   }
   return result.outputTreeId;
 }
@@ -604,8 +601,8 @@ function shapeCalls(sdk, client, rows) {
   const none = { tags: [unknown()] };
   return [
     () => client.getShieldedTransactionsBySignature(rows.signature),
-    () => client.getMerkleProofs(RECORDED_TREE, [bytes(rows.hash)]),
-    () => client.getNonInclusionProofs(RECORDED_TREE, [unknown()]),
+    () => client.getMerkleProofs(TREE, [bytes(rows.hash)]),
+    () => client.getNonInclusionProofs(TREE, [unknown()]),
     () => client.getShieldedTransactionsByTags(mine),
     () => client.getEncryptedUtxosByTags(mine),
     () => client.getShieldedTransactionsByTags(none),

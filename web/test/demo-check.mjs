@@ -26,7 +26,6 @@ const AUTH = `Basic ${Buffer.from(`demo:${PASSWORD}`).toString("base64")}`;
 const APPROVALS = "5PHZEHBMaYbFL9SFmMyP8kUayh3TFEyq2dvEYY3UGjkL";
 const POOL = "ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW";
 const TREE = "777pvSGe5LaBd9nCczvE2FXEauiwtfGJ5XRpjKyniGor";
-const RECORDED_TREE = "33KVhbT4QtdQDrrrGwwThqD47Dh4Q6tA443t9jMNcWFN"; // the retired pool's tree 0
 const FEE = `Fee${"1".repeat(40)}`;
 const TADDR = `tm${"1".repeat(33)}`;
 const READS = new RegExp(
@@ -193,8 +192,8 @@ const results = (method) =>
 const [TAGGED, UNTAGGED] = results("getShieldedTransactionsByTags");
 const [MATCHED, UNMATCHED] = results("getEncryptedUtxosByTags");
 const [NO_NULLIFIER] = results("getShieldedTransactionsByNullifiers");
-const ROWS = TAGGED.transactions;
-const MINE = MATCHED.matches[0].outputSlot.viewTag;
+const ROWS = TAGGED.data.flatMap((row) => row.events);
+const MINE = MATCHED.data[0].outputs[0].outputSlot.viewTag;
 const HASH = ROWS[0].outputSlots[0].outputContext.hash;
 const VECTOR = readFileSync(join(ROOT, "sol-program/svm-tests/vectors/devnet-main.txt"), "utf8");
 const [, EXECUTE] = /^# execute (\S+)$/m.exec(VECTOR);
@@ -210,7 +209,7 @@ const gone = (signature) =>
 
 function bySignature({ txSignature }) {
   if (gone(txSignature)) return { outputTreeId: 0, transactions: [] };
-  const tree = has("canary-tree") ? APPROVALS : RECORDED_TREE;
+  const tree = has("canary-tree") ? APPROVALS : TREE;
   const outputSlots = ROWS[0].outputSlots.map((slot) => ({
     ...slot,
     outputContext: { ...slot.outputContext, tree },
@@ -224,7 +223,7 @@ function bySignature({ txSignature }) {
 
 const proof = (leaf, treeType, more) => ({
   leaf,
-  merkleContext: { treeType, tree: RECORDED_TREE },
+  merkleContext: { treeType, tree: TREE },
   path: [HASH, HASH],
   ...more,
   root: HASH,
@@ -314,7 +313,7 @@ function route(req, res, body) {
   const url = new URL(req.url, "http://stub");
   if (redirected(req, res, url)) return;
   if (req.method === "OPTIONS") return preflight(req, res, url);
-  const method = path.replace(/^\/v1\/zolana\//, "");
+  const method = path.replace(/^\/v1\/spr\//, "");
   if (Object.hasOwn(INDEXER, method)) return indexer(req, res, method, body);
   stub.calls.push(`${req.method} ${path}`);
   (PAGES[path] ?? ((_, r) => send(r, 404, "no route")))(req, res);
@@ -481,7 +480,7 @@ const SDK_BY_SIGNATURE = /indexer: CLIENT_INVALID_RPC_RESPONSE \(getShieldedTran
 const NOT_INDEXED = /indexer: the recorded signature is not indexed: the pool or the indexer/;
 const CANARY_CASES = [
   ["canary-empty", /canary: \S+ is not indexed: an outage or a reset\?/, NOT_INDEXED],
-  ["canary-tree", /canary: \S+ has no output in tree 0 \(33KVhb…cWFN\)/, SDK_BY_SIGNATURE],
+  ["canary-tree", /canary: \S+ has no output in tree 0 \(777pvS…iGor\)/, SDK_BY_SIGNATURE],
   ["canary-shape", /canary: no row of \S+ has its transaction\.txSignature/, SDK_BY_SIGNATURE],
   ["sync-gone", /canary: 2CtnN3…\w{4} is not indexed/, NOT_INDEXED],
   ["execute-gone", /canary: 2bJ4T8…d2CV is not indexed/, null],
