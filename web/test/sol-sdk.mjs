@@ -10,6 +10,7 @@
 //    accounts and flags, and the owner hash and view tag in it.
 // Run: node web/test/sol-sdk.mjs   (Node 26)
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import { fileURLToPath } from "node:url";
@@ -83,6 +84,38 @@ const seeds = [
     json("sol-group.json"),
   ),
 ];
+
+// The PDA of ["multisig", group key] under the Devnet approvals program, derived here with
+// node:crypto and an Ed25519 off-curve test, so that no wasm value stands on both sides.
+const APPROVALS = "5PHZEHBMaYbFL9SFmMyP8kUayh3TFEyq2dvEYY3UGjkL";
+const P = 2n ** 255n - 19n;
+const power = (base, exp) => {
+  let out = 1n;
+  for (let b = base % P; exp > 0n; exp >>= 1n, b = (b * b) % P) if (exp & 1n) out = (out * b) % P;
+  return out;
+};
+const D = ((P - 121665n) * power(121666n, P - 2n)) % P;
+function onCurve(bytes) {
+  const y = BigInt(`0x${Buffer.from(bytes).reverse().toString("hex")}`) & ((1n << 255n) - 1n);
+  if (y >= P) return false;
+  const u = (y * y - 1n + P) % P;
+  const x2 = (u * power((D * y * y + 1n) % P, P - 2n)) % P;
+  return x2 === 0n || power(x2, (P - 1n) / 2n) === 1n;
+}
+function derivePda(groupKeyHex) {
+  const program = Buffer.from(hexOf(sdk.getAddressEncoder().encode(APPROVALS)), "hex");
+  for (let bump = 255; bump >= 0; bump -= 1) {
+    const hash = createHash("sha256")
+      .update("multisig")
+      .update(Buffer.from(groupKeyHex, "hex"))
+      .update(Uint8Array.of(bump))
+      .update(program)
+      .update("ProgramDerivedAddress")
+      .digest();
+    if (!onCurve(hash)) return hash.toString("hex");
+  }
+  throw new Error("no bump");
+}
 const rolesOf = (seed) => ({
   ...J(W.sol_roles(seed.solSeed, seed.groupKey)),
   pda: J(W.sol_pda_roles(seed.solSeed, seed.groupKey)),
@@ -108,6 +141,11 @@ for (const seed of seeds) {
   const roles = rolesOf(seed);
   const init = await initOf(seed, roles);
   const shown = `${seed.name}`;
+  assert.equal(roles.pda.pda, derivePda(seed.groupKey), `${shown}: PDA derived in the test`);
+  if (seed.pda) {
+    assert.equal(roles.pda.pda, seed.pda, `${shown}: PDA of roles.json`);
+    assert.equal(roles.pda.owner_hash, seed.pdaOwnerHash, `${shown}: PDA owner hash of roles.json`);
+  }
   assert.equal(init.shielded, roles.address, `${shown}: group address`);
   assert.equal(init.owner, base58(seed.groupKey), `${shown}: group owner`);
   assert.equal(init.pdaShielded, roles.pda.address, `${shown}: PDA address`);
@@ -185,10 +223,10 @@ function wasmShield(seed, roles, amount) {
 }
 
 /** The deposit instruction of the SDK for the PDA identity of the seed. */
-async function sdkShield(roles, amount, wasm) {
+async function sdkShield(seed, roles, amount, wasm) {
   const viewing = sdk.ViewingKey.fromBytes(Uint8Array.from(bytesOf(roles.viewing_sk)));
   const address = sdk.ShieldedAddress.forPda({
-    pda: bytesOf(roles.pda.pda),
+    pda: bytesOf(derivePda(seed.groupKey)),
     nullifierPublicKey: bytesOf(roles.pda.nullifier_pk),
     viewingPublicKey: viewing.publicKey(),
   });
@@ -221,7 +259,7 @@ for (const seed of seeds) {
   const roles = rolesOf(seed);
   for (const amount of [1n, 20_000_000n, 0xffff_ffff_ffff_ffffn]) {
     const wasm = wasmShield(seed, roles, amount);
-    const { ix, address } = await sdkShield(roles, amount, wasm);
+    const { ix, address } = await sdkShield(seed, roles, amount, wasm);
     const label = `${seed.name} ${amount}`;
     assert.equal(wasm.program, sdk.SHIELDED_POOL_PROGRAM_ID, `${label}: program`);
     assert.equal(ix.programAddress, wasm.program, `${label}: SDK program`);
@@ -230,10 +268,10 @@ for (const seed of seeds) {
     const sdkAccounts = ix.accounts.map((a) => ({ address: a.address, ...roleFlags(a.role) }));
     assert.deepEqual(wasm.accounts, sdkAccounts, `${label}: account metas`);
     assert.equal(hexOf(address.ownerHash()), roles.pda.owner_hash, `${label}: owner hash`);
-    assert.equal(hexOf(address.confidentialViewTag()), roles.pda.pda, `${label}: view tag`);
+    assert.equal(hexOf(address.confidentialViewTag()), derivePda(seed.groupKey), `${label}: view tag`);
     const data = hexOf(wasm.data);
     assert.ok(data.includes(roles.pda.owner_hash), `${label}: the data holds the owner hash`);
-    assert.ok(data.includes(roles.pda.pda), `${label}: the data holds the view tag`);
+    assert.ok(data.includes(derivePda(seed.groupKey)), `${label}: the data holds the view tag`);
     assert.equal(wasm.accounts[1].address, base58(PAYER), `${label}: depositor is the payer`);
     assert.equal(hexOfAddress(wasm.accounts[4].address), PREPARE_SOL_INTERFACE);
   }
