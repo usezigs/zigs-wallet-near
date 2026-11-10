@@ -15,9 +15,8 @@ for (const [question, answer] of HELP) {
     "short sentences: " + question);
 }
 const servers = HELP.find(([question]) => /servers see/.test(question))[1];
-assert.match(servers, /hosted prover of Helius also sees each Solana payment/,
-  "the servers answer names the hosted prover");
-assert.match(servers, /Unless local proving is on/, "and says when it sees them");
+assert.match(servers, /nothing goes to the Helius prover/, "the servers answer names the prover");
+assert.match(servers, /proofs on your device/, "and says where the proofs are made");
 assert.match(servers, /public keys of this wallet/, "Helius sees public keys");
 assert.match(servers, /never sees a secret key/, "no server sees a secret key");
 assert.doesNotMatch(servers, /never a key|the keys of this wallet/, "no loose word key");
@@ -29,8 +28,8 @@ assert.match(servers, /on testnet the Zigs light-wallet server sees only the Zig
 assert.match(servers, /Worker is also the group server, so one operator sees the traffic of both/,
   "one operator sees both");
 assert.ok(servers.includes("The Solana part also asks Helius. Helius sees your IP address and the "
-  + "public keys of this wallet. Unless local proving is on, the hosted prover of Helius also "
-  + "sees each Solana payment. The Zigs server operator can link this wallet to its Solana "
+  + "public keys of this wallet. The wallet makes proofs on your device, so "
+  + "nothing goes to the Helius prover. The Zigs server operator can link this wallet to its Solana "
   + "addresses by timing."), "the Devnet sentences of the servers answer stay");
 assert.match(servers, /by timing\. On mainnet, the Solana part is a plain account\./,
   "the servers answer names the plain part after the Devnet sentences");

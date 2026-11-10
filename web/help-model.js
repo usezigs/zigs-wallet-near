@@ -25,8 +25,8 @@ export const HELP = [
     + "secret key. It sees your IP address, except that on testnet the Zigs light-wallet server "
     + "sees only the Zigs Worker. That Worker is also the group server, so one operator sees the "
     + "traffic of both. The Solana part also asks Helius. Helius sees your IP address and the "
-    + "public keys of this wallet. Unless local proving is on, the hosted prover of Helius also "
-    + "sees each Solana payment. The Zigs server operator can link this wallet to its Solana "
+    + "public keys of this wallet. The wallet makes proofs on your device, so "
+    + "nothing goes to the Helius prover. The Zigs server operator can link this wallet to its Solana "
     + "addresses by timing. On mainnet, the Solana part is a plain account. Helius sees your IP "
     + "address and the address of this wallet, and the explorer sees the address that you open. "
     + "When you send, Helius also sees the signed transaction."],
