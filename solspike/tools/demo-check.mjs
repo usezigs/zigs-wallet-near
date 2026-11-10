@@ -1,9 +1,13 @@
 // The read-only preflight of the demo days (M8 of docs/hackathon-release.md). Each check prints
 // PASS, FAIL or SKIP with a reason; the exit code is 1 on any FAIL and 2 on a bad config. Nothing
 // here writes to a chain. Helius gets getVersion, getAccountInfo, getBalance and getSlot. Its
-// indexer gets reads of recorded rows and of random values, and its gateway gets three CORS
-// preflights per app (S20). The prover gets an empty body that it refuses. The light-wallet
-// servers get GetLatestBlock, GetLightdInfo, GetTreeState and GetTaddressBalance. The group socket
+// indexer gets reads of recorded rows and of random values, and its gateway gets one CORS
+// preflight per app (S20). The wallet proves on the device, so no check calls a prover. The
+// indexer checks are UNVERIFIED: the signatures, the view tag and key B are rows of the retired
+// pool, and the rows are re-pointed to tree 0 of ring1G. Record them again from ring1G on
+// Devnet, and run this tool once, read-only, against /v1/spr, before anyone relies on it.
+// The light-wallet servers get GetLatestBlock, GetLightdInfo, GetTreeState and
+// GetTaddressBalance. The group socket
 // opens and closes without a message.
 // Usage: sh solspike/demo-check.sh [--dry-run] [--app-only] [--config FILE]
 // The config (default ~/.config/zigs/demo-check.json, outside the repo) is optional:
@@ -61,10 +65,8 @@ const SYNC_FILE = "solspike/mock/fixtures/sync.json";
 const VECTOR_FILE = "sol-program/svm-tests/vectors/devnet-main.txt";
 // The page waits up to 60 s for the indexer after Add SOL (docs/hackathon-release.md): 150 slots.
 const SLOT_LAG = 150n;
-// The CORS preflights of the page: a proof (sync and async) and an indexer read (worker.js).
+// The CORS preflight of the page: an indexer read (worker.js).
 const PREFLIGHTS = [
-  ["/prove", "content-type,x-sync"],
-  ["/prove", "content-type,x-async"],
   ["/getShieldedTransactionsByTags", "content-type"],
 ];
 // The SHA-256 of the ELF in ProgramData, cut at the size in its ELF header. The approvals value is
@@ -482,17 +484,6 @@ async function treeCheck() {
   return `${TREE_BYTES} bytes, root history 500, fee per nullifier ${data.readBigUInt64LE(8)}`;
 }
 
-async function proverCheck() {
-  const headers = { "content-type": "application/json", "x-sync": "true", origin: APP_ORIGIN };
-  const init = { method: "POST", headers, body: "{}", signal: signal() };
-  const res = await fetch(zolanaUrl("/prove"), init);
-  const text = await res.text();
-  if (res.status !== 400 || !text.includes("malformed_body")) {
-    throw new Error(`an empty body answered ${res.status}: ${text.slice(0, 120)}`);
-  }
-  return "an empty body gets 400 malformed_body";
-}
-
 /** The recorded sync of key B: a signature, the hash of its first output, and the view tag of B. */
 function recorded() {
   const { entries } = JSON.parse(readFileSync(join(ROOT, SYNC_FILE), "utf8"));
@@ -667,7 +658,7 @@ async function preflight(origin, [path, asked]) {
 
 async function corsCheck(app) {
   await Promise.all(PREFLIGHTS.map((route) => preflight(app.origin, route)));
-  return `the ${PREFLIGHTS.length} preflights of the prover and the indexer allow ${app.origin}`;
+  return `the preflight of the indexer allows ${app.origin}`;
 }
 
 async function valarCheck() {
@@ -712,7 +703,6 @@ function chainChecks(config, apps) {
     { name: "tree 0", target: TREE, run: treeCheck },
     { name: "indexer", target: "Helius /v1/spr, 8 reads in the SDK client", run: shapeCheck },
     { name: "indexer canary", target: "Helius by-signature reads", run: canaryCheck },
-    { name: "prover", target: "Helius /v1/spr/prove", run: proverCheck },
     // In chainChecks, not appChecks: scripts/deploy-staging.sh runs --app-only.
     ...apps.map((app) => ({
       name: `${app.host} Helius CORS`, target: app.origin, run: () => corsCheck(app),

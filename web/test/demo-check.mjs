@@ -1,7 +1,7 @@
 // Tests of solspike/demo-check.sh (M8) against local stubs. Usage: node web/test/demo-check.mjs
 // Two stub listeners play the app origins: the config gives host 0 a password file and host 1
-// none. Host 0 also plays the fallback light-wallet server, Helius, its indexer, the prover and
-// both faucets. Each run names the faults that the stub plays. The stub notes each call, so the
+// none. Host 0 also plays the fallback light-wallet server, Helius, its indexer and both
+// faucets. Each run names the faults that the stub plays. The stub notes each call, so the
 // test also checks that the script sends only reads and prints no secret. The last tests run the
 // steps of solspike/tools/prove-canary.mjs (S20) with a stub SDK client, offline.
 import assert from "node:assert/strict";
@@ -29,10 +29,10 @@ const TREE = "777pvSGe5LaBd9nCczvE2FXEauiwtfGJ5XRpjKyniGor";
 const FEE = `Fee${"1".repeat(40)}`;
 const TADDR = `tm${"1".repeat(33)}`;
 const READS = new RegExp(
-  "^(GET /(|sol/config.json|valar/api/status|solfaucet)|POST /v1/spr/prove|ws|" +
+  "^(GET /(|sol/config.json|valar/api/status|solfaucet)|ws|" +
     "POST /v1/spr/(getShieldedTransactionsBy(Signature|Tags|Nullifiers)|getMerkleProofs|" +
     "getNonInclusionProofs|getEncryptedUtxosByTags)|" +
-    "OPTIONS /v1/spr/(prove|getShieldedTransactionsByTags) POST|" +
+    "OPTIONS /v1/spr/getShieldedTransactionsByTags POST|" +
     "rpc (getVersion|getAccountInfo|getBalance|getSlot)|" +
     "lwd (GetLatestBlock|GetLightdInfo|GetTreeState|GetTaddressBalance))$",
 );
@@ -177,13 +177,6 @@ function solConfig(req, res) {
   send(res, 200, JSON.stringify({ rpcUrl }));
 }
 
-function prove(req, res) {
-  // An echo of the secrets, so the test sees the redaction work.
-  if (has("prover-echo")) return send(res, 500, `no prover at ${heliusUrl()} for ${PASSWORD}`);
-  if (has("prover-403")) return send(res, 403, "Forbidden");
-  send(res, 400, JSON.stringify({ code: "malformed_body" }));
-}
-
 // The indexer answers with the recorded sync of key B. No proof answer is recorded, so the stub
 // writes the proofs by hand. It notes each value that is not a recorded one: those are random.
 const SYNC = JSON.parse(readFileSync(join(ROOT, "solspike/mock/fixtures/sync.json"), "utf8"));
@@ -280,18 +273,16 @@ function preflight(req, res, url) {
   if (fault) return send(res, PREFLIGHT_STATUS[fault], "");
   const host0 = req.headers.origin === origin(0);
   const echo = has("cors-origin") ? "https://other.example" : req.headers.origin;
-  const list = `Content-Type, X-Sync${has("cors-headers") ? "" : ", X-Async"}`;
   send(res, 204, "", {
     "access-control-allow-origin": host0 ? "*" : echo,
-    "access-control-allow-headers": host0 ? "*" : list,
+    "access-control-allow-headers": host0 ? "*" : "Content-Type",
   });
 }
 
-// The redirect fault: each call of the gateway moves once, but the POST of the prover check.
+// The redirect fault: each call of the gateway moves once.
 function redirected(req, res, url) {
-  const proverPost = req.method === "POST" && url.pathname === "/v1/spr/prove";
   const moved = url.searchParams.has("moved") || !url.pathname.startsWith("/v1/spr/");
-  if (!has("redirect") || proverPost || moved) return false;
+  if (!has("redirect") || moved) return false;
   send(res, 307, "", { location: `${url.pathname}${url.search}&moved=1` });
   return true;
 }
@@ -299,7 +290,6 @@ function redirected(req, res, url) {
 const PAGES = {
   "/": home,
   "/sol/config.json": solConfig,
-  "/v1/spr/prove": prove,
   "/valar/api/status": (req, res) =>
     send(res, 200, JSON.stringify({ ready: !has("valar-down"), payout: "0.125" })),
   "/solfaucet": (req, res) => send(res, has("solfaucet-503") ? 503 : 200, "faucet"),
@@ -415,7 +405,7 @@ const appWords = (changes = {}) => ({
 const cors = () => [0, 1].map((i) => `${host(i)} Helius CORS`);
 const allWords = (changes = {}) => ({
   ...appWords(),
-  ...marked("PASS", ["fallback lwd", "lwd heights", "lwd tree state", "tree 0", "prover"]),
+  ...marked("PASS", ["fallback lwd", "lwd heights", "lwd tree state", "tree 0"]),
   ...marked("PASS", ["Valar faucet"]),
   ...marked("PASS", ["Solana faucet", `SOL fee ${short(FEE)}`, `TAZ ${short(TADDR)}`]),
   ...marked("PASS", ["indexer", "indexer canary", ...cors()]),
@@ -467,14 +457,14 @@ test("a full run fails only the pinned hashes, sends only reads and prints no se
   assert.ok(stub.calls.includes("ws") && stub.calls.includes("lwd GetTaddressBalance"));
   assert.match(out, /PASS {2}indexer: 8 reads decode in the SDK of the bundle, 150 slots behind/);
   assert.match(out, /PASS {2}indexer canary: the execute and the recorded sync are indexed in/);
-  assert.match(out, /Helius CORS: the 3 preflights of the prover and the indexer allow http:/);
-  assert.equal(stub.calls.filter((call) => call.startsWith("OPTIONS")).length, 6);
+  assert.match(out, /Helius CORS: the preflight of the indexer allows http:/);
+  assert.equal(stub.calls.filter((call) => call.startsWith("OPTIONS")).length, 2);
   // A leaf, two tags and a nullifier, each random and below the BN254 field.
   assert.deepEqual(stub.values.map(firstByte), [0, 0, 0, 0], stub.values.join(" "));
   noSecret(out);
 });
 
-// Each run plays one fault of the indexer canary and, for the first four, one of the CORS
+// Each run plays one fault of the indexer canary and, for the first three, one of the CORS
 // preflights. A null shape means that the shape check passes: the two checks differ.
 const SDK_BY_SIGNATURE = /indexer: CLIENT_INVALID_RPC_RESPONSE \(getShieldedTransactionsBySig/;
 const NOT_INDEXED = /indexer: the recorded signature is not indexed: the pool or the indexer/;
@@ -491,7 +481,6 @@ const CANARY_CASES = [
 const CORS_CASES = [
   ["cors-403", /answered 403/, [0, 1]],
   ["cors-origin", /does not allow http:/, [1]],
-  ["cors-headers", /\(content-type,x-async\) does not allow these headers/, [1]],
   ["cors-300", /answered 300/, [0, 1]],
 ];
 
@@ -544,12 +533,12 @@ test("a redirect of the gateway fails the indexer checks and both CORS checks", 
 
 test("broken servers give a FAIL with a reason, and the secrets stay hidden", async () => {
   const faults = ["gate-open", "origin-refused", "fallback-behind", "chain-main", "tree-size"];
-  faults.push("prover-echo", "valar-down", "sol-low", "taz-low", "config-503", "socket-other");
+  faults.push("valar-down", "sol-low", "taz-low", "config-503", "socket-other");
   const { code, out } = await run(["--config", CONFIGS.good], faults);
   assert.equal(code, 1, out);
   const app = [`${host(0)} gate`, `${host(1)} gate`, `${host(1)} Helius origin`];
   const more = [`${host(0)} pages`, `${host(0)} group socket`, "lwd heights", "fallback lwd"];
-  const chain = ["tree 0", "prover", "Valar faucet", `SOL fee ${short(FEE)}`];
+  const chain = ["tree 0", "Valar faucet", `SOL fee ${short(FEE)}`];
   chain.push(`TAZ ${short(TADDR)}`);
   assert.deepEqual(words(out), allWords(marked("FAIL", [...app, ...more, ...chain])));
   assert.match(out, /gate: \/ answered 200 with no password/);
@@ -557,7 +546,6 @@ test("broken servers give a FAIL with a reason, and the secrets stay hidden", as
   assert.match(out, /lwd heights: the heights differ by 4499005 blocks/);
   assert.match(out, /fallback lwd: GetLightdInfo names the chain "main"/);
   assert.match(out, /group socket: the first message is no init message/);
-  assert.match(out, /prover: an empty body answered 500: .*api-key=\[REDACTED\] for \[REDACTED\]/);
   noSecret(out);
 });
 
@@ -565,14 +553,14 @@ test("broken servers give a FAIL with a reason, and the secrets stay hidden", as
 test("dead servers give a FAIL, and one light-wallet server alone is a SKIP", { timeout: 30_000 },
   async () => {
     const faults = ["gate-no-prompt", "page-500", "socket-hang", "lwd-503", "lightd-status"];
-    faults.push("tree-anchor", "prover-403", "solfaucet-503", "indexer-hang");
+    faults.push("tree-anchor", "solfaucet-503", "indexer-hang");
     const fast = { DEMO_CHECK_TIMEOUT_MS: "500" };
     const started = Date.now();
     const { code, out } = await run(["--config", CONFIGS.good], faults, fast);
     assert.equal(code, 1, out);
     assert.ok(Date.now() - started < 8000, "a hung indexer read ends at the time limit");
     const app = [`${host(0)} gate`, `${host(1)} gate`, `${host(0)} pages`, `${host(0)} /lwd`];
-    const chain = [`${host(0)} group socket`, "fallback lwd", "tree 0", "prover", "Solana faucet"];
+    const chain = [`${host(0)} group socket`, "fallback lwd", "tree 0", "Solana faucet"];
     chain.push("indexer");
     const changes = { ...marked("FAIL", [...app, ...chain]) };
     Object.assign(changes, marked("SKIP", ["lwd heights", "lwd tree state"]));
