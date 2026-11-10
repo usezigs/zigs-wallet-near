@@ -54,12 +54,13 @@ async function syncOnce(sdk, keypair, requireSlot) {
   const url = readText(heliusFile());
   redact.add(url);
   const zolana = new URL(url);
-  zolana.pathname = "/v1/zolana";
+  zolana.pathname = "/v1/spr";
   globalThis.fetch = appFetch; // the Solana RPC of the SDK uses the global fetch
-  const client = await sdk.createZolanaClient({
+  const client = await sdk.createSprClient({
     solanaRpcUrl: url,
     indexerUrl: zolana.href,
-    proverUrl: zolana.href,
+    proverUrl: "http://127.0.0.1:3001", // the SDK takes a loopback prover URL only; no proof here
+    proofDataSource: "client",
   });
   const wallet = new sdk.Wallet({ identity: keypair.shieldedAddress() });
   const keys = sdk.LocalKeys.fromKeypair(keypair, client.proofService);

@@ -108,12 +108,12 @@ async function setup() {
   const compile = await import(pathToFileURL(join(repo, "sdk-libs/ts/dist/flows/compile.js")).href);
   await sdk.initializePoseidon();
   const gateway = new URL(url);
-  gateway.pathname = "/v1/zolana";
-  const client = await sdk.createZolanaClient({
+  gateway.pathname = "/v1/spr";
+  const client = await sdk.createSprClient({
     solanaRpcUrl: url,
     indexerUrl: gateway.href,
-    proverUrl: gateway.href,
-    proverTee: false,
+    proverUrl: "http://127.0.0.1:3001",
+    proofDataSource: "client",
     fetch: globalThis.fetch,
     computeUnitLimit: COMPUTE_UNITS,
   });

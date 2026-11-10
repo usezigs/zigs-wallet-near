@@ -30,10 +30,10 @@ const RECORDED_TREE = "33KVhbT4QtdQDrrrGwwThqD47Dh4Q6tA443t9jMNcWFN"; // the ret
 const FEE = `Fee${"1".repeat(40)}`;
 const TADDR = `tm${"1".repeat(33)}`;
 const READS = new RegExp(
-  "^(GET /(|sol/config.json|valar/api/status|solfaucet)|POST /v1/zolana/prove|ws|" +
-    "POST /v1/zolana/(getShieldedTransactionsBy(Signature|Tags|Nullifiers)|getMerkleProofs|" +
+  "^(GET /(|sol/config.json|valar/api/status|solfaucet)|POST /v1/spr/prove|ws|" +
+    "POST /v1/spr/(getShieldedTransactionsBy(Signature|Tags|Nullifiers)|getMerkleProofs|" +
     "getNonInclusionProofs|getEncryptedUtxosByTags)|" +
-    "OPTIONS /v1/zolana/(prove|getShieldedTransactionsByTags) POST|" +
+    "OPTIONS /v1/spr/(prove|getShieldedTransactionsByTags) POST|" +
     "rpc (getVersion|getAccountInfo|getBalance|getSlot)|" +
     "lwd (GetLatestBlock|GetLightdInfo|GetTreeState|GetTaddressBalance))$",
 );
@@ -256,7 +256,7 @@ function contextOf(method) {
 const json = { "content-type": "application/json" };
 
 function indexer(req, res, method, body) {
-  stub.calls.push(`POST /v1/zolana/${method}`);
+  stub.calls.push(`POST /v1/spr/${method}`);
   if (req.headers.origin !== "https://app.zigs.app") return send(res, 403, "Forbidden");
   if (has("indexer-hang") && method === "getNonInclusionProofs") return;
   const { id, params } = JSON.parse(body);
@@ -290,8 +290,8 @@ function preflight(req, res, url) {
 
 // The redirect fault: each call of the gateway moves once, but the POST of the prover check.
 function redirected(req, res, url) {
-  const proverPost = req.method === "POST" && url.pathname === "/v1/zolana/prove";
-  const moved = url.searchParams.has("moved") || !url.pathname.startsWith("/v1/zolana/");
+  const proverPost = req.method === "POST" && url.pathname === "/v1/spr/prove";
+  const moved = url.searchParams.has("moved") || !url.pathname.startsWith("/v1/spr/");
   if (!has("redirect") || proverPost || moved) return false;
   send(res, 307, "", { location: `${url.pathname}${url.search}&moved=1` });
   return true;
@@ -300,7 +300,7 @@ function redirected(req, res, url) {
 const PAGES = {
   "/": home,
   "/sol/config.json": solConfig,
-  "/v1/zolana/prove": prove,
+  "/v1/spr/prove": prove,
   "/valar/api/status": (req, res) =>
     send(res, 200, JSON.stringify({ ready: !has("valar-down"), payout: "0.125" })),
   "/solfaucet": (req, res) => send(res, has("solfaucet-503") ? 503 : 200, "faucet"),

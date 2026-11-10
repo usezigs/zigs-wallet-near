@@ -35,7 +35,7 @@ function rpcAnswer(init) {
   return Response.json({ jsonrpc: "2.0", id: body?.id, result: results[body?.method] ?? null });
 }
 function helius(url, init) {
-  const status = url.pathname.startsWith("/v1/zolana") ? mode.indexer : mode.rpc;
+  const status = url.pathname.startsWith("/v1/spr") ? mode.indexer : mode.rpc;
   if (status === "cors") throw new TypeError("Failed to fetch");
   return status === 200 ? rpcAnswer(init) : new Response("no", { status });
 }

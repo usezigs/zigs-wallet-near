@@ -279,7 +279,7 @@ function helius() {
 /** The Helius URL with a path of the Zolana gateway. The api-key query stays. */
 function zolanaUrl(path) {
   const url = new URL(helius());
-  url.pathname = `/v1/zolana${path}`;
+  url.pathname = `/v1/spr${path}`;
   return url;
 }
 
@@ -583,11 +583,12 @@ async function loadBundle() {
     return realFetch(input, { ...init, headers, signal: abort });
   };
   const gateway = zolanaUrl("").href;
-  const client = await sdk.createZolanaClient({
+  const client = await sdk.createSprClient({
     solanaRpcUrl: helius(),
     indexerUrl: gateway,
-    proverUrl: gateway,
-    proverTee: false,
+    // The SDK accepts a loopback prover URL only. This check never proves.
+    proverUrl: "http://127.0.0.1:3001",
+    proofDataSource: "client",
     fetch: withOrigin,
   });
   return { sdk, client };
@@ -712,9 +713,9 @@ function chainChecks(config, apps) {
     { name: "lwd tree state", target, run: () => treeStatesCheck(lwds) },
     ...PINS.map((pin) => ({ name: pin.name, target: pin.address, run: () => programCheck(pin) })),
     { name: "tree 0", target: TREE, run: treeCheck },
-    { name: "indexer", target: "Helius /v1/zolana, 8 reads in the SDK client", run: shapeCheck },
+    { name: "indexer", target: "Helius /v1/spr, 8 reads in the SDK client", run: shapeCheck },
     { name: "indexer canary", target: "Helius by-signature reads", run: canaryCheck },
-    { name: "prover", target: "Helius /v1/zolana/prove", run: proverCheck },
+    { name: "prover", target: "Helius /v1/spr/prove", run: proverCheck },
     // In chainChecks, not appChecks: scripts/deploy-staging.sh runs --app-only.
     ...apps.map((app) => ({
       name: `${app.host} Helius CORS`, target: app.origin, run: () => corsCheck(app),
