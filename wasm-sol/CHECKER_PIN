@@ -367,7 +367,9 @@ pin stays: the plain wallet refuses it as a recipient. vectors/upstream/key_deri
 copy of test-vectors/key_derivation.json at 3c018b82. vectors/roles.json, vectors/ts, vectors/ts2
 and vectors/pay were made again with the SDK at 3c018b82 (slice 5: solspike/tools/role_vectors.mjs,
 ts_vectors.mjs, payment_vectors.mjs), so no hash in them is circular. tests/pay_vectors.rs reads
-the pool v1 pins (ring1G).
+the pool v1 pins (ring1G). vectors/upstream/private_tx_hash.json, transact_derivation.json and
+dummy_owner_tags.json are copies of the files of test-vectors at 3c018b82; tests/upstream_hashes.rs
+checks the Rust hashes against them.
 
 The wasm of the Zolana v1 build (10 November 2026, branch zolana-v1, slice D): SHA-256
 60901305d22de1f4f68d5e8d0e85939dc5e7d4c8d58b6abcd545f77521fa1c60, 1,106,922 bytes raw, built by
@@ -452,6 +454,7 @@ a9c8a28674bc245749548af8b1813e38db14de1748e5c6582de0030366dddb70  tests/plain_ru
 b248395c695c5f0a0ee919a91bb0df22a235491906a662b90945d9156a21e5e5  tests/ts_edge.rs  modified
 c6086bc5d1fcbe971da2255d402e29f424ffd4fdd2e7aa53f79d982d1d65cb7d  tests/ts_vectors.rs  modified
 30be9eca033a677c6e9e1cd213f4d34fd9f810e54c618a12d1af6d0997a32aab  tests/units.rs  modified
+3a57150d16a9473433f6cc105e852602213cd0cd2c5eee907f05ecd4df7e5495  tests/upstream_hashes.rs  new
 9b3456fb692db6e95aacc18b1e809b7bd29285990a01a10bf5c3cdff310c46e7  tests/verifier_fixes.rs  modified
 7837cf5e6385641404f249608243264b1fd6f9ef83032a0e98e6bfee9db92f38  tests/wasm_api.rs  modified
 72c0e4121ece8b0da4524d13a855f8a11dad45515c94930912713e1f1b6d58dd  tests/wasm_native_diff.rs  modified
@@ -775,7 +778,10 @@ e6c7e537c876d22b8597cd12abcb6a360788dda6f220a9b39dcb9b7a06a237fb  vectors/ts/wit
 5c45b7ce0473634b5e64be261aa48ca41a0ceed47a0c9ac7ad48672410d16bf6  vectors/ts2/v-sol-all-in.json  modified
 f15b4f42d33d8e3d0c427bdec21cfcd5927f8e572528512a6d93f29365be0d78  vectors/ts2/v-three-inputs.json  modified
 112b1f0d131a5ea9447dd76e5d70200297af10a77bfe50ada316b6fbed1d6656  vectors/ts2/v-withdraw.json  modified
+2bba54587059a4f3b18d8fb9ca0bfdca728c61db4533f70e65385d7c103bb94b  vectors/upstream/dummy_owner_tags.json  new
 ab5a2d28d0d7a0772ac7a593e5260c00039a57e4926e4fbf1c55490f9723e55d  vectors/upstream/key_derivation.json  new
+4c63596765b6e8250040e59c67ed24dc4de3e7e3092d562f4df38d27a00ba625  vectors/upstream/private_tx_hash.json  new
+603ff68cba8a76e6684c3f47b9fb7985fd38fdb4c49588bbac87e0ac15e25842  vectors/upstream/transact_derivation.json  new
 afbf9d0f3560b0fd7795e81c42a0a79ee6b6fc67e064f77826aee642cad28d91  vendor/light-poseidon/.cargo-ok  verbatim
 8c595e08ef710544f04d44f36e2bd6f8f7d2edc4bc9652a5df7bc5eafdd64fa1  vendor/light-poseidon/.cargo_vcs_info.json  verbatim
 501970df9cc80d46d830d0df731dd92e6154af03641c85a72ea8ed47c4ebfb29  vendor/light-poseidon/Cargo.lock  verbatim
