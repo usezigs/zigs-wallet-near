@@ -35,6 +35,8 @@ import {
 const COMPUTE_UNITS = 217_000;
 const SYSTEM_PROGRAM = "11111111111111111111111111111111";
 const U64_MAX = 0xffff_ffff_ffff_ffffn;
+// TREE_FEE_CAP of wasm-sol/src/template.rs: the checker refuses a proposal above it.
+const TREE_FEE_CAP = 10_000n;
 // Shorter than the execute lease of 60 s (execute.js), which a tab renews right after a send.
 const CONFIRM_MS = 45_000;
 // The loopback URL that the SDK client takes as prover. It is never fetched over the network.
@@ -503,6 +505,11 @@ async function reprove({ recipient, withdraw, payer, plan, inputIds, transact, c
   const firstData = bytes(transact);
   if ((await commitmentOf(firstData, settled)) !== commitment) {
     throw new Error("the first proof does not give the approved commitment");
+  }
+  // The wasm checks no fee at an execute, and the pool charges the fee of the day to the fee key.
+  const { feePerTree } = await treeFees({ tree: s.client.tree });
+  if (BigInt(feePerTree) > TREE_FEE_CAP) {
+    throw new Error(`the tree fee is ${feePerTree} lamports, over the cap of ${TREE_FEE_CAP}`);
   }
   const wallet = new sdk.Wallet({ identity: s.pda.address });
   await syncOnce(s, s.pda, wallet);

@@ -617,6 +617,15 @@ async function reproveChecksTheCommitment() {
   control.rebuild = rebuiltWith(commitment);
   control.prove = prover(null);
   control.instructionData = first;
+  const treeWith = (fee) => {
+    const data = Buffer.alloc(40_080);
+    data[0] = 1; // StateDiscriminator.treeAccount
+    data.writeBigUInt64LE(fee, 8);
+    control.rpc.getAccountInfo = async () => account(data, POOL);
+  };
+  treeWith(10_001n);
+  await refused("reprove", args, /over the cap of 10000/, "a tree fee over the cap");
+  treeWith(10_000n);
   const done = await ask("reprove", args);
   assert.equal(done.ok, true, done.error);
   assert.equal(done.result.data, hex(first));
