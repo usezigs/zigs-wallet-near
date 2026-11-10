@@ -14,7 +14,6 @@ import { PROPOSAL_SPACE, nonceAccountHex } from "./intent.js";
 import { holdsShare, refuseStopped, solOf, stopOf } from "./secrets.js";
 import { SESSIONS, isPayment } from "./sessions.js";
 import { loadSnap, saveSnap } from "./store.js";
-import { labelOf } from "./wallet.js";
 
 const J = JSON.parse;
 export const UNAVAILABLE = "Solana is not available on this server";
@@ -69,7 +68,6 @@ export const shareSeat = (c) =>
 // gets a new number, and the step writes nothing into its state.
 const CLOSED = "The wallet closed during this Solana step.";
 export const stillOpen = (c, opened) => c.opened === opened;
-const NOT_AGREED = "The devices have not agreed on one Solana key yet.";
 
 /** Throws when the Worker runs on another cluster or made other addresses than the wasm. */
 function sameAddresses(init, roles, groupKey, cluster) {
@@ -118,8 +116,6 @@ function workerInputs(c) {
     { rpcUrl } = c;
   if (seat === undefined) throw new Error("This browser holds no Solana key share of this wallet.");
   if (!rpcUrl) throw new Error(UNAVAILABLE);
-  const ag = agreement(c);
-  if (ag.state !== "agree" || ag.done.cluster !== labelOf(c)) throw new Error(NOT_AGREED);
   const s = solOf(host, gid, seat);
   const roles = J(W.sol_roles(s.solSeed, s.groupKey));
   return { rpcUrl, s, roles: { ...roles, pda: J(W.sol_pda_roles(s.solSeed, s.groupKey)) } };
