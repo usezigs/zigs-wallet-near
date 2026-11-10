@@ -417,7 +417,7 @@ fn the_plain_rule_ids_are_unique_and_none_is_a_pool_rule_id() {
     }
     assert_eq!(
         p3_check::rule::INFO.len(),
-        101,
+        97,
         "the pool rule count does not change"
     );
 }

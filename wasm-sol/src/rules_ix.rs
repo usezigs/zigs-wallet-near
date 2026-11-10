@@ -5,12 +5,12 @@
 use crate::bytes::short_hex;
 use crate::check::{parse_transact_data, Run};
 use crate::consts::{
-    COMPUTE_BUDGET_PROGRAM, ED25519_PROGRAM, MS_CANCEL, MS_CREATE, MS_EXECUTE, REG_REGISTER,
+    COMPUTE_BUDGET_PROGRAM, ED25519_PROGRAM, MS_CANCEL, MS_CREATE, MS_EXECUTE,
     REG_SET_MERGING_ENABLED, REG_UPDATE_KEYS, SYSTEM_PROGRAM, SYS_ADVANCE_NONCE,
     SYS_AUTHORIZE_NONCE, SYS_CREATE_ACCOUNT, SYS_CREATE_WITH_SEED, SYS_INIT_NONCE, SYS_TRANSFER,
     SYS_TRANSFER_WITH_SEED, SYS_WITHDRAW_NONCE, TAG_DEPOSIT, TAG_MERGE_TRANSACT, TAG_TRANSACT,
 };
-use crate::fixed::{parse_deposit, parse_register, AssetKind, Deposit, Register};
+use crate::fixed::{parse_deposit, AssetKind, Deposit};
 use crate::intent::{Intent, Program};
 use crate::pins::Pins;
 use crate::rule::Rule;
@@ -66,7 +66,6 @@ fn pool_verdict(data: &[u8], in_shield: bool) -> Verdict {
 
 fn registry_verdict(data: &[u8]) -> Verdict {
     match data.first() {
-        Some(&REG_REGISTER) => None,
         Some(&REG_UPDATE_KEYS) => Some((Rule::UpdateKeys, "registry update_keys")),
         Some(&REG_SET_MERGING_ENABLED) => {
             Some((Rule::SetMergingEnabled, "registry set_merging_enabled"))
@@ -98,36 +97,6 @@ fn first_fault<const N: usize>(checks: [(bool, Rule, String); N]) -> Fault {
         .into_iter()
         .find(|(bad, _, _)| *bad)
         .map(|(_, rule, why)| (rule, why))
-}
-
-/// The faults of a `register` instruction against the keys of one source: `source` names whose
-/// keys they are (the intent, the pins or the device secrets) in the detail.
-pub(crate) fn register_fault(
-    r: &Register,
-    nullifier_pk: &[u8; 32],
-    viewing_pk: &[u8; 33],
-    source: &str,
-) -> Fault {
-    first_fault([
-        (
-            r.owner_p256.is_some(),
-            Rule::RegisterOwnerP256,
-            "owner_p256 is not None".to_string(),
-        ),
-        (
-            r.nullifier_pk != *nullifier_pk,
-            Rule::RegisterNullifierPk,
-            format!(
-                "nullifier_pk {} is not {source}",
-                short_hex(&r.nullifier_pk)
-            ),
-        ),
-        (
-            r.viewing_pk != *viewing_pk,
-            Rule::RegisterViewingPk,
-            format!("viewing_pk {} is not {source}", short_hex(&r.viewing_pk)),
-        ),
-    ])
 }
 
 fn shield_fault(deposit: &Deposit, pins: &Pins, amount: u64) -> Fault {
@@ -355,16 +324,13 @@ impl Run<'_> {
         }
     }
 
-    /// The field rules of the `register` and `deposit` data, wherever the instruction sits.
+    /// The field rules of the `deposit` data, wherever the instruction sits.
     pub fn field_rules(&mut self) {
         let msg = self.msg;
         for (pos, ix) in msg.ixs.iter().enumerate() {
             let program = msg.program_key(ix);
             let tag = ix.data.first();
             let fault = match self.intent {
-                Intent::Register { .. } if program == Some(&self.pins.registry) => {
-                    self.register_fault(tag, &ix.data)
-                }
                 Intent::Shield { .. } if program == Some(&self.pins.pool) => {
                     self.shield_fault(tag, &ix.data)
                 }
@@ -373,27 +339,6 @@ impl Run<'_> {
             if let Some((rule, why)) = fault {
                 self.fail(rule, format!("instruction {pos}: {why}"));
             }
-        }
-    }
-
-    fn register_fault(&self, tag: Option<&u8>, data: &[u8]) -> Fault {
-        let Intent::Register {
-            nullifier_pk,
-            viewing_pk,
-            ..
-        } = self.intent
-        else {
-            return None;
-        };
-        if tag != Some(&REG_REGISTER) {
-            return None;
-        }
-        let pins = self.pins;
-        match parse_register(data) {
-            Ok(r) => register_fault(&r, nullifier_pk, viewing_pk, "the intent").or_else(|| {
-                register_fault(&r, &pins.nullifier_pk, &pins.viewing_pk, "the pinned key")
-            }),
-            Err(why) => Some((Rule::RegisterLength, why.to_string())),
         }
     }
 

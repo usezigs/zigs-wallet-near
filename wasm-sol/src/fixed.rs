@@ -1,11 +1,9 @@
-//! Instruction data of the two fixed-shape instructions: the pool `deposit` (tag 15, the
-//! Shield intent) and the registry `register` (tag 0).
+//! Instruction data of the fixed-shape pool `deposit` (tag 15, the Shield intent).
 //!
-//! Layouts: `DepositIxData` in `program-libs/interface/.../deposit.rs` (wincode) and
-//! `RegisterData` in `program-libs/user-registry-interface/src/instruction.rs` (borsh).
+//! Layout: `DepositIxData` in `program-libs/interface/.../deposit.rs` (wincode).
 
 use crate::bytes::{Reader, Short};
-use crate::consts::{Key, REG_REGISTER, TAG_DEPOSIT};
+use crate::consts::{Key, TAG_DEPOSIT};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AssetKind {
@@ -114,46 +112,5 @@ impl Deposit {
             }
         }
         Ok(out)
-    }
-}
-
-/// Parsed registry `register` data.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Register {
-    pub owner_p256: Option<[u8; 33]>,
-    pub nullifier_pk: [u8; 32],
-    pub viewing_pk: [u8; 33],
-}
-
-/// Parses `register` data including the discriminator byte. The whole input must be consumed.
-pub fn parse_register(data: &[u8]) -> Result<Register, &'static str> {
-    let mut r = Reader::new(data);
-    if r.u8().map_err(malformed)? != REG_REGISTER {
-        return Err("the first byte is not the register discriminator");
-    }
-    let owner_p256 = match r.u8().map_err(malformed)? {
-        0 => None,
-        1 => Some(r.array().map_err(malformed)?),
-        _ => return Err("owner_p256 flag is not 0 or 1"),
-    };
-    let nullifier_pk = r.array().map_err(malformed)?;
-    let viewing_pk = r.array().map_err(malformed)?;
-    if !r.is_empty() {
-        return Err("bytes follow the viewing key");
-    }
-    Ok(Register {
-        owner_p256,
-        nullifier_pk,
-        viewing_pk,
-    })
-}
-
-impl Register {
-    pub fn write(&self) -> Vec<u8> {
-        let mut out = vec![REG_REGISTER, u8::from(self.owner_p256.is_some())];
-        out.extend(self.owner_p256.iter().flatten());
-        out.extend_from_slice(&self.nullifier_pk);
-        out.extend_from_slice(&self.viewing_pk);
-        out
     }
 }

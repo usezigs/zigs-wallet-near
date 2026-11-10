@@ -225,11 +225,6 @@ pub fn accept_vectors() -> Vec<Vector> {
     let tx_transfer = finite(real_tx("real/work-transfer-0.msg"), pins.group);
     let tx_withdraw = finite(real_tx("real/work-withdraw-0.msg"), pins.group);
     let create = Intent::CreateNonce { blockhash: NONCE };
-    let register = Intent::Register {
-        nonce: NONCE,
-        nullifier_pk: facts.nullifier_pk(),
-        viewing_pk: facts.viewing_pk(),
-    };
     let shield = Intent::Shield {
         blockhash: NONCE,
         amount: facts.amount("shield"),
@@ -237,7 +232,6 @@ pub fn accept_vectors() -> Vec<Vector> {
     let cancel = Intent::Cancel { nonce: NONCE };
     let cases: Vec<(&'static str, Intent, Option<&Transact>)> = vec![
         ("create-nonce", create, None),
-        ("register", register, None),
         ("shield", shield, None),
         ("transfer", transfer, Some(&tx_transfer)),
         ("withdrawal", withdrawal, Some(&tx_withdraw)),

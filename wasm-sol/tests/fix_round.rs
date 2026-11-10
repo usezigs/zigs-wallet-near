@@ -7,10 +7,10 @@
 mod common;
 
 use common::fixture::*;
-use common::{field, with_spend, EXPIRY, NONCE, NOW, PDA_NULLIFIER_PK};
+use common::{field, with_spend, EXPIRY, NONCE, NOW};
 use p3_check::approve::{approve, Device};
 use p3_check::check::Facts;
-use p3_check::consts::{is_supported_shape, Key, SUPPORTED_SHAPES};
+use p3_check::consts::{is_supported_shape, SUPPORTED_SHAPES};
 use p3_check::hashes::{dummy_hash, nullifier_pk, owner_hash, TREE_ID};
 use p3_check::intent::Intent;
 use p3_check::pins::Pins;
@@ -532,125 +532,6 @@ fn the_salt_history_is_part_of_the_wire_form_of_the_snapshot() {
     let again = Snapshot::decode(&wire).unwrap();
     assert!(again.used_salts == f.snapshot.used_salts);
     assert!(Snapshot::decode(&wire[..wire.len() - 1]).is_err());
-}
-
-// ---- 7. the keys of a registration -----------------------------------------------------------
-
-fn register(nullifier_pk: Key, viewing_pk: [u8; 33]) -> Intent {
-    Intent::Register {
-        nonce: NONCE,
-        nullifier_pk,
-        viewing_pk,
-    }
-}
-
-fn register_bytes(intent: &Intent, pins: &Pins) -> Vec<u8> {
-    v1::write(&compile(intent, pins, None).unwrap()).unwrap()
-}
-
-fn rule_and_source(details: &[(Rule, String)]) -> Vec<(Rule, bool, bool)> {
-    details
-        .iter()
-        .map(|(rule, why)| {
-            (
-                *rule,
-                why.contains("is not the pinned key"),
-                why.contains("is not the key of the device"),
-            )
-        })
-        .collect()
-}
-
-#[test]
-fn a_register_with_the_keys_of_another_wallet_is_refused_by_the_pins_and_by_the_secrets() {
-    // The gap of the verifier (`gap_register_keys_are_not_compared_with_the_snapshot`): the
-    // intent and the instruction carry attacker keys, pins and snapshot hold the group keys.
-    let f = Fixture::build(&Spec::transfer());
-    let att = attacker();
-    let (att_nk, att_vk) = att.keys();
-    let intent = register(att_nk, att_vk);
-    let bytes = register_bytes(&intent, &f.pins);
-    let details = refusal_details(&intent, &bytes, &f.pins, &f.snapshot);
-    assert_eq!(
-        rule_and_source(&details),
-        vec![
-            (RegisterNullifierPk, true, false),
-            (RegisterNullifierPk, false, true)
-        ]
-    );
-}
-
-#[test]
-fn a_register_that_matches_the_pins_but_not_the_secrets_of_the_device_is_refused() {
-    let f = Fixture::build(&Spec::transfer());
-    let (att_nk, att_vk) = attacker().keys();
-    let pins = Pins::devnet(GROUP, att_nk, att_vk, PAYER, PDA_NULLIFIER_PK).unwrap();
-    let intent = register(att_nk, att_vk);
-    let bytes = register_bytes(&intent, &pins);
-    let details = refusal_details(&intent, &bytes, &pins, &f.snapshot);
-    assert_eq!(
-        rule_and_source(&details),
-        vec![
-            (GroupNullifierPk, false, false),
-            (GroupViewingPk, false, false),
-            (RegisterNullifierPk, false, true),
-        ]
-    );
-}
-
-#[test]
-fn a_register_that_matches_the_secrets_of_the_device_but_not_the_pins_is_refused() {
-    let f = Fixture::build(&Spec::transfer());
-    let (att_nk, att_vk) = attacker().keys();
-    let pins = Pins::devnet(GROUP, att_nk, att_vk, PAYER, PDA_NULLIFIER_PK).unwrap();
-    let (nk, vk) = group().keys();
-    let intent = register(nk, vk);
-    let bytes = register_bytes(&intent, &pins);
-    let details = refusal_details(&intent, &bytes, &pins, &f.snapshot);
-    assert_eq!(
-        rule_and_source(&details),
-        vec![
-            (GroupNullifierPk, false, false),
-            (GroupViewingPk, false, false),
-            (RegisterNullifierPk, true, false),
-        ]
-    );
-}
-
-#[test]
-fn a_register_with_the_viewing_key_of_another_wallet_is_refused() {
-    let f = Fixture::build(&Spec::transfer());
-    let (nk, _) = group().keys();
-    let intent = register(nk, attacker().viewing_pk());
-    let bytes = register_bytes(&intent, &f.pins);
-    let rules = refusal_of(&intent, &bytes, &f.pins, &f.snapshot);
-    assert_eq!(rules, vec![RegisterViewingPk, RegisterViewingPk]);
-}
-
-#[test]
-fn a_register_message_whose_last_instruction_is_not_the_register_data_says_so() {
-    // `Facts` reads the `register` data from the last instruction. With another instruction
-    // behind it there is nothing to compare with the device secrets, and that is a refusal.
-    let f = Fixture::build(&Spec::transfer());
-    let (nk, vk) = group().keys();
-    let intent = register(nk, vk);
-    let bytes = common::with_ix(
-        &register_bytes(&intent, &f.pins),
-        p3_check::consts::SYSTEM_PROGRAM,
-        &[GROUP],
-        vec![0; 4],
-    );
-    let rules = refusal_of(&intent, &bytes, &f.pins, &f.snapshot);
-    assert_eq!(rules.last(), Some(&RegisterLength), "{rules:?}");
-}
-
-#[test]
-fn a_register_with_the_keys_of_the_group_is_approved() {
-    let f = Fixture::build(&Spec::transfer());
-    let (nk, vk) = group().keys();
-    let intent = register(nk, vk);
-    let bytes = register_bytes(&intent, &f.pins);
-    assert!(refusal_of(&intent, &bytes, &f.pins, &f.snapshot).is_empty());
 }
 
 // ---- 8. the answer echoes the recipient and the expiry ---------------------------------------

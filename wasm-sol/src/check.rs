@@ -3,7 +3,7 @@
 //! `check` reports the first one, so each refusal names one rule.
 
 use crate::consts::{DERIVE_PREFIX, OFFCHAIN_MAGIC};
-use crate::fixed::{parse_deposit, parse_register, Deposit, Register};
+use crate::fixed::{parse_deposit, Deposit};
 use crate::intent::{Intent, Program};
 use crate::pins::Pins;
 use crate::rule::{Rule, Violation};
@@ -20,7 +20,6 @@ pub struct Facts {
     /// The position of the `transact` instruction in the message.
     pub transact_at: Option<usize>,
     pub deposit: Option<Deposit>,
-    pub register: Option<Register>,
 }
 
 /// Every failed rule of one message, in evaluation order, with the parsed facts.
@@ -226,7 +225,6 @@ fn facts_of(msg: &Message, found: Option<(usize, Transact)>) -> Facts {
         transact,
         transact_at,
         deposit: last.and_then(|data| parse_deposit(data).ok()),
-        register: last.and_then(|data| parse_register(data).ok()),
     }
 }
 

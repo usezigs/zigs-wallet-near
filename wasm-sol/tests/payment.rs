@@ -534,20 +534,12 @@ fn a_nonce_payment_to_another_payee_or_with_change_is_refused() {
 }
 
 #[test]
-fn nothing_signs_a_withdrawal_a_register_or_a_cancel_and_the_group_key_signs_no_program_message() {
+fn nothing_signs_a_withdrawal_or_a_cancel_and_the_group_key_signs_no_program_message() {
     let f = Fixture::build(&Spec::withdrawal());
     for signer in [Signer::Group, Signer::Fee] {
         assert!(migration_check(&f, signer).starts_with(&[Rule::IntentRetired]));
     }
-    let (nk, vk) = group().keys();
-    let plain = [
-        Intent::Register {
-            nonce: [9; 32],
-            nullifier_pk: nk,
-            viewing_pk: vk,
-        },
-        Intent::Cancel { nonce: [9; 32] },
-    ];
+    let plain = [Intent::Cancel { nonce: [9; 32] }];
     for intent in plain {
         let message = v1::write(&compile(&intent, &f.pins, None).unwrap()).unwrap();
         let proposal = Proposal {

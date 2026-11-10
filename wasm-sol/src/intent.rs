@@ -57,11 +57,6 @@ pub enum Intent {
     CreateNonce {
         blockhash: Key,
     },
-    Register {
-        nonce: Key,
-        nullifier_pk: Key,
-        viewing_pk: [u8; 33],
-    },
     /// Add SOL: a pool deposit from the payer into the shielded balance of the group. The payer
     /// signs alone, with a recent blockhash: it is the SOL of one member, so the group does not
     /// approve it and does not touch its nonce account.
@@ -223,7 +218,7 @@ impl Intent {
     pub fn lifetime(&self) -> Key {
         match self {
             Intent::CreateNonce { blockhash } | Intent::Shield { blockhash, .. } => *blockhash,
-            Intent::Register { nonce, .. } | Intent::Cancel { nonce } => *nonce,
+            Intent::Cancel { nonce } => *nonce,
             Intent::Transfer { spend, .. } | Intent::Withdrawal { spend, .. } => spend.nonce,
             Intent::Program(program) => program.lifetime(),
         }
@@ -272,7 +267,6 @@ impl Intent {
     pub fn name(&self) -> &'static str {
         match self {
             Intent::CreateNonce { .. } => "create-nonce",
-            Intent::Register { .. } => "register",
             Intent::Shield { .. } => "shield",
             Intent::Transfer { .. } => "transfer",
             Intent::Withdrawal { .. } => "withdrawal",
@@ -288,16 +282,6 @@ impl Intent {
             Intent::CreateNonce { blockhash } => {
                 out.push(0);
                 out.extend_from_slice(blockhash);
-            }
-            Intent::Register {
-                nonce,
-                nullifier_pk,
-                viewing_pk,
-            } => {
-                out.push(1);
-                out.extend_from_slice(nonce);
-                out.extend_from_slice(nullifier_pk);
-                out.extend_from_slice(viewing_pk);
             }
             Intent::Shield { blockhash, amount } => {
                 out.push(2);
@@ -356,11 +340,6 @@ fn read_intent(r: &mut Reader) -> Result<Intent, String> {
     Ok(match r.u8().map_err(short)? {
         0 => Intent::CreateNonce {
             blockhash: r.array().map_err(short)?,
-        },
-        1 => Intent::Register {
-            nonce: r.array().map_err(short)?,
-            nullifier_pk: r.array().map_err(short)?,
-            viewing_pk: r.array().map_err(short)?,
         },
         2 => Intent::Shield {
             blockhash: r.array().map_err(short)?,

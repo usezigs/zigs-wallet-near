@@ -14,7 +14,7 @@ mod common;
 
 use common::fixture::*;
 use common::ts;
-use common::{mutate, replace_key, with_flags, with_ix, NOW};
+use common::{replace_key, with_flags, with_ix, NOW};
 use p3_check::address::Address;
 use p3_check::consts::{OFFCHAIN_MAGIC, RECENT_BLOCKHASHES, SYSTEM_PROGRAM};
 use p3_check::intent::Intent;
@@ -62,20 +62,11 @@ fn plain_cases() -> Vec<Case> {
     let f = Fixture::build(&Spec::transfer());
     let mut snapshot = f.snapshot.clone();
     snapshot.inputs.clear();
-    let wallet = group();
     let intents = [
         (
             "create-nonce",
             Intent::CreateNonce {
                 blockhash: common::NONCE,
-            },
-        ),
-        (
-            "register",
-            Intent::Register {
-                nonce: common::NONCE,
-                nullifier_pk: p3_check::hashes::nullifier_pk(&wallet.nullifier_secret).unwrap(),
-                viewing_pk: wallet.viewing_pk(),
             },
         ),
         (
@@ -272,21 +263,12 @@ fn refusals() -> Vec<Case> {
         ),
     );
     refuse("offchain", "offchain-prefix", OFFCHAIN_MAGIC.to_vec());
-    let register = plain_cases().remove(1);
-    let bytes = mutate(&register.bytes, |m| m.ixs[1].data[2] ^= 1);
-    out.push(Case {
-        name: "nullifier-pk".to_string(),
-        bytes,
-        refused: Some("register-nullifier-pk"),
-        ..clone_case(&register)
-    });
     out
 }
 
 const ATTACKER_KEY: [u8; 32] = [0xAA; 32];
 
-/// The pins of the `soldone` document against the secrets of the device, and the keys of a
-/// `register`: one case each. The first rule of the answer is the rule of the case.
+/// The pins of the `soldone` document against the secrets of the device: one case each. The first rule of the answer is the rule of the case.
 fn pin_refusals() -> Vec<Case> {
     let f = Fixture::build(&Spec::transfer());
     let (att_nk, att_vk) = attacker().keys();
@@ -294,21 +276,7 @@ fn pin_refusals() -> Vec<Case> {
     let mut wrong_pins = from_fixture("pins-nullifier-pk", &f, f.bytes(), None);
     wrong_pins.pins = other.wire();
     wrong_pins.refused = Some("group-nullifier-pk");
-    let register = plain_cases().remove(1);
-    let intent = Intent::Register {
-        nonce: common::NONCE,
-        nullifier_pk: att_nk,
-        viewing_pk: att_vk,
-    };
-    let msg = compile(&intent, &f.pins, None).expect("compile");
-    let register_keys = Case {
-        name: "register-keys".to_string(),
-        bytes: v1::write(&msg).unwrap(),
-        proposal: proposal(&intent, &Plan::default()),
-        refused: Some("register-nullifier-pk"),
-        ..clone_case(&register)
-    };
-    vec![wrong_pins, register_keys, group_pays(&f)]
+    vec![wrong_pins, group_pays(&f)]
 }
 
 /// The proposal names the group key as its payer, and the group key pays the message alone. The
@@ -363,7 +331,7 @@ fn policy_of(case: &Case) -> Vec<&'static str> {
         .iter()
         .any(|slot| slot.role == p3_check::plan::Role::Change);
     match &proposal.intent {
-        Intent::Register { .. } | Intent::Withdrawal { .. } | Intent::Cancel { .. } => {
+        Intent::Withdrawal { .. } | Intent::Cancel { .. } => {
             vec!["intent-retired"]
         }
         Intent::Transfer { payee, .. } if *payee != own || change => vec!["migration-payee"],

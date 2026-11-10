@@ -9,8 +9,8 @@ use p3_check::check::check_all;
 use p3_check::intent::Intent;
 use p3_check::rule::Rule;
 use p3_check::template::{
-    compile, limits, CU_CAP_REGISTER, CU_CAP_SHIELD, CU_CAP_SYSTEM, CU_CAP_TRANSACT,
-    CU_FLOOR_CANCEL, CU_FLOOR_CREATE_NONCE, CU_FLOOR_REGISTER, CU_FLOOR_SHIELD, CU_FLOOR_TRANSACT,
+    compile, limits, CU_CAP_SHIELD, CU_CAP_SYSTEM, CU_CAP_TRANSACT, CU_FLOOR_CANCEL,
+    CU_FLOOR_CREATE_NONCE, CU_FLOOR_SHIELD, CU_FLOOR_TRANSACT,
 };
 use p3_check::transact::Input;
 use p3_check::v1::Config;
@@ -53,7 +53,6 @@ fn the_floors_are_the_recorded_consumption_and_the_caps_are_50_percent_above() {
     for (floor, cap) in [
         (CU_FLOOR_TRANSACT, CU_CAP_TRANSACT),
         (CU_FLOOR_SHIELD, CU_CAP_SHIELD),
-        (CU_FLOOR_REGISTER, CU_CAP_REGISTER),
         (CU_FLOOR_CREATE_NONCE, CU_CAP_SYSTEM),
     ] {
         let base = floor * 3 / 2;

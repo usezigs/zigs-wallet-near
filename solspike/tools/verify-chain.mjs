@@ -1,23 +1,21 @@
 // Independent read-only checks of what landed on Devnet. Nothing here signs or sends: it only
 // reads. It does not use the code of the app: the first signature is checked with Node's own
-// Ed25519 (crypto.verify), the message is read with the decoder of the kit, and the registry
-// record and the nonce account are read from their raw account data.
-//   import { verifyTransaction, verifyRecord, verifyNonceAccount } from "./verify-chain.mjs";
+// Ed25519 (crypto.verify), the message is read with the decoder of the kit, and the nonce account
+// is read from its raw account data. The group is never registered, so nothing reads a record.
+//   import { verifyTransaction, verifyNonceAccount } from "./verify-chain.mjs";
 import { createHash, createPublicKey, verify } from "node:crypto";
 import {
   address,
   getAddressDecoder,
   getAddressEncoder,
   getCompiledTransactionMessageDecoder,
-  getProgramDerivedAddress,
   getSignatureFromTransaction,
   getTransactionDecoder,
 } from "@solana/kit";
 import { rpcCall, sleep } from "./rpc.mjs";
 
-const REGISTRY = "regyS5rkAcw2YzDJCmTwCTHs2s246FXxbmuRZ42u2PD";
-const POOL = "sppU489D7A4U1exNo1oeMGZtLEofq3a6o2fR7UeoWB6";
-const RECORD_SEED = "zolana/registry/v0";
+const REGISTRY = "regy3WAeRXMYuMYxr5iK3Bf9Arr3PcxGxyzAddbiqDQ";
+const POOL = "ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW";
 const SPKI = Buffer.from("302a300506032b6570032100", "hex");
 const SYSTEM = "1".repeat(32);
 const NAMES = { [REGISTRY]: "user-registry", [POOL]: "shielded-pool", [SYSTEM]: "system" };
@@ -133,36 +131,6 @@ async function accountData(account) {
   if (reply.value === null) return null;
   const { owner, lamports } = reply.value;
   return { owner, lamports, data: Buffer.from(reply.value.data[0], "base64") };
-}
-
-/**
- * The registry record of a group key. The layout is UserRecord of the Zolana repo, written with
- * borsh into an account of 134 bytes: a tag, the owner (32), the bump, the optional P-256 key
- * (one byte 0 for none, else 1 and 33 bytes), the nullifier key (32), the viewing key (33) and
- * the merge flag. A record with no P-256 owner is 101 bytes long, then zeros. The record must
- * belong to the group, have no P-256 owner, and hold the given keys.
- */
-export async function verifyRecord(groupKeyHex, { nullifierPk, viewingPk }) {
-  const seeds = [RECORD_SEED, Buffer.from(groupKeyHex, "hex")];
-  const [record] = await getProgramDerivedAddress({ programAddress: address(REGISTRY), seeds });
-  const found = await accountData(record);
-  if (found === null) throw new Error("the registry record does not exist");
-  const { data } = found;
-  const keys = data[34] === 1 ? 68 : 35;
-  const end = keys + 32 + 33 + 1;
-  return {
-    record,
-    registryOwned: found.owner === REGISTRY,
-    size: data.length,
-    rent: String(found.lamports),
-    tag: data[0],
-    ownerIsGroup: hex(data.subarray(1, 33)) === groupKeyHex,
-    ownerP256Absent: data[34] === 0,
-    nullifierEqualsSoldone: hex(data.subarray(keys, keys + 32)) === nullifierPk,
-    viewingEqualsSoldone: hex(data.subarray(keys + 32, keys + 65)) === viewingPk,
-    mergingEnabled: data[keys + 65] === 1,
-    zerosAfter: data.subarray(end).every((byte) => byte === 0),
-  };
 }
 
 /** The nonce account of the group: owned by System, 80 bytes, version 1, the group as authority. */

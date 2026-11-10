@@ -13,7 +13,6 @@ const names = [
   "transfer",
   "withdrawal",
   "transfer-spl",
-  "register",
   "shield",
   "ts-transfer-sol",
   "ts-withdraw-with-dummy",

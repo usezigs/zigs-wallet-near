@@ -11,7 +11,6 @@ pub enum Group {
     Instructions,
     Accounts,
     Lifetime,
-    Register,
     Shield,
     Expiry,
     Transact,
@@ -153,12 +152,6 @@ rules! {
         "each output owner tag is the group key or the payee tag of the intent";
     AccountSet, "account-set", Accounts, "the account table holds exactly the template accounts";
     AccountFlags, "account-flags", Accounts, "signer and writable flags equal the template";
-    RegisterLength, "register-length", Register, "register data is 67 bytes with tag 0";
-    RegisterOwnerP256, "register-owner-p256", Register, "owner_p256 is None";
-    RegisterNullifierPk, "register-nullifier-pk", Register,
-        "nullifier_pk equals the intent, the pinned key and the key of the device secret";
-    RegisterViewingPk, "register-viewing-pk", Register,
-        "viewing_pk equals the intent, the pinned key and the key of the device secret";
     ShieldShape, "shield-shape", Shield,
         "one SOL asset, one entry, asset index 0, no memo";
     ShieldOwner, "shield-owner", Shield, "the deposit owner is the group owner_hash";

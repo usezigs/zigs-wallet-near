@@ -292,17 +292,6 @@ fn a_withdrawal_lists_the_owner_signer_before_the_settlement_accounts() {
 }
 
 #[test]
-fn register_lists_the_owner_then_the_payer() {
-    // programs/user-registry register.rs: record, owner (signer), payer (signer, writable).
-    let pins = pins();
-    let accounts = layout("register", 1);
-    assert_eq!(accounts[0], (pins.user_record, false, true));
-    assert_eq!(accounts[1], (pins.group, true, false));
-    assert_eq!(accounts[2], (PAYER, true, true));
-    assert_eq!(accounts[3], (SYSTEM_PROGRAM, false, false));
-}
-
-#[test]
 fn the_nonce_account_is_funded_by_the_payer_and_the_group_signs_as_its_base() {
     // System create_account_with_seed lists the base as a third account when it is not the
     // funder (solana-system-interface 3.3.0, `create_account_with_seed`).

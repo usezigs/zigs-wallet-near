@@ -9,7 +9,7 @@ use p3_check::check::{check, verify_transact_rewrite};
 use p3_check::consts::{
     COMPUTE_BUDGET_PROGRAM, OFFCHAIN_MAGIC, RECENT_BLOCKHASHES, SYSTEM_PROGRAM,
 };
-use p3_check::fixed::{parse_deposit, parse_register};
+use p3_check::fixed::parse_deposit;
 use p3_check::intent::Intent;
 use p3_check::rule::Rule;
 use p3_check::template::{limits, LOADED_MAX, PRIORITY_MAX};
@@ -160,7 +160,7 @@ fn structure_transaction_too_large() {
 
 #[test]
 fn missing_loaded_limit_bit() {
-    for name in ["transfer", "register", "cancel"] {
+    for name in ["transfer", "cancel"] {
         refuse(name, Rule::ConfigLoadedBit, |b| {
             with_config(b, |c| c.loaded_limit = None)
         });
@@ -300,7 +300,7 @@ fn compute_budget_instruction() {
 
 #[test]
 fn deposit_outside_shield() {
-    for name in ["transfer", "withdrawal", "register", "cancel"] {
+    for name in ["transfer", "withdrawal", "cancel"] {
         refuse(name, Rule::DepositOutsideShield, |b| {
             with_ix(b, pins().pool, &[], vec![15])
         });
@@ -316,14 +316,23 @@ fn merge_transact() {
 
 #[test]
 fn update_keys() {
-    refuse("register", Rule::UpdateKeys, |b| {
+    refuse("cancel", Rule::UpdateKeys, |b| {
         with_ix(b, pins().registry, &[], vec![2, 0])
     });
 }
 
 #[test]
+fn register_and_unknown_registry_tags() {
+    for data in [vec![0, 0], vec![3]] {
+        refuse("cancel", Rule::InstructionNotAllowed, |b| {
+            with_ix(b, pins().registry, &[], data.clone())
+        });
+    }
+}
+
+#[test]
 fn set_merging_enabled() {
-    refuse("register", Rule::SetMergingEnabled, |b| {
+    refuse("cancel", Rule::SetMergingEnabled, |b| {
         with_ix(b, pins().registry, &[], vec![1, 1])
     });
 }
@@ -481,14 +490,6 @@ fn changed_nullifier_pda_account() {
 }
 
 #[test]
-fn changed_registry_record_account() {
-    let record = pins().user_record;
-    refuse("register", Rule::AccountAddress, |b| {
-        replace_key(b, &record, ATTACKER)
-    });
-}
-
-#[test]
 fn extra_account_in_an_instruction() {
     refuse("cancel", Rule::AccountCount, |b| {
         mutate(b, |m| m.ixs[0].accounts.push(0))
@@ -541,47 +542,6 @@ fn lifetime_changed() {
         let bytes = mutate(&vector.bytes, |m| m.lifetime[0] ^= 1);
         assert_refused(&bytes, &vector.intent, Rule::Lifetime);
     }
-}
-
-// ---- register -----------------------------------------------------------------------------
-
-fn with_register(bytes: &[u8], f: impl FnOnce(&mut p3_check::fixed::Register)) -> Vec<u8> {
-    mutate(bytes, |m| {
-        let mut data = parse_register(&m.ixs[1].data).unwrap();
-        f(&mut data);
-        m.ixs[1].data = data.write();
-    })
-}
-
-#[test]
-fn register_nullifier_pk_changed() {
-    refuse("register", Rule::RegisterNullifierPk, |b| {
-        with_register(b, |r| r.nullifier_pk[0] ^= 1)
-    });
-}
-
-#[test]
-fn register_viewing_pk_changed() {
-    refuse("register", Rule::RegisterViewingPk, |b| {
-        with_register(b, |r| r.viewing_pk[32] ^= 1)
-    });
-}
-
-#[test]
-fn register_owner_p256_present() {
-    refuse("register", Rule::RegisterOwnerP256, |b| {
-        with_register(b, |r| r.owner_p256 = Some([2; 33]))
-    });
-}
-
-#[test]
-fn register_data_of_the_wrong_length() {
-    refuse("register", Rule::RegisterLength, |b| {
-        mutate(b, |m| m.ixs[1].data.truncate(66))
-    });
-    refuse("register", Rule::RegisterLength, |b| {
-        mutate(b, |m| m.ixs[1].data.push(0))
-    });
 }
 
 // ---- shield -------------------------------------------------------------------------------

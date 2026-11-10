@@ -5,7 +5,7 @@ mod common;
 
 use common::*;
 use p3_check::check::{check, check_all, verify_rewrite};
-use p3_check::fixed::{parse_deposit, parse_register};
+use p3_check::fixed::parse_deposit;
 use p3_check::intent::Intent;
 use p3_check::rule::{Rule, INFO};
 use p3_check::transact::{self, Leg, OwnerTag};
@@ -172,17 +172,21 @@ fn transact_parse_refuses_trailing_bytes_flags_and_other_circuits() {
 }
 
 #[test]
-fn deposit_and_register_data_round_trip() {
+fn deposit_data_round_trips() {
     let facts = Facts::load();
     let shield = parse(&accept("shield").bytes);
     let deposit = parse_deposit(&shield.ixs[0].data).expect("deposit");
     assert_eq!(deposit.write().expect("write"), shield.ixs[0].data);
     assert_eq!(deposit.entries[0].amount, facts.amount("shield"));
-    let register = parse(&accept("register").bytes);
-    let data = parse_register(&register.ixs[1].data).expect("register");
-    assert_eq!(data.write(), register.ixs[1].data);
-    assert_eq!(register.ixs[1].data.len(), 67);
-    assert!(parse_register(&register.ixs[1].data[..66]).is_err());
+}
+
+#[test]
+fn the_retired_register_intent_tag_is_an_unknown_intent() {
+    // Tag 1 was `Register` (nonce, nullifier_pk, viewing_pk). It has no variant now.
+    let mut wire = vec![1u8];
+    wire.extend_from_slice(&[0; 32 + 32 + 33]);
+    let why = Intent::decode(&wire).unwrap_err();
+    assert!(why.contains("unknown intent tag 1"), "{why}");
 }
 
 #[test]

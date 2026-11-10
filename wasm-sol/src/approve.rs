@@ -11,7 +11,6 @@ use crate::intent::Intent;
 use crate::pins::Pins;
 use crate::plan::Plan;
 use crate::rule::{Rule, Violation};
-use crate::rules_ix::register_fault;
 use crate::snapshot::Snapshot;
 use crate::spend::{spend_violations, Group, SpendInput, Summary};
 use crate::v1;
@@ -71,30 +70,6 @@ pub(crate) fn pin_violations(pins: &Pins, owner: Key, keys: &DeviceKeys) -> Vec<
     found
 }
 
-/// A registration is permanent, so the keys of the `register` data are also compared with the
-/// keys that the secrets of the device derive (the pins were compared in `check_all`).
-fn register_violations(intent: &Intent, facts: &Facts, keys: &DeviceKeys) -> Vec<Violation> {
-    let (true, Ok((nullifier_pk, viewing_pk))) = (matches!(intent, Intent::Register { .. }), keys)
-    else {
-        return Vec::new();
-    };
-    let Some(register) = &facts.register else {
-        return vec![Violation::new(
-            Rule::RegisterLength,
-            "no register data was read",
-        )];
-    };
-    register_fault(
-        register,
-        nullifier_pk,
-        viewing_pk,
-        "the key of the device secrets",
-    )
-    .into_iter()
-    .map(|(rule, why)| Violation::new(rule, why))
-    .collect()
-}
-
 /// The P3c rules of a spend, on the message that `check_all` read.
 fn spend_part(
     bytes: &[u8],
@@ -141,7 +116,6 @@ pub fn approve(
     };
     let report = check_all(bytes, intent, &pins, device.now);
     violations.extend(report.violations);
-    violations.extend(register_violations(intent, &report.facts, &keys));
     let mut summary = Summary::default();
     if intent.is_spend() {
         let (found, paid) = spend_part(bytes, (intent, plan, &report.facts), device, &pins);

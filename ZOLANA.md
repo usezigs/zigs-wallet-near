@@ -385,19 +385,21 @@ because FROST signatures differ each time [Z]sdk-libs/ts/src/client/keys.ts:161-
 | Role | Held by | The holder can | Rotation |
 |---|---|---|---|
 | Ed25519 key share | One seat each | Give one share of a signature | New group key and a migration spend |
-| Nullifier secret (31 bytes) | Every seat and the Worker | Build proofs, compute spent status. Cannot spend [Z]docs/spec.md:352-358 | Never in place [Z]programs/user-registry/src/instructions/update_keys.rs:32-38 |
+| Nullifier secret (31 bytes) | Every seat and the Worker | Build proofs, compute spent status. Cannot spend [Z]docs/spec.md:352-358 | Never: `update_keys` has no nullifier key field (privacy-rings 3c018b82: program-libs/user-registry-interface/src/instruction.rs:17-22) |
 | PDA nullifier secret (31 bytes) | Every seat and the Worker | The same, for the funds of the PDA identity (7.2, option D). The PDA signature authorizes a spend | Never in place |
-| Viewing key (P-256) | Every seat and the Worker | Read incoming and outgoing UTXOs | With an owner signature |
+| Viewing key (X25519) | Every seat and the Worker | Read incoming and outgoing UTXOs | With an owner signature (`update_keys`, which carries only the viewing key) |
 
 The engine derives both secrets from `solSeed` with Zigs labels, not the `TSPP/*` labels. The
-viewing scalar is HKDF output of 48 bytes reduced modulo the P-256 order
-[Z]sdk-libs/ts/src/keypair/derivation.ts:222-227,309. A separate check requires 1 <= k < n
-[Z]sdk-libs/ts/src/keypair/viewing-key.ts:52-59.
+viewing secret is HKDF output of 32 bytes with the info `zigs-sol/viewing-x25519/v1`, clamped as
+RFC 7748 clamps an X25519 secret (privacy-rings 3c018b82: sdk-libs/keypair/src/viewing_key.rs:60-69).
+The public key is `0x04 || u`, 33 bytes, so the address keeps its 99 bytes
+(sdk-libs/keypair/src/x25519.rs:10-45). The nullifier secret, the nullifier key and the owner hash
+do not change.
 
 | Topic | Rule |
 |---|---|
-| No registration | The beta never registers the group. The PDA identity of 7.2 needs no record: the pool and the indexer accept a PDA owner with no record (6.10). Nothing signs the old `register` intent (`intent-retired`). A record would be permanent and public: `register` fails if a record exists, `update_keys` refuses a new nullifier key, and no operation deletes a record [Z]programs/user-registry/src/instructions/register.rs:36-42,57-60; docs/spec.md:2805. Payers use the full shielded address of the PDA identity |
-| Refused by default | `set_merging_enabled(true)` and `update_keys` are separate intents with their own screens. The first version does not offer them. `merging_enabled` stays false, the registration default [Z]programs/user-registry/src/instructions/register.rs:60 |
+| No registration | The beta never registers the group. The PDA identity of 7.2 needs no record: the pool and the indexer accept a PDA owner with no record (6.10). Nothing signs the old `register` intent (`intent-retired`). A record would be permanent and public: `register` fails if a record exists, no instruction changes the nullifier key, and no operation deletes a record [Z]programs/user-registry/src/instructions/register.rs:36-42,57-60; docs/spec.md:2805. Since 3c018b82 the record has 100 bytes (it had 134), `register` has no P-256 owner key and no secp256r1 instruction, and the wasm has no `register` intent: it refuses every registry instruction (privacy-rings 3c018b82: program-libs/user-registry-interface/src/state.rs:7-18,47-48; instruction.rs:11-15). Payers use the full shielded address of the PDA identity |
+| Refused by default | `set_merging_enabled(true)` (tag 1, named `set_merge_encryption` since 3c018b82) and `update_keys` (tag 2, with only the viewing key) are separate intents with their own screens. The first version does not offer them. `merging_enabled` stays false, the registration default [Z]programs/user-registry/src/instructions/register.rs:60 |
 | Merge | When `merging_enabled` is true, anyone can submit `merge_transact` with no owner signature [Z]docs/spec.md:2270-2274. A merge consolidates inputs into the same owner, so no funds move. It does spend the inputs of an open proposal, and the proposal then fails. That is a denial of service. The group merges with a normal approved self-transfer |
 | Members | A removed member keeps the secrets and reads the history permanently. A member change needs a new wallet and group key (PROTOCOL.md section 8). The beta has no Solana move: Change devices moves the Zcash funds only, so the Solana funds stay with the old group key, and a member that the change leaves out keeps its key share of the old group. A Solana move would be one approved payment that links the old key to the new key in public |
 
@@ -1321,7 +1323,7 @@ witness in clear, as in P4.
 curve tag 2). The nullifier secret is `HKDF-SHA256(solSeed, empty salt,
 "zigs-sol/pda-nullifier-secret/v1" || PDA)`, 31 bytes, and `nullifier_pk` is its Poseidon hash
 (option D of the nullifier-key note of 16 October 2026). The viewing key is the beta's
-(`zigs-sol/viewing-scalar/v1`, 4.2). The secret does not authorize a spend: the PDA signature does.
+(`zigs-sol/viewing-x25519/v1`, 4.2). The secret does not authorize a spend: the PDA signature does.
 So custody does not depend on it. The examples of [HM]'s repository use a zero secret instead. Then
 anyone computes the nullifier of every deposit note: anyone links a spend to its deposits, and
 after a program flaw anyone can prove a spend. With a derived secret, only the seats and the hosted

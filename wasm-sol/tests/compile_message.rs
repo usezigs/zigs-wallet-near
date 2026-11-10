@@ -218,19 +218,13 @@ fn the_compiled_message_equals_the_template_compile_of_the_library() {
 }
 
 #[test]
-fn a_cancel_a_register_and_a_shield_compile_without_transact_data() {
-    let facts = Facts::load();
+fn a_cancel_and_a_shield_compile_without_transact_data() {
     let nonce = [9u8; 32];
     for intent in [
         Intent::Cancel { nonce },
         Intent::Shield {
             blockhash: nonce,
             amount: 1_000,
-        },
-        Intent::Register {
-            nonce,
-            nullifier_pk: facts.nullifier_pk(),
-            viewing_pk: facts.viewing_pk(),
         },
     ] {
         let proposal = Proposal {

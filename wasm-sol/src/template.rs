@@ -22,7 +22,7 @@ use crate::consts::{
     RECENT_BLOCKHASHES, RENT_SYSVAR, SYSTEM_PROGRAM, SYS_ADVANCE_NONCE, SYS_CREATE_WITH_SEED,
     SYS_INIT_NONCE,
 };
-use crate::fixed::{AssetKind, Deposit, Entry, Register};
+use crate::fixed::{AssetKind, Deposit, Entry};
 use crate::intent::{Intent, Program};
 use crate::pins::Pins;
 use crate::program::{
@@ -62,8 +62,6 @@ pub const LOADED_MAX: u32 = 64 * 1024 * 1024;
 pub const CU_CAP_TRANSACT: u32 = 217_000;
 /// `deposit`: 37,918 (P4) times 1.5.
 pub const CU_CAP_SHIELD: u32 = 56_877;
-/// `register`: 16,032 (P4 record B, the largest of 5,532, 8,532 and 16,032) times 1.5.
-pub const CU_CAP_REGISTER: u32 = 24_048;
 /// Nonce instructions: 300 (P2, two System instructions) times 1.5.
 pub const CU_CAP_SYSTEM: u32 = 450;
 /// `create` of a proposal: the floor below times 1.5.
@@ -78,7 +76,6 @@ pub const CU_CAP_CANCEL_PROPOSAL: u32 = 1_836;
 /// advances, ZOLANA.md 6.3), so every approval would be lost. The compiler writes the cap.
 pub const CU_FLOOR_TRANSACT: u32 = 144_591;
 pub const CU_FLOOR_SHIELD: u32 = 37_918;
-pub const CU_FLOOR_REGISTER: u32 = 16_032;
 /// `CreateAccountWithSeed` and `InitializeNonceAccount`: 300 (P2). One System instruction costs
 /// 150, so `Cancel` (`AdvanceNonceAccount` only) has the floor 150.
 pub const CU_FLOOR_CREATE_NONCE: u32 = 300;
@@ -100,8 +97,6 @@ pub const CU_FLOOR_CANCEL_PROPOSAL: u32 = 1_224;
 /// sizes plus 64 bytes per account, which reproduces the P2 value of 6,422 bytes exactly.
 /// Pool intents: about 645,000 bytes (tree 40,080, pool program data 598,229) times 1.5.
 pub const LOADED_MIN_POOL: u32 = 1_000_000;
-/// Register: about 61,600 bytes (registry program data 61,141) times 1.5.
-pub const LOADED_MIN_REGISTER: u32 = 100_000;
 /// Nonce instructions: about 6,400 bytes (RecentBlockhashes 6,008) times 1.5.
 pub const LOADED_MIN_SYSTEM: u32 = 10_000;
 /// `create`: about 58,000 bytes (the program data of the approvals program, 57,752) times 1.5.
@@ -131,7 +126,7 @@ pub enum Data {
     /// The bytes are fixed: the checker compares them whole.
     Exact(Vec<u8>),
     /// The bytes follow from the intent and the checker compares them field by field, so that
-    /// a refusal names the field (the `register` and `deposit` data).
+    /// a refusal names the field (the `deposit` data).
     Fields(Vec<u8>),
     /// The `transact` data from the Worker: the `transact` rules check it.
     Variable,
@@ -187,7 +182,6 @@ pub fn limits(intent: &Intent) -> Limits {
     let (cu_cap, cu_floor, loaded_min) = match intent {
         Intent::CreateNonce { .. } => (CU_CAP_SYSTEM, CU_FLOOR_CREATE_NONCE, LOADED_MIN_SYSTEM),
         Intent::Cancel { .. } => (CU_CAP_SYSTEM, CU_FLOOR_CANCEL, LOADED_MIN_SYSTEM),
-        Intent::Register { .. } => (CU_CAP_REGISTER, CU_FLOOR_REGISTER, LOADED_MIN_REGISTER),
         Intent::Shield { .. } => (CU_CAP_SHIELD, CU_FLOOR_SHIELD, LOADED_MIN_POOL),
         Intent::Transfer { .. } | Intent::Withdrawal { .. } => {
             (CU_CAP_TRANSACT, CU_FLOOR_TRANSACT, LOADED_MIN_POOL)
@@ -285,22 +279,6 @@ fn create_nonce(pins: &Pins) -> Vec<ExpectedIx> {
             Data::Exact(init),
         ),
     ]
-}
-
-fn register(pins: &Pins, nullifier_pk: Key, viewing_pk: [u8; 33]) -> ExpectedIx {
-    let accounts = vec![
-        acct(pins.user_record, false, true),
-        acct(pins.group, true, false),
-        acct(pins.payer, true, true),
-        acct(SYSTEM_PROGRAM, false, false),
-    ];
-    let data = Register {
-        owner_p256: None,
-        nullifier_pk,
-        viewing_pk,
-    }
-    .write();
-    ix(pins.registry, accounts, Data::Fields(data))
 }
 
 fn shield(pins: &Pins, amount: u64) -> Result<ExpectedIx, String> {
@@ -489,13 +467,6 @@ pub fn expected(intent: &Intent, pins: &Pins, tx: Option<&Transact>) -> Result<E
     }
     match intent {
         Intent::CreateNonce { .. } => ixs.extend(create_nonce(pins)),
-        Intent::Register {
-            nullifier_pk,
-            viewing_pk,
-            ..
-        } => {
-            ixs.push(register(pins, *nullifier_pk, *viewing_pk));
-        }
         Intent::Shield { amount, .. } => ixs.push(shield(pins, *amount)?),
         Intent::Transfer { .. } | Intent::Withdrawal { .. } => {
             let tx = tx.ok_or("a spend needs its transact data")?;

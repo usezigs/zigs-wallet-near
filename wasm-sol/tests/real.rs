@@ -112,21 +112,6 @@ use Rule::*;
 const GROUP_PAID: [Rule; 2] = [FeePayerNotPayer, SignerSet];
 
 #[test]
-fn real_register_breaks_the_template_and_its_keys_fit() {
-    let facts = Facts::load();
-    let intent = Intent::Register {
-        nonce: own_lifetime("real/work-register-0.msg"),
-        nullifier_pk: facts.nullifier_pk(),
-        viewing_pk: facts.viewing_pk(),
-    };
-    let mut want = vec![ComputeUnitsOverCap];
-    want.extend(GROUP_PAID);
-    want.extend([InstructionCount, InstructionMismatch, AccountFlags]);
-    want.extend([AccountSet, AccountSet, AccountSet]);
-    assert_eq!(violations("real/work-register-0.msg", &intent), want);
-}
-
-#[test]
 fn real_shield_breaks_the_template_and_its_fields_fit() {
     let intent = Intent::Shield {
         blockhash: own_lifetime("real/work-shield-0.msg"),

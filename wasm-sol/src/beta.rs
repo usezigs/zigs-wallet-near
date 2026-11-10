@@ -9,8 +9,9 @@
 //! - The fee key of a seat signs those two messages as their payer, Add SOL, the `create` and
 //!   `execute` messages of the approvals program, and the `cancel` message of its own expired
 //!   proposals (SOL-52).
-//! - Nothing signs `register`, a nonce withdrawal (tag 4) or a nonce cancel: the group is never
-//!   registered. A withdrawal goes through the program (tags 9 to 11, SOL-32).
+//! - Nothing signs a nonce withdrawal (tag 4) or a nonce cancel. A withdrawal goes through the
+//!   program (tags 9 to 11, SOL-32). No intent writes to the registry: the group is never
+//!   registered, and the checker refuses every registry instruction.
 //!
 //! The rules of the PDA identity (Shield and the program messages) run with `Pins::for_pda`.
 
