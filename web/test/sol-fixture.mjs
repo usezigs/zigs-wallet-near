@@ -2,8 +2,8 @@
 // and what the fake Worker (sol-chain.mjs) answers for its two payments: `pay`, a payment of the
 // PDA identity (ZOLANA.md 7.2), and `migrate`, the move of the beta funds of the group key to the
 // PDA address. The TS SDK built both offline, so the real wasm accepts them. Shared by sol-pay.mjs
-// and sol-sessions.mjs. Until slice 5 of docs/zolana-v1.md, sol-group.json holds X25519 keys from
-// node:crypto and message hashes from the Rust code, not SDK output.
+// and sol-sessions.mjs. The payments of sol-group.json are SDK output (the pin of
+// solspike/build.mjs); its seats and group keys are from the ceremony that made the file.
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { agreement } from "../sol/ceremony.js";

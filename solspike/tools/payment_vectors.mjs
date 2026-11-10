@@ -2,10 +2,9 @@
 // (ZOLANA.md 7.2) that the TS SDK builds offline, in the layout of wasm-sol/vectors/ts, with the
 // values that the program design needs from the SDK: `privateTxHash` and `messageHash` (the
 // commitment of the approval; for a withdrawal it hashes the SOL interface and the recipient).
-// tests/pay_vectors.rs checks the Rust recompute of both against them. This file was changed for
-// the X25519 viewing key and was not run against the SDK of 3c018b82 yet: the committed vectors
-// were made again with node:crypto only (HKDF, X25519, AES-256-CTR), and their externalDataHash
-// and messageHash come from the Rust code.
+// tests/pay_vectors.rs checks the Rust recompute of both against them. The SDK of 3c018b82
+// made every hash and ciphertext of the files, so no check of them is circular. The blinding
+// seed of the SDK is random: a new run writes other bytes, and the tests accept both.
 //
 //   node solspike/tools/payment_vectors.mjs <Zolana repo> [out dir]
 //

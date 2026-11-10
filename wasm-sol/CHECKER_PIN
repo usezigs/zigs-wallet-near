@@ -365,9 +365,9 @@ register-viewing-pk), its template builder, `fixed::Register` and the CU and loa
 `register` are deleted. The pool rule count is 97 (tests/plain_wallet.rs follows). The secp256r1
 pin stays: the plain wallet refuses it as a recipient. vectors/upstream/key_derivation.json is a
 copy of test-vectors/key_derivation.json at 3c018b82. vectors/roles.json, vectors/ts, vectors/ts2
-and vectors/pay hold X25519 keys and ciphertexts that were made with node:crypto only (not with the
-Rust code or the SDK). In vectors/pay the externalDataHash and the messageHash come from the Rust
-code, because the SDK of the new pool is not built yet.
+and vectors/pay were made again with the SDK at 3c018b82 (slice 5: solspike/tools/role_vectors.mjs,
+ts_vectors.mjs, payment_vectors.mjs), so no hash in them is circular. tests/pay_vectors.rs reads
+the pool v1 pins (ring1G).
 
 The wasm of the Zolana v1 build (10 November 2026, branch zolana-v1, slice D): SHA-256
 60901305d22de1f4f68d5e8d0e85939dc5e7d4c8d58b6abcd545f77521fa1c60, 1,106,922 bytes raw, built by
@@ -423,7 +423,7 @@ ab14b07d8870f6c201553f0f5bc066fe65b3a0d79144e293a6a3a9ded2e65ad4  tests/asset_pi
 9942671a2c8b2ec0aca8d49ce63763653dfdcdb632ce250af0c1ae6c05f0da2c  tests/common/fixture.rs  modified
 0368a30b30b40f5eb71f62df9bc79a1985bd7632ab3cf2ba7cf919c81ae8f194  tests/common/mod.rs  modified
 27860e0b1f596abac60c720567a8d943e5f89897847a968069f69ec41cc85a02  tests/common/real.rs  modified
-1dca5721c68cfb3ef9f92a0cbf2acc7a1fca98eae3ed5e09022ff0288d6b6e0f  tests/common/ts.rs  modified
+a3c4594965a515642c30205bbacb1fc2d03469692d468d0c0d740e14c4ff3264  tests/common/ts.rs  modified
 19480e89cd4307566f4e7f803a802483b2ffeb8da5a46a7dc2b412f0b9f1314d  tests/compile_message.rs  new
 22d931757812824c6900a3fc27356f05dbae2e0ee11517e51975f701dd3788fe  tests/cross.rs  modified
 758b15f8ca7f6e18dae2ce907ab727717e19a6476ae62fc3406b82a58470a128  tests/data/frost_ed25519_2_2_0_vectors.json  new
@@ -434,7 +434,7 @@ c1fa3c6cfaefb542d71ed62a0e1befa201c7e7eba88416efbd7936e88d7ad62f  tests/fix_roun
 cfc68ad047d9dff9f4cb368c901238019de4d6284cbd23853b5224f97a2bf3ca  tests/frost_dkg.rs  new
 b736ecb8a454a6dfae5c4d33cd793c4fc838fa0f572da7257d6ce2b4736b767d  tests/negative.rs  modified
 d9be8eaae119d4ef3c956bc70f61a24dceb4d049294bb586f6e908eb09ec5ae4  tests/p3c.rs  modified
-a3ff3f461ade7536e91f7944508e806c4471b9e92bb45ba5837e471b8af4fc4b  tests/pay_vectors.rs  new
+e50f8da24ae1f2506bd1858e48b002b25838eeae860a2f642c9daccf0c3923e2  tests/pay_vectors.rs  new
 6a2bd2d9be32e7f17c0590073a661b317161fb1c404f6586ce008e264f126467  tests/payment.rs  new
 3f45209a6efdc3f211fea7b4ac4d1489281c9e838950c12a2d48cb827b073ace  tests/pin_bytes.rs  modified
 d2c12f98ab733023eab486670d076c8124bfac1390bf35da5227921219c61038  tests/plain.rs  new
@@ -444,13 +444,13 @@ a9c8a28674bc245749548af8b1813e38db14de1748e5c6582de0030366dddb70  tests/plain_ru
 588ffdab940ee0f56e9faac65cad18c1db6468e3dc8ad06f58314c1e07e342dc  tests/program.rs  new
 8c64dba0756d95615e4d85e61a771ac1bf3525013065b94c41862c05a7a0a07d  tests/real.rs  modified
 468e6f0f2cdab9ffafe1476f1be6adab32812c35dcc4cb58f2077355643f894b  tests/repo_pins.rs  modified
-970b1bea35b619c6bbc68ad5149031e9727bb89626bbc5ee4e48f107c593a0d3  tests/roles.rs  new
+1f7a9264e66e2b197927a8f1ec23fe243c68e6e8d6a6f09b305afa2a641a6b1a  tests/roles.rs  new
 07caa15bfe9a3cafc8846490b11b31cddbbaf0419c27e8a766b693d45a8e6bce  tests/sign_split.rs  new
 0f413556f3a5f04b281b2599900b905092f925fcf09c5d53e9af6bf7be9a7c30  tests/slot_order.rs  modified
 62b0fa2bf03de378655068277f152b3ec8100e2fe2c1eccddd81d4b8aa925999  tests/support/ceremony.rs  new
 0f7203579b45a6d34a48dbb566f65c2dcd5054a851fa718c4d72b81193132ae8  tests/support/plain.rs  new
-0545f28d524bd62d5aa0cd1fe35fb1d0711619bb1c1acf3774ad6f29ed7294d9  tests/ts_edge.rs  modified
-32edc4cb36af7e2baa2011868267741d9141804913e3959f453571f9c73be468  tests/ts_vectors.rs  modified
+b248395c695c5f0a0ee919a91bb0df22a235491906a662b90945d9156a21e5e5  tests/ts_edge.rs  modified
+c6086bc5d1fcbe971da2255d402e29f424ffd4fdd2e7aa53f79d982d1d65cb7d  tests/ts_vectors.rs  modified
 30be9eca033a677c6e9e1cd213f4d34fd9f810e54c618a12d1af6d0997a32aab  tests/units.rs  modified
 9b3456fb692db6e95aacc18b1e809b7bd29285990a01a10bf5c3cdff310c46e7  tests/verifier_fixes.rs  modified
 7837cf5e6385641404f249608243264b1fd6f9ef83032a0e98e6bfee9db92f38  tests/wasm_api.rs  modified
@@ -465,10 +465,10 @@ b04c7fe3102595c9456fb4b6d30e54567e717cdeb2ec7c31e57b8b3e450ba54f  vectors/devnet
 f1a756f3f79618bd4ddd7a81242ff5f223e3254fdfdf29c7c272a198c6ed69df  vectors/p2/wire-v1_blockhash_explicit_loaded.msg  modified
 816b8413d8e36635560867248eb1bb93a92c606da8e05b4edc8e592165b5202c  vectors/p2/wire-v1_nonce_send.msg  modified
 a28662f01b08d11df5d0b3a8ed87eb4b3e169ac3b64659a43de092158a0a8286  vectors/p2/wire-v1default_nonce_now.msg  modified
-ac44d62478deadf10a5edd8e359704fc00d224a546a44dfc912213301f4c944b  vectors/pay/pay-all.json  new
-fd62eca1db0a77bfe140ab6b6b3ab1316a9eaf337b4820186aa4440b1ac002f2  vectors/pay/pay-change.json  new
-5ce3dfd6dd51dff64f354dfe07b4266de485d4d936569101810971998fb15a3c  vectors/pay/pay-two-inputs.json  new
-57e332825d95e2e97b547ff94c6e3fc83584fe851ec84c8e5e0ed653827c36ae  vectors/pay/withdraw-change.json  new
+15cec87eae1dd6b8ef552b2ecc6d9341303134b1e9cbffb84943f5f967af9cf8  vectors/pay/pay-all.json  new
+5d30cba27798fbeb47d3f5faa239356b2c0ab8ca54275a0292f2cb8bcf3c183a  vectors/pay/pay-change.json  new
+1b4d18e99a233aabbfdfdd3c68b7f8f6531905be41990188791a3e358bcd40ed  vectors/pay/pay-two-inputs.json  new
+4a074200573e6c8cd3218e90b9031c6e00ea6437eb05f8bee593cf632327a7e4  vectors/pay/withdraw-change.json  new
 60487bc98d1d93f08ad6dbd2fde357be6f74c856ff5e6480eb1902010df89a72  vectors/plain/devnet-pool-wallet.answer  new
 e6e6108d78a2d82aa9634128a5df4332d01ab486eb9266d4517c5d62eaca137d  vectors/plain/devnet-pool-wallet.chain  new
 8e373924be255a29395dfe1b5883eeccef86287676c67ed314bf49ec26dddcf8  vectors/plain/devnet-pool-wallet.intent  new
@@ -764,17 +764,17 @@ cb8985a090eda549cc06659151d96c030090ccacca182e637e9c7f4f4d9a9471  vectors/smoke/
 2e896d7f43c1d4e18662cf223d47617b55d58b84351f360bb91f557c05324d7f  vectors/smoke/withdrawal.msg  modified
 cb8985a090eda549cc06659151d96c030090ccacca182e637e9c7f4f4d9a9471  vectors/smoke/withdrawal.pins  modified
 648d3ea3fa11c4f3552585ee309ad7bd8e129ca3920225758b5cb7ee353a3053  vectors/smoke/withdrawal.snapshot  verbatim
-d61227b88ed2ef24f6933dc0ec8cef1e4b00ff5b25653fc82f800a3ee93e057d  vectors/ts/transfer-everything-with-dummy.json  modified
-90164569cd7e22f4cd8da6da1ba7959d713c57d78fd1d52c7d75afab90135baa  vectors/ts/transfer-sol-and-spl-with-dummy.json  modified
-c7ea80ba050a32d77e7753a3431c168f09136c31c6a7a137b1dd494deee9b37d  vectors/ts/transfer-sol.json  modified
-5a5c60b05dd313a9a9853c2e15e4282e35ffa1d3f1f018397a6ee8fe3736feed  vectors/ts/transfer-spl.json  modified
-9620be8fcfde90816f3eeb2d67288420d39b42f04ef56e3f4573b86953e9d7c0  vectors/ts/withdraw-everything-zero-change.json  modified
-c19d225281e2a7a7e1c1f93f39672c1d015d3d65c19052ecc2d014e12e9e71d8  vectors/ts/withdraw-with-dummy.json  modified
-9deb7a27f16143a24ac7d6b3e98f9441d8e572b09a92fea691795004c6ed5fbe  vectors/ts2/v-big-sol.json  modified
-b93abda849b7ada93b407069c9f671ec0d55cf1093a70a99559f9bd770e8851d  vectors/ts2/v-max-spl.json  modified
-6fbdab070ec64e37a687467829588a5ae5d20a97a488fac1e60398682793303e  vectors/ts2/v-sol-all-in.json  modified
-52334d710ae02679c1573860bff6626bdfcb87eb82102883b7ca0f86db4e415d  vectors/ts2/v-three-inputs.json  modified
-63d8f7785ea465479c7ffd9deee77889a8253f24236dbbd5d3f1aae1ad89b862  vectors/ts2/v-withdraw.json  modified
+c7ecc3552f639fce11c6bb14cfc360014d7c1218623b834e2c835855c017f636  vectors/ts/transfer-everything-with-dummy.json  modified
+5580e5f4201d4a90f130bafbd76459d87a00a2bce7d62e41260f55ecd3bbe960  vectors/ts/transfer-sol-and-spl-with-dummy.json  modified
+9d3da042bcc73dff5127aac1fccf3a2a4558faaf1c5098a67a757e36788efecc  vectors/ts/transfer-sol.json  modified
+13d4620b1c493ad871eb93b345f9080b005dcde657972ea8a7e469150a01f9c5  vectors/ts/transfer-spl.json  modified
+e6c7e537c876d22b8597cd12abcb6a360788dda6f220a9b39dcb9b7a06a237fb  vectors/ts/withdraw-everything-zero-change.json  modified
+4e7194b28de8e502562a1bad30abb2a4f8a42e559433d20909639873b1286f46  vectors/ts/withdraw-with-dummy.json  modified
+77bc8e1a7ca8ae4a2b3190984e60ea1ce8b19c9161fb28e5aa74d5a6f9fdd07a  vectors/ts2/v-big-sol.json  modified
+91ac4920b7f77e67e59d0696e6e695554b0175ff2d2f47a0cf970751eecc10e7  vectors/ts2/v-max-spl.json  modified
+5c45b7ce0473634b5e64be261aa48ca41a0ceed47a0c9ac7ad48672410d16bf6  vectors/ts2/v-sol-all-in.json  modified
+f15b4f42d33d8e3d0c427bdec21cfcd5927f8e572528512a6d93f29365be0d78  vectors/ts2/v-three-inputs.json  modified
+112b1f0d131a5ea9447dd76e5d70200297af10a77bfe50ada316b6fbed1d6656  vectors/ts2/v-withdraw.json  modified
 ab5a2d28d0d7a0772ac7a593e5260c00039a57e4926e4fbf1c55490f9723e55d  vectors/upstream/key_derivation.json  new
 afbf9d0f3560b0fd7795e81c42a0a79ee6b6fc67e064f77826aee642cad28d91  vendor/light-poseidon/.cargo-ok  verbatim
 8c595e08ef710544f04d44f36e2bd6f8f7d2edc4bc9652a5df7bc5eafdd64fa1  vendor/light-poseidon/.cargo_vcs_info.json  verbatim

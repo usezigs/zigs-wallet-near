@@ -1,8 +1,8 @@
 //! Ported from the verifier of P3c (`p3c-verify/tests/v_ts2.rs`). The vectors of
-//! `tools/ts_vectors_edge.mjs` come from the TS SDK with other keys than `tools/ts_vectors.mjs`,
-//! random salts, u64 edge amounts and three inputs. `approve` is built from the TS fields (hash,
-//! nullifier, blob, transaction key, blinding), so an accept means that the Rust code reproduces
-//! them. The same inputs go through the wasm entry.
+//! `solspike/tools/ts_vectors.mjs` (the `ts2` set) come from the TS SDK with other keys than the
+//! `ts` set, salts and blindings from a hash of the name, u64 edge amounts and three inputs.
+//! `approve` is built from the TS fields (hash, nullifier, blob, transaction key, blinding), so an
+//! accept means that the Rust code reproduces them. The same inputs go through the wasm entry.
 
 mod common;
 

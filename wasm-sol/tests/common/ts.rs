@@ -1,5 +1,5 @@
-//! Loads the vectors that `tools/ts_vectors.mjs` and `tools/ts_vectors_edge.mjs` wrote (the TS
-//! SDK at the pinned commit) and turns each one into the inputs of the checker: the snapshot, the
+//! Loads the vectors that `solspike/tools/ts_vectors.mjs` wrote (the TS SDK at the pinned
+//! commit) and turns each one into the inputs of the checker: the snapshot, the
 //! pins, the plan, the `transact` data and the intent. Shared by `tests/ts_vectors.rs`,
 //! `tests/ts_edge.rs` and `examples/gen_vectors.rs`.
 #![allow(dead_code)]
@@ -21,7 +21,7 @@ use super::{b58, field, unhex, unhex_n, EXPIRY, NONCE};
 pub fn files(sub: &str) -> Vec<PathBuf> {
     let dir = format!("{}/vectors/{sub}", env!("CARGO_MANIFEST_DIR"));
     let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
-        .unwrap_or_else(|e| panic!("vectors/{sub}: run the tools/ts_vectors*.mjs script: {e}"))
+        .unwrap_or_else(|e| panic!("vectors/{sub}: run solspike/tools/ts_vectors.mjs: {e}"))
         .map(|e| e.expect("entry").path())
         .filter(|p| p.extension().is_some_and(|e| e == "json"))
         .collect();

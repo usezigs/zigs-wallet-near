@@ -1,5 +1,7 @@
 // Writes web/test/sol-group.json: a 2-of-3 Solana group made by the real ceremony of the page
-// (web/test/sol-setup.mjs) and the payments that the TS SDK builds OFFLINE for that group,
+// (web/test/sol-setup.mjs) and the payments that the TS SDK builds OFFLINE for that group.
+// The tool keeps the seats, the seed and the group key of the file that it finds (the ceremony
+// uses OsRng, so a new run would make a new group and new fee keys) and writes the payments again,
 // in the layout of wasm-sol/vectors/ts: a sponsor key pays the fee (the fee key of a seat), so the
 // SDK writes the change tag inline. `pay` is a payment of the PDA identity of the group (the
 // approvals program, ZOLANA.md 7.2) with the SDK values of privateTxHash and messageHash;
@@ -13,9 +15,9 @@
 //
 // The SDK is the pinned Zolana commit of ZOLANA.md (PIN in solspike/build.mjs). No
 // network, no RPC, no Devnet key.
-import { writeFileSync } from "node:fs";
-import { c, solOf } from "../../web/test/sol-setup.mjs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { base58 } from "../../web/sol/docs.js";
+import * as W from "../../web/sol/wasm/sol_wasm.js";
 
 const dist = process.env.ZOLANA_SDK;
 if (!dist) throw new Error("set ZOLANA_SDK to the dist folder of the Zolana TS SDK");
@@ -45,11 +47,17 @@ function walletOf(signer, nullifierSecret, viewingSk) {
   return { signer, nullifierSecret, viewingSk, nullifier, viewing, address };
 }
 
-const seats = [1, 2, 3].map((i) => solOf(i));
-if (new Set(seats.map((s) => s.solSeed)).size !== 1) throw new Error("the seats differ in solSeed");
-const { solSeed, groupKey } = seats[0];
-const roles = JSON.parse(c.W.sol_roles(solSeed, groupKey));
-const pdaRoles = JSON.parse(c.W.sol_pda_roles(solSeed, groupKey));
+const file = new URL("../../web/test/sol-group.json", import.meta.url);
+const kept = JSON.parse(readFileSync(file, "utf8"));
+const { solSeed, seats } = kept;
+const groupKey = kept.group.key;
+const wasm = new URL("../../web/sol/wasm/sol_wasm_bg.wasm", import.meta.url);
+W.initSync({ module: readFileSync(wasm) });
+const roles = JSON.parse(W.sol_roles(solSeed, groupKey));
+const pdaRoles = JSON.parse(W.sol_pda_roles(solSeed, groupKey));
+if (pdaRoles.pda !== kept.group.pda || roles.address !== kept.group.address) {
+  throw new Error("the roles of the kept group differ from the file");
+}
 const group = walletOf(bytes(groupKey), bytes(roles.nullifier_secret), bytes(roles.viewing_sk));
 const pda = {
   nullifier: NullifierKey.fromSecret(bytes(pdaRoles.nullifier_secret)),
@@ -145,9 +153,7 @@ const migrate2 = payment(group, groupKeyOwner, pda.address, INPUT, 0xe0);
 const fixture = {
   note: "Test keys made by solspike/tools/sol_group_fixture.mjs. Never fund them.",
   solSeed,
-  seats: Object.fromEntries(
-    seats.map(({ keyPackage, publicKeyPackage }, i) => [i + 1, { keyPackage, publicKeyPackage }]),
-  ),
+  seats,
   group: {
     key: groupKey,
     nullifierSecret: roles.nullifier_secret,
@@ -172,8 +178,7 @@ const fixture = {
   migrate,
   migrate2,
 };
-const out = new URL("../../web/test/sol-group.json", import.meta.url);
-writeFileSync(out, JSON.stringify(fixture, null, 1) + "\n");
+writeFileSync(file, JSON.stringify(fixture, null, 1) + "\n");
 const roleText = (p) => p.outputs.map((o) => o.role + ":" + o.amount).join(" ");
-console.log("wrote", out.pathname, "pay", roleText(pay), "migrate", roleText(migrate));
+console.log("wrote", file.pathname, "pay", roleText(pay), "migrate", roleText(migrate));
 process.exit(0);

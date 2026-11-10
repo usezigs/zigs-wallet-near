@@ -3,13 +3,13 @@
 //! commitment must equal the `privateTxHash` and the `messageHash` of the SDK, and the approval of
 //! the payment must hold every rule. A vector with a dummy output pins the zero hash of a dummy.
 //! The withdrawal vector pins the settlement accounts (the SOL interface and the recipient) in the
-//! commitment, as the SDK hashes them. Until slice 5 of docs/zolana-v1.md, the `externalDataHash`
-//! and the `messageHash` of these files come from this Rust code, so their check is circular.
+//! commitment, as the SDK hashes them. The SDK of 3c018b82 made every hash of these files, so no
+//! check here is circular.
 
 mod common;
 
 use common::ts::{self, payee_address, plan_of, role_of, text, transact_of, u64_of, Vector};
-use common::{b58, unhex_n, EXPIRY, NOW, RETIRED_POOL, RETIRED_REGISTRY};
+use common::{unhex_n, EXPIRY, NOW};
 use p3_check::approve::Device;
 use p3_check::beta::approve_payment;
 use p3_check::consts::{Key, MULTISIG_DEVNET, SYSTEM_PROGRAM};
@@ -57,7 +57,7 @@ fn transact(v: &Vector) -> p3_check::transact::Transact {
     tx
 }
 
-/// The vectors are SDK output for the retired Devnet pool: its SOL interface is in the hashes.
+/// The vectors are SDK output for the pool v1 (ring1G): its SOL interface is in the hashes.
 fn pins(v: &Vector) -> Pins {
     let g = &v.json["group"];
     Pins::devnet(
@@ -67,7 +67,6 @@ fn pins(v: &Vector) -> Pins {
         unhex_n(&text(g, "payer")),
         unhex_n(&text(g, "nullifierPk")),
     )
-    .and_then(|pins| pins.on_programs(b58(RETIRED_POOL), b58(RETIRED_REGISTRY)))
     .unwrap()
 }
 

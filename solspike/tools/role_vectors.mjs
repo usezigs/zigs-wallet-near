@@ -9,9 +9,8 @@
 // viewing public key `0x04 || u` is also made here with the X25519 of node:crypto, and the SDK
 // key must equal it. The nullifier key, the owner hash and the address come from the SDK of the
 // privacy-rings repo at 3c018b82 (`NullifierKey.fromSecret`, `ViewingKey.fromBytes`,
-// `ShieldedAddress`), not from Rust. This file was changed for the X25519 key and was not run
-// against that SDK yet: the committed roles.json holds the SDK values of the older run for the
-// nullifier key and the owner hash, which do not change.
+// `ShieldedAddress`), not from Rust. Run it with the dist of the SDK at that commit (npm run
+// build:ts in the repo).
 // The PDA identity of each seed (ZOLANA.md 7.2) too: the PDA from `getProgramDerivedAddress` of
 // @solana/kit, its nullifier secret from node:crypto, its address from `ShieldedAddress.forPda`.
 import { createHash, createPrivateKey, createPublicKey, hkdfSync } from "node:crypto";

@@ -1,8 +1,8 @@
 //! The role keys of the group (ZOLANA.md 4.2) and the text forms of the entry points.
 //! `vectors/roles.json` holds what the TS SDK gives for the role secrets of throwaway seeds
 //! (`solspike/tools/role_vectors.mjs`): the Rust public keys must equal them. The secrets are
-//! compared with `assert!(a == b)`, so a failure prints nothing of them. Until slice 5 of
-//! docs/zolana-v1.md, node:crypto made the X25519 viewing keys of that file, not the SDK.
+//! compared with `assert!(a == b)`, so a failure prints nothing of them. The SDK of 3c018b82
+//! made every value of that file, and the tool compares its viewing keys with node:crypto.
 
 use blake2b_simd::Params;
 use p3_check::codec::{base64url, unhex, unhex_array};
