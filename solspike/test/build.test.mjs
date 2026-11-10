@@ -14,7 +14,7 @@ import { cpSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync } fr
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
-import { PIN, aliases, buildBundle, buildOptions, withoutHomePaths } from "../build.mjs";
+import { PIN, SDK_TREE, aliases, buildBundle, buildOptions, withoutHomePaths } from "../build.mjs";
 import { zolanaRepo } from "../tools/paths.mjs";
 
 const SPIKE = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -100,6 +100,8 @@ function bundleFacts(built) {
 
 const NEEDED = [
   "AssetRegistry",
+  "X25519PublicKey",
+  "createSprClient",
   "ConfidentialTransfer",
   "ProofInputUtxo",
   "SppProofInputs",
@@ -126,8 +128,9 @@ const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
 /** The blob ids of the SDK source at the pin, by path from the repo root. */
 function pinnedBlobs() {
-  const rows = git("ls-tree", "-r", PIN, "--", SDK_SRC).trim().split("\n");
-  return new Map(rows.map((row) => [row.split("\t")[1], row.split(/\s/)[2]]));
+  assert.equal(git("rev-parse", `HEAD:${SDK_SRC}`).trim(), SDK_TREE, "not the pinned SDK tree");
+  const rows = git("ls-tree", "-r", SDK_TREE).trim().split("\n");
+  return new Map(rows.map((row) => [`${SDK_SRC}/${row.split("\t")[1]}`, row.split(/\s/)[2]]));
 }
 
 // The only own files in the bundle: the entry and the two stubs. A patched copy of an SDK file

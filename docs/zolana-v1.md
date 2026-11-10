@@ -317,6 +317,35 @@ Files to change:
     - Options: keep the ban and skip those two tests; or lift it for in-process loopback sockets only; or lift it for a baseline run.
     - Recommendation: lift it for in-process loopback sockets only. Record `baseline.json` last, after the last code commit, and only when the owner lifts the ban for wrangler.
 
+### Decisions for slices 5 and 6 (10 November 2026)
+
+The owner took these decisions. They replace the recommendations above where they differ.
+
+- SDK pin: the source of helius-labs/privacy-rings at 3c018b82, the shielded-pool-v1.0.0 deploy
+  commit. The build checks the tree id of `sdk-libs/ts/src` (d4f0af29), so a checkout at 06eccf91
+  also passes. The bundle needs `X25519PublicKey`. The SDK root lacks it, so `entry.js` takes it
+  from the public `./keypair` subpath.
+- Web prover: vendor the npm dist of `@heliuslabs/spr-web-prover@0.7.0-alpha` (gitHead 087bc04).
+  Check it against the integrity
+  `sha512-wkg85YuhR5c3QvMv2kQf4StRedZRDyfhOOuvqo1D9q42wsonCDqegVTQnCQYbLvhHF0/kl3jL8TsFvtAkWIbOw==`
+  and pin it with a SHA256SUMS file for each file. This replaces D3 (build from source). Zigs does
+  not ship the threads runtime. `solspike/build-prover.mjs` and the old Go prover files are
+  retired.
+- Proving keys: the upstream CDN folder
+  `https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/78751f5d1c591777/` (`.zopro` files). The
+  digests of the prover package and of the SDK pin them.
+- Gate: keep the solprove switch and refuse "hosted". Proofs are local only (D1). No plain-closure
+  file changes for this.
+- Prover URL: `http://127.0.0.1:3001`. The wallet never fetches it over the network. The SDK
+  client gets the `createFetch()` of the prover.
+- `POOL_DATA` and `POOL_SLOT` are the ProgramData account of ring1G and its deploy slot, keyed by
+  the Helius host. Devnet slot 520179383. Mainnet slot 467127839. The brief says that both were
+  read from the ProgramData accounts on 2026-11-10. The upstream release manifest lists the same
+  slots. The ProgramData address must be checked against the program account data, not only by
+  derivation.
+- The plain mainnet wallet does not change: the wasm of the plain wallet, `plain/`, `backup.js`
+  and its closure, and the plain vectors and tests stay as they are.
+
 ## 5. Devnet-first plan
 
 All checks are in process: `worker.fetch` with stubs, cargo tests, fake chain. None needs wrangler or a server. Each slice may pass through one QA round. A slice that changes Zigs code needs the baseline recorded last (blocked, see decision 15).

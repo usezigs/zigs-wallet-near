@@ -13,8 +13,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-// The newest main commit of helius-labs/zolana that the Devnet pool runs (ZOLANA.md 3.4).
-export const PIN = "c232da1bd6748628b56bb8c277bcffbaaf2b0774";
+// The deploy commit of shielded-pool-v1.0.0 in helius-labs/privacy-rings (docs/zolana-v1.md 4).
+export const PIN = "3c018b82fbc08322114990b88906872f4e72d65c";
+// The id of the tree sdk-libs/ts/src at PIN. A checkout at 06eccf91 has the same tree.
+export const SDK_TREE = "d4f0af29bb0b140d960d167f868258dcb385f24e";
 // The slim hasher loads its wasm with new URL(name, import.meta.url): the two files sit next to
 // the bundle under the names that the hasher package gives them.
 const SISD = "light_wasm_hasher_bg.wasm";
@@ -23,15 +25,18 @@ const FILES = ["zolana.bundle.js", SISD, SIMD];
 
 // No import of tools/paths.mjs: build.test.mjs copies this file to another folder.
 function repoDir() {
-  if (!process.env.ZOLANA_REPO) throw new Error("set ZOLANA_REPO");
+  if (!process.env.ZOLANA_REPO) throw new Error("set ZOLANA_REPO (a privacy-rings checkout)");
   return process.env.ZOLANA_REPO;
 }
 const git = (repo, ...args) => execFileSync("git", ["-C", repo, ...args], { encoding: "utf8" });
 
-/** The build needs the pinned commit and an unchanged SDK source tree. */
+/** The build needs the SDK source tree of the pin, without local changes. */
 function checkPin(repo) {
   const head = git(repo, "rev-parse", "HEAD").trim();
-  if (head !== PIN) throw new Error(`Zolana repo is at ${head}, expected ${PIN}`);
+  const tree = git(repo, "rev-parse", "HEAD:sdk-libs/ts/src").trim();
+  if (tree !== SDK_TREE) {
+    throw new Error(`SDK source tree at ${head} is ${tree}, expected ${SDK_TREE} (pin ${PIN})`);
+  }
   if (git(repo, "status", "--porcelain", "--", "sdk-libs/ts/src").trim() !== "") {
     throw new Error("sdk-libs/ts/src has local changes; the build needs the pinned source");
   }
@@ -39,10 +44,11 @@ function checkPin(repo) {
 }
 
 /**
- * The module names of entry.js and the two stubs. "zolana-sdk", "zolana-interface" and
- * "zolana-transaction" are the public subpaths of the SDK package (its `exports` map). The hasher
- * alias takes the slim build of the same package, which its `exports` map lists as "./slim": the
- * SDK imports the fat build, which holds the wasm as text and is 4.39 MB.
+ * The module names of entry.js and the two stubs. "zolana-sdk", "zolana-interface",
+ * "zolana-keypair" and "zolana-transaction" are the public subpaths of the SDK package (its
+ * `exports` map). The hasher alias takes the slim build of the same package, which its `exports`
+ * map lists as "./slim": the SDK imports the fat build, which holds the wasm as text and is
+ * 4.39 MB.
  */
 export function aliases(repo) {
   const src = join(repo, "sdk-libs/ts/src");
@@ -50,6 +56,7 @@ export function aliases(repo) {
   return {
     "zolana-sdk": join(src, "index.ts"),
     "zolana-interface": join(src, "interface/index.ts"),
+    "zolana-keypair": join(src, "keypair/index.ts"),
     "zolana-transaction": join(src, "transaction/index.ts"),
     "@phala/dcap-qvl": join(HERE, "stubs/dcap-qvl-stub.js"),
     crypto: join(HERE, "stubs/node-crypto-stub.js"),
@@ -123,7 +130,7 @@ function cli() {
   const at = args.indexOf("--out");
   const out = resolve(at < 0 ? join(HERE, "../web/sol") : args[at + 1]);
   return buildBundle({ out, minify: !args.includes("--unminified") }).then((r) => {
-    console.log(`built ${out} at Zolana ${r.commit.slice(0, 8)}, no SDK patch`);
+    console.log(`built ${out} at privacy-rings ${r.commit.slice(0, 8)}, no SDK patch`);
     for (const [name, hash] of Object.entries(r.hashes)) console.log(`${hash}  ${name}`);
   });
 }

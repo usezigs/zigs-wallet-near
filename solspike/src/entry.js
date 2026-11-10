@@ -3,6 +3,7 @@
 // that the SDK itself uses. No SDK source is changed.
 export * from "zolana-sdk";
 export { verify as dcapStubVerify } from "@phala/dcap-qvl";
+export { X25519PublicKey } from "zolana-keypair";
 export { decodeTreeFees, transactInstruction } from "zolana-interface";
 export {
   AssetRegistry,
