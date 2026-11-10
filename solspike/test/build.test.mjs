@@ -101,6 +101,7 @@ function bundleFacts(built) {
 const NEEDED = [
   "AssetRegistry",
   "X25519PublicKey",
+  "ownerSignerAddresses",
   "createSprClient",
   "ConfidentialTransfer",
   "ProofInputUtxo",

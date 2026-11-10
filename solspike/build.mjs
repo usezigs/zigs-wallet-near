@@ -45,10 +45,10 @@ function checkPin(repo) {
 
 /**
  * The module names of entry.js and the two stubs. "zolana-sdk", "zolana-interface",
- * "zolana-keypair" and "zolana-transaction" are the public subpaths of the SDK package (its
- * `exports` map). The hasher alias takes the slim build of the same package, which its `exports`
- * map lists as "./slim": the SDK imports the fat build, which holds the wasm as text and is
- * 4.39 MB.
+ * "zolana-internal", "zolana-keypair" and "zolana-transaction" are the public subpaths of the
+ * SDK package (its `exports` map). The hasher alias takes the slim build of the same package,
+ * which its `exports` map lists as "./slim": the SDK imports the fat build, which holds the wasm
+ * as text and is 4.39 MB.
  */
 export function aliases(repo) {
   const src = join(repo, "sdk-libs/ts/src");
@@ -56,6 +56,7 @@ export function aliases(repo) {
   return {
     "zolana-sdk": join(src, "index.ts"),
     "zolana-interface": join(src, "interface/index.ts"),
+    "zolana-internal": join(src, "internal.ts"),
     "zolana-keypair": join(src, "keypair/index.ts"),
     "zolana-transaction": join(src, "transaction/index.ts"),
     "@phala/dcap-qvl": join(HERE, "stubs/dcap-qvl-stub.js"),
