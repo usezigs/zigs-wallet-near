@@ -36,11 +36,11 @@ unset RUSTFLAGS CARGO_ENCODED_RUSTFLAGS
 # The ELF holds the paths of the standard library inside platform-tools, which differ between its
 # macOS and its Linux build. So each host has its own hash; CI builds on Linux. The two ELFs have
 # the same code (fncmp.py on the unstripped CI artifact). The MAINNET pins are the same for the
-# mainnet deploy ELF; the Linux one stays empty until CI gives the hash.
+# mainnet deploy ELF; the Linux one comes from CI run 42913082176.
 EXPECTED_DARWIN=9ab95e1f1f7d2e9e7dd7b33df7c630fed662edd9ae95a2e116331e94176fbfb7
 EXPECTED_LINUX=4cdcfb63b7078617ffe717a39864237041a616f761886e3b0d7f622cce159416
 EXPECTED_MAINNET_DARWIN=30f5dcd164f63661ed7347ccaae647a54418a062044afa6c02f8ded56d216478
-EXPECTED_MAINNET_LINUX=
+EXPECTED_MAINNET_LINUX=00aa216979c9799b151067ff7fdc06e6b64d0b2c769f479979560064a496f1b9
 SBF=${CARGO_BUILD_SBF:-cargo-build-sbf}
 SO=target/deploy/zigs_min_multisig.so
 
