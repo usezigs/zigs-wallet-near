@@ -417,3 +417,25 @@ Slice 8 and any mainnet transfer wait for owner approval. Staging only, never `a
    - The demo and `docs/demo.md` freeze rule, named but not analysed.
    - Backups, partly covered.
 6. **Stale-state risk at `web/test/sol-chain.mjs:363`.** The test stub still builds the old fee field. Rename it with the Rust snapshot field.
+
+## 8. Status after slices 1 to 4 (10 November 2026)
+
+Slices 1 to 4 are on branch `zolana-v1`: the program ids, the `spr-*` crates, the flat fee per
+tree, the X25519 viewing key, the deleted register intent and the rebuilt wasm. One QA round gave
+PASS-WITH-GAPS. One fix commit closed the findings that code can close.
+
+- Plain mainnet wallet. No plain vector, group address, approval digest or label changed. A plain
+  send refuses the new pool and registry ids and still refuses the retired ones.
+  `tests/plain_rules.rs` checks all four. `tests/plain_wallet.rs` counts 97 pool rules (was 101).
+- Do not deploy this branch alone. The wasm checks X25519 keys and the flat fee, but the JS and
+  the SDK bundle still use P-256 keys and `feePerNullifier`. Every pool spend fails until slice 5
+  lands. The JS sites: `web/sol/transfer.js:123,156,257`, `web/sol/worker.js:177-224,403`,
+  `web/sol/session.js:73-95`, `web/sol/intent.js:192`.
+- Slice 5 must make `vectors/ts`, `ts2`, `pay`, `roles.json` and `web/test/sol-group.json` again
+  with the SDK. Now node:crypto made the keys, and the Rust code made the pay and group message
+  hashes, so those hash checks are circular.
+- Not run: the SBF svm-tests and ELF builds (no `cargo-build-sbf`). The `EXPECTED_DARWIN` and
+  `EXPECTED_LINUX` hashes in `sol-program/build.sh` are stale. The approvals program needs a Devnet
+  redeploy, which the owner approves.
+- Known limits: `fee_rule` charges the input tree fee for each distinct tree (pins use tree 0
+  only). `vendor/spr-hasher` keeps light-poseidon 0.4 and ark 0.5; the upstream hash vectors pass.

@@ -1,6 +1,6 @@
 //! The Instructions rule of section 5: the refusal list, the allow lists, and the comparison of
 //! the instruction list and the account table with the template. Also the field rules of the
-//! `register` and `deposit` data (section 4.2 and the Shield intent).
+//! `deposit` data (the Shield intent).
 
 use crate::bytes::short_hex;
 use crate::check::{parse_transact_data, Run};

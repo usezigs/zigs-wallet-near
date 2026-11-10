@@ -18,8 +18,8 @@ no-entrypoint = []
 devnet = []
 mainnet = []
 
-# The spr crates come from one pinned commit of privacy-rings (ZOLANA.md [Z]). The other versions match the
-# Cargo.lock of that commit; build.sh builds with --locked.
+# The spr crates come from one pinned commit of privacy-rings (ZOLANA.md [Z]). The other versions
+# match the Cargo.lock of that commit; build.sh builds with --locked.
 [dependencies]
 pinocchio = { version = "0.11", features = ["cpi"] }
 pinocchio-system = "0.6.0"

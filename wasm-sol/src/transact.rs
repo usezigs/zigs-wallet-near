@@ -2,8 +2,8 @@
 //!
 //! The layout is `TransactIxData` in `program-libs/interface/src/instruction/instruction_data/
 //! transact.rs` (wincode, little endian, `u8` sequence lengths, `u16` byte-vector lengths).
-//! Only the default ring circuit (`ConfidentialEddsa`, not cached) is parsed; any other circuit
-//! tag has a different payload, so the parser stops there and the rule refuses it.
+//! Only the default circuit (`ConfidentialSigner`, wire tag 0, not cached) is parsed; any other
+//! circuit tag has a different payload, so the parser stops there and the rule refuses it.
 
 use crate::bytes::{Reader, Short};
 use crate::consts::{Key, TAG_TRANSACT};
@@ -42,7 +42,7 @@ pub struct LooseMessage {
     pub data: Vec<u8>,
 }
 
-/// `CircuitId::ConfidentialEddsa(inputs, outputs, public asset slots)`.
+/// `CircuitId::ConfidentialSigner(inputs, outputs, public asset slots)`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Circuit {
     pub inputs: u8,
@@ -85,7 +85,7 @@ pub struct Transact {
 pub enum Error {
     /// The data is short, has a bad flag or tag, or has trailing bytes.
     Malformed(&'static str),
-    /// The circuit tag is not `ConfidentialEddsa` (tag 0).
+    /// The circuit tag is not `ConfidentialSigner` (tag 0).
     Circuit(u16),
 }
 

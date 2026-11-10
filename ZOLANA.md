@@ -1551,7 +1551,8 @@ interface stays the one of version 4: accounts, seeds, commitment, CPI data and 
 - SOL-42. `src/cluster.rs` holds the genesis hash that every approval binds and the pool id that
   the CPI targets. A build names exactly one cluster: `--features devnet` or `--features mainnet`.
   A mainnet build takes its pool id from `ZIGS_MAINNET_POOL_ID`. It fails when the genesis hash or
-  the pool id is the Devnet one.
+  the pool id is the Devnet one. Since Zolana v1 (docs/zolana-v1.md) the pool id is the same on
+  both clusters: `ZIGS_MAINNET_POOL_ID` is gone, and the genesis hash is the only cluster key.
 - `build.sh test` checks that four builds fail, each with its own message: no cluster, both
   clusters, mainnet without a pool id, and mainnet with the development pool id. Then it builds
   mainnet with a test pool id and runs its unit tests. `tests/cluster.rs` checks both ELFs. Each

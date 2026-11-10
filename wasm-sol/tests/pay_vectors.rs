@@ -3,7 +3,8 @@
 //! commitment must equal the `privateTxHash` and the `messageHash` of the SDK, and the approval of
 //! the payment must hold every rule. A vector with a dummy output pins the zero hash of a dummy.
 //! The withdrawal vector pins the settlement accounts (the SOL interface and the recipient) in the
-//! commitment, as the SDK hashes them.
+//! commitment, as the SDK hashes them. Until slice 5 of docs/zolana-v1.md, the `externalDataHash`
+//! and the `messageHash` of these files come from this Rust code, so their check is circular.
 
 mod common;
 

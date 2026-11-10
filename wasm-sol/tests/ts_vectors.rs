@@ -2,6 +2,8 @@
 //! confidential transfers offline from known keys and a fixed salt (a non-zero amount, an SPL
 //! mint, change to the group, a dummy, two assets). The checker must reproduce every hash and
 //! every ciphertext byte for byte, and `approve` must accept the message built from each one.
+//! Slice 4 of docs/zolana-v1.md made the X25519 keys and ciphertexts again with node:crypto, not
+//! with the SDK. Slice 5 makes these vectors again with the SDK of the new pool.
 
 mod common;
 

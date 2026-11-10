@@ -331,9 +331,12 @@ and the registry is regy3WAeRXMYuMYxr5iK3Bf9Arr3PcxGxyzAddbiqDQ, the same on Dev
   at 89640630, so no hash changes. The repo dropped p256.rs: `P_CONST_SEC1` moved into
   src/viewing.rs, and slice C replaces that file.
 - src/consts.rs: POOL_DEVNET and REGISTRY_DEVNET hold the new ids. The names keep DEVNET because
-  tests/plain_rules.rs imports POOL_DEVNET. NOT_A_RECIPIENT holds the new ids: a plain wallet
-  refuses ring1G and regy3WAe as recipients, and no longer refuses sppU489. This is the only
-  change on the plain path, and no plain digest or vector changes.
+  tests/plain_rules.rs imports POOL_DEVNET. NOT_A_RECIPIENT holds the new ids and keeps the
+  retired ids (RETIRED_POOL_DEVNET, RETIRED_REGISTRY_DEVNET): a plain wallet also refuses ring1G
+  and regy3WAe as recipients. This is the only change on the plain path. No plain digest or vector
+  changes, and tests/plain_rules.rs checks that all four ids are refused.
+- src/transact.rs, src/rules_ix.rs: only comments change. Wire tag 0 is `ConfidentialSigner` now,
+  and the register data is gone.
 - src/frost.rs: PROGRAM_LABEL names the new ids and ends with `:spr-v1`. The plain labels do not
   use it. src/pins.rs: `on_programs`, for the tests that read the landed vectors of the retired
   pool (tests/common/mod.rs: RETIRED_POOL, RETIRED_REGISTRY).
@@ -367,7 +370,7 @@ Rust code or the SDK). In vectors/pay the externalDataHash and the messageHash c
 code, because the SDK of the new pool is not built yet.
 
 The wasm of the Zolana v1 build (10 November 2026, branch zolana-v1, slice D): SHA-256
-4e8e416f2b4e541719e765bf6dfbb50fc7dc0712aca8395162a73bcad2b1138c, 1,106,858 bytes raw, built by
+60901305d22de1f4f68d5e8d0e85939dc5e7d4c8d58b6abcd545f77521fa1c60, 1,106,922 bytes raw, built by
 build.sh with wasm-bindgen 0.2.129 and committed as web/sol/wasm/sol_wasm_bg.wasm. The wasm hashes
 above are of earlier builds.
 
@@ -382,7 +385,7 @@ files:
 0c2c8885a396432c3d84c077cfea3f4f364c57dc6af0e26d169d3b2fc8e34684  src/bytes.rs  verbatim
 0a8ad486daf5b2b14d0dd4ab993d32930ae387a208e677115c2f5ad82ee68dcb  src/check.rs  modified
 ca3b51e9ea30baeb0b082ca9cb19fe248bc86880d60ae90a3ee3e5a7dcb6b371  src/codec.rs  new
-d1ef774d0e6d8116b8eb3e2f65af039e7406f92d74fc1a769beff50e94e6f84c  src/consts.rs  modified
+4bb0062b055c5d6d8889b1800397d47b29a751d2c2138b4ac83ac7bd80e67a5f  src/consts.rs  modified
 3dab7a6825b7bfd7ac99c3b63a5172ad6aea0a64c655d0ea95db506f5582a750  src/fee.rs  new
 f64bd757efccb1a39273862b51dd3302e82e0d58d55518bc9c299dcf9cec2b92  src/fixed.rs  modified
 211dc3764e2b64fca1f1a360483c120715090aed54f365f109f260877946f6d7  src/frost.rs  new
@@ -404,7 +407,7 @@ df46e9e90b740789623db0bed212c78a8d87fbf608a04be84cab433327fbb738  src/plan.rs  m
 c543c72698df1d9a6c4aedaa987417be44e856fd400b3414582dccb59d6fae8c  src/roles.rs  new
 afc3769455a732c96a368742c8e3cfc12b31a8e5af9b28381ef6a93a727c4cb3  src/rule.rs  modified
 b73bd58d79f78750a470c320cb8cfc705e0f9b3c3416a636555f1fb708cb854a  src/rules_ct.rs  modified
-dfe0a0dc5ac5b8c3f07c6598c70901dc03ab14be3e6826a1635ed34829b44096  src/rules_ix.rs  modified
+c8ff34d7585cf1b2533eca6b7f9b9cd6e2e4e486ec73922b7857bede1c67c708  src/rules_ix.rs  modified
 71a2e201c6419ff8183be149e7da26d3af9696fec248462a15523cbfad994509  src/rules_legs.rs  modified
 a88175ff29fcbbe4075bf2707c0a825d6026da9e7ae93fa390f7bedda6cc76f4  src/rules_out.rs  verbatim
 423e3c005c541c66efd63c27fbba844819e2ade4071d9fb9e9ffd9a50a3c94d6  src/rules_tx.rs  verbatim
@@ -412,7 +415,7 @@ a88175ff29fcbbe4075bf2707c0a825d6026da9e7ae93fa390f7bedda6cc76f4  src/rules_out.
 0babfad67212dec3d78e30b7a1f1268ae8af93adb90246319fd69257ac2ccfd7  src/snapshot.rs  modified
 9a6cf1ed650f9ec1dea1a2647f55ec2bec8e88d05663df170d2d343f9481679b  src/spend.rs  modified
 92a3840a47e5a3da782be11cf2a29c62efda3d5cd1dcf3e1f1976471c9cae77a  src/template.rs  modified
-3d7e69437af85c56d9bcf80172af2c7c866140ceb6e3f889d8cbc11dde9cdf05  src/transact.rs  verbatim
+7c9b6c9114c125dc67bcecf850be94eac8f036f6bb300ab28d2cf37cd507eece  src/transact.rs  modified
 c9d4c2718f755ac5ebeb8a705e036b3ab9183cb7ef95fe1f14da5ffa931c1c9f  src/v1.rs  verbatim
 abf6c9e98d74f9534e032c43d32690a55cc32062d7f098c4dea1d3c0d5ce7e30  src/viewing.rs  modified
 e6c51969bc111d317c666ab26551fa9be2107bac5912a7df9b19e91cd46f8097  src/wasm.rs  modified
@@ -431,23 +434,23 @@ c1fa3c6cfaefb542d71ed62a0e1befa201c7e7eba88416efbd7936e88d7ad62f  tests/fix_roun
 cfc68ad047d9dff9f4cb368c901238019de4d6284cbd23853b5224f97a2bf3ca  tests/frost_dkg.rs  new
 b736ecb8a454a6dfae5c4d33cd793c4fc838fa0f572da7257d6ce2b4736b767d  tests/negative.rs  modified
 d9be8eaae119d4ef3c956bc70f61a24dceb4d049294bb586f6e908eb09ec5ae4  tests/p3c.rs  modified
-faf19f3950ef392eab46411c0de82bf997d01e0126e195ae47b59cacd00affd7  tests/pay_vectors.rs  new
+a3ff3f461ade7536e91f7944508e806c4471b9e92bb45ba5837e471b8af4fc4b  tests/pay_vectors.rs  new
 6a2bd2d9be32e7f17c0590073a661b317161fb1c404f6586ce008e264f126467  tests/payment.rs  new
 3f45209a6efdc3f211fea7b4ac4d1489281c9e838950c12a2d48cb827b073ace  tests/pin_bytes.rs  modified
 d2c12f98ab733023eab486670d076c8124bfac1390bf35da5227921219c61038  tests/plain.rs  new
-cd6fcc69bbf63c6cced315785d7ae05411837626acc9f5565b199a8c8c0876bb  tests/plain_rules.rs  new
+a9c8a28674bc245749548af8b1813e38db14de1748e5c6582de0030366dddb70  tests/plain_rules.rs  new
 0433a7d0d65c588b77ca9a01dbbdc442ecfb053dce00f34f0210c5e531545145  tests/plain_sign.rs  new
 60355d5e65a429104d602ad5a0480f085d3a3d949825a1614666d239091d6e2e  tests/plain_wallet.rs  new
 588ffdab940ee0f56e9faac65cad18c1db6468e3dc8ad06f58314c1e07e342dc  tests/program.rs  new
 8c64dba0756d95615e4d85e61a771ac1bf3525013065b94c41862c05a7a0a07d  tests/real.rs  modified
 468e6f0f2cdab9ffafe1476f1be6adab32812c35dcc4cb58f2077355643f894b  tests/repo_pins.rs  modified
-39d6bffff495a0a73a59ab189254e82195178f2307ea36ed7d61fed0e0c58aa6  tests/roles.rs  new
+970b1bea35b619c6bbc68ad5149031e9727bb89626bbc5ee4e48f107c593a0d3  tests/roles.rs  new
 07caa15bfe9a3cafc8846490b11b31cddbbaf0419c27e8a766b693d45a8e6bce  tests/sign_split.rs  new
 0f413556f3a5f04b281b2599900b905092f925fcf09c5d53e9af6bf7be9a7c30  tests/slot_order.rs  modified
 62b0fa2bf03de378655068277f152b3ec8100e2fe2c1eccddd81d4b8aa925999  tests/support/ceremony.rs  new
 0f7203579b45a6d34a48dbb566f65c2dcd5054a851fa718c4d72b81193132ae8  tests/support/plain.rs  new
 0545f28d524bd62d5aa0cd1fe35fb1d0711619bb1c1acf3774ad6f29ed7294d9  tests/ts_edge.rs  modified
-9d3adf8cb93d4e76c4f8915b183aca14023e908c17733236c17854300f45446a  tests/ts_vectors.rs  modified
+32edc4cb36af7e2baa2011868267741d9141804913e3959f453571f9c73be468  tests/ts_vectors.rs  modified
 30be9eca033a677c6e9e1cd213f4d34fd9f810e54c618a12d1af6d0997a32aab  tests/units.rs  modified
 9b3456fb692db6e95aacc18b1e809b7bd29285990a01a10bf5c3cdff310c46e7  tests/verifier_fixes.rs  modified
 7837cf5e6385641404f249608243264b1fd6f9ef83032a0e98e6bfee9db92f38  tests/wasm_api.rs  modified
