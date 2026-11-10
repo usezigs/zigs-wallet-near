@@ -50,7 +50,7 @@ const EXTRA = "extra-param-value-123";
 const NULLIFIER = "c1".repeat(31);
 const VIEWING = "a7".repeat(32);
 const RPC = `https://devnet.helius-rpc.com/?${KEY_NAME}=${KEY}&x=${EXTRA}`;
-const ZOLANA = `https://devnet.helius-rpc.com/v1/zolana?${KEY_NAME}=${KEY}&x=${EXTRA}`;
+const ZOLANA = `https://devnet.helius-rpc.com/v1/spr?${KEY_NAME}=${KEY}&x=${EXTRA}`;
 const GROUP_KEY = "e5".repeat(32);
 const PDA_NULLIFIER = "c3".repeat(31);
 const PDA_HEX = "d4".repeat(32);
@@ -144,7 +144,18 @@ const refused = async (cmd, args, pattern, why) => {
 
 // ---- fixtures ----
 
-const message = (name) => Uint8Array.from(readFileSync(join(HERE, "fixtures", name)));
+// The landed fixtures ran on the retired Devnet pool. The message is read as if it ran on POOL:
+// the Worker looks for the pool instruction by the program id of the SDK. Nothing else changes.
+const RETIRED_POOL = "sppU489D7A4U1exNo1oeMGZtLEofq3a6o2fR7UeoWB6";
+const message = (name) => {
+  const bytes = Buffer.from(readFileSync(join(HERE, "fixtures", name)));
+  const encode = (address) => Buffer.from(sdk.getAddressEncoder().encode(address));
+  const [from, to] = [encode(RETIRED_POOL), encode(POOL)];
+  const at = bytes.indexOf(from);
+  assert.notEqual(at, -1, "the retired pool is not in the fixture");
+  to.copy(bytes, at);
+  return Uint8Array.from(bytes);
+};
 const hexField = (n) => `0x${BigInt(n).toString(16)}`;
 // The asset field of SOL in a prover body (see web/sol/prepare.js).
 const SOL_FIELD = "0x2098f5fb9e239eab3ceac3f27b81e481dc3124d55ffed523a839ee8446b64864";
@@ -268,10 +279,11 @@ async function initWiring() {
   const options = control.options;
   assert.equal(options.solanaRpcUrl, RPC);
   assert.equal(options.indexerUrl, ZOLANA);
-  assert.equal(options.proverUrl, ZOLANA);
+  assert.equal(options.proverUrl, "http://127.0.0.1:3001", "the prover URL is not loopback");
+  assert.equal(options.proofDataSource, "client");
   assert.equal(options.computeUnitLimit, 217_000);
-  assert.equal(options.proverTee, false, "the attested enclave prover is not turned off");
-  step("init gives the SDK the RPC URL, the /v1/zolana URLs, the CU limit and no enclave prover");
+  assert.equal("proverTee" in options, false, "the SDK has no proverTee option");
+  step("init gives the SDK the RPC URL, the /v1/spr URL, the loopback prover and the CU limit");
 }
 
 async function fetchGuard() {

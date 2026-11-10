@@ -38,6 +38,8 @@ const SYSTEM_PROGRAM = "11111111111111111111111111111111";
 const U64_MAX = 0xffff_ffff_ffff_ffffn;
 // Shorter than the execute lease of 60 s (execute.js), which a tab renews right after a send.
 const CONFIRM_MS = 45_000;
+// The loopback URL that the SDK client takes as prover. It is never fetched over the network.
+const PROVER_URL = "http://127.0.0.1:3001";
 
 const redact = makeRedactor();
 let session = null;
@@ -222,17 +224,17 @@ async function init(args) {
   const url = new URL(args.rpcUrl);
   redact.add(args.rpcUrl, url.search, url.searchParams.get("api-key"), args.nullifierSecret);
   redact.add(args.viewingSecret, args.pdaNullifierSecret);
-  const zolana = new URL(url);
-  zolana.pathname = "/v1/zolana";
-  const s = { trace: { prove: null }, origin: url.origin, proverUrl: zolana.href, local: false };
+  const gateway = new URL(url);
+  gateway.pathname = "/v1/spr";
+  const s = { trace: { prove: null }, origin: url.origin, proverUrl: PROVER_URL, local: false };
   s.guarded = guardedFetch(url.origin, s);
-  const client = await sdk.createZolanaClient({
+  const client = await sdk.createSprClient({
     solanaRpcUrl: args.rpcUrl,
-    indexerUrl: zolana.href,
-    proverUrl: zolana.href,
-    // The Helius gateway or this device proves (sdkFetch). The SDK default is an attested
-    // enclave behind another host, which this Worker neither reaches nor trusts.
-    proverTee: false,
+    indexerUrl: gateway.href,
+    // The SDK accepts a prover URL only on the loopback host. The prove call never leaves this
+    // device: sdkFetch hands it to the web prover. The proof inputs come from the synced wallet.
+    proverUrl: PROVER_URL,
+    proofDataSource: "client",
     fetch: sdkFetch(s),
     computeUnitLimit: COMPUTE_UNITS,
   });
@@ -398,9 +400,7 @@ async function treeFees({ tree }) {
   }
   const { fees, feeBalance } = sdk.decodeTreeFees(info.data);
   return {
-    // The bundled SDK (ts-sdk-v0.9.0-alpha) names the u64 at offset 8 feePerNullifier. Slice 5
-    // takes the bundle at 3c018b82, which names it feePerTree.
-    feePerTree: fees.feePerNullifier.toString(),
+    feePerTree: fees.feePerTree.toString(),
     appendReimbursement: fees.appendReimbursement.toString(),
     closeReimbursement: fees.closeReimbursement.toString(),
     feeBalance: feeBalance.toString(),

@@ -10,7 +10,7 @@ const PDA = "UgrqxxdDh3m4pf1DLYGw6fnzk9NGuWJaUnerUp4Mxqd";
 export const control = {
   /** The names of the SDK calls that the Worker made, in order. */
   calls: [],
-  /** The options of createZolanaClient (the fetch of the Worker is options.fetch). */
+  /** The options of createSprClient (the fetch of the Worker is options.fetch). */
   options: null,
   /** Per RPC method: async (...args) => value. A method without a reply throws. */
   rpc: {},
@@ -102,8 +102,8 @@ export class Wallet {
   }
 }
 
-export async function createZolanaClient(options) {
-  note("createZolanaClient");
+export async function createSprClient(options) {
+  note("createSprClient");
   control.options = options;
   const proveTransact = async (proofInputs, keys) => {
     note("proveTransact");
