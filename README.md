@@ -634,8 +634,8 @@ folder path.
   the fee payer rules and the fee key, the FROST-Ed25519 ceremony and signing, and the key roles.
   First run `sh build.sh` and then `node tools/diff_cases.cjs target/pkg-node` in `wasm-sol/`: the
   second command writes the cases that the test `wasm_native_diff` replays, and that test fails
-  without them. Nine tests read the Zolana repo and are ignored: run them with
-  `ZOLANA_REPO=<checkout at commit c232da1b> cargo test --release --test repo_pins -- --ignored`.
+  without them. Nine tests read the privacy-rings repo and are ignored: run them with
+  `ZOLANA_REPO=<checkout of privacy-rings at commit 3c018b82> cargo test --release --test repo_pins -- --ignored`.
 - `node web/test/sol-config.mjs` and its ten siblings `sol-docs`, `sol-ceremony`, `sol-app`,
   `sol-wasm`, `sol-sessions`, `sol-limits`, `sol-pay` (with `sol-pay-exec`, `sol-pay-seats`,
   `sol-pay-lease`, `sol-pay-look` and `sol-pay-end`, which are one test cut in six so that the
@@ -886,7 +886,7 @@ Third-party parts keep their own licences:
 | Part | Licence |
 |---|---|
 | Zolana SDK bundle and prover (`web/sol/zolana.bundle.js`, `web/sol/prover/`) | Apache-2.0, see [web/sol/prover/LICENSE](web/sol/prover/LICENSE) |
-| `wasm-sol/vendor/light-poseidon`, `wasm-sol/vendor/zolana-hasher` | Apache-2.0, see each folder |
+| `wasm-sol/vendor/light-poseidon`, `wasm-sol/vendor/spr-hasher` | Apache-2.0, see each folder |
 | Rust crates compiled into the wasm engines (`wasm/Cargo.lock`, `wasm-sol/Cargo.lock`) | MIT or Apache-2.0, as each crate states |
 | Geist fonts in `web/fonts/` | SIL Open Font License 1.1 |
 | three.js 0.180.0, bundled in `web/dev/metal-orbs/vendor/three.js`, which the wallet avatars load | MIT, see [web/dev/metal-orbs/vendor/THREE-LICENSE.txt](web/dev/metal-orbs/vendor/THREE-LICENSE.txt) |

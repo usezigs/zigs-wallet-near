@@ -7,10 +7,10 @@ use pinocchio::{cpi::set_return_data, error::ProgramError, AccountView, Address,
 
 pinocchio::entrypoint!(process_instruction);
 
-/// sppU489D7A4U1exNo1oeMGZtLEofq3a6o2fR7UeoWB6
+/// ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW
 const POOL_ID: Address = Address::new_from_array([
-    13, 5, 27, 223, 81, 46, 238, 38, 11, 21, 75, 117, 129, 42, 173, 235, 128, 207, 186, 54, 100,
-    214, 57, 55, 88, 166, 92, 51, 242, 53, 239, 61,
+    12, 188, 181, 120, 174, 97, 37, 129, 50, 238, 175, 106, 193, 33, 192, 164, 43, 136, 162, 232,
+    79, 177, 30, 126, 45, 91, 160, 175, 209, 39, 49, 99,
 ]);
 const TRANSACT: u8 = 16;
 /// The CPI of the program copies at most 24 accounts.

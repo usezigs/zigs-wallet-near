@@ -3,17 +3,17 @@
 #   sh sol-program/build.sh       builds target/deploy/zigs_min_multisig.so and checks its hash
 #   sh sol-program/build.sh test  then checks the cluster builds and runs the unit tests and the
 #                                 LiteSVM tests (svm-tests/), with a stub pool and with the pool of
-#                                 the pinned Zolana commit
-#   sh sol-program/build.sh v2    then rebuilds Devnet version 2 and compares the code of the two
+#                                 the pinned privacy-rings commit
 #   sh sol-program/build.sh proofs  runs svm-tests/tests/replay.rs (SOL-41): the pool of the pinned
 #                                 commit with real proofs. It does not build the ELFs: run
 #                                 `build.sh test` first. CI does not run it.
 #
-# The proofs mode needs a prover of the pinned Zolana commit that serves transfer_confidential_1_2
-# at ZOLANA_PROVER_URL. To make one, build prover/server of the Zolana checkout with `go build`
-# into an empty folder (its go.mod can name a newer Go than the one installed), download
-# transfer_confidential_1_2.key (about 9 MB) into another empty folder, check its SHA-256 against
-# prover/server/prover/provingkeys/proving-keys.lock, and start the prover on 127.0.0.1:
+# The proofs mode needs a prover of the pinned privacy-rings commit that serves
+# transfer_confidential_1_2 at ZOLANA_PROVER_URL. To make one, build prover/server of the
+# privacy-rings checkout with `go build` into an empty folder (its go.mod can name a newer Go than
+# the one installed), download transfer_confidential_1_2.key (about 9 MB) into another empty
+# folder, check its SHA-256 against prover/server/prover/provingkeys/proving-keys.lock, and start
+# the prover on 127.0.0.1:
 #   prover start --prover-address 127.0.0.1:PORT --metrics-address 127.0.0.1:PORT2 \
 #     --keys-dir KEYS --serve transfer_confidential_1_2
 # The key URL is the base URL and the prefix of that lock file, then the file name.
@@ -25,17 +25,7 @@
 # checks that.
 #
 # EXPECTED is version 5: version 2 with the fixes of the review, SOL withdrawals, its own
-# transact CPI and the cluster as a build choice (ZOLANA.md 7.2). It is not deployed. Version 2 on
-# Devnet (program 5PHZEHBMaYbFL9SFmMyP8kUayh3TFEyq2dvEYY3UGjkL) was built as a member of the
-# Zolana workspace, with the default features of zolana-interface turned off in that workspace.
-# Built on its own, the version 2 source gives another ELF:
-# - zolana-program turns on the default features of zolana-interface again, which add the unused
-#   Groth16 verifying keys as exported data (no code);
-# - two panic paths are shorter (src/cpi.rs, src/instructions.rs);
-# - the functions sit in another order.
-# The v2 mode rebuilds version 2 from the import commit of src/ in that workspace layout, checks
-# its hash, and lists the functions whose code differs from this build (on the import commit:
-# none; later: the functions that changed since version 2).
+# transact CPI and the cluster as a build choice (ZOLANA.md 7.2). It is not deployed.
 set -eu
 cd "$(dirname "$0")"
 unset RUSTFLAGS CARGO_ENCODED_RUSTFLAGS
@@ -45,9 +35,7 @@ unset RUSTFLAGS CARGO_ENCODED_RUSTFLAGS
 # the same code (fncmp.py on the unstripped CI artifact).
 EXPECTED_DARWIN=b4bad24c6ae7cf2455b52780f78e35573f014ab3bc618fcbb49772b06c0d6eac
 EXPECTED_LINUX=4dd727b04d585403ce7c23ba70497c3922a166690409dfcd63f38c95bfeb2355
-V2=555f45801f32896c78eb55f962026507dec35ea6d673477326db7913e4475d92
 SBF=${CARGO_BUILD_SBF:-cargo-build-sbf}
-OBJDUMP=$HOME/.cache/solana/v1.54/platform-tools/llvm/bin/llvm-objdump
 SO=target/deploy/zigs_min_multisig.so
 
 fail() {
@@ -64,9 +52,6 @@ case "$(uname -s)-$(uname -m)" in
   Linux-x86_64) EXPECTED=$EXPECTED_LINUX ;;
   *) fail "no pinned hash for the host $(uname -s) $(uname -m)" ;;
 esac
-if [ "${1:-}" = v2 ] && [ "$(uname -s)" != Darwin ]; then
-  fail "v2 mode needs macOS, where Devnet version 2 was built"
-fi
 
 # The proofs mode runs on the outputs of `build.sh test`, so it needs no SBF toolchain.
 if [ "${1:-}" = proofs ]; then
@@ -95,14 +80,14 @@ fi
 echo "$(sha "$SO")  $SO ($(wc -c < "$SO" | tr -d ' ') bytes)"
 [ "$(sha "$SO")" = "$EXPECTED" ] || fail "hash differs from EXPECTED (change it only with src/)"
 
-# Sets ZOLANA to the pinned Zolana tree of cargo's git checkout, unchanged.
+# Sets ZOLANA to the pinned privacy-rings tree of cargo's git checkout, unchanged.
 find_zolana() {
   ZOLANA=$(cargo metadata --format-version 1 --locked | python3 -I -c '
 import json, os, sys
 for p in json.load(sys.stdin)["packages"]:
-    if p["name"] == "zolana-interface":
+    if p["name"] == "spr-interface":
         print(os.path.dirname(os.path.dirname(os.path.dirname(p["manifest_path"]))))')
-  [ "$(git -C "$ZOLANA" rev-parse HEAD)" = 89640630b3ed2402b83bd20c313406cb3fe906d4 ] \
+  [ "$(git -C "$ZOLANA" rev-parse HEAD)" = 3c018b82fbc08322114990b88906872f4e72d65c ] \
     || fail "$ZOLANA is not at the pinned commit"
   [ -z "$(git -C "$ZOLANA" status --porcelain --untracked-files=no)" ] \
     || fail "$ZOLANA has local changes"
@@ -113,7 +98,7 @@ for p in json.load(sys.stdin)["packages"]:
 # next build is incremental.
 build_real_pool() {
   find_zolana
-  POOL=svm-tests/target/zolana-pool
+  POOL=svm-tests/target/spr-pool
   mkdir -p "$POOL"
   rsync -a --delete --exclude .git --exclude .cargo-ok --exclude target \
     --exclude rust-toolchain.toml "$ZOLANA"/ "$POOL"/
@@ -122,25 +107,17 @@ build_real_pool() {
   cp "$POOL/target/deploy/shielded_pool_program.so" svm-tests/target/deploy/
 }
 
-# SOL-42: a build names one cluster, and a mainnet build cannot carry the Devnet genesis hash or
-# the development pool id. Each refused build must fail with its own message. A mainnet build
-# with a test pool id (32 bytes of 0x6d, MAINNET_TEST_POOL in svm-tests/src/lib.rs) must pass its
-# unit tests, and its ELF goes to svm-tests.
-TEST_POOL=8NADbpm7TWNhCsGKYZZ9iR89cJvwQvqNuUeXMRtJSKA4
+# SOL-42: a build names one cluster, by its genesis hash. The pool id is the same on both. Each
+# refused build must fail with its own message. The mainnet unit tests must pass, and the mainnet
+# ELF goes to svm-tests.
 check_clusters() {
-  DEV_POOL=sppU489D7A4U1exNo1oeMGZtLEofq3a6o2fR7UeoWB6
   must_fail "choose the cluster" cargo check --locked -j 4
   must_fail "choose one cluster" cargo check --locked -j 4 --features devnet,mainnet
-  must_fail "not defined at compile time" env -u ZIGS_MAINNET_POOL_ID \
-    cargo check --locked -j 4 --features mainnet
-  must_fail "development pool id" env ZIGS_MAINNET_POOL_ID=$DEV_POOL \
-    cargo check --locked -j 4 --features mainnet
-  ZIGS_MAINNET_POOL_ID=$TEST_POOL cargo test --locked -j 4 --features mainnet -- --test-threads 2
-  # The mainnet ELF with the test pool id, for svm-tests/tests/cluster.rs. Its own target folder
-  # keeps the Devnet build in target/.
-  ZIGS_MAINNET_POOL_ID=$TEST_POOL CARGO_TARGET_DIR=target/mainnet-test \
-    "$SBF" --tools-version v1.54 --jobs 4 --sbf-out-dir svm-tests/target/deploy/mainnet \
-    -- --locked --features mainnet
+  cargo test --locked -j 4 --features mainnet -- --test-threads 2
+  # The mainnet ELF, for svm-tests/tests/cluster.rs. Its own target folder keeps the Devnet build
+  # in target/.
+  CARGO_TARGET_DIR=target/mainnet "$SBF" --tools-version v1.54 --jobs 4 \
+    --sbf-out-dir svm-tests/target/deploy/mainnet -- --locked --features mainnet
 }
 
 # must_fail TEXT COMMAND...: the command fails, and its output names TEXT.
@@ -163,71 +140,5 @@ case "${1:-}" in
     cargo test --manifest-path svm-tests/Cargo.toml --locked -j 4 -- --test-threads 2
     exit 0
     ;;
-  v2) ;;
   *) fail "unknown mode $1" ;;
 esac
-
-find_zolana
-
-# The source of version 2 is the commit that added src/lib.rs.
-IMPORT=$(git log --diff-filter=A --format=%H -- src/lib.rs | tail -1)
-WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT
-rsync -a --exclude .git --exclude .cargo-ok --exclude target "$ZOLANA"/ "$WORK"/
-mkdir -p "$WORK/sol35-multisig/src"
-for f in approval error instructions lib state; do
-  git show "$IMPORT:./src/$f.rs" > "$WORK/sol35-multisig/src/$f.rs"
-done
-(cd "$WORK/sol35-multisig" && shasum -a 256 -c) <<'EOF'
-77addac38903d40b653183df14d10895cd1e593235b1182c8636d76083b737a8  src/approval.rs
-e264bda923d99b081e6ed88e8ecda93ff06727cef1d88af662847d39f43d0174  src/error.rs
-98c3b4ed5b797f717420b3ec01d76a10cd7c0b8af0a9ffd60fd281c831926d20  src/instructions.rs
-2600e58bea25a790250214c4f4ba1f80372e7419a6fea06227a67ff37e4fa156  src/lib.rs
-ce9bd496fbf25408c96160a13fd97da093888aeb0597de85c457f221c553f16f  src/state.rs
-EOF
-cat > "$WORK/sol35-multisig/Cargo.toml" <<'EOF'
-[package]
-name = "zigs-min-multisig"
-version = "0.1.0"
-edition.workspace = true
-license = "Apache-2.0"
-publish = false
-
-[lib]
-name = "zigs_min_multisig"
-crate-type = ["cdylib", "lib"]
-
-[features]
-default = ["bpf-entrypoint"]
-bpf-entrypoint = []
-no-entrypoint = []
-
-[dependencies]
-pinocchio = { workspace = true, features = ["cpi"] }
-pinocchio-system = { workspace = true }
-zolana-hasher = { workspace = true }
-zolana-interface = { workspace = true }
-zolana-program = { workspace = true, features = ["cpi"] }
-
-[dev-dependencies]
-sha2 = { workspace = true }
-
-[lints.rust.unexpected_cfgs]
-level = "allow"
-check-cfg = ['cfg(target_os, values("solana"))']
-EOF
-# The three workspace changes of the version 2 build: the member, no default features of
-# zolana-interface, and the release profile.
-IFACE='zolana-interface = { path = "program-libs/interface", version = "0.1.0"' perl -pi \
-  -e 's/^    "xtask",\n/    "xtask",\n    "sol35-multisig",\n/;' \
-  -e 's/^\Q$ENV{IFACE}\E \}$/$ENV{IFACE}, default-features = false }/;' \
-  "$WORK/Cargo.toml"
-printf 'lto = "fat"\ncodegen-units = 1\nopt-level = 2\n' >> "$WORK/Cargo.toml"
-
-"$SBF" --tools-version v1.54 --jobs 4 --manifest-path "$WORK/sol35-multisig/Cargo.toml" \
-  -- --features bpf-entrypoint
-echo "$(sha "$WORK/$SO")  version 2 rebuilt"
-[ "$(sha "$WORK/$SO")" = "$V2" ] || fail "the version 2 rebuild differs from Devnet"
-UNSTRIPPED=target/sbpf-solana-solana/release/zigs_min_multisig.so
-python3 -I fncmp.py "$OBJDUMP" "$WORK/$UNSTRIPPED" "$UNSTRIPPED" \
-  || echo "build.sh: the functions above differ from version 2"

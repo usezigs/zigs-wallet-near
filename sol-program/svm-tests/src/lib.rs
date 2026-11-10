@@ -21,14 +21,14 @@ use solana_pubkey::Pubkey;
 use solana_signer::Signer;
 use solana_transaction::Transaction;
 use solana_transaction_error::TransactionError;
-use zolana_interface::instruction::{
+use spr_interface::instruction::{
     CircuitId, InputUtxo, OwnerTag, TransactIxData, TransactOutput, TransactProof, TreeContext,
 };
 
 /// The Devnet program id, so that the approval of the Devnet vector verifies.
 pub const PROGRAM_ID: Pubkey =
     Pubkey::from_str_const("5PHZEHBMaYbFL9SFmMyP8kUayh3TFEyq2dvEYY3UGjkL");
-pub const POOL_ID: Pubkey = Pubkey::from_str_const("sppU489D7A4U1exNo1oeMGZtLEofq3a6o2fR7UeoWB6");
+pub const POOL_ID: Pubkey = Pubkey::from_str_const("ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW");
 pub const SYSTEM_ID: Pubkey = Pubkey::from_str_const("11111111111111111111111111111111");
 pub const ED25519_ID: Pubkey =
     Pubkey::from_str_const("Ed25519SigVerify111111111111111111111111111");
@@ -38,8 +38,6 @@ pub const DEVNET_GENESIS: Pubkey =
     Pubkey::from_str_const("EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG");
 pub const MAINNET_GENESIS: Pubkey =
     Pubkey::from_str_const("5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d");
-/// The pool id of the mainnet test build (`ZIGS_MAINNET_POOL_ID` in `build.sh test`).
-pub const MAINNET_TEST_POOL: Pubkey = Pubkey::new_from_array([0x6d; 32]);
 pub const DOMAIN: &[u8] = b"Zigs_SolApproval_v1";
 pub const TRANSACT: u8 = 16;
 /// The clock of a new rig, in Unix seconds.
@@ -211,7 +209,7 @@ pub fn sample_transact() -> TransactIxData {
         outputs: vec![output(4, 5), output(6, 7)],
         messages: Vec::new(),
         private_tx_hash: PRIVATE_TX_HASH,
-        circuit: CircuitId::ConfidentialEddsa(1, 2, 1),
+        circuit: CircuitId::ConfidentialSigner(1, 2, 1),
         proof: TransactProof::zeroed(),
         inputs: vec![InputUtxo {
             nullifier_hash: [0x11; 32],
@@ -472,22 +470,21 @@ impl Rig {
     /// The Devnet build of the program, with the stub pool at the pool id.
     pub fn new() -> Self {
         let program = program_dir().join("target/deploy/zigs_min_multisig.so");
-        Self::with_program(program, POOL_ID)
+        Self::with_program(program)
     }
 
-    /// The mainnet test build of the program (`build.sh test`), with the stub at its test pool
-    /// id, where the stub accepts every instruction.
+    /// The mainnet build of the program (`build.sh test`), with the stub at the pool id.
     pub fn mainnet() -> Self {
         let program = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(MAINNET_ELF);
-        Self::with_program(program, MAINNET_TEST_POOL)
+        Self::with_program(program)
     }
 
-    fn with_program(program: PathBuf, pool: Pubkey) -> Self {
+    fn with_program(program: PathBuf) -> Self {
         let mut svm = LiteSVM::new();
         svm.add_program_from_file(PROGRAM_ID, build_output(program))
             .expect("load the program");
         svm.add_program_from_file(
-            pool,
+            POOL_ID,
             build_output(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(STUB)),
         )
         .expect("load the stub pool");
@@ -500,13 +497,13 @@ impl Rig {
             group: Keypair::new(),
             authority: Keypair::new(),
             rent_recipient: Pubkey::new_unique(),
-            pool,
+            pool: POOL_ID,
         };
         rig.set_time(NOW);
         rig
     }
 
-    /// A rig with the shielded pool of the pinned Zolana commit in place of the stub
+    /// A rig with the shielded pool of the pinned privacy-rings commit in place of the stub
     /// (`build.sh test` builds it).
     pub fn with_real_pool() -> Self {
         let mut rig = Self::new();
@@ -609,7 +606,7 @@ mod tests {
 
     #[test]
     fn the_sol_interface_is_the_pool_constant() {
-        let constant = Pubkey::new_from_array(zolana_interface::SOL_INTERFACE);
+        let constant = Pubkey::new_from_array(spr_interface::SOL_INTERFACE);
         assert_eq!(sol_interface(), constant);
     }
 

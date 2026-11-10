@@ -6,11 +6,11 @@
 use solana_instruction::AccountMeta;
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
+use spr_interface::instruction::{InterfaceTransfer, TransactIxData};
 use zigs_min_multisig_svm_tests::{
     approval_ix, code, commitment, execute_ix, execute_metas, pool_signers, recipient,
     refused_with, sample_transact, serialize, sol_interface, Body, Rig, TxResult,
 };
-use zolana_interface::instruction::{InterfaceTransfer, TransactIxData};
 
 /// The sample transfer with one SOL withdrawal leg per amount.
 fn withdrawal(amounts: &[u64]) -> TransactIxData {

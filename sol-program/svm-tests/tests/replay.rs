@@ -1,7 +1,7 @@
 //! SOL-41, review finding R4 (ZOLANA.md 7.2): after `execute`, the same body can be created again,
 //! and the same approval executes again. The approvals program does not stop that; the shielded
-//! pool does. This test runs the pool of the pinned Zolana commit with a funded input and real
-//! proofs, in the same LiteSVM as the approvals program:
+//! pool does. This test runs the pool of the pinned privacy-rings commit with a funded input and
+//! real proofs, in the same LiteSVM as the approvals program:
 //!
 //! 1. A group owner PDA holds a shielded SOL UTXO. An approved `execute` withdraws it to a payee.
 //! 2. The proposal account is created again with the same body. The same approval executes again
@@ -13,8 +13,8 @@
 //! The case after the nullifier PDA closes needs a forester batch proof (SOL-54), and this test
 //! does not cover it.
 //!
-//! Needs a Zolana prover that serves `transfer_confidential_1_2` at `ZOLANA_PROVER_URL`, and the
-//! outputs of `build.sh test`. Run it with `sh sol-program/build.sh proofs`.
+//! Needs a prover of that commit that serves `transfer_confidential_1_2` at `ZOLANA_PROVER_URL`,
+//! and the outputs of `build.sh test`. Run it with `sh sol-program/build.sh proofs`.
 
 use std::path::PathBuf;
 
@@ -23,15 +23,11 @@ use solana_instruction::AccountMeta;
 use solana_keypair::Keypair;
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
-use zigs_min_multisig_svm_tests::{
-    approval_ix, execute_ix, owner_address, program_dir, recipient, refused_with, serialize, Body,
-    Rig, TxResult, NOW, POOL_ID, PROGRAM_ID,
-};
-use zolana_client::{
+use spr_client::{
     PublicInputs, PublicTransfers, TransferInput, TransferInputs, TransferOutput, STATE_TREE_HEIGHT,
 };
-use zolana_hasher::{primitives::solana_owner_identity, Poseidon};
-use zolana_interface::{
+use spr_hasher::{primitives::solana_owner_identity, Poseidon};
+use spr_interface::{
     error::ShieldedPoolError,
     instruction::{InterfaceTransfer, TransactIxData, TransactProof},
     pda,
@@ -39,18 +35,22 @@ use zolana_interface::{
     tree_slot::TreeSlot,
     INPUT_TREES, NULLIFIER_PDA_SIZE,
 };
-use zolana_keypair::{hash::owner_hash, pubkey::PublicKey, NullifierKey};
-use zolana_merkle_tree::MerkleTree;
-use zolana_program_test::ZolanaProgramTest;
-use zolana_test_utils::transact::{
+use spr_keypair::{hash::owner_hash, pubkey::PublicKey, NullifierKey};
+use spr_merkle_tree::MerkleTree;
+use spr_program_test::SprProgramTest;
+use spr_test_utils::transact::{
     build_transfer_prover_inputs, change_and_dummy_outputs, derive_test_transfer_output_blindings,
     external_data_hash, inline_outputs, input_utxo, new_transact_ix_data, nullifier_tree,
     output_owner_pk_hashes, prove_and_verify_transfer, public_sol_field, set_output_owner_tags,
     single_tree_slots, sol_leg, sol_public_slots, test_private_tx_blinding, transact_input_flags,
     transfer_input, TransferInputArgs, TransferProverInputsArgs, TEST_BLINDING_SEED,
 };
-use zolana_transaction::{instructions::transact::PrivateTxHash, Utxo};
-use zolana_tree::TreeAccount;
+use spr_transaction::{instructions::transact::PrivateTxHash, Utxo};
+use spr_tree::TreeAccount;
+use zigs_min_multisig_svm_tests::{
+    approval_ix, execute_ix, owner_address, program_dir, recipient, refused_with, serialize, Body,
+    Rig, TxResult, NOW, POOL_ID, PROGRAM_ID,
+};
 
 const AMOUNT: u64 = 1_000_000_000;
 const POOL_ELF: &str = "target/deploy/shielded_pool_program.so";
@@ -61,7 +61,7 @@ const NULLIFIER_AT: usize = 11;
 
 /// The pool with its protocol config and one tree.
 struct Pool {
-    rpc: ZolanaProgramTest,
+    rpc: SprProgramTest,
     tree: Pubkey,
     tree_id: u16,
 }
@@ -118,7 +118,7 @@ struct Outputs {
 
 fn open_pool() -> Pool {
     let elf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(POOL_ELF);
-    let mut rpc = ZolanaProgramTest::with_program_path(&elf)
+    let mut rpc = SprProgramTest::with_program_path(&elf)
         .expect("load the pool; run `sh sol-program/build.sh test` first");
     assert_eq!(
         rpc.program_id, POOL_ID,
@@ -299,7 +299,7 @@ fn prove(spend: &Spend) -> TransactProof {
 
 /// The rig of the approvals tests over the LiteSVM of the pool, with the approvals program in it.
 fn rig_over(pool: Pool, group: Keypair) -> Rig {
-    let ZolanaProgramTest { svm, payer, .. } = pool.rpc;
+    let SprProgramTest { svm, payer, .. } = pool.rpc;
     let mut rig = Rig {
         svm,
         payer,

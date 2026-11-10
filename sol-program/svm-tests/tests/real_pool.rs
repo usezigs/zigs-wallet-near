@@ -1,17 +1,17 @@
-//! The program in front of the shielded pool of the pinned Zolana commit (`build.sh test` builds
-//! it). The tests have no trees and no proof, so the pool stops at its tree stage (7001) after it
-//! has read the account list: the run of owner signers, the settlement groups and their checks.
-//! Where the pool stops shows whether it reads the accounts as the program does.
+//! The program in front of the shielded pool of the pinned privacy-rings commit (`build.sh test`
+//! builds it). The tests have no trees and no proof, so the pool stops at its tree stage (7001)
+//! after it has read the account list: the run of owner signers, the settlement groups and their
+//! checks. Where the pool stops shows whether it reads the accounts as the program does.
 
 use solana_instruction::AccountMeta;
 use solana_keypair::Keypair;
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
+use spr_interface::instruction::{CircuitId, InterfaceTransfer, TransactIxData};
 use zigs_min_multisig_svm_tests::{
     approval_ix, code, commitment, execute_ix, execute_metas, refused_with, sample_transact,
     serialize, settlements, sol_interface, Rig,
 };
-use zolana_interface::instruction::{CircuitId, InterfaceTransfer, TransactIxData};
 
 /// Forwarded positions with one tree, one input and one leg: the owner PDA, then the leg.
 const OUTPUT_TREE_AT: usize = 1;
@@ -25,7 +25,7 @@ const RECIPIENT_AT: usize = 8;
 fn pool_transact(legs: u64) -> TransactIxData {
     let mut transact = sample_transact();
     transact.private_tx_hash = [1; 32];
-    transact.circuit = CircuitId::ConfidentialEddsa(1, 2, 3);
+    transact.circuit = CircuitId::ConfidentialSigner(1, 2, 3);
     transact.interface_transfers = (0..legs)
         .map(|leg| InterfaceTransfer::SolWithdrawal {
             amount: 1_000_000 + leg,

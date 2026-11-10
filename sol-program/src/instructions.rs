@@ -8,15 +8,15 @@ use pinocchio::{
     AccountView, Address, ProgramResult,
 };
 use pinocchio_system::create_account_with_minimum_balance_signed;
-use zolana_hasher::{Hasher, Sha256};
-use zolana_interface::instruction::{
+use spr_hasher::{Hasher, Sha256};
+use spr_interface::instruction::{
     instruction_data::transact::{
         ExternalDataPreimage, InterfaceTransfer, OwnerTag, TransactIxDataRef,
     },
     settlement_accounts,
     tag::TRANSACT,
 };
-use zolana_interface::verifying_keys::CircuitId;
+use spr_interface::verifying_keys::CircuitId;
 
 use crate::{
     approval::{approval_digest, check_approval},
@@ -172,7 +172,7 @@ pub fn create(program_id: &Address, accounts: &mut [AccountView], data: &[u8]) -
 /// The transact must be a default-ring transfer with inline owner tags. Its only interface
 /// transfers are SOL withdrawals: no deposit and no SPL leg.
 fn check_transact_shape(ix: &TransactIxDataRef) -> ProgramResult {
-    let default_ring = matches!(ix.circuit, CircuitId::ConfidentialEddsa(..));
+    let default_ring = matches!(ix.circuit, CircuitId::ConfidentialSigner(..));
     let inline_tags = ix
         .outputs
         .iter()
@@ -241,15 +241,15 @@ fn check_spp_accounts<'a>(
     Ok(settlements)
 }
 
-/// The code of `TransactAccountsError::InvalidSppProgram` in `zolana-program`, whose CPI helper
+/// The code of `TransactAccountsError::InvalidSppProgram` in `spr-program`, whose CPI helper
 /// the program used up to version 4. Clients see the same error. Its other codes, 14100 (too few
 /// accounts) and 14102 (no owner PDA), cannot occur: `check_spp_accounts` runs first.
 const INVALID_SPP_PROGRAM: u32 = 14101;
 
 /// The pool's `transact` as a CPI: the forwarded accounts keep their writable and signer flags,
 /// the owner PDA signs with its seeds, and the data is the tag 16, then `data`. This is what
-/// `SppTransactAccounts` of `zolana-program` does. The program carries it itself because that
-/// crate turns on the Groth16 verifying keys of `zolana-interface`, unused data in the ELF.
+/// `SppTransactAccounts` of `spr-program` does. The program carries it itself because that
+/// crate turns on the Groth16 verifying keys of `spr-interface`, unused data in the ELF.
 fn invoke_transact(
     spp: &[AccountView],
     owner: &Address,
@@ -436,4 +436,80 @@ pub fn close_cancelled(
         return Err(MultisigError::RentRecipientMismatch.into());
     }
     close_to(cancellation, rent_recipient)
+}
+
+#[cfg(test)]
+mod tests {
+    use spr_interface::instruction::{
+        InputUtxo, TransactIxData, TransactOutput, TransactProof, TreeContext,
+    };
+    use spr_interface::verifying_keys::{Bsb22Commitment, EddsaProofData};
+
+    use super::*;
+
+    /// A one-input, two-output default-ring transfer on `circuit`, as wire bytes.
+    fn transact_bytes(circuit: CircuitId) -> Vec<u8> {
+        let output = |hash: u8| TransactOutput {
+            utxo_hash: [hash; 32],
+            owner_tag: OwnerTag::Inline([hash; 32]),
+            data: Some(vec![hash; 89]),
+        };
+        TransactIxData {
+            expiry_unix_ts: 1,
+            tx_viewing_pk: [2; 33],
+            salt: [3; 16],
+            interface_transfers: Vec::new(),
+            data_hash: None,
+            ring_data_hash: None,
+            outputs: vec![output(4), output(6)],
+            messages: Vec::new(),
+            private_tx_hash: [0x5a; 32],
+            circuit,
+            proof: TransactProof::zeroed(),
+            inputs: vec![InputUtxo {
+                nullifier_hash: [0x11; 32],
+                tree_index: 0,
+            }],
+            tree_contexts: vec![TreeContext {
+                utxo_tree_root_index: 7,
+                nullifier_tree_root_index: 8,
+            }],
+        }
+        .serialize()
+        .expect("serialize")
+    }
+
+    fn shape_of(data: &[u8]) -> ProgramResult {
+        let (ix, _) = TransactIxDataRef::parse_with_external_data_prefix(data).expect("parse");
+        check_transact_shape(&ix)
+    }
+
+    /// The circuit as the pool reads it: a `u16` tag, then inputs, outputs and public slots.
+    fn has_wire_tag(data: &[u8], tag: u8) -> bool {
+        data.windows(5).any(|bytes| bytes == [tag, 0, 1, 2, 1])
+    }
+
+    #[test]
+    fn wire_tag_0_is_the_signer_circuit_and_the_default_ring_accepts_it() {
+        let data = transact_bytes(CircuitId::ConfidentialSigner(1, 2, 1));
+        assert!(has_wire_tag(&data, 0));
+        assert_eq!(shape_of(&data), Ok(()));
+    }
+
+    #[test]
+    fn wire_tag_7_is_the_eddsa_circuit_and_the_default_ring_refuses_it() {
+        let proof_data = EddsaProofData {
+            bsb22_commitment: Bsb22Commitment {
+                commitment: [8; 32],
+                commitment_pok: [9; 32],
+            },
+            owner_pk: [10; 32],
+        };
+        let data = transact_bytes(CircuitId::ConfidentialEddsa(1, 2, 1, proof_data));
+        assert!(has_wire_tag(&data, 7));
+        assert_eq!(
+            shape_of(&data),
+            Err(MultisigError::UnsupportedTransact.into())
+        );
+    }
 }

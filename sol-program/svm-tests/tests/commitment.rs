@@ -3,12 +3,13 @@
 //! proof with new roots keeps the commitment. Only default-ring transfers with inline owner
 //! tags pass.
 
+use spr_interface::instruction::{
+    CacheAccess, CircuitId, InterfaceTransfer, MessageData, OwnerTag, TransactIxData,
+};
+use spr_interface::verifying_keys::{Bsb22Commitment, EddsaProofData};
 use zigs_min_multisig_svm_tests::{
     approval_ix, code, commitment, execute_ix, pool_signers, refused_with, sample_transact,
     serialize, Body, Rig,
-};
-use zolana_interface::instruction::{
-    CacheAccess, CircuitId, InterfaceTransfer, MessageData, OwnerTag, TransactIxData,
 };
 
 fn proposed() -> (Rig, Body) {
@@ -97,8 +98,8 @@ fn refuses_any_change_to_the_approved_payment() {
 /// A proposal approved for another shape still cannot settle it: the shape check comes first.
 /// SOL withdrawals pass the shape (tests/withdrawal.rs); deposits and SPL legs do not.
 #[test]
-fn refuses_deposits_spl_legs_rings_caches_and_account_tags() {
-    let shapes: [fn(&mut TransactIxData); 6] = [
+fn refuses_deposits_spl_legs_rings_caches_wire_tag_7_and_account_tags() {
+    let shapes: [fn(&mut TransactIxData); 7] = [
         |t| {
             let leg = InterfaceTransfer::SplWithdrawal {
                 amount: 1,
@@ -117,13 +118,24 @@ fn refuses_deposits_spl_legs_rings_caches_and_account_tags() {
             t.interface_transfers
                 .push(InterfaceTransfer::SolDeposit { amount: 1 })
         },
-        |t| t.circuit = CircuitId::RingEddsa(1, 2, 1),
+        |t| t.circuit = CircuitId::ConfidentialRingEddsa(1, 2, 1),
+        // Wire tag 7. Before 3c018b82 the name `ConfidentialEddsa` meant wire tag 0.
+        |t| {
+            let proof_data = EddsaProofData {
+                bsb22_commitment: Bsb22Commitment {
+                    commitment: [8; 32],
+                    commitment_pok: [9; 32],
+                },
+                owner_pk: [10; 32],
+            };
+            t.circuit = CircuitId::ConfidentialEddsa(1, 2, 1, proof_data)
+        },
         |t| {
             let read = CacheAccess {
                 read_bitmap: 1,
                 write_slots: CacheAccess::NO_WRITES,
             };
-            t.circuit = CircuitId::ConfidentialEddsaCached(1, 2, 1, read)
+            t.circuit = CircuitId::ConfidentialSignerCached(1, 2, 1, read)
         },
         |t| t.outputs[1].owner_tag = OwnerTag::Account(0),
     ];

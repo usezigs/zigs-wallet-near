@@ -1,7 +1,7 @@
 //! The approval message and the check of the Ed25519 precompile instruction that carries it.
 
 use pinocchio::{sysvars::instructions::Instructions, AccountView};
-use zolana_hasher::{Hasher, Sha256};
+use spr_hasher::{Hasher, Sha256};
 
 use crate::{error::MultisigError, APPROVAL_DOMAIN, DEPLOYMENT_ID, ED25519_PROGRAM_ID};
 
