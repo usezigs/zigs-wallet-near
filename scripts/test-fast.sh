@@ -26,7 +26,8 @@ FAST="optional-passkey demo-check chain-fallback chat backup-check graph persona
   smoke help contrast orientation overview setup-stage approvals recovery security-dashboard
   payment-model
   plain-worker
-  cf/test/gate sol-nonce-tabs nonce-locks no-storage"
+  cf/test/gate sol-nonce-tabs nonce-locks no-storage
+  solspike/test/pool-run.test"
 SLOW="app sol-fee sol-sessions sol-limits sol-ceremony sol-app sol-pay sol-pay-exec sol-pay-seats
   sol-pay-lease sol-pay-look sol-pay-end unified-setup sol-prove sol-plain-ceremony
   sol-plain-sign"
