@@ -471,16 +471,34 @@ fn two_snapshot_inputs_with_one_nullifier() {
 #[test]
 fn the_tree_fee_is_read_capped_and_reported() {
     let mut fixture = Fixture::build(&Spec::transfer());
-    fixture.snapshot.fee_per_nullifier = p3_check::template::TREE_FEE_CAP;
+    fixture.snapshot.fee_per_tree = p3_check::template::TREE_FEE_CAP;
     let approved = fixture.approve().expect("at the cap");
     assert_eq!(approved.summary.tree_fee, p3_check::template::TREE_FEE_CAP);
-    fixture.snapshot.fee_per_nullifier += 1;
+    fixture.snapshot.fee_per_tree += 1;
     assert_eq!(fixture.rules(), vec![TreeFeeOverCap]);
-    let mut spec = Spec::transfer();
-    spec.inputs = vec![(SOL, 70), (SOL, 30)];
-    let mut fixture = Fixture::build(&spec);
-    fixture.snapshot.fee_per_nullifier = 100;
-    assert_eq!(fixture.approve().unwrap().summary.tree_fee, 200);
+}
+
+#[test]
+fn one_fee_per_tree_whatever_the_input_count() {
+    for count in [1usize, 2, 8] {
+        let mut spec = Spec::transfer();
+        spec.inputs = vec![(SOL, 100); count];
+        let mut fixture = Fixture::build(&spec);
+        fixture.snapshot.fee_per_tree = 5_000;
+        assert_eq!(
+            fixture.approve().unwrap().summary.tree_fee,
+            5_000,
+            "{count} inputs"
+        );
+    }
+}
+
+#[test]
+fn a_separate_output_tree_pays_its_own_fee() {
+    let mut fixture = Fixture::build(&Spec::transfer());
+    fixture.snapshot.fee_per_tree = 5_000;
+    fixture.pins.output_tree = [9; 32];
+    assert_eq!(fixture.approve().unwrap().summary.tree_fee, 10_000);
 }
 
 #[test]

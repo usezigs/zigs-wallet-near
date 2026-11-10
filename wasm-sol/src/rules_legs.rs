@@ -117,16 +117,22 @@ impl Spend<'_> {
         }
     }
 
-    /// The insertion fee per nullifier of the tree is at most the cap.
+    /// The flat fee per tree is at most the cap, and the payer pays it once for every distinct
+    /// tree that is written.
+    // ponytail: the snapshot holds one fee, read from the input tree. A separate output tree is
+    // charged at that rate. Ceiling: the cap bounds each tree; read the second tree for its own
+    // fee when a message with two trees can pass the tree rules.
     pub fn fee_rule(&mut self) {
-        let fee = self.snap.fee_per_nullifier;
+        let fee = self.snap.fee_per_tree;
         if fee > TREE_FEE_CAP {
             self.fail(
                 Rule::TreeFeeOverCap,
                 format!("{fee} lamports over {TREE_FEE_CAP}"),
             );
         }
-        let inputs = u64::try_from(self.tx.inputs.len()).unwrap_or(u64::MAX);
-        self.summary.tree_fee = fee.saturating_mul(inputs);
+        // The tree rules pin every input to tree 0 and the template compares the accounts with
+        // the pins, so the pinned trees are the trees that the message writes.
+        let trees: BTreeSet<_> = self.group.trees.iter().collect();
+        self.summary.tree_fee = fee.saturating_mul(trees.len() as u64);
     }
 }

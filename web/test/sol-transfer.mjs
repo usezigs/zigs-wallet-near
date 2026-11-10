@@ -133,9 +133,9 @@ step("the real checker accepts the move that the page encoded");
   const v = MOVE,
     side = pageSide(v);
   const fee = (value) => verdictOf(side, { spend: { ...side.spend, fee: value } }).text;
-  const said = readVerdict(fee("162"));
-  assert.equal(said.treeFee, 162n * BigInt(v.inputs.length), "the fee of every input");
-  assert.match(fee("163"), /^refused\n.*163 lamports over 162/s, "a fee over the cap");
+  const said = readVerdict(fee("10000"));
+  assert.equal(said.treeFee, 10000n, "one fee for the one tree, whatever the inputs");
+  assert.match(fee("10001"), /^refused\n.*10001 lamports over 10000/s, "a fee over the cap");
 }
 step("the snapshot gives the checker the tree fee");
 

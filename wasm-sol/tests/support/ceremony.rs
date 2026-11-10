@@ -209,7 +209,7 @@ pub fn run(wallet: &str, t: u16, n: u16) -> Group {
     let snapshot = Snapshot {
         nullifier_secret: derived.nullifier_secret,
         viewing_sk: derived.viewing_sk,
-        fee_per_nullifier: 0,
+        fee_per_tree: 0,
         inputs: Vec::new(),
         used_salts: Vec::new(),
     };

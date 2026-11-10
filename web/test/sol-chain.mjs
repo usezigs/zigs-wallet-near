@@ -360,7 +360,7 @@ export function answersOf(chain) {
     reprove: (args) => chain.reproved(args),
     ...proveAnswers(chain),
     treeFees: () => ({
-      feePerNullifier: chain.fee,
+      feePerTree: chain.fee,
       appendReimbursement: "0",
       closeReimbursement: "0",
       feeBalance: "0",
@@ -530,7 +530,7 @@ export function makeChain() {
     group: null, // { key, owner, shielded, nonceAccount }
     balances: new Map(),
     utxos: [], // what the sync of the wallet returns: { hash, mint, amount, blinding, tree, leaf }
-    fee: "162", // the insertion fee per nullifier of the tree
+    fee: "5000", // the flat fee per tree
     inspected: { salt: "ab".repeat(16), firstNullifier: "cd".repeat(32) }, // answer of inspect
     prepared: () => {
       // answer of prepare: (args) => the prepared payment

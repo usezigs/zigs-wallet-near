@@ -782,11 +782,11 @@ fn open_item_the_blob_of_a_dummy_is_the_one_free_part_of_the_outputs() {
 
 #[test]
 fn open_item_the_tree_fee_comes_from_the_snapshot_under_a_cap() {
-    // Product decision: the insertion fee per nullifier is read from the device snapshot, shown
+    // Product decision: the flat fee per tree is read from the device snapshot, shown
     // on the screen and capped. It is not pinned. A change here must flip this test.
     let mut f = Fixture::build(&Spec::transfer());
-    f.snapshot.fee_per_nullifier = 100;
+    f.snapshot.fee_per_tree = 100;
     assert_eq!(f.approve().unwrap().summary.tree_fee, 100);
-    f.snapshot.fee_per_nullifier = 163;
+    f.snapshot.fee_per_tree = 10_001;
     assert_eq!(f.rules(), vec![TreeFeeOverCap]);
 }

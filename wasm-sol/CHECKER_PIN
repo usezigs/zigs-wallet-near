@@ -345,6 +345,12 @@ and the registry is regy3WAeRXMYuMYxr5iK3Bf9Arr3PcxGxyzAddbiqDQ, the same on Dev
   answers, intents and pins do not change). vectors/devnet-assets.json stays the registry of the
   retired pool until slice 7.
 
+The flat fee per tree (10 November 2026, branch zolana-v1, not signed by a verifier;
+docs/zolana-v1.md slice 3). `Snapshot.fee_per_nullifier` is `fee_per_tree` (same wire bytes).
+`TREE_FEE_CAP` is 10,000 lamports. `fee_rule` reports one fee for each distinct tree of the pins
+(`Group.trees`), not one for each input. tests/p3c.rs tests 1, 2 and 8 inputs and a separate
+output tree.
+
 Check: python3 -I tools/pin_check.py (the manifest below against the tree).
 
 files:
@@ -376,36 +382,36 @@ e1793250acee93cbe2f804c24ef249d43de1fdb1c0ecaa5b3c711e40ce38e4b8  src/plain_disp
 df46e9e90b740789623db0bed212c78a8d87fbf608a04be84cab433327fbb738  src/plan.rs  modified
 0fd095a5095d56e179b34af004a1f44899d4a667b6a0544ec23ffcccbac03b49  src/program.rs  new
 a44ea553e8f9d4b4cbac46b67a267c8f529de2ce84a34ce96f0f281d6eee156a  src/roles.rs  new
-c025754099abc93944faf00254e6bddccb6f5d6a20718f60e819ffcf5e4e83ba  src/rule.rs  modified
+6dff6d01c42696a29177ac3ff1e3f40d1d115366cc443eaf755dc64080e5ddb2  src/rule.rs  modified
 c8c4a33103f0c0e811e5d98e43acc3f0f28316d0976beb65788b47fd3f6d5c1c  src/rules_ct.rs  verbatim
 6036f8b35f36c72463456c0f946b1dc569fa2cb99fa2794f0a6443941761323e  src/rules_ix.rs  modified
-3e6b8cd5a979ea45ec96d4bc42eef02677418b7a0f9d4d7f2aada02c7fcaa625  src/rules_legs.rs  verbatim
+71a2e201c6419ff8183be149e7da26d3af9696fec248462a15523cbfad994509  src/rules_legs.rs  modified
 a88175ff29fcbbe4075bf2707c0a825d6026da9e7ae93fa390f7bedda6cc76f4  src/rules_out.rs  verbatim
 423e3c005c541c66efd63c27fbba844819e2ade4071d9fb9e9ffd9a50a3c94d6  src/rules_tx.rs  verbatim
 075e1bf150f6be6707caa6b3254d6397bc40e75c5dc465d45518cc33a451460c  src/sign.rs  new
-fb32fff67235197779cc2b25cc5fe351d57fdb6140d976546b96ddc4484e28d3  src/snapshot.rs  verbatim
-1dd8eb3bea1120da40326466ec83e58fc6f49b40548a553bbcc50bc715131ab8  src/spend.rs  modified
-5e71f75897abf5c307c15d427bb7b0b3379dd7adf1665f19543044bc46c24274  src/template.rs  modified
+c3e6b09fa8c72d2667bf134193a6dff50133ac031b1d451604d5ad95d71aef2b  src/snapshot.rs  modified
+9a6cf1ed650f9ec1dea1a2647f55ec2bec8e88d05663df170d2d343f9481679b  src/spend.rs  modified
+377b37894bde99ba091e9ba233ae566a34e94bd1e0e6f162036e384c06f56761  src/template.rs  modified
 3d7e69437af85c56d9bcf80172af2c7c866140ceb6e3f889d8cbc11dde9cdf05  src/transact.rs  verbatim
 c9d4c2718f755ac5ebeb8a705e036b3ab9183cb7ef95fe1f14da5ffa931c1c9f  src/v1.rs  verbatim
 c934720472fcf2baa005613987532c1b57e89cac688a3eac67bed9045ef626a4  src/viewing.rs  modified
 e6c51969bc111d317c666ab26551fa9be2107bac5912a7df9b19e91cd46f8097  src/wasm.rs  modified
 ab14b07d8870f6c201553f0f5bc066fe65b3a0d79144e293a6a3a9ded2e65ad4  tests/asset_pins.rs  verbatim
-532eaab96460db7d21ba2dabe724a9b63299098268610f99c587d7a76c059b6e  tests/common/fixture.rs  modified
+f5b1fd65b332c3ae690f186961a624dadf487df318072e7f9aa949cb85db13ed  tests/common/fixture.rs  modified
 9235897f34d183c67d601026fc6791fdb4d6e3931ea9137a81a21d15028054c5  tests/common/mod.rs  modified
 27860e0b1f596abac60c720567a8d943e5f89897847a968069f69ec41cc85a02  tests/common/real.rs  modified
-da99aa78491db7e602f9a5f34a43f95fc84d4fd983db005e7a552fdc03c52534  tests/common/ts.rs  modified
+1dca5721c68cfb3ef9f92a0cbf2acc7a1fca98eae3ed5e09022ff0288d6b6e0f  tests/common/ts.rs  modified
 9d20c9f2a9767b064347033dc9625ab7a06455a1f10e8815351c59e35272b0ad  tests/compile_message.rs  new
 22d931757812824c6900a3fc27356f05dbae2e0ee11517e51975f701dd3788fe  tests/cross.rs  modified
 758b15f8ca7f6e18dae2ce907ab727717e19a6476ae62fc3406b82a58470a128  tests/data/frost_ed25519_2_2_0_vectors.json  new
 13674d07bd2498070e38483590668f6dfb6e99f2d6a4f031c215488c78998048  tests/data/rfc9591_e1.json  new
 ca8677c3aa51b9e5ec1d98c20e7c2653cd35c037f384b8dedf876820b9735d6b  tests/fee_key.rs  new
 80fb56c4688164115d0f45dc1def2b7595c634a6d9a25821064a70954e979de4  tests/fee_payer.rs  new
-91adc871fed1520eaed399c188fc65e6ca08f6257c8f053142b1e5515d6427a5  tests/fix_round.rs  modified
+b9c7d33e1b76cd80d222f2c654ae3a57d23381b7575669a2871f1b8cccef661b  tests/fix_round.rs  modified
 cfc68ad047d9dff9f4cb368c901238019de4d6284cbd23853b5224f97a2bf3ca  tests/frost_dkg.rs  new
 30d06cfe796b1238ac2957de71d1d2b285d5ad4e545fc0bab1ce02144c46fd35  tests/negative.rs  modified
-025fcdc92eb9ea2519a623a14d1ea06073c047b20a188bac5ae3a918ccef50ca  tests/p3c.rs  modified
-921cee6deffcbb960f77984ae06538f0ddb30af793706d0dc0869d03afc734d5  tests/pay_vectors.rs  new
+61847d950ec52cdfa562b9996a6731a0694eb80fd1b663a6b2f82ab0572d9e23  tests/p3c.rs  modified
+faf19f3950ef392eab46411c0de82bf997d01e0126e195ae47b59cacd00affd7  tests/pay_vectors.rs  new
 627994bf3004f3d2b5588c17c37b59df0ebc8f22ac5eba2ece7e807a696c3c51  tests/payment.rs  new
 95290d8683b751fb47f647d29eb2486fcd3dad545aa35a368d1a5fb0733151b1  tests/pin_bytes.rs  verbatim
 d2c12f98ab733023eab486670d076c8124bfac1390bf35da5227921219c61038  tests/plain.rs  new
@@ -418,7 +424,7 @@ cd6fcc69bbf63c6cced315785d7ae05411837626acc9f5565b199a8c8c0876bb  tests/plain_ru
 39d6bffff495a0a73a59ab189254e82195178f2307ea36ed7d61fed0e0c58aa6  tests/roles.rs  new
 07caa15bfe9a3cafc8846490b11b31cddbbaf0419c27e8a766b693d45a8e6bce  tests/sign_split.rs  new
 0f413556f3a5f04b281b2599900b905092f925fcf09c5d53e9af6bf7be9a7c30  tests/slot_order.rs  modified
-5b04cce30cfb739786da3490c20b9b3c49e70224dbf3b567ab3b6f8abeaecb8f  tests/support/ceremony.rs  new
+62b0fa2bf03de378655068277f152b3ec8100e2fe2c1eccddd81d4b8aa925999  tests/support/ceremony.rs  new
 0f7203579b45a6d34a48dbb566f65c2dcd5054a851fa718c4d72b81193132ae8  tests/support/plain.rs  new
 0545f28d524bd62d5aa0cd1fe35fb1d0711619bb1c1acf3774ad6f29ed7294d9  tests/ts_edge.rs  modified
 8f9b9f11af5f1b2d78b5ce6a7b46d8fa83a5fcbb27ffbac9244257cf2dc8fcee  tests/ts_vectors.rs  verbatim

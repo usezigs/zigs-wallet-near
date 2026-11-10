@@ -75,7 +75,7 @@ fn snapshot(v: &Vector) -> Snapshot {
     Snapshot {
         nullifier_secret: unhex_n(&text(g, "nullifierSecret")),
         viewing_sk: unhex_n(&text(g, "viewingSk")),
-        fee_per_nullifier: 0,
+        fee_per_tree: 0,
         used_salts: Vec::new(),
         inputs: v.json["inputs"]
             .as_array()

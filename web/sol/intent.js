@@ -180,7 +180,7 @@ export function paymentHex(intent, { plan, transact }) {
 }
 
 /**
- * The snapshot of a device (hex): both role secrets, the insertion fee of the tree, the inputs
+ * The snapshot of a device (hex): both role secrets, the flat fee of the tree, the inputs
  * that the proposal spends and the (first nullifier, salt) pairs of the earlier proposals. With no
  * `spend` it holds no input and no pair, as the three intents without a plan need.
  */

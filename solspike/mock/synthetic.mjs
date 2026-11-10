@@ -9,7 +9,7 @@ export const GROUP = "B1o5q9sWLRVY2uk43bd1GLLPcNmhqJQ53CfKKxKzeShD";
 const POOL = "ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW";
 const SYSTEM = "11111111111111111111111111111111";
 export const TREE_SIZE = 40_080;
-export const FEES = { feePerNullifier: 7n, appendReimbursement: 190n, closeReimbursement: 300n };
+export const FEES = { feePerTree: 7n, appendReimbursement: 190n, closeReimbursement: 300n };
 export const FEE_BALANCE = 12_345n;
 export const SLOT = 510_911_100;
 // A landed Devnet signature (public, the register transaction of the P5 group).
@@ -39,7 +39,7 @@ function nonceAccount() {
 function treeAccount() {
   const data = Buffer.alloc(TREE_SIZE);
   data[0] = 1;
-  data.writeBigUInt64LE(FEES.feePerNullifier, 8);
+  data.writeBigUInt64LE(FEES.feePerTree, 8);
   data.writeBigUInt64LE(FEES.appendReimbursement, 16);
   data.writeBigUInt64LE(FEES.closeReimbursement, 24);
   data.writeBigUInt64LE(FEE_BALANCE, 32);

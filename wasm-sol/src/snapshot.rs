@@ -26,9 +26,10 @@ pub struct Snapshot {
     pub nullifier_secret: [u8; 31],
     /// The P-256 viewing scalar of the group.
     pub viewing_sk: [u8; 32],
-    /// The insertion fee per nullifier that tree 0 charges now (`TreeFeeSchedule`). The payer
-    /// pays it in public SOL, so it is not a term of the shielded balance.
-    pub fee_per_nullifier: u64,
+    /// The flat fee per tree that tree 0 charges now (`TreeFeeSchedule`). The payer pays it
+    /// once for each distinct tree that `transact` writes, in public SOL, so it is not a term of
+    /// the shielded balance.
+    pub fee_per_tree: u64,
     /// The inputs of the spend, in the order of the instruction.
     pub inputs: Vec<InputUtxo>,
     /// The (first nullifier, salt) of every earlier message of this device. The salt and the first
@@ -54,7 +55,7 @@ impl Snapshot {
         let salts = u16::try_from(self.used_salts.len()).map_err(|_| "too many used salts")?;
         let mut out = self.nullifier_secret.to_vec();
         out.extend_from_slice(&self.viewing_sk);
-        out.extend_from_slice(&self.fee_per_nullifier.to_le_bytes());
+        out.extend_from_slice(&self.fee_per_tree.to_le_bytes());
         out.push(count(self.inputs.len())?);
         for input in &self.inputs {
             out.extend_from_slice(&input.mint);
@@ -75,7 +76,7 @@ impl Snapshot {
         let mut r = Reader::new(bytes);
         let nullifier_secret = r.array().map_err(short)?;
         let viewing_sk = r.array().map_err(short)?;
-        let fee_per_nullifier = r.u64().map_err(short)?;
+        let fee_per_tree = r.u64().map_err(short)?;
         let mut inputs = Vec::new();
         for _ in 0..r.u8().map_err(short)? {
             inputs.push(InputUtxo {
@@ -94,7 +95,7 @@ impl Snapshot {
         Ok(Self {
             nullifier_secret,
             viewing_sk,
-            fee_per_nullifier,
+            fee_per_tree,
             inputs,
             used_salts,
         })

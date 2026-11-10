@@ -31,7 +31,7 @@ const WORKER_POLICY =
   "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; " +
   "connect-src 'self' https://devnet.helius-rpc.com " +
   "https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/3a1c88f90f609eb1/; base-uri 'none'";
-const FEE_FIELDS = ["feePerNullifier", "appendReimbursement", "closeReimbursement", "feeBalance"];
+const FEE_FIELDS = ["feePerTree", "appendReimbursement", "closeReimbursement", "feeBalance"];
 
 // Runs in the page: fn must not use outer variables (see run() in page.mjs).
 const READ = (method, args) => window.__sol.call(method, args);

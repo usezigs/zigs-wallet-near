@@ -56,6 +56,8 @@ pub struct Group {
     pub key: Key,
     pub owner_hash: Key,
     pub viewing_pk: [u8; 33],
+    /// The pinned input tree and output tree. The fee is paid once for each distinct one.
+    pub trees: [Key; 2],
 }
 
 impl Group {
@@ -65,6 +67,7 @@ impl Group {
             key: pins.group,
             owner_hash: pins.group_owner_hash,
             viewing_pk: pins.viewing_pk,
+            trees: [pins.input_tree, pins.output_tree],
         }
     }
 }

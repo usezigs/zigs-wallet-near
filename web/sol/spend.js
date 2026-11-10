@@ -127,7 +127,7 @@ export async function deviceSpend(c, ss) {
   const found = inputsFound(synced, ids);
   const fees = await worker.call("treeFees", { tree: found[0].tree });
   return {
-    fee: fees.feePerNullifier,
+    fee: fees.feePerTree,
     inputs: found.map((u) => ({ mint: mintKey(u.mint), amount: u.amount, blinding: u.blinding })),
     pair: await pairOf(worker, ss),
     salts: await pairsBefore(c, worker, ss.id),

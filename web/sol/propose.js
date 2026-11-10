@@ -88,7 +88,7 @@ async function preflight(worker, messageHex, seat) {
 async function draftSpend(c, worker, prepared) {
   const fees = await worker.call("treeFees", { tree: prepared.inputs[0].tree });
   return {
-    fee: fees.feePerNullifier,
+    fee: fees.feePerTree,
     inputs: prepared.inputs.map(({ mint, amount, blinding }) => ({ mint, amount, blinding })),
     salts: await pairsBefore(c, worker, "new"),
   };

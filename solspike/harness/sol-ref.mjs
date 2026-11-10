@@ -89,7 +89,7 @@ export function parseTreeFees({ data }) {
   return {
     size: data.length,
     discriminator: data[0],
-    feePerNullifier: u64(8),
+    feePerTree: u64(8),
     appendReimbursement: u64(16),
     closeReimbursement: u64(24),
     feeBalance: u64(32),

@@ -47,13 +47,11 @@ pub const EXPIRY_SKEW_SECS: u64 = 60 * 60;
 /// (P4 and P5) and 2,000 (the P2 test value). The cap is the largest value plus 50 percent.
 pub const PRIORITY_MAX: u64 = 3_000;
 
-/// The largest insertion fee per nullifier in lamports that a tree may charge. The payer pays it
-/// in public SOL (`collect_forester_fee`, programs/shielded-pool/src/
-/// instructions/nullifier_pda/create.rs:106-116). Tree 0 charges 0 today. The fee that an
-/// operator can set at cost is 108 lamports per nullifier (`default_tree_fees` and
-/// `AT_COST_CLOSE_REIMBURSEMENT_LAMPORTS`, program-libs/interface/src/state/tree.rs), and the cap
-/// is that value plus 50 percent.
-pub const TREE_FEE_CAP: u64 = 162;
+/// The largest flat fee per tree in lamports that a tree may charge. The payer pays it once for
+/// every distinct tree that `transact` writes (`fee_per_tree`, program-libs/tree/src/fees.rs).
+/// Tree 0 charges 5,000 today (design record D6, docs/zolana-v1.md). The cap is twice that
+/// value. The tree itself accepts up to 1,000,000, so the cap is the loss limit of the payer.
+pub const TREE_FEE_CAP: u64 = 10_000;
 
 /// The largest loaded accounts limit: 64 MiB, the protocol maximum and the SDK default. Every
 /// P5 transaction used it and landed. The compiler writes this value.

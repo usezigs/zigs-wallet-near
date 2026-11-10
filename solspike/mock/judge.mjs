@@ -68,7 +68,7 @@ function works(v, expected) {
     is("readNonce reads the authority", field(v, "nonce", "authority"), GROUP),
     is("readNonce reads the nonce", field(v, "nonce", "nonce"), NONCE_ACCOUNT),
     is("readNonce reads the lamports", field(v, "nonce", "lamports"), "1056640"),
-    fees("feePerNullifier", FEES.feePerNullifier),
+    fees("feePerTree", FEES.feePerTree),
     fees("appendReimbursement", FEES.appendReimbursement),
     fees("closeReimbursement", FEES.closeReimbursement),
     fees("feeBalance", FEE_BALANCE),

@@ -199,7 +199,7 @@ rules! {
         "per asset, inputs plus deposit legs equal outputs plus withdrawal legs";
     LegAsset, "leg-asset", Legs, "every leg is a SOL leg: the asset of an SPL leg is unknown";
     TreeFeeOverCap, "tree-fee-over-cap", Legs,
-        "the insertion fee per nullifier of the tree is at most the cap";
+        "the flat fee per tree is at most the cap";
     TxViewingPk, "tx-viewing-pk", Ciphertexts,
         "tx_viewing_pk equals the key derived from tx_viewing_secret and the first nullifier";
     AssetUnknown, "asset-unknown", Ciphertexts, "the pinned table has the asset id of every mint";

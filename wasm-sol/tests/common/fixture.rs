@@ -214,7 +214,7 @@ fn snapshot_of(spec: &Spec, wallet: &Wallet) -> Snapshot {
     Snapshot {
         nullifier_secret: wallet.nullifier_secret,
         viewing_sk: wallet.viewing_sk,
-        fee_per_nullifier: 0,
+        fee_per_tree: 0,
         used_salts: Vec::new(),
         inputs: spec
             .inputs

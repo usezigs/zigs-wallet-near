@@ -439,7 +439,7 @@ step("a read of a wallet that closed shows no banner and writes no count");
   assert.equal(rows.Amount, "0.002 SOL");
   assert.match(textOf(marked("amount-" + id)[0]), /^Private payment 0\.002 SOL /,
     "the amount that the checker bound, above the rows");
-  const fees = "0.000005 SOL at the proposal, 0.000010162 SOL at the execute.";
+  const fees = "0.000005 SOL at the proposal, 0.000015 SOL at the execute.";
   assert.equal(rows["Network fees"], fees, "two signatures and the tree fee at the execute");
   assert.ok(rows.Public.includes(LINK_TEXT), "the screen says that the fee address links");
   const card = findAll(solView({ ...c, host: { ...c.host, el: node } }, (fn) => fn, {}),

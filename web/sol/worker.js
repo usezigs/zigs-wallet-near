@@ -398,7 +398,9 @@ async function treeFees({ tree }) {
   }
   const { fees, feeBalance } = sdk.decodeTreeFees(info.data);
   return {
-    feePerNullifier: fees.feePerNullifier.toString(),
+    // The bundled SDK (ts-sdk-v0.9.0-alpha) names the u64 at offset 8 feePerNullifier. Slice 5
+    // takes the bundle at 3c018b82, which names it feePerTree.
+    feePerTree: fees.feePerNullifier.toString(),
     appendReimbursement: fees.appendReimbursement.toString(),
     closeReimbursement: fees.closeReimbursement.toString(),
     feeBalance: feeBalance.toString(),

@@ -42,7 +42,7 @@ const SEND_WINDOW_MS = 150_000;
 // The server keeps a lease 60 s at most (cf/src/index.js), so a try takes it again before send.
 const LEASE_MS = 60_000;
 // The fee address of the executor keeps the rent-exempt minimum of a System account (890,880
-// lamports) after the fee of the execute and the tree fee.
+// lamports) after the fee of the execute (10,000) and up to two tree fees (10,000 each).
 const EXECUTE_MIN = 1_000_000n;
 // A browser with no funded seat, and the end check of a payment whose tries ran out, look again
 // after this time. A balance read holds BALANCE_MS.
