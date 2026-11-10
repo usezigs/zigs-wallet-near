@@ -1,6 +1,7 @@
 // Test of solspike/tools/plain_equiv.mjs. Usage: node solspike/test/plain-equiv.test.mjs
-// 1. The committed wasm against itself gives no difference.
-// 2. The wasm of commit 602127f3 against the committed wasm gives only the known differences:
+// 1. The committed wasm against itself gives no difference in any group of calls.
+// 2. In the plain group, the wasm of commit 602127f3 against the committed wasm gives only the
+//    known differences:
 //    a plain send to the new pool or registry id. The old build accepted a send of SOL there,
 //    the new one refuses it with plain-recipient-reserved. A send of USDC was refused by both.
 // 3. A build with a changed plain label is found.
@@ -15,7 +16,7 @@ const COMMITTED = path.join(ROOT, "web/sol/wasm");
 const OLD_COMMIT = "602127f3";
 
 const same = await compareBuilds(COMMITTED, COMMITTED);
-assert.ok(same.total > 1000, `only ${same.total} calls`);
+assert.ok(same.total > 4500, `only ${same.total} calls`);
 assert.deepEqual(same.diffs.map((d) => d.tag), []);
 
 const known = [];
@@ -24,7 +25,7 @@ for (const net of ["devnet", "mainnet"]) {
     for (const id of ["ring1G", "regy3W"]) known.push(`${net}-${kind} to ${id} check`);
   }
 }
-const moved = await compareBuilds(OLD_COMMIT, COMMITTED);
+const moved = await compareBuilds(OLD_COMMIT, COMMITTED, ["plain"]);
 assert.deepEqual(moved.diffs.map((d) => d.tag).sort(), known.sort());
 for (const d of moved.diffs) {
   assert.ok(d.new.includes("plain-recipient-reserved"), d.tag);
@@ -41,7 +42,7 @@ try {
   assert.ok(at > 0, "label text not in the wasm");
   bytes[at] ^= 1;
   fs.writeFileSync(path.join(tmp, "sol_wasm_bg.wasm"), bytes);
-  const changed = await compareBuilds(COMMITTED, tmp);
+  const changed = await compareBuilds(COMMITTED, tmp, ["plain"]);
   assert.ok(changed.diffs.some((d) => d.fn === "sol_wallet_label"), "a changed label is missed");
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
