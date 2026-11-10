@@ -601,11 +601,14 @@ const serve = (policy) => async (url) => {
   const headers = policy ? { "content-security-policy": policy } : {};
   return new Response("export {}", { headers });
 };
+// The documents of the open wallet: the Worker starts only for keys that the seats agreed on.
 const GENESIS = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
+await waitFor("the agreed keys", () => agreement(t.sol.ctl).state === "agree");
 const syncState = (rpcUrl = RPC) => ({
-  host: { localSeats: () => [1], sec: t.sec, render() {}, Z },
+  host: { localSeats: () => [1], seatIds: () => [1, 2, 3], sec: t.sec, render() {}, Z },
   W,
   gid,
+  docs: t.sol.ctl.docs,
   rpcUrl,
   sync: {},
 });
@@ -620,6 +623,13 @@ const syncState = (rpcUrl = RPC) => ({
   // No URL from the server: the sync says so, before it asks for the Worker.
   await assert.rejects(() => syncSolana(syncState("")), /Solana is not available on this server/);
   assert.equal(JSON.stringify(c.sync).includes("not-a-real-key"), false, "no key in the state");
+  // No agreement, or an agreement under another label: no Worker, not even the policy fetch.
+  globalThis.fetch = async () => assert.fail("the policy was fetched");
+  const NOT_AGREED = /The devices have not agreed on one Solana key yet/;
+  await assert.rejects(() => syncSolana({ ...syncState(), docs: { soldone: {} } }), NOT_AGREED);
+  const label = { label: "mainnet-private", cluster: "mainnet" };
+  await assert.rejects(() => syncSolana({ ...syncState(), wallet: label }), NOT_AGREED);
+  globalThis.fetch = realFetch;
 }
 
 // ── The Worker gets the role secrets only, and its addresses equal the wasm addresses ──
