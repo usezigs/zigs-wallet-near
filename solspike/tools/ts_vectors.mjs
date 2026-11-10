@@ -1,7 +1,9 @@
 // Writes wasm-sol/vectors/ts and wasm-sol/vectors/ts2: confidential transfers and withdrawals of a
 // group with an Ed25519 owner that the TS SDK builds offline. `ts` has fixed salts and small
-// amounts, `ts2` has salts and blindings from a hash of the vector name, u64 edge amounts and
-// three inputs. Every hash and ciphertext comes from the SDK of privacy-rings at 3c018b82.
+// amounts, `ts2` has salts and input blindings from a hash of the vector name, u64 edge amounts
+// and three inputs.
+// The blinding seed of the proof is random on every run. Every hash and ciphertext comes from the
+// SDK of privacy-rings at 3c018b82.
 // tests/ts_vectors.rs and tests/ts_edge.rs check the Rust recompute against them.
 //
 //   node solspike/tools/ts_vectors.mjs <Zolana repo> [out dir]

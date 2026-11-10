@@ -283,7 +283,11 @@ async function initWiring() {
   assert.equal(options.proverUrl, "http://127.0.0.1:3001", "the prover URL is not loopback");
   assert.equal(options.proofDataSource, "client");
   assert.equal(options.computeUnitLimit, 217_000);
-  assert.equal("proverTee" in options, false, "the SDK has no proverTee option");
+  assert.equal(
+    "proverTee" in options,
+    false,
+    "proverTee is not set: a loopback prover needs no TEE policy, and proverTee false is refused",
+  );
   step("init gives the SDK the RPC URL, the /v1/spr URL, the loopback prover and the CU limit");
 }
 

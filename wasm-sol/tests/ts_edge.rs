@@ -1,6 +1,7 @@
 //! Ported from the verifier of P3c (`p3c-verify/tests/v_ts2.rs`). The vectors of
 //! `solspike/tools/ts_vectors.mjs` (the `ts2` set) come from the TS SDK with other keys than the
-//! `ts` set, salts and blindings from a hash of the name, u64 edge amounts and three inputs.
+//! `ts` set, salts and input blindings from a hash of the name (the blinding seed of the proof
+//! is random per run), u64 edge amounts and three inputs.
 //! `approve` is built from the TS fields (hash, nullifier, blob, transaction key, blinding), so an
 //! accept means that the Rust code reproduces them. The same inputs go through the wasm entry.
 
