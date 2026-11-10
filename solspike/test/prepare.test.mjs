@@ -243,7 +243,7 @@ async function solInterfaceAddress() {
     return console.log("skip  the SOL interface against the pool (no ZOLANA_REPO)");
   const kit = createRequire(join(zolanaRepo(), "package.json"))("@solana/kit");
   const [derived] = await kit.getProgramDerivedAddress({
-    programAddress: kit.address("sppU489D7A4U1exNo1oeMGZtLEofq3a6o2fR7UeoWB6"),
+    programAddress: kit.address("ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW"),
     seeds: [Buffer.from("sol_interface"), Buffer.from([0])],
   });
   assert.equal(Buffer.from(kit.getAddressEncoder().encode(derived)).toString("hex"), SOL_INTERFACE);

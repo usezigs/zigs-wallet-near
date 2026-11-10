@@ -24,8 +24,9 @@ const OTHER_KEY = randomBytes(16).toString("hex");
 const PASSWORD = `pw-${randomBytes(12).toString("hex")}`;
 const AUTH = `Basic ${Buffer.from(`demo:${PASSWORD}`).toString("base64")}`;
 const APPROVALS = "5PHZEHBMaYbFL9SFmMyP8kUayh3TFEyq2dvEYY3UGjkL";
-const POOL = "sppU489D7A4U1exNo1oeMGZtLEofq3a6o2fR7UeoWB6";
-const TREE = "33KVhbT4QtdQDrrrGwwThqD47Dh4Q6tA443t9jMNcWFN";
+const POOL = "ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW";
+const TREE = "777pvSGe5LaBd9nCczvE2FXEauiwtfGJ5XRpjKyniGor";
+const RECORDED_TREE = "33KVhbT4QtdQDrrrGwwThqD47Dh4Q6tA443t9jMNcWFN"; // the retired pool's tree 0
 const FEE = `Fee${"1".repeat(40)}`;
 const TADDR = `tm${"1".repeat(33)}`;
 const READS = new RegExp(
@@ -209,7 +210,7 @@ const gone = (signature) =>
 
 function bySignature({ txSignature }) {
   if (gone(txSignature)) return { outputTreeId: 0, transactions: [] };
-  const tree = has("canary-tree") ? APPROVALS : TREE;
+  const tree = has("canary-tree") ? APPROVALS : RECORDED_TREE;
   const outputSlots = ROWS[0].outputSlots.map((slot) => ({
     ...slot,
     outputContext: { ...slot.outputContext, tree },
@@ -223,7 +224,7 @@ function bySignature({ txSignature }) {
 
 const proof = (leaf, treeType, more) => ({
   leaf,
-  merkleContext: { treeType, tree: TREE },
+  merkleContext: { treeType, tree: RECORDED_TREE },
   path: [HASH, HASH],
   ...more,
   root: HASH,
@@ -643,12 +644,13 @@ test("a bad config stops the run with exit 2 and names the problem", async () =>
   }
 });
 
-test("the pins are ELF_V5 of program-chain.mjs and the pool release hash of ZOLANA.md", () => {
+test("the pins are ELF_V5 of program-chain.mjs and the pool release hash of the record", () => {
   const text = (path) => readFileSync(join(ROOT, path), "utf8");
   const script = text("solspike/tools/demo-check.mjs");
   const [, v5] = /const ELF_V5 = "([0-9a-f]{64})"/.exec(text("solspike/tools/program-chain.mjs"));
   assert.match(script, new RegExp(`sha256: "${v5}"`));
-  const [, pool] = /equals the release hash `([0-9a-f]{8})…`/.exec(text("ZOLANA.md"));
+  const release = /`shielded-pool-v1\.0\.0` \(`([0-9a-f]{8})…`\)/;
+  const [, pool] = release.exec(text("docs/zolana-v1.md"));
   assert.match(script, new RegExp(`address: POOL,\\s+sha256: "${pool}[0-9a-f]{56}"`));
 });
 

@@ -4,9 +4,9 @@
 
 const ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 export const NONCE_ACCOUNT = "4kf6Z6LTZC7E7PRvUAoADayFXQfDGppBx8m1AuUvUndE";
-export const TREE_ACCOUNT = "33KVhbT4QtdQDrrrGwwThqD47Dh4Q6tA443t9jMNcWFN";
+export const TREE_ACCOUNT = "777pvSGe5LaBd9nCczvE2FXEauiwtfGJ5XRpjKyniGor";
 export const GROUP = "B1o5q9sWLRVY2uk43bd1GLLPcNmhqJQ53CfKKxKzeShD";
-const POOL = "sppU489D7A4U1exNo1oeMGZtLEofq3a6o2fR7UeoWB6";
+const POOL = "ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW";
 const SYSTEM = "11111111111111111111111111111111";
 export const TREE_SIZE = 40_080;
 export const FEES = { feePerNullifier: 7n, appendReimbursement: 190n, closeReimbursement: 300n };
@@ -74,7 +74,7 @@ const context = { slot: SLOT };
 
 /** The first simulation passes. The second fails like a stale root (custom error 7008). */
 function simulations() {
-  const logs = ["Program sppU489D7A4U1exNo1oeMGZtLEofq3a6o2fR7UeoWB6 success"];
+  const logs = ["Program ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW success"];
   const stale = { InstructionError: [1, { Custom: STALE_ROOT }] };
   return [
     reply(104, "simulateTransaction", {

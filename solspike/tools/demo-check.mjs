@@ -52,8 +52,11 @@ const PROBE_GROUP = "0".repeat(20);
 const LWD_SERVICE = "cash.z.wallet.sdk.rpc.CompactTxStreamer";
 const SOL_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const T_ADDRESS = /^t[m2][1-9A-HJ-NP-Za-km-z]{33}$/;
-const POOL = "sppU489D7A4U1exNo1oeMGZtLEofq3a6o2fR7UeoWB6";
-const TREE = "33KVhbT4QtdQDrrrGwwThqD47Dh4Q6tA443t9jMNcWFN";
+const POOL = "ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW";
+const TREE = "777pvSGe5LaBd9nCczvE2FXEauiwtfGJ5XRpjKyniGor";
+// Tree 0 of the retired pool sppU489…: the tree of the recorded rows of the indexer checks. It
+// stays until the first run on the pool is recorded.
+const RECORDED_TREE = "33KVhbT4QtdQDrrrGwwThqD47Dh4Q6tA443t9jMNcWFN";
 const TREE_BYTES = 40_080;
 const ELF_MAGIC = 0x7f454c46;
 // The recorded sync of key B and the execute of the approvals program: old rows of tree 0.
@@ -68,7 +71,8 @@ const PREFLIGHTS = [
   ["/getShieldedTransactionsByTags", "content-type"],
 ];
 // The SHA-256 of the ELF in ProgramData, cut at the size in its ELF header. The approvals value is
-// ELF_V5 of tools/program-chain.mjs; the pool value is the release hash of ZOLANA.md 6.1.
+// ELF_V5 of tools/program-chain.mjs; the pool value is the `solana_verify_hash` of the release
+// manifest (docs/zolana-v1.md 0.1).
 const PINS = [
   {
     name: "approvals program",
@@ -79,8 +83,8 @@ const PINS = [
   {
     name: "pool program",
     address: POOL,
-    sha256: "44238d6fd9e0adc73abd79fe095f78dbe4a4ce5f179ed4f99c3468d1abccc72f",
-    what: "the v0.4.1-alpha pool, which keeps the layout that the SDK pin reads (SOL-37 T0)",
+    sha256: "682aba8ea8a2a9a7417124983b341b4636068a7ec0e88f875a4661cb418ecb12",
+    what: "the shielded-pool-v1.0.0 release, built from privacy-rings 3c018b82",
   },
 ];
 
@@ -539,7 +543,9 @@ async function indexedRows(signature) {
   const own = rows.map((row) => row?.transaction).filter((tx) => tx?.txSignature === signature);
   if (own.length === 0) throw new Error(`no row of ${name} has its transaction.txSignature`);
   const trees = own.flatMap((tx) => asList(tx.outputSlots)).map((s) => s?.outputContext?.tree);
-  if (!trees.includes(TREE)) throw new Error(`${name} has no output in tree 0 (${short(TREE)})`);
+  if (!trees.includes(RECORDED_TREE)) {
+    throw new Error(`${name} has no output in tree 0 (${short(RECORDED_TREE)})`);
+  }
   return result.outputTreeId;
 }
 
@@ -597,8 +603,8 @@ function shapeCalls(sdk, client, rows) {
   const none = { tags: [unknown()] };
   return [
     () => client.getShieldedTransactionsBySignature(rows.signature),
-    () => client.getMerkleProofs(TREE, [bytes(rows.hash)]),
-    () => client.getNonInclusionProofs(TREE, [unknown()]),
+    () => client.getMerkleProofs(RECORDED_TREE, [bytes(rows.hash)]),
+    () => client.getNonInclusionProofs(RECORDED_TREE, [unknown()]),
     () => client.getShieldedTransactionsByTags(mine),
     () => client.getEncryptedUtxosByTags(mine),
     () => client.getShieldedTransactionsByTags(none),

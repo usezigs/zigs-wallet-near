@@ -346,12 +346,13 @@ assert.equal(finish(seats, mid, partsOf(seats)).length, 3, "the control");
   }
 }
 
-// The program label is a constant of the wasm: the cluster, the pool and the registry. The Rust
+// The program label is a constant of the wasm: the cluster, the pool, the registry and the version
+// of the pool code. The Rust
 // test ties it to the address bytes that the checker pins.
 assert.equal(
   S.sol_program_label(),
-  "zolana-devnet:sppU489D7A4U1exNo1oeMGZtLEofq3a6o2fR7UeoWB6:" +
-    "regyS5rkAcw2YzDJCmTwCTHs2s246FXxbmuRZ42u2PD",
+  "zolana-devnet:ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW:" +
+    "regy3WAeRXMYuMYxr5iK3Bf9Arr3PcxGxyzAddbiqDQ:spr-v1",
 );
 
 console.log("sol-wasm: ok");

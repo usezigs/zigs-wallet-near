@@ -88,9 +88,9 @@ function bumpOf(address, body) {
   return null;
 }
 
-// The SOL interface of the Devnet pool (`["sol_interface", 0]`): the first settlement account of
+// The SOL interface of the pool (`["sol_interface", 0]`): the first settlement account of
 // a withdrawal.
-const SOL_INTERFACE = "2iAazE9tAWcUJhNhfscRzX17Gb32Km9jJYZLGy1AnkVP";
+const SOL_INTERFACE = "CiNmas621VuyofiDSrEPfTXHKrdZuB6jMKECyNiMpLXE";
 
 /** A cursor over `data` from `at`: each read moves it first, so a skip uses the value read. */
 function reader(data, at) {

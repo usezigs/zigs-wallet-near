@@ -77,7 +77,7 @@ The owner does every write: deploys, payments, faucet claims and name claims.
   demo-check pins: the Zcash payment, and the Solana private payment (propose, approve, prove,
   execute). The coordinator starts the live steps, after the owner says yes in the coordinator
   session; send the command, the amount and the wallets first.
-  - Write the pins of that day in the notes of the file: the pool ELF `44238d6f…`, the
+  - Write the pins of that day in the notes of the file: the pool ELF `682aba8e…`, the
     ProgramData slot 512563584, tree 0 of 40,080 bytes, the approvals ELF `b4bad24c…`.
   - Record only the browser window, in a clean profile, with no menu bar, notifications or real
     names.
@@ -233,7 +233,7 @@ Solana error, a server problem and a synced balance that is too low.
 |---|---|
 | The light-wallet server is slow | Wait. The ChainSafe fallback works (S9) |
 | Solana shows a Helius error | Wait one minute. Then show the Zcash part and the recorded run (S5) |
-| demo-check says FAIL for "pool program", "approvals program", "tree 0" or "prover": Devnet moved. For example, the Devnet pool (`sppU489D…`) no longer has the pinned hash, or its tree 0 changed. Helius plans SDK releases with breaking changes before its mainnet launch | Stop the Solana part, show the recorded run, and tell the coordinator. No repin in the last week (section 3) |
+| demo-check says FAIL for "pool program", "approvals program", "tree 0" or "prover": Devnet moved. For example, the Devnet pool (`ring1GaLC…`) no longer has the pinned hash, or its tree 0 changed. Helius plans SDK releases with breaking changes before its mainnet launch | Stop the Solana part, show the recorded run, and tell the coordinator. No repin in the last week (section 3) |
 | A Solana error that starts with "WalletError", "ClientError" or "Solana error #" and stays after one minute | Stop the Solana part, show the recorded run, and tell the coordinator |
 | The side bar says "Connecting to the group server…" for a long time, or "The group server does not answer" | Read the reason in brackets (S1). For "no network" or "too many connections from this network" (M9), move one laptop to the phone hotspot. For "the server has a problem", wait one minute, then show the recorded run |
 | A hold blocks Send | Use the spare wallet (S7) |

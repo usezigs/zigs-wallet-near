@@ -21,7 +21,7 @@ import * as ref from "./sol-ref.mjs";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LOGS = join(HERE, "../logs");
 const NONCE_ACCOUNT = "4kf6Z6LTZC7E7PRvUAoADayFXQfDGppBx8m1AuUvUndE";
-const TREE_ACCOUNT = "33KVhbT4QtdQDrrrGwwThqD47Dh4Q6tA443t9jMNcWFN";
+const TREE_ACCOUNT = "777pvSGe5LaBd9nCczvE2FXEauiwtfGJ5XRpjKyniGor";
 const HELIUS = "devnet.helius-rpc.com";
 // SOL-4: the key host of the local prover, and the one folder and the file names it may serve.
 const KEY_HOST = "d3gbdb0egjwcw9.cloudfront.net";
