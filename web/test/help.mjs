@@ -29,8 +29,8 @@ assert.match(servers, /Worker is also the group server, so one operator sees the
   "one operator sees both");
 assert.ok(servers.includes("The Solana part also asks Helius. Helius sees your IP address and the "
   + "public keys of this wallet. The wallet makes proofs on your device, so "
-  + "nothing goes to the Helius prover. The Zigs server operator can link this wallet to its Solana "
-  + "addresses by timing."), "the Devnet sentences of the servers answer stay");
+  + "nothing goes to the Helius prover. The Zigs server operator can link this wallet to its "
+  + "Solana addresses by timing."), "the Devnet sentences of the servers answer stay");
 assert.match(servers, /by timing\. On mainnet, the Solana part is a plain account\./,
   "the servers answer names the plain part after the Devnet sentences");
 assert.match(servers, /Helius sees your IP address and the address of this wallet, and the expl/,

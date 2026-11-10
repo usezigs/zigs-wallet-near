@@ -10,8 +10,7 @@ import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:
 import { createServer } from "node:http";
 import { dirname, join, resolve } from "node:path";
 import { after, before, test } from "node:test";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { redact } from "../../solspike/harness/redact.mjs";
+import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const TMP = join(ROOT, "solspike/.state/tmp/demo-check");

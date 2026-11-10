@@ -268,7 +268,8 @@ for (const seed of seeds) {
     const sdkAccounts = ix.accounts.map((a) => ({ address: a.address, ...roleFlags(a.role) }));
     assert.deepEqual(wasm.accounts, sdkAccounts, `${label}: account metas`);
     assert.equal(hexOf(address.ownerHash()), roles.pda.owner_hash, `${label}: owner hash`);
-    assert.equal(hexOf(address.confidentialViewTag()), derivePda(seed.groupKey), `${label}: view tag`);
+    const tag = hexOf(address.confidentialViewTag());
+    assert.equal(tag, derivePda(seed.groupKey), `${label}: view tag`);
     const data = hexOf(wasm.data);
     assert.ok(data.includes(roles.pda.owner_hash), `${label}: the data holds the owner hash`);
     assert.ok(data.includes(derivePda(seed.groupKey)), `${label}: the data holds the view tag`);
