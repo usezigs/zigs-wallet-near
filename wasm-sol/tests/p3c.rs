@@ -8,7 +8,6 @@ mod common;
 use common::field;
 use common::fixture::*;
 use p3_check::assets::AssetTable;
-use p3_check::consts::Key;
 use p3_check::hashes::{Utxo, TREE_ID};
 use p3_check::plan::{OutPlan, Role};
 use p3_check::rule::Rule::{self, *};
@@ -705,10 +704,13 @@ fn a_snapshot_of_another_wallet_fails_the_rules_that_read_its_secrets() {
 }
 
 #[test]
-fn a_keyless_snapshot_is_a_refusal_and_not_a_panic() {
+fn a_zero_viewing_secret_is_clamped_and_refused_as_the_key_of_another_wallet() {
+    // The clamp makes every 32 bytes a valid X25519 secret, so no secret is "keyless".
     let mut fixture = Fixture::build(&Spec::transfer());
     fixture.snapshot.viewing_sk = [0; 32];
-    // One refusal for the device keys, one for the transaction key that the spend derives.
-    assert_eq!(fixture.rules(), vec![PlanInvalid, PlanInvalid]);
-    let _: Key = [0; 32];
+    let got = fixture.rules();
+    assert!(
+        got.contains(&GroupViewingPk) && got.contains(&TxViewingPk),
+        "{got:?}"
+    );
 }

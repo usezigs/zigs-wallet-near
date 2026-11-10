@@ -14,13 +14,13 @@ crate-type = ["cdylib", "rlib"]
 # The P3 checker (ZOLANA.md section 5), as in the P3 crate:
 #   sha2: program address and create-with-seed derivation (nonce account, registry record,
 #         nullifier PDAs, tree 0, SOL interface).
-#   curve25519-dalek: the on-curve test of a program address (decompress a point).
+#   curve25519-dalek: the on-curve test of a program address (decompress a point), and the X25519
+#         viewing keys of a shielded address (Montgomery multiplication with the RFC 7748 clamp).
 #   wasm-bindgen: the browser entry points. The version equals the installed CLI.
 #   spr-hasher: Poseidon over BN254, as the program and the circuit compute it. A copy of
 #         program-libs/hasher of the privacy-rings repo at commit 3c018b82, in vendor/ (Apache-2.0).
 #         It is a copy, not a git dependency, so the Poseidon patch below applies and the wasm
 #         holds no path outside the repo.
-#   p256: the P-256 viewing keys of a shielded address (ECDH, point encoding, scalar reduction).
 #   hkdf: HKDF-SHA256 of the viewing secrets, of the per-slot key and nonce, and of the roles.
 #   aes, ctr: AES-256-CTR. The spec names no AEAD: the slot cipher has no tag, and integrity
 #         comes from the proof-bound utxo_hash.
@@ -44,7 +44,6 @@ curve25519-dalek = { version = "4.1", default-features = false }
 ed25519-dalek = { version = "=2.2.0", default-features = false }
 frost-ed25519 = "=2.2.0"
 hkdf = { version = "0.12", default-features = false }
-p256 = { version = "0.13", default-features = false, features = ["arithmetic", "ecdh", "hash2curve"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
 serde = "1"
 serde_json = "1"

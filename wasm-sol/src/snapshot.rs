@@ -24,7 +24,7 @@ pub struct Snapshot {
     // wasm memory until the page ends, as the engine's own key package does.
     /// The 31-byte nullifier secret of the group (ZOLANA.md 4.2).
     pub nullifier_secret: [u8; 31],
-    /// The P-256 viewing scalar of the group.
+    /// The clamped X25519 viewing secret of the group.
     pub viewing_sk: [u8; 32],
     /// The flat fee per tree that tree 0 charges now (`TreeFeeSchedule`). The payer pays it
     /// once for each distinct tree that `transact` writes, in public SOL, so it is not a term of
@@ -44,8 +44,8 @@ pub struct Snapshot {
 impl Snapshot {
     /// The `nullifier_pk` and the `viewing_pk` that the secrets of the device derive.
     pub fn group_keys(&self) -> Result<(Key, [u8; 33]), String> {
-        let viewing = ViewingKey::from_bytes(&self.viewing_sk)?;
-        Ok((nullifier_pk(&self.nullifier_secret)?, viewing.public()?))
+        let viewing = ViewingKey::from_bytes(&self.viewing_sk);
+        Ok((nullifier_pk(&self.nullifier_secret)?, viewing.public()))
     }
 
     /// The wire form of the browser entry point: the secrets, the fee, the inputs, then the salt

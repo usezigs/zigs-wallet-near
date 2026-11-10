@@ -11,7 +11,7 @@ pub const ADDRESS_LEN: usize = 34 + 32 + 33;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Address {
     /// The scheme-tagged signing key: byte 0 is 1 (Ed25519) or 2 (PDA), then 32 key bytes and a
-    /// zero byte. The wallet refuses P-256 owners in `transact`.
+    /// zero byte. The wallet refuses other owner schemes in `transact`.
     pub signing: [u8; 34],
     pub nullifier_pk: Key,
     pub viewing_pk: [u8; 33],

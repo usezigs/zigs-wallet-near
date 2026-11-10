@@ -117,20 +117,12 @@ fn the_rust_code_reproduces_every_ts_ciphertext_byte_for_byte() {
         let (snapshot, _) = secrets(&v);
         let first: Key = unhex_n(&text(&v.json["inputs"][0], "nullifier"));
         let tx_key = ViewingKey::from_bytes(&snapshot.viewing_sk)
-            .unwrap()
             .tx_key(&first)
             .unwrap();
         let want_pk: [u8; 33] = unhex_n(&text(&v.json, "txViewingPk"));
-        assert!(
-            tx_key.public().unwrap() == want_pk,
-            "{}: tx_viewing_pk",
-            v.name
-        );
+        assert!(tx_key.public() == want_pk, "{}: tx_viewing_pk", v.name);
         let salt: [u8; 16] = unhex_n(&text(&v.json, "salt"));
-        let group_pk = ViewingKey::from_bytes(&snapshot.viewing_sk)
-            .unwrap()
-            .public()
-            .unwrap();
+        let group_pk = ViewingKey::from_bytes(&snapshot.viewing_sk).public();
         for (i, out) in v.json["outputs"].as_array().unwrap().iter().enumerate() {
             let data = unhex(&text(out, "data"));
             assert_eq!(data.len(), BLOB_LEN, "{} output {i}: length", v.name);

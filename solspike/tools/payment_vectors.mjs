@@ -2,7 +2,10 @@
 // (ZOLANA.md 7.2) that the TS SDK builds offline, in the layout of wasm-sol/vectors/ts, with the
 // values that the program design needs from the SDK: `privateTxHash` and `messageHash` (the
 // commitment of the approval; for a withdrawal it hashes the SOL interface and the recipient).
-// tests/pay_vectors.rs checks the Rust recompute of both against them.
+// tests/pay_vectors.rs checks the Rust recompute of both against them. This file was changed for
+// the X25519 viewing key and was not run against the SDK of 3c018b82 yet: the committed vectors
+// were made again with node:crypto only (HKDF, X25519, AES-256-CTR), and their externalDataHash
+// and messageHash come from the Rust code.
 //
 //   node solspike/tools/payment_vectors.mjs <Zolana repo> [out dir]
 //
@@ -29,7 +32,6 @@ await sdk.initializePoseidon();
 const PROGRAM = "5PHZEHBMaYbFL9SFmMyP8kUayh3TFEyq2dvEYY3UGjkL";
 const SOL = "11111111111111111111111111111111";
 const EXPIRY = 1_800_000_000n; // tests/common/mod.rs EXPIRY
-const P256_ORDER = 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551n;
 const hex = (bytes) => Buffer.from(bytes).toString("hex");
 const expand = (seed, info, length) =>
   Buffer.from(hkdfSync("sha256", seed, Buffer.alloc(0), info, length));
@@ -43,10 +45,11 @@ function ed25519Public(seedByte) {
   return Uint8Array.from(key.export({ format: "der", type: "spki" }).subarray(-32));
 }
 
-function viewingScalar(seed) {
-  const okm = expand(seed, "zigs-sol/viewing-scalar/v1", 48);
-  const scalar = BigInt(`0x${hex(okm)}`) % P256_ORDER;
-  return Buffer.from(scalar.toString(16).padStart(64, "0"), "hex");
+function viewingSecret(seed) {
+  const secret = expand(seed, "zigs-sol/viewing-x25519/v1", 32);
+  secret[0] &= 248;
+  secret[31] = (secret[31] & 127) | 64;
+  return secret;
 }
 
 /** The PDA identity of a seed under a group key: the owner of the program design. */
@@ -58,7 +61,7 @@ async function pdaIdentity(seed, group) {
   const key = Uint8Array.from(kit.getAddressEncoder().encode(pda));
   const info = Buffer.concat([Buffer.from("zigs-sol/pda-nullifier-secret/v1"), key]);
   const secret = Uint8Array.from(expand(seed, info, 31));
-  const viewingSk = Uint8Array.from(viewingScalar(seed));
+  const viewingSk = Uint8Array.from(viewingSecret(seed));
   const nullifier = NullifierKey.fromSecret(secret);
   const viewing = ViewingKey.fromBytes(viewingSk);
   const address = ShieldedAddress.forPda({

@@ -67,10 +67,7 @@ impl Wallet {
     }
 
     pub fn viewing_pk(&self) -> [u8; 33] {
-        ViewingKey::from_bytes(&self.viewing_sk)
-            .unwrap()
-            .public()
-            .unwrap()
+        ViewingKey::from_bytes(&self.viewing_sk).public()
     }
 
     pub fn keys(&self) -> (Key, [u8; 33]) {
@@ -419,7 +416,6 @@ impl Fixture {
             })
             .collect();
         let tx_key = ViewingKey::from_bytes(&wallet.viewing_sk)
-            .unwrap()
             .tx_key(&nullifiers[0])
             .unwrap();
         let plan = Plan {
@@ -436,7 +432,7 @@ impl Fixture {
             payee,
             tx: Transact {
                 expiry: EXPIRY,
-                tx_viewing_pk: tx_key.public().unwrap(),
+                tx_viewing_pk: tx_key.public(),
                 salt,
                 legs: if spec.withdraw > 0 {
                     vec![Leg::SolWithdrawal(spec.withdraw)]
@@ -594,7 +590,6 @@ impl Fixture {
     /// The transaction viewing key of the group for this spend.
     pub fn tx_key(&self) -> ViewingKey {
         ViewingKey::from_bytes(&self.owner.viewing_sk)
-            .unwrap()
             .tx_key(&self.tx.inputs[0].nullifier)
             .unwrap()
     }

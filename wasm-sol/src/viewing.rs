@@ -1,10 +1,11 @@
-//! The P-256 viewing key, the transaction viewing key and the slot cipher of a confidential
+//! The X25519 viewing key, the transaction viewing key and the slot cipher of a confidential
 //! output (ZOLANA.md section 5, rule Ciphertexts).
 //!
-//! References, all under the repo root: docs/spec.md "Derived secrets" 373-381, "Transaction
-//! Viewing Key" 383-398, "AES Key derivation" 707-725; sdk-libs/keypair/src/derivation.rs
-//! 248-258 (`view_root`), viewing_key.rs 185-196 (`get_transaction_viewing_key`) and
-//! encryption.rs 21-33 and 75-100 (the key schedule and `Ctr32BE`);
+//! References, all under the repo root of privacy-rings at 3c018b82: docs/spec.md "Derived
+//! secrets" 373-398 and "AES Key derivation" 707-725; sdk-libs/keypair/src/derivation.rs
+//! 24, 101, 111 and 202-208 (`view_root`), viewing_key.rs 60-69 and 187-200 (the clamp and
+//! `get_transaction_viewing_key`), x25519.rs 10-93 (the `0x04 || u` key) and encryption.rs
+//! 20-32, 73-98 and 133-148 (the key schedule and `Ctr32BE`);
 //! sdk-libs/transaction/src/serialization/confidential.rs 137-145 and mod.rs 111-131 (the blob).
 //!
 //! The slot cipher is AES-256-CTR with no tag. The spec names no AEAD: integrity comes from the
@@ -13,25 +14,20 @@
 use aes::Aes256;
 use ctr::cipher::{KeyIvInit, StreamCipher};
 use ctr::Ctr32BE;
+use curve25519_dalek::constants::X25519_BASEPOINT;
+use curve25519_dalek::montgomery::MontgomeryPoint;
 use hkdf::Hkdf;
-use p256::ecdh::diffie_hellman;
-use p256::elliptic_curve::generic_array::GenericArray;
-use p256::elliptic_curve::hash2curve::FromOkm;
-use p256::elliptic_curve::sec1::ToEncodedPoint;
-use p256::{NonZeroScalar, PublicKey, Scalar, SecretKey};
 use sha2::Sha256;
+use spr_hasher::primitives::is_canonical_x25519_public_key;
 
 use crate::consts::Key;
 
-/// The SEC1 point `P_const` of the P-256 viewing key. Slice C replaces the key scheme.
-const P_CONST_SEC1: [u8; 33] = [
-    0x03, 0x0e, 0x4d, 0xf9, 0x46, 0xbc, 0xe1, 0x4b, 0x95, 0x29, 0x2f, 0x13, 0xe1, 0x33, 0xd2, 0xb0,
-    0xc6, 0x4e, 0x89, 0x8b, 0x56, 0x44, 0xf6, 0x20, 0xa5, 0xbe, 0xd2, 0x5a, 0x06, 0x1a, 0x42, 0xfc,
-    0xdb,
-];
-const INFO_TX_VIEWING: &[u8] = b"TSPP/tx_viewing";
+const DST_VIEW_ROOT: &[u8] = b"TSPP/view_root/x25519/v1";
+const INFO_TX_VIEWING: &[u8] = b"TSPP/tx_viewing/x25519/v1";
 const HPKE_PREFIX: &[u8] = b"TSPP/hpke/";
 const ENC_INFO_TRANSFER: &[u8] = b"TSPP/tx";
+/// The first byte of an X25519 public key `0x04 || u` (`X25519_KEY_TAG`).
+const X25519_KEY_TAG: u8 = 4;
 
 /// The first byte of the borsh `OutputDataEncoding::Encrypted` (`proofless.rs:97-99`).
 const ENCRYPTED_TAG: u8 = 1;
@@ -43,9 +39,17 @@ pub const PLAINTEXT_LEN: usize = 8 + 8 + 32 + 1 + 1;
 /// The bytes of one output `data` field: tag, `u32` length, scheme, recipient key, ciphertext.
 pub const BLOB_LEN: usize = 1 + 4 + 1 + 33 + PLAINTEXT_LEN;
 
-/// A P-256 secret key. It has no `Debug` and no `Clone`: nothing prints it.
+/// An X25519 secret key, clamped as `ViewingKey::from_secret_key` clamps it. It has no `Debug` and
+/// no `Clone`: nothing prints it.
 pub struct ViewingKey {
-    secret: SecretKey,
+    secret: Key,
+}
+
+/// The RFC 7748 clamp: clear the low 3 bits, clear bit 255 and set bit 254.
+pub fn clamp(mut secret: Key) -> Key {
+    secret[0] &= 248;
+    secret[31] = (secret[31] & 127) | 64;
+    secret
 }
 
 fn hkdf_fill(
@@ -59,39 +63,47 @@ fn hkdf_fill(
         .map_err(|_| "hkdf: output length".to_string())
 }
 
-fn point_of(bytes: &[u8; 33]) -> Result<PublicKey, String> {
-    PublicKey::from_sec1_bytes(bytes).map_err(|_| "a P-256 key is not a curve point".to_string())
+/// The `u` coordinate of a peer key `0x04 || u`. A key with another tag, or a `u` that is not
+/// canonical, is refused (`X25519Pubkey::from_bytes`).
+fn peer_u(bytes: &[u8; 33]) -> Result<Key, String> {
+    let (tag, u) = bytes.split_first().ok_or("an X25519 key is empty")?;
+    let u: Key = u.try_into().map_err(|_| "an X25519 key is not 33 bytes")?;
+    if *tag != X25519_KEY_TAG || !is_canonical_x25519_public_key(&u) {
+        return Err("the viewing key is not an X25519 key".to_string());
+    }
+    Ok(u)
 }
 
 impl ViewingKey {
-    /// A secret scalar of 32 big-endian bytes, 1 <= k < n.
-    pub fn from_bytes(bytes: &[u8; 32]) -> Result<Self, String> {
-        let secret = SecretKey::from_slice(bytes).map_err(|_| "viewing key is not a scalar")?;
-        Ok(Self { secret })
+    /// A secret of 32 bytes. The key keeps the clamped bytes.
+    pub fn from_bytes(bytes: &Key) -> Self {
+        Self {
+            secret: clamp(*bytes),
+        }
     }
 
-    /// The SEC1 compressed public key (33 bytes).
-    pub fn public(&self) -> Result<[u8; 33], String> {
-        let point = self.secret.public_key().to_encoded_point(true);
-        point
-            .as_bytes()
-            .try_into()
-            .map_err(|_| "public key is not 33 bytes".to_string())
+    /// The public key `0x04 || u` (33 bytes).
+    pub fn public(&self) -> [u8; 33] {
+        let u = X25519_BASEPOINT.mul_clamped(self.secret);
+        let mut out = [X25519_KEY_TAG; 33];
+        out[1..].copy_from_slice(&u.0);
+        out
     }
 
-    /// The x coordinate of `ECDH(self, peer)`.
-    fn ecdh_x(&self, peer: &PublicKey) -> Key {
-        let shared = diffie_hellman(self.secret.to_nonzero_scalar(), peer.as_affine());
-        let mut x = [0; 32];
-        x.copy_from_slice(shared.raw_secret_bytes());
-        x
+    /// The shared secret `X25519(self, peer)`. A low-order peer gives zero, which does not depend
+    /// on this key: it is refused (`NonContributoryKey`).
+    fn ecdh(&self, peer: &[u8; 33]) -> Result<Key, String> {
+        let shared = MontgomeryPoint(peer_u(peer)?).mul_clamped(self.secret).0;
+        if shared == [0; 32] {
+            return Err("the viewing key of the peer is a low-order point".to_string());
+        }
+        Ok(shared)
     }
 
-    /// `tx_viewing_secret := HKDF-Expand(view_root, "TSPP/tx_viewing", 32)`, where `view_root :=
-    /// HKDF-Extract(salt = none, IKM = ECDH(viewing_sk, P_const))`.
+    /// `tx_viewing_secret := HKDF-Expand(view_root, "TSPP/tx_viewing/x25519/v1", 32)`, where
+    /// `view_root := HKDF-Extract(salt = "TSPP/view_root/x25519/v1", IKM = the clamped secret)`.
     pub fn tx_viewing_secret(&self) -> Result<Key, String> {
-        let p_const = point_of(&P_CONST_SEC1)?;
-        let (_, view_root) = Hkdf::<Sha256>::extract(None, &self.ecdh_x(&p_const));
+        let (_, view_root) = Hkdf::<Sha256>::extract(Some(DST_VIEW_ROOT), &self.secret);
         let mut out = [0; 32];
         view_root
             .expand(INFO_TX_VIEWING, &mut out)
@@ -100,22 +112,16 @@ impl ViewingKey {
     }
 
     /// The transaction viewing key: `HKDF-SHA256(salt = first_nullifier, IKM =
-    /// tx_viewing_secret, info = "TSPP/tx_viewing", 48 bytes)` reduced modulo the curve order.
+    /// tx_viewing_secret, info = "TSPP/tx_viewing/x25519/v1", 32 bytes)`, clamped.
     pub fn tx_key(&self, first_nullifier: &Key) -> Result<Self, String> {
-        let mut okm = [0; 48];
+        let mut okm = [0; 32];
         let secret = self.tx_viewing_secret()?;
         hkdf_fill(Some(first_nullifier), &secret, &[INFO_TX_VIEWING], &mut okm)?;
-        #[allow(deprecated)] // `FromOkm` still takes generic-array 0.14, as the repo does
-        let scalar = Scalar::from_okm(GenericArray::from_slice(&okm));
-        let nonzero = Option::<NonZeroScalar>::from(NonZeroScalar::new(scalar))
-            .ok_or("the transaction viewing scalar is zero")?;
-        Ok(Self {
-            secret: SecretKey::from(nonzero),
-        })
+        Ok(Self::from_bytes(&okm))
     }
 
     /// The key and the CTR nonce of one slot: `okm = HKDF-SHA256(salt = none, IKM =
-    /// ECDH_x || tx_viewing_pk || recipient_viewing_pk, info = "TSPP/hpke/" || "TSPP/tx" ||
+    /// ECDH || tx_viewing_pk || recipient_viewing_pk, info = "TSPP/hpke/" || "TSPP/tx" ||
     /// salt || u32_be(slot), 44 bytes)`.
     fn slot_key(
         &self,
@@ -124,8 +130,8 @@ impl ViewingKey {
         slot: u32,
     ) -> Result<([u8; 32], [u8; 12]), String> {
         let mut ikm = Vec::with_capacity(32 + 33 + 33);
-        ikm.extend_from_slice(&self.ecdh_x(&point_of(recipient)?));
-        ikm.extend_from_slice(&self.public()?);
+        ikm.extend_from_slice(&self.ecdh(recipient)?);
+        ikm.extend_from_slice(&self.public());
         ikm.extend_from_slice(recipient);
         let mut okm = [0; 44];
         let info: [&[u8]; 4] = [HPKE_PREFIX, ENC_INFO_TRANSFER, salt, &slot.to_be_bytes()];

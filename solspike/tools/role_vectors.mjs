@@ -5,9 +5,13 @@
 //
 // The seed and the group key are test values written in this file. The two role secrets are
 // derived here in JavaScript, independent of the Rust code (HKDF-SHA256 of node:crypto, empty
-// salt, the info strings of the Zigs labels, and a reduction modulo the P-256 order with BigInt).
-// The public keys, the owner hash and the address come from the SDK of the Zolana repo
-// (`NullifierKey.fromSecret`, `ViewingKey.fromBytes`, `ShieldedAddress`), not from Rust.
+// salt, the info strings of the Zigs labels, and the RFC 7748 clamp of the viewing secret). The
+// viewing public key `0x04 || u` is also made here with the X25519 of node:crypto, and the SDK
+// key must equal it. The nullifier key, the owner hash and the address come from the SDK of the
+// privacy-rings repo at 3c018b82 (`NullifierKey.fromSecret`, `ViewingKey.fromBytes`,
+// `ShieldedAddress`), not from Rust. This file was changed for the X25519 key and was not run
+// against that SDK yet: the committed roles.json holds the SDK values of the older run for the
+// nullifier key and the owner hash, which do not change.
 // The PDA identity of each seed (ZOLANA.md 7.2) too: the PDA from `getProgramDerivedAddress` of
 // @solana/kit, its nullifier secret from node:crypto, its address from `ShieldedAddress.forPda`.
 import { createHash, createPrivateKey, createPublicKey, hkdfSync } from "node:crypto";
@@ -24,9 +28,8 @@ const kit = await import(`${repo}/node_modules/@solana/kit/dist/index.node.mjs`)
 const { NullifierKey, ShieldedAddress, ShieldedPublicKey, ViewingKey } = sdk;
 await sdk.initializePoseidon();
 
-const P256_ORDER = 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551n;
 const INFO_NULLIFIER = "zigs-sol/nullifier-secret/v1";
-const INFO_VIEWING = "zigs-sol/viewing-scalar/v1";
+const INFO_VIEWING = "zigs-sol/viewing-x25519/v1";
 const INFO_PDA_NULLIFIER = "zigs-sol/pda-nullifier-secret/v1";
 const PROGRAM = "5PHZEHBMaYbFL9SFmMyP8kUayh3TFEyq2dvEYY3UGjkL";
 const hex = (bytes) => Buffer.from(bytes).toString("hex");
@@ -34,10 +37,20 @@ const hex = (bytes) => Buffer.from(bytes).toString("hex");
 const expand = (seed, info, length) =>
   Buffer.from(hkdfSync("sha256", seed, Buffer.alloc(0), info, length));
 
-function viewingScalar(seed) {
-  const okm = expand(seed, INFO_VIEWING, 48);
-  const scalar = BigInt(`0x${hex(okm)}`) % P256_ORDER;
-  return Buffer.from(scalar.toString(16).padStart(64, "0"), "hex");
+function viewingSecret(seed) {
+  const secret = expand(seed, INFO_VIEWING, 32);
+  secret[0] &= 248;
+  secret[31] = (secret[31] & 127) | 64;
+  return secret;
+}
+
+function x25519Public(secret) {
+  const der = Buffer.concat([Buffer.from("302e020100300506032b656e04220420", "hex"), secret]);
+  const key = createPublicKey(createPrivateKey({ key: der, format: "der", type: "pkcs8" }));
+  return Buffer.concat([
+    Buffer.from([4]),
+    key.export({ format: "der", type: "spki" }).subarray(-32),
+  ]);
 }
 
 function ed25519Public(seedByte) {
@@ -75,9 +88,12 @@ async function pdaOf(seed, group, viewing) {
 async function vector(name, seed, groupByte) {
   const group = ed25519Public(groupByte);
   const nullifierSecret = expand(seed, INFO_NULLIFIER, 31);
-  const viewingSk = viewingScalar(seed);
+  const viewingSk = viewingSecret(seed);
   const nullifier = NullifierKey.fromSecret(Uint8Array.from(nullifierSecret));
   const viewing = ViewingKey.fromBytes(Uint8Array.from(viewingSk));
+  if (hex(viewing.publicKey().toBytes()) !== hex(x25519Public(viewingSk))) {
+    throw new Error(`${name}: the SDK viewing key is not the X25519 key of node:crypto`);
+  }
   const address = ShieldedAddress.fromPublicKeys(
     ShieldedPublicKey.fromEd25519(group),
     nullifier.publicKey(),

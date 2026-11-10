@@ -5,22 +5,18 @@
 //!
 //! - nullifier secret: info `zigs-sol/nullifier-secret/v1`, 31 bytes. `nullifier_pk` is its
 //!   Poseidon hash.
-//! - viewing scalar: info `zigs-sol/viewing-scalar/v1`, 48 bytes, read as a big-endian integer and
-//!   reduced modulo the P-256 order (`FromOkm`, as the SDK reduces its viewing key). A zero scalar
-//!   is an error. `viewing_pk` is its compressed public key.
+//! - viewing secret: info `zigs-sol/viewing-x25519/v1`, 32 bytes, clamped as RFC 7748 and the SDK
+//!   clamp an X25519 secret. `viewing_pk` is `0x04 || u` of its public key.
 //!
 //! The group funds belong to the PDA of the approvals program (ZOLANA.md 7.2). Its identity has
 //! its own nullifier secret (option D of the nullifier-key note): HKDF-SHA256 over the seed with
 //! an empty salt and the info `zigs-sol/pda-nullifier-secret/v1 || PDA`, 31 bytes. The viewing
-//! scalar is the one above. Its address has the signing tag 2 (a PDA).
+//! secret is the one above. Its address has the signing tag 2 (a PDA).
 //!
 //! The snapshot seal key is `BLAKE2b-256("Zigs_SolSnap__v1", solSeed)` as base64url without
 //! padding: the 32-byte secret that `secretSeal` of the Zcash engine takes.
 
 use hkdf::Hkdf;
-use p256::elliptic_curve::generic_array::GenericArray;
-use p256::elliptic_curve::hash2curve::FromOkm;
-use p256::{NonZeroScalar, Scalar, SecretKey};
 use serde_json::json;
 use sha2::Sha256;
 
@@ -30,10 +26,10 @@ use crate::codec::{base64url, blake2b_256, unhex_array};
 use crate::consts::Key;
 use crate::hashes::{nullifier_pk, owner_hash};
 use crate::program::owner_pda;
-use crate::viewing::ViewingKey;
+use crate::viewing::{clamp, ViewingKey};
 
 const INFO_NULLIFIER: &[u8] = b"zigs-sol/nullifier-secret/v1";
-const INFO_VIEWING: &[u8] = b"zigs-sol/viewing-scalar/v1";
+const INFO_VIEWING: &[u8] = b"zigs-sol/viewing-x25519/v1";
 const INFO_PDA_NULLIFIER: &[u8] = b"zigs-sol/pda-nullifier-secret/v1";
 const SNAPSHOT_PERSONAL: &[u8; 16] = b"Zigs_SolSnap__v1";
 const TAG_ED25519: u8 = 1;
@@ -52,25 +48,16 @@ pub struct Roles {
     pub seal_key: String,
 }
 
-/// The nullifier secret and the viewing scalar of a seed.
+/// The nullifier secret and the clamped viewing secret of a seed.
 pub fn secrets(seed: &[u8; 32]) -> Result<([u8; 31], [u8; 32]), String> {
     let hkdf = Hkdf::<Sha256>::new(None, seed);
     let expand = |_| "hkdf: output length".to_string();
     let mut nullifier_secret = [0u8; 31];
     hkdf.expand(INFO_NULLIFIER, &mut nullifier_secret)
         .map_err(expand)?;
-    let mut okm = [0u8; 48];
-    hkdf.expand(INFO_VIEWING, &mut okm).map_err(expand)?;
-    #[allow(deprecated)] // `FromOkm` still takes generic-array 0.14, as in viewing.rs
-    let scalar = Scalar::from_okm(GenericArray::from_slice(&okm));
-    let nonzero = Option::<NonZeroScalar>::from(NonZeroScalar::new(scalar))
-        .ok_or("the viewing scalar of this seed is zero")?;
-    let viewing_sk = SecretKey::from(nonzero)
-        .to_bytes()
-        .as_slice()
-        .try_into()
-        .map_err(|_| "the viewing scalar is not 32 bytes")?;
-    Ok((nullifier_secret, viewing_sk))
+    let mut viewing_sk = [0u8; 32];
+    hkdf.expand(INFO_VIEWING, &mut viewing_sk).map_err(expand)?;
+    Ok((nullifier_secret, clamp(viewing_sk)))
 }
 
 /// The full shielded address of an owner: the signing key (the scheme tag, the key, a zero
@@ -102,7 +89,7 @@ pub fn shielded_address(signer: &Key, nullifier_pk: &Key, viewing_pk: &[u8; 33])
 pub fn derive(seed: &[u8; 32], group: &Key) -> Result<Roles, String> {
     let (nullifier_secret, viewing_sk) = secrets(seed)?;
     let nullifier_pk = nullifier_pk(&nullifier_secret)?;
-    let viewing_pk = ViewingKey::from_bytes(&viewing_sk)?.public()?;
+    let viewing_pk = ViewingKey::from_bytes(&viewing_sk).public();
     Ok(Roles {
         nullifier_secret,
         viewing_sk,
@@ -165,7 +152,7 @@ pub fn derive_pda(seed: &[u8; 32], group: &Key) -> Result<PdaRoles, String> {
     let pda = owner_pda(group)?;
     let nullifier_secret = pda_nullifier_secret(seed, &pda)?;
     let nullifier_pk = nullifier_pk(&nullifier_secret)?;
-    let viewing_pk = ViewingKey::from_bytes(&secrets(seed)?.1)?.public()?;
+    let viewing_pk = ViewingKey::from_bytes(&secrets(seed)?.1).public();
     Ok(PdaRoles {
         pda,
         nullifier_secret,

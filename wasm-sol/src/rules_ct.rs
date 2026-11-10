@@ -93,10 +93,10 @@ impl Spend<'_> {
             );
             return None;
         };
-        let derived = ViewingKey::from_bytes(&self.snap.viewing_sk).and_then(|k| k.tx_key(&first));
-        let key = derived.and_then(|key| key.public().map(|public| (key, public)));
-        match key {
-            Ok((key, public)) => {
+        let derived = ViewingKey::from_bytes(&self.snap.viewing_sk).tx_key(&first);
+        match derived {
+            Ok(key) => {
+                let public = key.public();
                 if public != self.tx.tx_viewing_pk {
                     self.fail(Rule::TxViewingPk, "tx_viewing_pk is not the derived key");
                 }
