@@ -893,7 +893,15 @@ verifier who did not write the code). Times are UTC.
   `b4bad24c…`, the upgrade plan of 7.2), 17 October 2026:
   `39ZZegZ7CfCiArDxGdWjysPyafsgEeDbXXhzt4zeiJN4B6TWBSjuAR1HPtbhvtsxNWLzLFBnUF2x1ryykGejbLEK`,
   slot 512086872. ProgramData then holds the version 5 ELF and 4,608 zero bytes; the SHA-256 of
-  all 57,752 bytes is `9f590119…`.
+  all 57,752 bytes is `9f590119…`. Version 6 (54,728 bytes, `4cdcfb63…`, version 5 on the spr
+  crates for the Zolana v1 pool ring1G, docs/zolana-v1.md), 10 November 2026 at 20:28:42:
+  `4LDBkBUvymHT9vhdW5oCX9mpT6Bwg4c1A78uYwT1FNdAScjztTBW5uXC7oQfBYddBFda6vTfYqquaj63diaP7jgY`,
+  slot 520862900. The ELF is the deploy artifact of CI run 42890568132 (commit 5e658751). Before
+  the upgrade, buffer `2DpsFZiNPJnqHXA2RjaggmS3FwgukdGEVCgu8UmFYj58` held the same 54,728 bytes;
+  the upgrade closed it. ProgramData then holds the version 6 ELF and 3,024 zero bytes; the
+  SHA-256 of all 57,752 bytes is `e68b73bb…`. The funder `DBWp9BC4…` paid 620,000 lamports of
+  fees. From this upgrade the program calls the pool ring1G, so a group of the retired pool
+  sppU489 cannot spend through it (D8).
 - A PDA owner needs no registry record. The funder deposited 0.003 SOL to the PDA's shielded
   address
   (`3xYk6a7g9AGUeU7SwXcyevYanKsvkiC5Z8VdieDNZhDcP63ycFzvo7GXVYSxp6yz2nnSgn8nuGfRv1H7sJEAAYFb`),

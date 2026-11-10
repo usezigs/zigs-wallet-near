@@ -25,9 +25,9 @@
 # checks that.
 #
 # EXPECTED is version 6: version 5 (ZOLANA.md 7.2) on the spr crates of privacy-rings 3c018b82, for
-# the Zolana v1 pool ring1G (docs/zolana-v1.md). It is not deployed. The Linux hash comes from CI
-# (run 42873582824). No macOS build with the spr crates exists yet, so EXPECTED_DARWIN is empty and a
-# macOS build stops here until someone pins it.
+# the Zolana v1 pool ring1G (docs/zolana-v1.md). Devnet runs it since slot 520862900 (ZOLANA.md 6).
+# The Linux hash comes from CI (run 42873582824). No macOS build with the spr crates exists yet, so
+# EXPECTED_DARWIN is empty and a macOS build stops here until someone pins it.
 set -eu
 cd "$(dirname "$0")"
 unset RUSTFLAGS CARGO_ENCODED_RUSTFLAGS
