@@ -34,7 +34,7 @@ deployment, merging and release are outside this pass.
 - `wasm/Cargo.lock`: `tonic-web-wasm-client` **0.9.2**, `tonic` **0.14.6**,
   `wasm-bindgen` **0.2.129**, `web-sys` **0.3.106**.
 - Solana SDK source pin in `solspike/build.mjs`:
-  `c232da1bd6748628b56bb8c277bcffbaaf2b0774`.
+  `3c018b82fbc08322114990b88906872f4e72d65c`.
   Prover: the npm dist of `@heliuslabs/spr-web-prover` 0.7.0-alpha (git head 087bc04), vendored
   by `solspike/vendor-prover.mjs` under `web/sol/prover/` and pinned by its npm integrity and a
   SHA256SUMS file.

@@ -136,13 +136,13 @@ Stage on app.zigs.app. The Solana section of staging works only after D4 adds st
    ceremony starts by itself when the Zcash address is checked. Keep L1, L2 and L3 open on the
    wallet until every device shows its Solana key ready (D7). A wallet made without the box gets
    its Solana part with **Add Solana** in the Solana section.
-   - Local proving (SOL-4), optional, before the first spend of Demo A. **[rehearse it once on
+   - Local proving (SOL-4), required, before the first spend of Demo A. **[rehearse it once on
      the live page first: on the pool of 18 October 2026 only a simulated transfer with a local
      proof ran (19 October 2026)]** The page turns local proving on only while the deploy slot of
      the pool equals the slot that `web/sol/localprover.js` pins (520,179,383 on Devnet, the deploy of
      the pool v1.0.0). If Helius upgrades the pool again, the card says "Helius changed the Solana
      pool after this version of Zigs was tested with it. Local proving cannot be turned on until
-     Zigs is tested with the new pool." Then keep the hosted prover. Steps:
+     Zigs is tested with the new pool." Then the group cannot pay until Zigs is tested with the new pool. Steps:
      - In the Solana section, in the card **Local proving**, click **Test this browser, then
        prove on our devices**. Confirm "Turn on local proving for every device of this group? It
        cannot be turned off." Then reload every open Zigs tab of the group, and make the Solana
@@ -151,10 +151,9 @@ Stage on app.zigs.app. The Solana section of staging works only after D4 adds st
        Mac of 18 October 2026, a test proof took 6.3 to 6.6 s.
      - A device that shows "Local proving: this browser could not make a test proof, so it cannot
        pay for this group." cannot pay. Use another laptop for that device.
-     - Keep local proving off on the spare wallet (step 10). A group with local proving on can
-       never go back to the hosted prover. If a Devnet change breaks the web prover, Demo A
-       cannot pay until a Zigs update brings a new prover. The spare wallet, with the hosted
-       prover and Devnet SOL on its fee addresses, is then the fallback.
+     - Turn on local proving on the spare wallet too (step 10): the group cannot pay until it
+       turns on local proving. If a Devnet change breaks the web prover, no group can pay until
+       a Zigs update brings a new prover.
 9. Save the backups of each device: the Zcash file (**Back up key share**) and the Solana file
    (**Back up Solana part, device N** in the Solana section). Keep the two passphrases offline.
    Restore one device on a blank browser profile once.
