@@ -26,17 +26,21 @@
 #
 # EXPECTED is version 6: version 5 (ZOLANA.md 7.2) on the spr crates of privacy-rings 3c018b82, for
 # the Zolana v1 pool ring1G (docs/zolana-v1.md). Devnet runs it since slot 520862900 (ZOLANA.md 6).
-# The Linux hash comes from CI (run 42873582824). No macOS build with the spr crates exists yet, so
-# EXPECTED_DARWIN is empty and a macOS build stops here until someone pins it.
+# The Linux hash comes from CI (run 42873582824). The macOS hash comes from a build with Agave 4.3.0
+# and platform-tools v1.54; fncmp.py found no function that differs from the unstripped ELF of CI
+# run 42890568132.
 set -eu
 cd "$(dirname "$0")"
 unset RUSTFLAGS CARGO_ENCODED_RUSTFLAGS
 
 # The ELF holds the paths of the standard library inside platform-tools, which differ between its
 # macOS and its Linux build. So each host has its own hash; CI builds on Linux. The two ELFs have
-# the same code (fncmp.py on the unstripped CI artifact).
-EXPECTED_DARWIN=
+# the same code (fncmp.py on the unstripped CI artifact). The MAINNET pins are the same for the
+# mainnet deploy ELF; the Linux one stays empty until CI gives the hash.
+EXPECTED_DARWIN=9ab95e1f1f7d2e9e7dd7b33df7c630fed662edd9ae95a2e116331e94176fbfb7
 EXPECTED_LINUX=4cdcfb63b7078617ffe717a39864237041a616f761886e3b0d7f622cce159416
+EXPECTED_MAINNET_DARWIN=30f5dcd164f63661ed7347ccaae647a54418a062044afa6c02f8ded56d216478
+EXPECTED_MAINNET_LINUX=
 SBF=${CARGO_BUILD_SBF:-cargo-build-sbf}
 SO=target/deploy/zigs_min_multisig.so
 
@@ -50,8 +54,8 @@ sha() {
 }
 
 case "$(uname -s)-$(uname -m)" in
-  Darwin-arm64) EXPECTED=$EXPECTED_DARWIN ;;
-  Linux-x86_64) EXPECTED=$EXPECTED_LINUX ;;
+  Darwin-arm64) EXPECTED=$EXPECTED_DARWIN EXPECTED_MAINNET=$EXPECTED_MAINNET_DARWIN ;;
+  Linux-x86_64) EXPECTED=$EXPECTED_LINUX EXPECTED_MAINNET=$EXPECTED_MAINNET_LINUX ;;
   *) fail "no pinned hash for the host $(uname -s) $(uname -m)" ;;
 esac
 [ -n "$EXPECTED" ] || fail "no pinned hash for $(uname -s) $(uname -m) yet; pin it from a build"
@@ -121,6 +125,12 @@ check_clusters() {
   # in target/.
   CARGO_TARGET_DIR=target/mainnet "$SBF" --tools-version v1.54 --jobs 4 \
     --sbf-out-dir svm-tests/target/deploy/mainnet -- --locked --features mainnet
+  MAINNET_SO=svm-tests/target/deploy/mainnet/zigs_min_multisig.so
+  echo "$(sha "$MAINNET_SO")  $MAINNET_SO ($(wc -c < "$MAINNET_SO" | tr -d ' ') bytes)"
+  [ -n "$EXPECTED_MAINNET" ] || fail "no pinned mainnet hash for $(uname -s) $(uname -m) yet;" \
+    "pin $(sha "$MAINNET_SO") from this build"
+  [ "$(sha "$MAINNET_SO")" = "$EXPECTED_MAINNET" ] \
+    || fail "the mainnet hash differs from EXPECTED_MAINNET (change it only with src/)"
 }
 
 # must_fail TEXT COMMAND...: the command fails, and its output names TEXT.
