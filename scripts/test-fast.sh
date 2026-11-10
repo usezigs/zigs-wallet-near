@@ -13,7 +13,7 @@ case "$(node -v 2>/dev/null)" in
   *) echo "test-fast: Node 26 is needed, found $(node -v 2>/dev/null || echo none)" >&2; exit 2 ;;
 esac
 FAST="optional-passkey demo-check chain-fallback chat backup-check graph personal sol-rent
-  sol-config sol-errors guided-create
+  sol-config sol-errors sol-sdk guided-create
   messaging-presentation messaging-cost-review messaging-account-view premium-motion homepage-motion
   outcome-seal passkey-setup wallet-description guided-setup
   recipients swap-preview
