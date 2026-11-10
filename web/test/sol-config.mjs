@@ -6,7 +6,10 @@
 // could not read the Solana part, and its Activity list says that Solana did not load.
 // Run: node web/test/sol-config.mjs   (Node 26)
 import assert from "node:assert/strict";
-import { NOT_LOADED, UNAVAILABLE, fetchRpcUrl } from "../sol/session.js";
+import { MAINNET_DISCLOSURE } from "../sol/net.js";
+import {
+  NOT_LOADED, UNAVAILABLE, WORKER_POLICY_MAINNET, fetchRpcUrl, requireWorkerPolicy,
+} from "../sol/session.js";
 import { config, loadRig, sleep, storage } from "./sol-rig.mjs";
 
 const KEY_NAME = "api-key";
@@ -91,6 +94,44 @@ function pageText(t) {
   ];
   for (const [what, make] of down) {
     await assert.rejects(() => withFetch(make, fetchRpcUrl), { message: NOT_LOADED }, what);
+  }
+}
+
+// ── The mainnet URL and the mainnet Worker ──
+{
+  const MAIN_OK = `https://mainnet.helius-rpc.com/?${KEY_NAME}=not-a-real-key`;
+  assert.equal(await withFetch(json({ rpcUrl: MAIN_OK }), () => fetchRpcUrl("mainnet")), MAIN_OK);
+  assert.deepEqual(asked.at(-1), ["/sol/config-mainnet.json", { cache: "no-store" }]);
+  for (const status of [404, 503]) {
+    const make = () => new Response("", { status });
+    await assert.rejects(() => withFetch(make, () => fetchRpcUrl("mainnet")),
+      { message: UNAVAILABLE }, `mainnet ${status}`);
+  }
+  await assert.rejects(() => fetchRpcUrl("testnet"), /Unknown Solana cluster/);
+
+  const DEV_POLICY = WORKER_POLICY_MAINNET.replace("mainnet.helius", "devnet.helius");
+  assert.match(WORKER_POLICY_MAINNET, /connect-src 'self' https:\/\/mainnet\.helius-rpc\.com /);
+  assert.doesNotMatch(WORKER_POLICY_MAINNET, /devnet/);
+  const policy = (text) => () =>
+    new Response("", { status: 200, headers: { "content-security-policy": text } });
+  await withFetch(policy(WORKER_POLICY_MAINNET), () => requireWorkerPolicy("mainnet"));
+  assert.equal(asked.at(-1)[0], "/sol/worker-mainnet.js");
+  await withFetch(policy(DEV_POLICY), () => requireWorkerPolicy("devnet"));
+  assert.equal(asked.at(-1)[0], "/sol/worker.js");
+  await assert.rejects(() => withFetch(policy(DEV_POLICY), () => requireWorkerPolicy("mainnet")),
+    /did not send the policy/, "the Devnet header does not pass for mainnet");
+  await assert.rejects(() => withFetch(policy(WORKER_POLICY_MAINNET),
+    () => requireWorkerPolicy("devnet")), /did not send the policy/, "nor the reverse");
+  await assert.rejects(() => withFetch(() => new Response("", { status: 404 }),
+    () => requireWorkerPolicy("mainnet")), { message: UNAVAILABLE }, "a 404 is UNAVAILABLE");
+  await assert.rejects(() => withFetch(() => new Response("", { status: 200 }),
+    () => requireWorkerPolicy("mainnet")), /did not send the policy/, "no header");
+
+  const text = MAINNET_DISCLOSURE.join("\n");
+  for (const part of [/real SOL/, /test on staging/, /audited/, /upgrade key/, /Zigs owner/,
+    /every private wallet/, /0\.5 SOL/, /only in this app/, /deposits by other people/,
+    /Never send public SOL to the PDA/, /650,240 lamports/, /Add SOL/, /anonymity/]) {
+    assert.match(text, part);
   }
 }
 

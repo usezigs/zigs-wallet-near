@@ -13,6 +13,7 @@ import { gateAnswer } from "./localprove.js";
 import { PROPOSAL_SPACE, nonceAccountHex } from "./intent.js";
 import { holdsShare, refuseStopped, solOf, stopOf } from "./secrets.js";
 import { SESSIONS, isPayment } from "./sessions.js";
+import { netOf } from "./net.js";
 import { loadSnap, saveSnap } from "./store.js";
 
 const J = JSON.parse;
@@ -23,18 +24,22 @@ const WORKER_POLICY =
   "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; " +
   "connect-src 'self' https://devnet.helius-rpc.com " +
   "https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/78751f5d1c591777/; base-uri 'none'";
+// The same for /sol/worker-mainnet.js (SOL_POOL_MAINNET): it names the mainnet host only.
+export const WORKER_POLICY_MAINNET = WORKER_POLICY.replace("devnet.helius", "mainnet.helius");
+const POLICY = { devnet: WORKER_POLICY, mainnet: WORKER_POLICY_MAINNET };
 
 // The text of app-sol.js for a load that failed on the connection (SOL_DOWN, S12): the page
 // shows it as it is, and the tab turns it into the text of its Try again button.
 export const NOT_LOADED = "Solana did not load. Check your connection, then reload the page.";
 
 /**
- * The Helius Devnet URL that the server serves. Throws UNAVAILABLE when the server has no Solana
- * (a 503 or a 404), and NOT_LOADED for any other failure: no answer, another status, or no URL.
+ * The Helius URL of a cluster that the server serves (Devnet by default). Throws UNAVAILABLE when
+ * the server has no Solana (a 503 or a 404), and NOT_LOADED for any other failure: no answer,
+ * another status, or no URL.
  */
 const NO_SOLANA = new Set([503, 404]);
-export async function fetchRpcUrl() {
-  const res = await fetch("/sol/config.json", { cache: "no-store" }).catch(() => null);
+export async function fetchRpcUrl(cluster) {
+  const res = await fetch(netOf(cluster).config, { cache: "no-store" }).catch(() => null);
   if (NO_SOLANA.has(res?.status)) throw new Error(UNAVAILABLE);
   const url = res?.ok ? (await res.json().catch(() => null))?.rpcUrl : undefined;
   if (typeof url !== "string" || !url) throw new Error(NOT_LOADED);
@@ -50,9 +55,10 @@ export function solText(lamports) {
   return n / 1_000_000_000n + (frac ? "." + frac : "") + " SOL";
 }
 
-async function requireWorkerPolicy() {
-  const res = await fetch("/sol/worker.js");
-  if (!res.ok || res.headers.get("content-security-policy") !== WORKER_POLICY) {
+export async function requireWorkerPolicy(cluster = "devnet") {
+  const res = await fetch(netOf(cluster).worker);
+  if (res.status === 404) throw new Error(UNAVAILABLE);
+  if (!res.ok || res.headers.get("content-security-policy") !== POLICY[cluster]) {
     throw new Error(
       "The server did not send the policy of the Solana worker, so the worker " +
         "was not started.",
@@ -84,9 +90,10 @@ function sameAddresses(init, roles, groupKey) {
 async function start(c, rpcUrl, roles, groupKey) {
   if (c.worker && c.inited === rpcUrl) return;
   const opened = c.opened;
-  await requireWorkerPolicy();
+  const cluster = c.wallet?.cluster ?? "devnet";
+  await requireWorkerPolicy(cluster);
   if (!stillOpen(c, opened)) throw new Error(CLOSED);
-  c.worker ??= startSolWorker(undefined, () => gateAnswer(c));
+  c.worker ??= startSolWorker(netOf(cluster).worker, () => gateAnswer(c));
   const { pda } = roles;
   const init = await c.worker.call("init", {
     rpcUrl,

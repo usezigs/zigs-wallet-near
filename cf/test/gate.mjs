@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { PLAIN_WORKER_POLICY } from "../../web/sol/plain/guard.js";
+import { WORKER_POLICY_MAINNET } from "../../web/sol/session.js";
 import { closureOf, web } from "../../web/test/closure.mjs";
 import { COOKIE, MAX_AGE_S, gate, sessionCookie, withCookie } from "../src/gate.js";
 
@@ -425,6 +426,57 @@ let session = null;
   }
   assert.deepEqual(served, [], "no spelling reached the asset server");
   console.log("ok  with SOL off, the files of the plain wallet answer and no Devnet file does");
+
+  // ── The private mainnet Worker (D14): /sol/worker-mainnet.js ──
+  {
+    const PATH = "/sol/worker-mainnet.js";
+    const MAIN_POLICY = WORKER_POLICY.replace("devnet.helius", "mainnet.helius");
+    assert.equal(WORKER_POLICY_MAINNET, MAIN_POLICY, "the page and the server agree on one text");
+    assert.equal(wrangler.vars.SOL_POOL_MAINNET, "0", "the private mainnet wallet is off");
+    assert.equal(wrangler.env.staging.vars.SOL_POOL_MAINNET, "0", "also in staging for now");
+    const vars = [wrangler.vars, wrangler.env.staging.vars];
+    for (const v of vars) {
+      const flags = [undefined, "0", "", "true", " 1", "1 ", "on", 1, true, null];
+      for (const SOL_POOL_MAINNET of flags) {
+        served.length = 0;
+        const env = { ...OPEN, ...v, DEV_NO_AUTH: "1", SOL: "1", SOL_POOL_MAINNET };
+        const res = await ask(PATH, env);
+        assert.equal(res.status, 404, `SOL_POOL_MAINNET=${String(SOL_POOL_MAINNET)}`);
+        assert.deepEqual(served, [], "the asset server was not asked");
+      }
+      for (const SOL of [undefined, "0", "", "true", 1]) {
+        for (const SOL_MAINNET of ["0", "1"]) {
+          served.length = 0;
+          const env = { ...OPEN, SOL, SOL_MAINNET, SOL_POOL_MAINNET: "1" };
+          assert.equal((await ask(PATH, env)).status, 404, `SOL=${String(SOL)}`);
+          assert.deepEqual(served, []);
+        }
+      }
+    }
+    const on = { ...OPEN, SOL: "1", SOL_POOL_MAINNET: "1" };
+    for (const SOL_MAINNET of ["0", "1"]) {
+      served.length = 0;
+      const res = await ask(PATH, { ...on, SOL_MAINNET });
+      assert.equal(res.status, 200);
+      assert.equal(res.headers.get("content-security-policy"), MAIN_POLICY);
+      assert.equal(res.headers.get("referrer-policy"), "no-referrer");
+      assert.equal(await res.text(), "asset body");
+      assert.deepEqual(served, ["/sol/worker.js"], "the body is the file of /sol/worker.js");
+    }
+    assert.equal(await policyOf("/sol/worker.js", on), WORKER_POLICY, "Devnet keeps its policy");
+    // Other spellings never get the mainnet policy (the real asset server has no such file).
+    const other = ["/SOL/worker-mainnet.js", "/sol//worker-mainnet.js", "/sol/worker-mainnet.js/",
+      "/sol/Worker-Mainnet.js", "/sol/worker-mainnet.JS", "/sol%2Fworker-mainnet.js",
+      "/sol/worker%2Dmainnet.js", "/sol/worker-mainnet.js%00", "/sol/worker-mainnet.js.map",
+      "/sol/plain/worker-mainnet.js"];
+    for (const path of other) {
+      assert.notEqual(await policyOf(path, on), MAIN_POLICY, path);
+    }
+    assert.equal(await policyOf(PATH, { ...on, DEV_NO_AUTH: undefined, APP_PASSWORD: PASSWORD }),
+      null, "the password gate answers first");
+    assert.equal(closure.has("sol/net.js"), false, "no plain file imports net.js");
+    console.log("ok  /sol/worker-mainnet.js is 404 unless SOL and SOL_POOL_MAINNET are 1");
+  }
 
   // Both off: nothing under /sol answers, the plain files too, and other paths still do.
   for (const SOL_MAINNET of [undefined, "0", "true", ""]) {
