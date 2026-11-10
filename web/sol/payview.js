@@ -95,30 +95,29 @@ export const LINK_TEXT =
   "address of the group. So anyone can link this device to the group. Its funding transfer links " +
   "the sender of that SOL too.";
 
-/** What the hosted prover of Helius sees of a payment, a withdrawal or the move (ZOLANA.md 7.2). */
+/** What the prover sees with the switch off: a payment is refused and nothing goes to Helius. */
 export const PROVER_TEXT =
-  "Helius makes the proof on its hosted prover. So it sees the owner keys, the payee, the amount " +
-  "and the notes that the payment spends. It also sees the secret that links each spend to its " +
-  "notes. Local proving keeps the amount and that secret on your devices: see Local proving below.";
+  "Local proving is off for this group, so a payment or a move is refused. Helius makes no " +
+  "proof and sees none. Turn local proving on to pay: see Local proving below.";
 export const PROVER_LOCAL =
   "This group makes its proofs on its devices, so they give Helius neither the amount, the " +
   "blindings nor the secret that links each spend to its notes. Each proof that Helius made " +
   "before the switch gave it that secret. Its indexer still sees which notes a payment spends " +
   "and your IP address. The owner key of the payee is public on chain.";
-// The rows of one payment: the group proves on its devices now, but this payment may have been
-// proposed before the switch or from an older page, and then Helius made its first proof.
+// The rows of one payment: the group proves on its devices, but a payment proposed by an older
+// version of the wallet may have had its first proof made by the hosted prover of Helius.
 const HOSTED_SAW =
   "Then it saw the payee, the amount, the blindings and the secret that links each spend to " +
   "its notes. ";
 export const PROVER_ROW_LOCAL =
   "The proof of the execute runs on a device of this group. Helius made the first proof only " +
-  "if the payment was proposed before the switch or from an older page. " +
+  "if an older version of the wallet proposed the payment. " +
   HOSTED_SAW +
   "Its indexer sees which notes the payment spends.";
 // The move of the beta funds has one proof, made when it is proposed.
 export const PROVER_MOVE_LOCAL =
-  "A device of this group makes the proof of the move. Helius made it only if the move was " +
-  "proposed before the switch or from an older page. " +
+  "A device of this group makes the proof of the move. Helius made it only if an older " +
+  "version of the wallet proposed the move. " +
   HOSTED_SAW +
   "Its indexer sees which notes the move spends.";
 /** What the prover of a payment of this group sees: hosted, or local with the switch (SOL-4). */

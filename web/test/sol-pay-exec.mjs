@@ -180,7 +180,7 @@ step("only a funded seat executes: the others skip with no banner, and the lease
   assert.equal(rows["Amount (public)"], "0.002 SOL", "the leg that the checker bound");
   assert.match(rows["What it does"], /to a public Solana address/);
   assert.match(rows.Public, /^Recipient, asset and amount are public\. /, "the text of section 2");
-  assert.equal(rows.Helius, PROVER_TEXT, "the screen of a withdrawal names the hosted prover");
+  assert.equal(rows.Helius, PROVER_TEXT, "the screen of a withdrawal says that it is refused");
   assert.equal(rows["Create paid by device 1"], feeAddress(1));
   assert.equal(rows.Change, "0.003 SOL stays with the group.", "the change of the withdrawal");
   // The forms of the tab: each button proposes its kind with the typed address and amount.

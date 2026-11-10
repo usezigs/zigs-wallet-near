@@ -469,7 +469,7 @@ step("a read of a wallet that closed shows no banner and writes no count");
   assert.ok(textOf(marked("fee-text")[0]).includes(LINK_TEXT), "the fund card says it too");
   // Each screen says what is public and what Helius sees (SOL-12), and the details name the
   // keys of the pool that sit outside the group (SOL-11).
-  assert.equal(rows.Helius, PROVER_TEXT, "the screen of a payment names the hosted prover");
+  assert.equal(rows.Helius, PROVER_TEXT, "the screen of a payment says that it is refused");
   assert.match(rows.Public, /^The owner key of the payee becomes public\. /, "the payee is public");
   const shown = (mark) => textOf(marked(mark)[0]);
   const PUBLIC = [/A deposit shows its sender and amount on chain\. A withdrawal shows its/,
@@ -479,8 +479,7 @@ step("a read of a wallet that closed shows no banner and writes no count");
   for (const re of PUBLIC) assert.match(shown("public-text"), re);
   assert.match(shown("sync-text"), /and the group key\. So Helius sees these keys with your IP/);
   assert.equal(shown("pay-prover"), PROVER_TEXT, "the pay card");
-  assert.match(PROVER_TEXT, /the payee, the amount and the notes that the payment spends\./);
-  assert.match(PROVER_TEXT, /the secret that links each spend to its notes/);
+  assert.match(PROVER_TEXT, /a payment or a move is refused\. Helius makes no proof/);
   assert.match(shown("send-public"), /hides the amount, but it shows the owner key of the payee/);
   assert.match(shown("fee-text"), /asks Helius for the balance of this address with your IP/);
   assert.match(shown("rent"),

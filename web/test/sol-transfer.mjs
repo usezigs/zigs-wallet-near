@@ -21,7 +21,7 @@ import {
   readVerdict,
   snapshotHex,
 } from "../sol/intent.js";
-import { PROVER_MOVE_LOCAL, transferRows } from "../sol/payview.js";
+import { PROVER_MOVE_LOCAL, PROVER_TEXT, transferRows } from "../sol/payview.js";
 import * as W from "../sol/wasm/sol_wasm.js";
 import { G } from "./sol-fixture.mjs";
 import "./sol-rig.mjs"; // starts the wasm engines and stubs the page
@@ -116,7 +116,7 @@ step("a payment of the group key to another payee is refused by the rule of the 
   assert.equal(rows.Change, "0 SOL stays with the group.", "a move keeps no change");
   assert.match(rows.Public, /links the old address of the group key and the program address/);
   assert.match(rows.Public, /Public link: this fee address pays in public SOL/);
-  assert.match(rows.Helius, /hosted prover/);
+  assert.equal(rows.Helius, PROVER_TEXT, "the move of a group with the switch off");
   // SOL-4: with local proving on, the move names its one proof, not an execute.
   const local = Object.fromEntries(transferRows(v.group.key, { verdict: text }, 5000n, true));
   assert.equal(local.Helius, PROVER_MOVE_LOCAL, "the move of a local group");
