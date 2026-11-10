@@ -133,7 +133,8 @@ step("a signed payment with no funded seat still ends at its expiry: its end pay
   c.sync = { ...c.sync, oldBalance: "5000000" };
   c.chain = { ...c.chain, nonce: "missing" };
   assert.equal(marked("move").length, 1, "the card of the move");
-  assert.match(textOf(marked("move")[0]), /links the old address .* in public\. Local proving is off/);
+  const move = textOf(marked("move")[0]);
+  assert.match(move, /links the old address .* in public\. Local proving is off/);
   assert.equal(marked("create-nonce").length, 1, "first the nonce account");
   assert.equal(marked("move-funds").length, 0);
   c.chain = { ...c.chain, nonce: "created" };

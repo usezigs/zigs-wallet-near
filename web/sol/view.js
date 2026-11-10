@@ -31,7 +31,8 @@ export const PUBLIC_TEXT =
   "A private payment hides its amount, but it shows the owner key of the payee. The program " +
   "address, the group key and the fee address of each device that pays are public too. Helius " +
   "sees that you use Zigs, your IP address and the keys of this wallet. With local proving " +
-  "off, a payment is refused and Helius makes no proof. The Zigs server operator can link this wallet to these addresses by timing.";
+  "off, a payment is refused and Helius makes no proof. The Zigs server operator can link this " +
+  "wallet to these addresses by timing.";
 // The same with local proving on (SOL-4): the amounts and the nullifier secret stay on the devices.
 const PUBLIC_LOCAL = PUBLIC_TEXT.replace(
   "With local proving off, a payment is refused and Helius makes no proof.",
