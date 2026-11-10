@@ -6,7 +6,12 @@ export { verify as dcapStubVerify } from "@phala/dcap-qvl";
 // The reference for transfer.js ownerSigners, which transfer.test.mjs compares against.
 export { ownerSignerAddresses } from "zolana-internal";
 export { X25519PublicKey } from "zolana-keypair";
-export { SOL_INTERFACE, decodeTreeFees, transactInstruction } from "zolana-interface";
+export {
+  SOL_INTERFACE,
+  decodeTreeFees,
+  depositInstruction,
+  transactInstruction,
+} from "zolana-interface";
 export {
   AssetRegistry,
   ConfidentialTransfer,

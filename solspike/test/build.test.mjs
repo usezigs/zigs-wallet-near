@@ -108,6 +108,7 @@ const NEEDED = [
   "SppProofInputs",
   "createExternalData",
   "decodeTreeFees",
+  "depositInstruction",
   "encryptConfidentialTransfer",
   "getAddressDecoder",
   "getAddressEncoder",
