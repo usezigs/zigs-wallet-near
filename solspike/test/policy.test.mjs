@@ -9,12 +9,16 @@
 // 6. /sol/config.json gives the secret HELIUS_DEVNET_URL as JSON (503 when it is unset), with
 //    no-store and the Worker policy, to GET only, behind the gate, and only with SOL=1. No other
 //    spelling of the path gives the value.
-// The real fetch handler of cf/src/index.js runs in a vm with stubs for the Cloudflare parts.
+// The real fetch handler of cf/src/index.js runs as an ES module with stubs for the Cloudflare
+// parts. policy() alone still runs in a vm, to compare it with the base commit.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import {
+  copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { runInNewContext } from "node:vm";
 
 const KEY_NAME = "api-key";
@@ -54,22 +58,21 @@ class Rewriter {
   }
 }
 
-/** The default export of cf/src/index.js, with the Cloudflare imports replaced by stubs. */
-function loadWorker() {
-  // A vm script has no import: the gate and near modules (cf/src) go in as text.
-  const text = (name) => readFileSync(join(ROOT, "cf/src", name), "utf8");
-  const [gate, near] = ["gate.js", "near.js"].map((n) => text(n).replace(/^export /gm, ""));
-  const code = readFileSync(join(ROOT, "cf/src/index.js"), "utf8")
-    .replace('import { DurableObject } from "cloudflare:workers";', "class DurableObject {}")
-    .replace('import { gate, withCookie } from "./gate.js";', gate)
-    .replace('import { nearQuote, nearStatus, nearSwap } from "./near.js";', near)
-    .replace("export default {", "globalThis.worker = {")
-    .replace("export class Store", "class Store");
-  const context = {
-    Response, Request, URL, TextEncoder, crypto, atob, btoa, HTMLRewriter: Rewriter,
-  };
-  runInNewContext(code, context, { timeout: 1000 });
-  return context.worker;
+/** The default export of cf/src/index.js, loaded as an ES module from a temporary copy. */
+async function loadWorker() {
+  const dir = mkdtempSync(join(tmpdir(), "zigs-policy-"));
+  process.on("exit", () => rmSync(dir, { recursive: true, force: true }));
+  const src = join(ROOT, "cf/src");
+  for (const name of readdirSync(src)) copyFileSync(join(src, name), join(dir, name));
+  writeFileSync(join(dir, "package.json"), '{"type":"module"}');
+  writeFileSync(join(dir, "cf-stub.js"), "export class DurableObject {}\n");
+  const file = join(dir, "index.js");
+  const real = readFileSync(file, "utf8");
+  const code = real.replace('"cloudflare:workers"', '"./cf-stub.js"');
+  assert.notEqual(code, real, "the cloudflare:workers import was not found");
+  writeFileSync(file, code);
+  globalThis.HTMLRewriter = Rewriter;
+  return (await import(pathToFileURL(file).href)).default;
 }
 
 const served = [];
@@ -266,7 +269,7 @@ async function configGuarded(worker) {
   step("config.json needs SOL=1 and the password");
 }
 
-const worker = loadWorker();
+const worker = await loadWorker();
 samePolicy();
 await workerHeaders(worker);
 await proverHeaders(worker);
