@@ -35,8 +35,9 @@ deployment, merging and release are outside this pass.
   `wasm-bindgen` **0.2.129**, `web-sys` **0.3.106**.
 - Solana SDK source pin in `solspike/build.mjs`:
   `c232da1bd6748628b56bb8c277bcffbaaf2b0774`.
-  Prover source pin in `solspike/build-prover.mjs`:
-  `25b694a92a2c3250724e95ec405bc86bc05bfa83`.
+  Prover: the npm dist of `@heliuslabs/spr-web-prover` 0.7.0-alpha (git head 087bc04), vendored
+  by `solspike/vendor-prover.mjs` under `web/sol/prover/` and pinned by its npm integrity and a
+  SHA256SUMS file.
   These identify intended source versions; a reproducible rebuild and verification of every
   shipped binary were not performed in this audit.
 
@@ -59,7 +60,7 @@ Do not assume that viewing keys or signing shares are transmitted merely because
 | `web/app-sol.js:solServed()`, failure probes, `web/sol/session.js:fetchRpcUrl()` | Direct same-origin `/sol/config.json` fetch; returns Helius URL held in memory | IP and capability-query timing; configured URL contains a credential | Include config/discovery probes in policy, not just payments; never log/persist the credential-bearing URL |
 | `web/sol/session.js` checks worker-response CSP; `web/sol/client.js` launches worker | Same-origin worker, SDK modules, hasher WASM and Solana WASM | Feature use/asset timing | Classify wallet-triggered assets separately from static shell; retain policy and secret-boundary checks |
 | `web/sol/worker.js:guardedFetch()` / `sdkFetch()`; sync, history, account, witness, nonce, simulation, send, confirm, pool checks | SDK-injected fetch to configured `https://devnet.helius-rpc.com`; origin guard and redirect refusal | IP, account/transaction identifiers, transaction bytes, timing; hosted proof inputs when existing consent/gates allow | Inject private transport inside worker; preserve URL/schema checks, redaction and local-proof latch; audit pinned SDK for bypass constructors |
-| `web/sol/localprover.js`, nested prover; local-proof self-test and payment proofs | Same-origin prover JS/WASM/self-test; guarded key GETs in CloudFront `/proving-keys/3a1c88f90f609eb1/` | CDN sees IP and circuit/key requests; local proving keeps full witness off hosted prover | Tor-route key/resources or stage verified local copies; preserve digests and proof verification; no circuit/thread changes as shortcuts |
+| `web/sol/localprover.js`, nested prover; local-proof self-test and payment proofs | Same-origin prover JS/WASM/self-test; guarded key GETs in CloudFront `/proving-keys/78751f5d1c591777/` | CDN sees IP and circuit/key requests; local proving keeps full witness off hosted prover | Tor-route key/resources or stage verified local copies; preserve digests and proof verification; no circuit/thread changes as shortcuts |
 | `web/zns.js` name resolver | Same-origin `/zns`; server retrieves `https://light.zcash.me/zns-testnet` registry | Host sees IP/lookup timing; current whole-registry fetch does not send entered name upstream | Route registry retrieval, account for cache/upstream leg, preserve signature/timeout checks |
 | User opens explorer, faucet, About or chat link | Zcash explorer/faucet hosts from `app-chain.js`; Solana explorer/faucet from `sol/payview.js`; `zigs.app` or user-supplied URL | New ordinary tab may expose direct IP and URL identifiers, including transaction IDs | Disclose external-navigation boundary; embedded fetch does not protect another tab. No automatic external previews/images in Private |
 | `web/app-messages.js` optional alerts | Browser `Notification` API while app is open | Notification text may appear in OS UI | No remote push subscription found in inspected production modules; OS/remote delivery needs separate review before coverage claims |

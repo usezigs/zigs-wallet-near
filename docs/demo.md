@@ -139,8 +139,8 @@ Stage on app.zigs.app. The Solana section of staging works only after D4 adds st
    - Local proving (SOL-4), optional, before the first spend of Demo A. **[rehearse it once on
      the live page first: on the pool of 18 October 2026 only a simulated transfer with a local
      proof ran (19 October 2026)]** The page turns local proving on only while the deploy slot of
-     the pool equals the slot that `web/sol/localprover.js` pins (512,563,584, the upgrade to
-     v0.4.1-alpha). If Helius upgrades the pool again, the card says "Helius changed the Solana
+     the pool equals the slot that `web/sol/localprover.js` pins (520,179,383 on Devnet, the deploy of
+     the pool v1.0.0). If Helius upgrades the pool again, the card says "Helius changed the Solana
      pool after this version of Zigs was tested with it. Local proving cannot be turned on until
      Zigs is tested with the new pool." Then keep the hosted prover. Steps:
      - In the Solana section, in the card **Local proving**, click **Test this browser, then

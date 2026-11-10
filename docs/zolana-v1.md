@@ -346,6 +346,23 @@ The owner took these decisions. They replace the recommendations above where the
 - The plain mainnet wallet does not change: the wasm of the plain wallet, `plain/`, `backup.js`
   and its closure, and the plain vectors and tests stay as they are.
 
+### Slice 6 result (10 November 2026)
+
+- `web/sol/prover/` holds the 17 dist modules, the single-thread runtime (`runtime/single`, its
+  manifest and licenses) and the 1x2 request of 087bc04 as `selftest-1x2.json`. `SHA256SUMS`
+  lists each file. `solspike/vendor-prover.mjs` checks the npm integrity and rebuilds the folder.
+  `runtime.js` still names `runtime/threads/`, which is not shipped. The prover runs with
+  `threads: 0` and never loads it.
+- The Worker proves only at the loopback URL, through the `createFetch()` shim of the prover. The
+  guard blocks every prove path of the Helius origin and every other loopback or foreign call.
+  The page answer "hosted" is refused with a text.
+- `POOL_SLOTS` is keyed by Helius host. `POOL_DATA` is the PDA of ring1G under the upgradeable
+  loader. A test derives it. Nobody read the ProgramData or the program account on chain in this
+  slice (no network access to Helius). The loader guarantees the equality, but it is not checked.
+- Not done: a proof of a request that Zigs builds with the new SDK, a run in a browser (nested
+  Workers, Cache API, CDN CORS for Range), and the UI texts of `view.js` and `payview.js`, which
+  still describe the hosted prover.
+
 ## 5. Devnet-first plan
 
 All checks are in process: `worker.fetch` with stubs, cargo tests, fake chain. None needs wrangler or a server. Each slice may pass through one QA round. A slice that changes Zigs code needs the baseline recorded last (blocked, see decision 15).
