@@ -77,13 +77,17 @@ case "$("$SBF" --version 2>/dev/null | head -1)" in
   *) fail "needs cargo-build-sbf 4.3.0 (Agave v4.3.0); put it on PATH or set CARGO_BUILD_SBF" ;;
 esac
 
-"$SBF" --tools-version v1.54 --jobs 4 -- --locked --features devnet
 # The ELF holds no path of this machine. Its only absolute paths are the build paths of
 # platform-tools itself (.../work/platform-tools/...), which on a CI runner start with its home.
-if LC_ALL=C perl -0777 -ne 'BEGIN { $h = shift } exit(m{\Q$h\E(?!/work/platform-tools/)} ? 0 : 1)' \
-  "$HOME" "$SO"; then
-  fail "$SO holds a path of this machine"
-fi
+no_local_path() {
+  if LC_ALL=C perl -0777 -ne \
+    'BEGIN { $h = shift } exit(m{\Q$h\E(?!/work/platform-tools/)} ? 0 : 1)' "$HOME" "$1"; then
+    fail "$1 holds a path of this machine"
+  fi
+}
+
+"$SBF" --tools-version v1.54 --jobs 4 -- --locked --features devnet
+no_local_path "$SO"
 echo "$(sha "$SO")  $SO ($(wc -c < "$SO" | tr -d ' ') bytes)"
 [ "$(sha "$SO")" = "$EXPECTED" ] || fail "hash differs from EXPECTED (change it only with src/)"
 
@@ -126,6 +130,7 @@ check_clusters() {
   CARGO_TARGET_DIR=target/mainnet "$SBF" --tools-version v1.54 --jobs 4 \
     --sbf-out-dir svm-tests/target/deploy/mainnet -- --locked --features mainnet
   MAINNET_SO=svm-tests/target/deploy/mainnet/zigs_min_multisig.so
+  no_local_path "$MAINNET_SO"
   echo "$(sha "$MAINNET_SO")  $MAINNET_SO ($(wc -c < "$MAINNET_SO" | tr -d ' ') bytes)"
   [ -n "$EXPECTED_MAINNET" ] || fail "no pinned mainnet hash for $(uname -s) $(uname -m) yet;" \
     "pin $(sha "$MAINNET_SO") from this build"
