@@ -42,11 +42,12 @@ const SEED_PERSONAL: &[u8; 16] = b"Zigs_SolSeed__v1";
 pub const CLUSTER: &str = "devnet";
 /// The wallet of the web app has 2 to 7 signers.
 pub const MAX_SEATS: u16 = 7;
-/// The version label of the program ids in the pins: the cluster, the pool and the registry. A
-/// `soldone` document carries it, and a seat whose label differs from this one ends
-/// (ZOLANA.md 4.1 step 6). `tests/roles.rs` ties the two addresses to `consts.rs`.
-pub const PROGRAM_LABEL: &str = "zolana-devnet:sppU489D7A4U1exNo1oeMGZtLEofq3a6o2fR7UeoWB6:\
-regyS5rkAcw2YzDJCmTwCTHs2s246FXxbmuRZ42u2PD";
+/// The version label of the program ids in the pins: the cluster, the pool, the registry and the
+/// version of the pool code (`spr-v1`: the privacy-rings crates at 3c018b82). A `soldone`
+/// document carries it, and a seat whose label differs from this one ends (ZOLANA.md 4.1 step 6).
+/// `tests/roles.rs` ties the two addresses to `consts.rs`. A plain wallet has its own labels.
+pub const PROGRAM_LABEL: &str = "zolana-devnet:ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW:\
+regy3WAeRXMYuMYxr5iK3Bf9Arr3PcxGxyzAddbiqDQ:spr-v1";
 
 /// A frost error as text, with what was being done.
 fn frost_err(what: &'static str) -> impl Fn(frost_ed25519::Error) -> String {

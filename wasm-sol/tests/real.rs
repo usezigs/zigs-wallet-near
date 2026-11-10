@@ -78,7 +78,7 @@ fn own_lifetime(path: &str) -> [u8; 32] {
 }
 
 fn violations(path: &str, intent: &Intent) -> Vec<Rule> {
-    report(&read(path), intent)
+    retired_report(&read(path), intent)
         .violations
         .iter()
         .map(|v| v.rule)
@@ -211,17 +211,25 @@ fn p2_nonce_transfer_is_refused_for_its_system_transfer_and_limits() {
 fn each_real_message_that_breaks_the_template_is_refused_by_check() {
     let cancel = Intent::Cancel { nonce: [0; 32] };
     for path in V1_FILES.iter().filter(|p| p.starts_with("p2/")) {
-        let outcome = p3_check::check::check(&read(path), &cancel, &pins(), NOW);
+        let outcome = p3_check::check::check(&read(path), &cancel, &retired_pins(), NOW);
         assert!(outcome.is_err(), "{path}");
     }
     // The only real P5 message that nearly fits is the stretch transfer. It is still refused.
     let intent = transfer(Facts::load().stretch_nonce());
-    let outcome = p3_check::check::check(&read("real/work-stretch-0.msg"), &intent, &pins(), NOW);
-    assert_eq!(outcome.expect_err("refused").rule(), ComputeUnitsOverCap);
-    assert!(
-        check_all(&read("real/work-stretch-0.msg"), &intent, &pins(), NOW)
-            .facts
-            .transact
-            .is_some()
+    let outcome = p3_check::check::check(
+        &read("real/work-stretch-0.msg"),
+        &intent,
+        &retired_pins(),
+        NOW,
     );
+    assert_eq!(outcome.expect_err("refused").rule(), ComputeUnitsOverCap);
+    assert!(check_all(
+        &read("real/work-stretch-0.msg"),
+        &intent,
+        &retired_pins(),
+        NOW
+    )
+    .facts
+    .transact
+    .is_some());
 }

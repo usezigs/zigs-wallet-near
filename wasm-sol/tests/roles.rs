@@ -279,14 +279,15 @@ fn hex_reads_both_cases_and_refuses_odd_length_and_bad_digits_without_a_panic() 
 // ---- the program label ------------------------------------------------------------------------
 
 #[test]
-fn the_program_label_names_the_cluster_the_pool_and_the_registry() {
+fn the_program_label_names_the_cluster_the_pool_the_registry_and_the_version() {
     // A soldone document carries this text, and a seat whose text differs ends. It is a constant
     // of the wasm, so it must be the base58 text of the two addresses that the pins hold.
     let parts: Vec<&str> = PROGRAM_LABEL.split(':').collect();
-    assert_eq!(parts.len(), 3, "{PROGRAM_LABEL}");
+    assert_eq!(parts.len(), 4, "{PROGRAM_LABEL}");
     assert_eq!(parts[0], format!("zolana-{CLUSTER}"));
     let address = |text: &str| Address::from_str(text).expect("base58").to_bytes();
     assert!(address(parts[1]) == POOL_DEVNET, "the pool");
     assert!(address(parts[2]) == REGISTRY_DEVNET, "the registry");
+    assert_eq!(parts[3], "spr-v1", "the version of the pool code");
     assert_eq!(p3_check::wasm::sol_program_label(), PROGRAM_LABEL);
 }

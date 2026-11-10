@@ -20,10 +20,15 @@ use p256::elliptic_curve::hash2curve::FromOkm;
 use p256::elliptic_curve::sec1::ToEncodedPoint;
 use p256::{NonZeroScalar, PublicKey, Scalar, SecretKey};
 use sha2::Sha256;
-use zolana_hasher::p256::P_CONST_SEC1;
 
 use crate::consts::Key;
 
+/// The SEC1 point `P_const` of the P-256 viewing key. Slice C replaces the key scheme.
+const P_CONST_SEC1: [u8; 33] = [
+    0x03, 0x0e, 0x4d, 0xf9, 0x46, 0xbc, 0xe1, 0x4b, 0x95, 0x29, 0x2f, 0x13, 0xe1, 0x33, 0xd2, 0xb0,
+    0xc6, 0x4e, 0x89, 0x8b, 0x56, 0x44, 0xf6, 0x20, 0xa5, 0xbe, 0xd2, 0x5a, 0x06, 0x1a, 0x42, 0xfc,
+    0xdb,
+];
 const INFO_TX_VIEWING: &[u8] = b"TSPP/tx_viewing";
 const HPKE_PREFIX: &[u8] = b"TSPP/hpke/";
 const ENC_INFO_TRANSFER: &[u8] = b"TSPP/tx";

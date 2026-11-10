@@ -11,7 +11,7 @@ mod common;
 
 use std::collections::BTreeSet;
 
-use common::{pins, read, ts, Facts, NOW};
+use common::{pins, read, retired_pins, ts, Facts, NOW};
 use p3_check::consts::Key;
 use p3_check::intent::{Intent, Spend};
 use p3_check::plan::{Plan, Proposal};
@@ -74,6 +74,36 @@ fn key_flags(msg: &v1::Message) -> BTreeSet<(Key, bool, bool)> {
         .collect()
 }
 
+/// The landed instructions with the addresses under the retired pool changed to the same addresses
+/// under the pool of the pins: the pool, the registry, tree 0, the SOL interface and the
+/// nullifier accounts of the inputs.
+fn on_current_pool(landed: Vec<Resolved>, data: &[u8]) -> Vec<Resolved> {
+    let (old, new) = (retired_pins(), pins());
+    let tx = transact::parse(data).expect("transact data");
+    let mut pairs = vec![
+        (old.pool, new.pool),
+        (old.registry, new.registry),
+        (old.input_tree, new.input_tree),
+        (old.sol_interface, new.sol_interface),
+    ];
+    for input in &tx.inputs {
+        let pda = |p: &p3_check::pins::Pins| p.nullifier_pda(&p.input_tree, &input.nullifier);
+        pairs.push((pda(&old).expect("old"), pda(&new).expect("new")));
+    }
+    let map = |key: Key| {
+        pairs
+            .iter()
+            .find(|(from, _)| *from == key)
+            .map_or(key, |(_, to)| *to)
+    };
+    landed
+        .into_iter()
+        .map(|(program, accounts, data)| {
+            (map(program), accounts.into_iter().map(map).collect(), data)
+        })
+        .collect()
+}
+
 /// A landed P6 message, which the group paid and signed alone, as a sponsor would pay it: the
 /// payer is the first account of the `transact` instruction, and the group key follows the
 /// nullifier accounts as the owner signer (programs/shielded-pool transact/account.rs).
@@ -103,7 +133,7 @@ fn the_landed_p6_transfers_compile_to_the_sponsor_layout_of_the_same_instruction
             "{name}"
         );
         assert!(
-            resolved(&b) == sponsored(&landed, pins.payer),
+            resolved(&b) == on_current_pool(sponsored(&landed, pins.payer), &data),
             "{name}: the instructions"
         );
         assert_eq!(b.header[0], 2, "{name}: the payer and the group key sign");

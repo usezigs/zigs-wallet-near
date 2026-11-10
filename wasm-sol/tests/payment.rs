@@ -11,7 +11,9 @@ mod common;
 use std::collections::BTreeMap;
 
 use common::fixture::*;
-use common::{flags_of, mutate, rebuild, replace_key, with_flags, with_ix, ATTACKER, EXPIRY, NOW};
+use common::{
+    b58, flags_of, mutate, rebuild, replace_key, with_flags, with_ix, ATTACKER, EXPIRY, NOW,
+};
 use p3_check::approve::Device;
 use p3_check::beta::{approve_message, approve_payment, Signer};
 use p3_check::consts::{Key, INSTRUCTIONS_SYSVAR, MULTISIG_DEVNET, SYSTEM_PROGRAM};
@@ -965,10 +967,7 @@ fn a_withdrawal_to_an_account_of_the_pool_the_program_or_the_group_is_refused() 
     let f = withdrawal();
     let p = f.pins.for_pda().unwrap();
     // `SHIELDED_POOL_CPI_AUTHORITY` of program-libs/interface/src/lib.rs at the pinned commit.
-    let cpi: Key = [
-        69, 71, 220, 185, 216, 143, 158, 144, 194, 192, 35, 58, 192, 36, 234, 87, 129, 254, 240,
-        115, 136, 34, 89, 207, 13, 241, 99, 80, 189, 28, 84, 235,
-    ];
+    let cpi: Key = b58("CaM8DbtJ2mSecgaHYo9xeT7VSKq7AnaqEUm5p7e5LW4a");
     assert_eq!(
         p.cpi_authority().unwrap(),
         cpi,

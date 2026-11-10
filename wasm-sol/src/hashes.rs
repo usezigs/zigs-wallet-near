@@ -1,12 +1,12 @@
-//! The hashes of ZOLANA.md section 5, through `zolana-hasher`: the Poseidon, `hash_bytes` and
-//! owner identity that the program and the circuit compute (Zolana commit 89640630).
+//! The hashes of ZOLANA.md section 5, through `spr-hasher`: the Poseidon, `hash_bytes` and
+//! owner identity that the program and the circuit compute (privacy-rings commit 3c018b82).
 //!
 //! References, all under the repo root: docs/spec.md "Owner Hash" 304-315, "UTXO Hash" 603-616,
 //! "Nullifier" 617-626, "Empty UTXO" 664-687; sdk-libs/transaction/src/utxo/hash.rs 34-49,
 //! utxo/note.rs 40-61 and utxo/output.rs 132-154; sdk-libs/keypair/src/nullifier_key.rs 35-47.
 
-use zolana_hasher::primitives::{hash_bytes, right_align, solana_owner_identity};
-use zolana_hasher::{Hasher, Poseidon};
+use spr_hasher::primitives::{hash_bytes, right_align, solana_owner_identity};
+use spr_hasher::{Hasher, Poseidon};
 
 use crate::consts::Key;
 

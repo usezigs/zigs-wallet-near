@@ -8,7 +8,7 @@
 mod common;
 
 use common::ts::{self, payee_address, plan_of, role_of, text, transact_of, u64_of, Vector};
-use common::{unhex_n, EXPIRY, NOW};
+use common::{b58, unhex_n, EXPIRY, NOW, RETIRED_POOL, RETIRED_REGISTRY};
 use p3_check::approve::Device;
 use p3_check::beta::approve_payment;
 use p3_check::consts::{Key, MULTISIG_DEVNET, SYSTEM_PROGRAM};
@@ -56,6 +56,7 @@ fn transact(v: &Vector) -> p3_check::transact::Transact {
     tx
 }
 
+/// The vectors are SDK output for the retired Devnet pool: its SOL interface is in the hashes.
 fn pins(v: &Vector) -> Pins {
     let g = &v.json["group"];
     Pins::devnet(
@@ -65,6 +66,7 @@ fn pins(v: &Vector) -> Pins {
         unhex_n(&text(g, "payer")),
         unhex_n(&text(g, "nullifierPk")),
     )
+    .and_then(|pins| pins.on_programs(b58(RETIRED_POOL), b58(RETIRED_REGISTRY)))
     .unwrap()
 }
 

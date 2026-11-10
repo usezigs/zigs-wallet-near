@@ -1863,6 +1863,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "spr-hasher"
+version = "0.8.0"
+dependencies = [
+ "ark-bn254",
+ "ark-ff",
+ "light-poseidon",
+ "num-bigint",
+ "sha2 0.10.9",
+ "sha3",
+ "solana-program-error",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2125,8 +2139,8 @@ dependencies = [
  "solana-message",
  "solana-signature",
  "solana-system-interface",
+ "spr-hasher",
  "wasm-bindgen",
- "zolana-hasher",
 ]
 
 [[package]]
@@ -2242,17 +2256,3 @@ name = "zmij"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
-
-[[package]]
-name = "zolana-hasher"
-version = "5.0.0"
-dependencies = [
- "ark-bn254",
- "ark-ff",
- "light-poseidon",
- "num-bigint",
- "sha2 0.10.9",
- "sha3",
- "solana-program-error",
- "thiserror 2.0.21",
-]

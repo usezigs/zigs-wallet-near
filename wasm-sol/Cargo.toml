@@ -16,8 +16,10 @@ crate-type = ["cdylib", "rlib"]
 #         nullifier PDAs, tree 0, SOL interface).
 #   curve25519-dalek: the on-curve test of a program address (decompress a point).
 #   wasm-bindgen: the browser entry points. The version equals the installed CLI.
-#   zolana-hasher: Poseidon over BN254, as the program and the circuit compute it. A copy of
-#         program-libs/hasher of the Zolana repo at commit 89640630, in vendor/ (Apache-2.0).
+#   spr-hasher: Poseidon over BN254, as the program and the circuit compute it. A copy of
+#         program-libs/hasher of the privacy-rings repo at commit 3c018b82, in vendor/ (Apache-2.0).
+#         It is a copy, not a git dependency, so the Poseidon patch below applies and the wasm
+#         holds no path outside the repo.
 #   p256: the P-256 viewing keys of a shielded address (ECDH, point encoding, scalar reduction).
 #   hkdf: HKDF-SHA256 of the viewing secrets, of the per-slot key and nonce, and of the roles.
 #   aes, ctr: AES-256-CTR. The spec names no AEAD: the slot cipher has no tag, and integrity
@@ -48,7 +50,7 @@ serde = "1"
 serde_json = "1"
 sha2 = { version = "0.10", default-features = false }
 wasm-bindgen = "=0.2.129"
-zolana-hasher = { path = "vendor/zolana-hasher" }
+spr-hasher = { path = "vendor/spr-hasher" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }
@@ -84,7 +86,7 @@ codegen-units = 1
 strip = true
 panic = "abort"
 
-# light-poseidon keeps the round constants of 12 widths as code, and `zolana-hasher` reaches them
+# light-poseidon keeps the round constants of 12 widths as code, and `spr-hasher` reaches them
 # with a width known only at run time, so the wasm kept all of them (1.59 MB). The copy keeps the
 # widths 2, 3, 4 and 8, which the checker hashes with, and nothing else changes
 # (tools/trim_poseidon.py in the P3 crate).

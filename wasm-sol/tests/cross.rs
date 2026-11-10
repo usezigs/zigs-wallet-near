@@ -74,7 +74,8 @@ fn create_with_seed_and_curve_test_match_solana_address() {
 
 #[test]
 fn derived_pins_are_the_accounts_of_the_landed_transactions() {
-    let pins = pins();
+    // The landed transactions are those of the retired Devnet pool.
+    let pins = retired_pins();
     let table = |path: &str| parse(&read(path)).keys;
     assert!(table("real/chain-register.msg").contains(&pins.user_record));
     assert!(table("real/chain-shield.msg").contains(&pins.sol_interface));
@@ -92,6 +93,26 @@ fn derived_pins_are_the_accounts_of_the_landed_transactions() {
             "{path}"
         );
     }
+}
+
+#[test]
+fn the_derived_pins_are_the_accounts_of_the_pool_on_chain() {
+    // The addresses of tree 0, the SOL interface and the CPI authority of `ring1G...`, read from
+    // chain accounts and from interface/src/lib.rs at 3c018b82 (not derived by this crate).
+    let pins = pins();
+    assert_eq!(
+        pins.input_tree,
+        b58("777pvSGe5LaBd9nCczvE2FXEauiwtfGJ5XRpjKyniGor")
+    );
+    assert_eq!(pins.output_tree, pins.input_tree);
+    assert_eq!(
+        pins.sol_interface,
+        b58("CiNmas621VuyofiDSrEPfTXHKrdZuB6jMKECyNiMpLXE")
+    );
+    assert_eq!(
+        pins.cpi_authority().unwrap(),
+        b58("CaM8DbtJ2mSecgaHYo9xeT7VSKq7AnaqEUm5p7e5LW4a")
+    );
 }
 
 #[test]

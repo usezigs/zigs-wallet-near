@@ -103,6 +103,26 @@ impl Pins {
         })
     }
 
+    /// The same pins on another pool and registry: the addresses under them are derived again.
+    /// The tests read the landed vectors of the retired Devnet pool through it.
+    pub fn on_programs(&self, pool: Key, registry: Key) -> Result<Self, String> {
+        let tree = derive(&[SEED_TREE, &0u16.to_le_bytes()], &pool, "tree 0")?;
+        let sol_interface = derive(
+            &[SEED_SOL_INTERFACE, SEED_SOL_INTERFACE_INDEX],
+            &pool,
+            "the SOL interface",
+        )?;
+        Ok(Self {
+            pool,
+            registry,
+            input_tree: tree,
+            output_tree: tree,
+            sol_interface,
+            user_record: derive(&[SEED_USER_RECORD, &self.multisig], &registry, "the record")?,
+            ..self.clone()
+        })
+    }
+
     /// Reads the wire form of the wasm entry. The whole input must be used.
     pub fn decode(bytes: &[u8]) -> Result<Self, String> {
         let short = |_| {

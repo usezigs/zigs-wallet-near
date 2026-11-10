@@ -8,7 +8,7 @@
 //! `proposal_address` is the one place that names those seeds.
 
 use sha2::{Digest, Sha256};
-use zolana_hasher::primitives::right_align;
+use spr_hasher::primitives::right_align;
 
 use crate::bytes::Reader;
 use crate::consts::{

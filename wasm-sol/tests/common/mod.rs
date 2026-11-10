@@ -147,6 +147,19 @@ pub fn pins() -> Pins {
     .expect("pins")
 }
 
+/// The retired Devnet pool `sppU489…` and registry `regyS5rk…` (before 3c018b82). The landed
+/// messages and the SDK vectors of the spike name them, so the tests that read those files use
+/// these pins. The Devnet history stays as it was; no code path signs for this pool.
+pub const RETIRED_POOL: &str = "sppU489D7A4U1exNo1oeMGZtLEofq3a6o2fR7UeoWB6";
+pub const RETIRED_REGISTRY: &str = "regyS5rkAcw2YzDJCmTwCTHs2s246FXxbmuRZ42u2PD";
+
+/// `pins` on the retired pool and registry.
+pub fn retired_pins() -> Pins {
+    pins()
+        .on_programs(b58(RETIRED_POOL), b58(RETIRED_REGISTRY))
+        .expect("retired pins")
+}
+
 pub const NONCE: Key = [9; 32];
 
 pub fn parse(bytes: &[u8]) -> Message {
@@ -252,6 +265,11 @@ pub fn accept(name: &str) -> Vector {
 
 pub fn report(bytes: &[u8], intent: &Intent) -> Report {
     check_all(bytes, intent, &pins(), NOW)
+}
+
+/// `report` for a message that landed on the retired pool.
+pub fn retired_report(bytes: &[u8], intent: &Intent) -> Report {
+    check_all(bytes, intent, &retired_pins(), NOW)
 }
 
 /// The rule that refuses the bytes first. Panics if the bytes are accepted.

@@ -1,9 +1,11 @@
-# A copy of program-libs/hasher of github.com/helius-labs/zolana at commit 89640630 (Apache-2.0,
-# see LICENSE). Changes: `workspace = true` became the version that the Zolana workspace sets, the
-# dev-dependencies and the tests were left out. The source in src/ is unchanged.
+# A copy of program-libs/hasher of github.com/helius-labs/privacy-rings at commit 3c018b82
+# (Apache-2.0, see LICENSE). Changes: `workspace = true` became a version, the dev-dependencies and
+# the tests were left out. The versions of light-poseidon and ark-* stay at the ones of
+# Cargo.lock and of vendor/light-poseidon: src/poseidon.rs is the same text as at 89640630, so
+# the hashes do not change. The source in src/ is unchanged.
 [package]
-name = "zolana-hasher"
-version = "5.0.0"
+name = "spr-hasher"
+version = "0.8.0"
 description = "Trait for generic usage of hash functions on Solana"
 license = "Apache-2.0"
 edition = "2021"
