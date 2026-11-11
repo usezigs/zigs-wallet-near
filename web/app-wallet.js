@@ -38,7 +38,7 @@ import { generalSettings, settingsDisclosure, settingsGroup, settingsLabel, sett
 import { networkPrivacySettings } from "./app-network-privacy.js";
 import { helpView } from "./app-help.js";
 import {
-  sol, solActivity, solBackup, solBalance, solError, solFile, solLoad, solLoading,
+  sol, solActivity, solBackup, solBalance, solError, solFile, solLoad, solLoading, solMode,
   solActivityWaits, solLoadingCount, solOlderCount, solOn, solPending, solPendingRows, solSetup,
   solNotAdded, solObserveOverview, solPartError, solPartSetup, solSync, solTab, solTabOn,
   plainAdded, plainLoading, plainNotAdded, plainPick, plainRead, plainSetup, plainShown, plainSol,
@@ -191,8 +191,12 @@ const BODIES = {
 
 // The small line above the title of a section; the others read "This wallet".
 const LEAD = { settings: "Wallet and app preferences", solana: "Solana Devnet" };
-const PLAIN_NETWORK = "Solana Mainnet";
-const solNetwork = () => (plainShown() ? PLAIN_NETWORK : LEAD.solana);
+// The Solana network of the open wallet: mainnet for a served plain wallet and for a mainnet wallet
+// that is not plain (private, "accept" or "unserved"). A plain wallet on a server that does not
+// serve it keeps the Devnet texts, as before the plain wallet.
+const SOLANA_MAINNET = "Solana Mainnet";
+const poolMainnet = () => ![null, "plain"].includes(solMode());
+const solNetwork = () => (plainShown() || poolMainnet() ? SOLANA_MAINNET : LEAD.solana);
 const leadOf = (id) => (id === "solana" ? solNetwork() : LEAD[id] ?? "This wallet");
 const EXPLANATION = { members: "device", messages: "chats", solana: "overview" };
 const pageHeading = (id, label) => id === "settings"
@@ -372,7 +376,7 @@ function assetActionPicker(action) {
   // A served plain wallet sends and receives SOL and USDC once its Solana part is ready.
   const plainChoice = (id, title) => {
     const why = plainWhy(id, sending);
-    const detail = why || PLAIN_NETWORK + (sending ? " · public" : " · shows the address");
+    const detail = why || SOLANA_MAINNET + (sending ? " · public" : " · shows the address");
     return choose(id, title, detail, !!why, sending ? () => openSolanaSend(id) : openSolanaReceive);
   };
   return el("details", { class: "overview-action-picker" },
@@ -380,7 +384,7 @@ function assetActionPicker(action) {
     el("div", { class: "asset-choices" }, el("p", { class: "label" }, label + " · choose an asset"),
       choose("zec", "ZEC", why || "Zcash " + netName(state.g) + " · shielded", !!why, zec),
       plainShown() ? plainChoice("sol", "SOL") : choose("sol", "SOL", solOn()
-        ? "Solana Devnet · opens this wallet’s Solana tools" : "Unavailable for this wallet",
+        ? solNetwork() + " · opens this wallet’s Solana tools" : "Unavailable for this wallet",
       !solOn(), () => sending ? openSolanaControl("sol-send-to") : openSolanaReceive()),
       plainShown() ? plainChoice("usdc", "USDC")
         : choose("usdc", "USDC", "Demo row · unavailable; do not deposit", true, null)));
@@ -732,6 +736,13 @@ const SOL_NOTE = {
     + "the details.",
   unknown: "Open Solana to see the state of its part.",
 };
+// SOL_EXPOSURE (privacy-language.js) names Devnet. A mainnet wallet that is not plain says what its
+// pool shows on mainnet, and names the small pool as MAINNET_DISCLOSURE of web/sol/net.js does.
+const MAINNET_EXPOSURE = "Solana Mainnet hides the amount of a private payment on chain, but the "
+  + "owner key of the payee and the fee addresses that pay are public. Add SOL and withdrawals "
+  + "show amounts and addresses. Do not expect anonymity. The mainnet pool is small. Prover and "
+  + "service disclosures apply in Solana details.";
+const solExposure = () => (poolMainnet() ? MAINNET_EXPOSURE : SOL_EXPOSURE);
 
 // The SOL row: the private balance of the last sync, or the state of the Solana part.
 function solAsset() {
@@ -740,7 +751,7 @@ function solAsset() {
     setup: solSetup(), balance: solBalance(), sync: solSync() });
   if (!row) return el("section", { class: "card card-pad asset-card asset-row asset-unavailable", "aria-labelledby": "asset-sol" },
     el("div", { class: "asset-row-main" },
-    el("div", { class: "asset-position" }, assetHead("sol", "SOL", "Solana Devnet"),
+    el("div", { class: "asset-position" }, assetHead("sol", "SOL", solNetwork()),
       solBalancePrivacy(el, row)),
     el("div", { class: "asset-balance-block" }, el("span", { class: "label" }, "Wallet balance"),
       el("p", { class: "asset-balance unknown" }, "Unavailable"),
@@ -757,14 +768,14 @@ function solAsset() {
     resync: "Syncing · saved balance" }[row.state];
   return el("section", { class: "card card-pad asset-card asset-row asset-state-" + row.state, "aria-labelledby": "asset-sol" },
     el("div", { class: "asset-row-main" },
-    el("div", { class: "asset-position" }, assetHead("sol", "SOL", "Solana Devnet"),
+    el("div", { class: "asset-position" }, assetHead("sol", "SOL", solNetwork()),
       solBalancePrivacy(el, row)),
     el("div", { class: "asset-balance-block" }, el("span", { class: "label" }, "Wallet balance"), amount,
       status ? el("p", { class: "asset-row-status small muted", role: "status" }, status) : null),
     shieldingActions("sol", true)),
     assetNote("sol", "Balance & privacy details", [
       el("p", {}, row.state === "failed" ? solError : SOL_NOTE[row.state]),
-      el("p", {}, SOL_EXPOSURE), shieldingBreakdown("sol"),
+      el("p", {}, solExposure()), shieldingBreakdown("sol"),
       el("p", { id: "sol-shielding-note" }, "Percentages unavailable. Device fee funds are separate from wallet holdings. "
         + "Shield uses this device’s public fee funds. Unshield opens a public withdrawal requiring wallet approvals."),
       el("p", {}, "Shield and Unshield open the existing Solana forms. Setup and fee-address requirements still apply. Solana privacy differs from Zcash; review the disclosures there."),
@@ -775,7 +786,7 @@ function usdcAsset() {
   if (plainShown()) return plainAsset("usdc");
   return el("section", { class: "card card-pad asset-card asset-row asset-unavailable", "aria-labelledby": "asset-usdc" },
     el("div", { class: "asset-row-main" },
-    el("div", { class: "asset-position" }, assetHead("usdc", "USDC", "Solana Devnet"),
+    el("div", { class: "asset-position" }, assetHead("usdc", "USDC", solNetwork()),
       demoBadge(), privacyBadge(el, "unsupported")),
     el("div", { class: "asset-balance-block" }, el("span", { class: "label" }, "Wallet balance"),
       el("p", { class: "asset-balance unknown" }, "Unavailable"),
@@ -810,7 +821,7 @@ function plainAsset(id) {
   return el("section", { class: "card card-pad asset-card asset-row asset-state-" + row.state,
     "aria-labelledby": "asset-" + id },
   el("div", { class: "asset-row-main" },
-    el("div", { class: "asset-position" }, assetHead(id, id.toUpperCase(), PLAIN_NETWORK),
+    el("div", { class: "asset-position" }, assetHead(id, id.toUpperCase(), SOLANA_MAINNET),
       privacyBadge(el, "public")),
     el("div", { class: "asset-balance-block" }, el("span", { class: "label" }, "Wallet balance"),
       plainAmount(row), status ? el("p", { class: "asset-row-status small"
@@ -1020,8 +1031,8 @@ const SOL_ICONS = { out: "send", in: "receive", "": "swap" };
 function solActivityRow(r) {
   const time = r.t ? " · " + when(r.t) : "", who = proposer({ by: r.by });
   const slot = r.slot ? " · slot\u00a0" + Number(r.slot).toLocaleString() : "";
-  const subs = r.added ? ["Solana Devnet" + slot, r.added + " by " + who + time]
-    : ["Solana Devnet · Proposed by " + who + time];
+  const subs = r.added ? [solNetwork() + slot, r.added + " by " + who + time]
+    : [solNetwork() + " · Proposed by " + who + time];
   return el("button", {
     class: "row-item", type: "button", "data-key": "sol-act-" + r.id, onclick: openSolana,
   },
