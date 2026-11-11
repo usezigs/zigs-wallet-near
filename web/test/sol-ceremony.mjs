@@ -883,9 +883,9 @@ assert.deepEqual(
   await waitFor("the private agreement", () => agreement(ctl).state === "agree");
   assert.equal(stored(gidP, "solstart")[1].cluster, "mainnet-private", "the start names the label");
   const docs = dones(gidP).map(docFields);
-  for (const d of docs) {
-    assert.deepEqual([d.cluster, d.program], [pool.label, pool.program], "the soldone of " + d.by);
-  }
+  docs.forEach((d, n) => {
+    assert.deepEqual([d.cluster, d.program], [pool.label, pool.program], "soldone " + (n + 1));
+  });
   assert.equal(pool.program.split(":").at(-1), "9mE7WUJHK6dQwzK6AP6wf1eyPmePULZrGeRbXqke2ukq");
   const s = solOf(gidP, 1);
   const pda = JSON.parse(W.sol_pda_roles(pool.label, s.solSeed, s.groupKey));
