@@ -376,6 +376,11 @@ The wasm of the Zolana v1 build (10 November 2026, branch zolana-v1, slice D): S
 build.sh with wasm-bindgen 0.2.129 and committed as web/sol/wasm/sol_wasm_bg.wasm. The wasm hashes
 above are of earlier builds.
 
+The TS smoke vectors (11 November 2026, not signed by a verifier). vectors/ts changed in 7df33091,
+after the last run of gen_vectors, so the six ts-* smoke vectors were stale. `cargo run --example
+gen_vectors` at 69803a1d makes their msg, intent and snapshot files again from vectors/ts. No
+answer file changes.
+
 Check: python3 -I tools/pin_check.py (the manifest below against the tree).
 
 files:
@@ -728,35 +733,35 @@ c06057b306ee7aea1911e5838ec389afc4700c9325c4092eccd4812faae42bbd  vectors/smoke/
 cb8985a090eda549cc06659151d96c030090ccacca182e637e9c7f4f4d9a9471  vectors/smoke/transfer.pins  modified
 648d3ea3fa11c4f3552585ee309ad7bd8e129ca3920225758b5cb7ee353a3053  vectors/smoke/transfer.snapshot  verbatim
 9f815e7ffe1d2c7899ca7b69e8022f509b04fb23c824d14aa8249c9e3f9c34df  vectors/smoke/ts-transfer-everything-with-dummy.answer  modified
-9ee9db3b29ab3b24f8f6c4fd3c9c9fc56cd76b63cfac751163a0a85db51ec554  vectors/smoke/ts-transfer-everything-with-dummy.intent  modified
-f5dc36625537e5aed7442d949b85a039a0a07585ad774c467dce52d458e3c9ca  vectors/smoke/ts-transfer-everything-with-dummy.msg  modified
+29281b014c878ba6bc2ae077222390a9134e1fccde06501283b248088c6df080  vectors/smoke/ts-transfer-everything-with-dummy.intent  modified
+d56da4425bb851ad93091850f7a5eb4305d1445f088c2c121f0d09c10b85b0f7  vectors/smoke/ts-transfer-everything-with-dummy.msg  modified
 86ffd063c4b77e0a3011bda72fc97ef41d8476fbeb6bde0d85d66e6b43c218c6  vectors/smoke/ts-transfer-everything-with-dummy.pins  modified
-40efa74539a9436770ff7f50109ae7691b0c79bb43802023fea46decbd34de61  vectors/smoke/ts-transfer-everything-with-dummy.snapshot  verbatim
+333838863e55261fd86c9e198fc875d6c7e4f39fe63a200ca54724da2215ee7d  vectors/smoke/ts-transfer-everything-with-dummy.snapshot  modified
 9f815e7ffe1d2c7899ca7b69e8022f509b04fb23c824d14aa8249c9e3f9c34df  vectors/smoke/ts-transfer-sol-and-spl-with-dummy.answer  modified
-36c7f2e1e9513ab2e170f9add65c8359d6b2b2ba6827f2caf4296126ec594c83  vectors/smoke/ts-transfer-sol-and-spl-with-dummy.intent  modified
-ff11c34677ea0c98cee117c273c2f406d73f0e651b98c95e58c78908ee1d005d  vectors/smoke/ts-transfer-sol-and-spl-with-dummy.msg  modified
+19227968df0788f18a651936fa75af711f754b5e92e86f6ae9964e1867c8d78d  vectors/smoke/ts-transfer-sol-and-spl-with-dummy.intent  modified
+988eab733a56c7437c7f1f921c206523bb7047f0cebe06431b078a325848db43  vectors/smoke/ts-transfer-sol-and-spl-with-dummy.msg  modified
 86ffd063c4b77e0a3011bda72fc97ef41d8476fbeb6bde0d85d66e6b43c218c6  vectors/smoke/ts-transfer-sol-and-spl-with-dummy.pins  modified
-b4b569dbdf19c1cdf519878f9e265c8bd02be3170d6f44f0e1fdd45b93d33012  vectors/smoke/ts-transfer-sol-and-spl-with-dummy.snapshot  verbatim
+a8aac36dbe7ac97f678433c21caf307806a9a886a2cb9470a0677f8ea7560d74  vectors/smoke/ts-transfer-sol-and-spl-with-dummy.snapshot  modified
 9f815e7ffe1d2c7899ca7b69e8022f509b04fb23c824d14aa8249c9e3f9c34df  vectors/smoke/ts-transfer-sol.answer  modified
-32a6db93712845bd9c19faf776771f8dbb1d3ba9e0a1adec89f81eaec0cae47e  vectors/smoke/ts-transfer-sol.intent  modified
-e540913a26a8fa38da71a627d9fa569b54298a7b4db8564b92b8b1c3c53fe737  vectors/smoke/ts-transfer-sol.msg  modified
+4ce22666707f5ef08fbedb681dde58d2b1e572f68aaa32c042ebc4053c4c3302  vectors/smoke/ts-transfer-sol.intent  modified
+e853ed1c53f09163f3ce854c93bbd78a8a66237c9840902c99194d744bb05791  vectors/smoke/ts-transfer-sol.msg  modified
 86ffd063c4b77e0a3011bda72fc97ef41d8476fbeb6bde0d85d66e6b43c218c6  vectors/smoke/ts-transfer-sol.pins  modified
-40efa74539a9436770ff7f50109ae7691b0c79bb43802023fea46decbd34de61  vectors/smoke/ts-transfer-sol.snapshot  verbatim
+333838863e55261fd86c9e198fc875d6c7e4f39fe63a200ca54724da2215ee7d  vectors/smoke/ts-transfer-sol.snapshot  modified
 9f815e7ffe1d2c7899ca7b69e8022f509b04fb23c824d14aa8249c9e3f9c34df  vectors/smoke/ts-transfer-spl.answer  modified
-d64cfe8641fbb08389542b66b7d9aad70190a25f626f03b9fe7fe7ab6a76f8da  vectors/smoke/ts-transfer-spl.intent  modified
-4b6ec575727e5af93d95695213a32e2c3041b7feafcf6f10e4df6508b7cfb64e  vectors/smoke/ts-transfer-spl.msg  modified
+3ee5dd347e670d6c64d1619fc47b3ff5feec6f1fed7d144f10266ab7047994b7  vectors/smoke/ts-transfer-spl.intent  modified
+939a4177b80f5e9a6e2f3eb2b6f17fd279a402a448ea747a2d81a8f8b9a1aee7  vectors/smoke/ts-transfer-spl.msg  modified
 86ffd063c4b77e0a3011bda72fc97ef41d8476fbeb6bde0d85d66e6b43c218c6  vectors/smoke/ts-transfer-spl.pins  modified
-142bac8bb6d86339aeaf31abebd0a859fd79d348c87dcc073e98bfd873b2b693  vectors/smoke/ts-transfer-spl.snapshot  verbatim
+a9b8dd29b83eab23a123a351a48a7fe2b406262a5156ec686f5b3c183e5549a9  vectors/smoke/ts-transfer-spl.snapshot  modified
 2b29872500dabee70fbdf5a3e62e6e0d899a875cf223678189d1b4201016bfd8  vectors/smoke/ts-withdraw-everything-zero-change.answer  modified
-3b14bdf74e523dc5105506fc0d0afcf03d4ad2c1627fd93f493deb10b1dd883c  vectors/smoke/ts-withdraw-everything-zero-change.intent  modified
-2b21fc736c803212085780ed7834d42d896e6bc5ff8ae6138b700a0441167859  vectors/smoke/ts-withdraw-everything-zero-change.msg  modified
+d0e6bcde30932ada4f0d8706586723fbae270ad89a8dec77fa477ae1684cf7cb  vectors/smoke/ts-withdraw-everything-zero-change.intent  modified
+900a9e790a40ea63d9274101c6075a3507a48e10b9d6f20a0ac32345a16c8f45  vectors/smoke/ts-withdraw-everything-zero-change.msg  modified
 86ffd063c4b77e0a3011bda72fc97ef41d8476fbeb6bde0d85d66e6b43c218c6  vectors/smoke/ts-withdraw-everything-zero-change.pins  modified
-40efa74539a9436770ff7f50109ae7691b0c79bb43802023fea46decbd34de61  vectors/smoke/ts-withdraw-everything-zero-change.snapshot  verbatim
+333838863e55261fd86c9e198fc875d6c7e4f39fe63a200ca54724da2215ee7d  vectors/smoke/ts-withdraw-everything-zero-change.snapshot  modified
 2b29872500dabee70fbdf5a3e62e6e0d899a875cf223678189d1b4201016bfd8  vectors/smoke/ts-withdraw-with-dummy.answer  modified
-0123beb3c1fdf3908e7d5943d248bc9ca255679cb60d03a898dce5cc260438c1  vectors/smoke/ts-withdraw-with-dummy.intent  modified
-78595dd9e6e1d6534ef9aef879aabeca83526e1988ac4405fc03df3dc6ec7f16  vectors/smoke/ts-withdraw-with-dummy.msg  modified
+68661913ea02aa99525390faae200aae1921018d8a68849f129fa2f4e51c14f2  vectors/smoke/ts-withdraw-with-dummy.intent  modified
+ffb2457547154789b89846f87c6be7740e6fe84010f3a7b9b474d94a60c1aba1  vectors/smoke/ts-withdraw-with-dummy.msg  modified
 86ffd063c4b77e0a3011bda72fc97ef41d8476fbeb6bde0d85d66e6b43c218c6  vectors/smoke/ts-withdraw-with-dummy.pins  modified
-40efa74539a9436770ff7f50109ae7691b0c79bb43802023fea46decbd34de61  vectors/smoke/ts-withdraw-with-dummy.snapshot  verbatim
+333838863e55261fd86c9e198fc875d6c7e4f39fe63a200ca54724da2215ee7d  vectors/smoke/ts-withdraw-with-dummy.snapshot  modified
 1427d2b9856934bbde50e207ca66e756c05b636f6a4dd3f2088c5ca88e1d478b  vectors/smoke/tx-viewing-pk.answer  modified
 48988227b5d524cb8a9b0a301dccd0a96ba4ffc5a5aab19773aefba29a2866a5  vectors/smoke/tx-viewing-pk.intent  modified
 d3a8740fa1da5b3681e10ba026fbbab07b761664e796b7d35f2fbde1bc0006d6  vectors/smoke/tx-viewing-pk.msg  modified
