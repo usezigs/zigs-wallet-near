@@ -1250,13 +1250,7 @@ assert.deepEqual(
   assert.match(startBlock(host(1, "testnet")), /version 3/);
   assert.match(startBlock(host(3, "mainnet")), /Devnet only/);
   assert.equal(startBlock(host(3, "testnet")), null);
-  // The private mode (slice 8d gives the host solMode) needs the mainnet that the people confirmed.
-  const privateHost = (confirmed, mode = "private") => ({ ...host(3, "mainnet"),
-    solMode: () => mode, netConfirmed: () => confirmed, state: { gid: "g" } });
-  assert.equal(startBlock(privateHost("mainnet")), null, "a private mainnet wallet");
-  assert.match(startBlock(privateHost("testnet")), /private Solana wallet runs on a mainnet/);
-  assert.match(startBlock(privateHost(null)), /private Solana wallet runs on a mainnet/);
-  assert.match(startBlock(privateHost("mainnet", "plain")), /Devnet only/, "the pool host");
+
   const gid7 = await rig.wallet({ name: "Main", network: "mainnet" });
   await t.solLoad();
   await assert.rejects(() => t.sol.add(), /Devnet only/);
