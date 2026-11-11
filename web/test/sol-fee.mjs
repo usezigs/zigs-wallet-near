@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { createPrivateKey, createPublicKey, sign } from "node:crypto";
 import { addSol } from "../sol/addsol.js";
 import { feeSignature, refusalText, reviewOf } from "../sol/approve.js";
-import { base58 } from "../sol/docs.js";
+import { base58, keyOfBase58 } from "../sol/docs.js";
 import { feeMismatch, feeOf, readyFee } from "../sol/fee.js";
 import { readySeat } from "../sol/gate.js";
 import { CLUSTERS } from "../sol/guard.js";
@@ -52,6 +52,9 @@ const FEE = 5000n;
 const J = JSON.parse;
 const PKCS8 = Buffer.from("302e020100300506032b657004220420", "hex");
 const GENESIS = CLUSTERS.devnet.genesis;
+// The approvals program on Devnet: Add SOL reads it before the fee key signs (addsol.js).
+const LOADER = keyOfBase58("BPFLoaderUpgradeab1e11111111111111111111111");
+chain.accounts.set(CLUSTERS.devnet.program, { owner: LOADER, executable: true });
 
 // ── Each seat made a fee key, and its document says so ──
 {
@@ -401,15 +404,9 @@ function base58hex(text) {
     /refused this in a test run: SomeOther/,
   );
   chain.refuse = null;
-  // Until the cap reads the synced balance (phase 2), a mainnet wallet adds nothing.
-  const commands = chain.commands.length;
-  c.wallet = { cluster: "mainnet", mode: "pool", ...J(W.sol_pool_wallet("mainnet")) };
-  await assert.rejects(() => addSol(c, { amount: "0.01" }),
-    /Add SOL on mainnet is not ready\. Nothing was sent\./).finally(() => delete c.wallet);
-  assert.equal(chain.commands.length, commands, "a mainnet wallet sends the Worker nothing");
   assert.equal(chain.landed.length, landed, "none of them reached the chain");
 }
-step("Add SOL refuses a bad amount, an unfunded address, a network refusal and mainnet");
+step("Add SOL refuses a bad amount, an unfunded address and a network refusal");
 
 // ── The fee key signs no deposit to another owner, and no message that another key pays ──
 {

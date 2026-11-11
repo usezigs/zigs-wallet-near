@@ -30,6 +30,7 @@ import {
   wireBase64,
 } from "./intent.js";
 import { rolesOf, signAsFee } from "./approve.js";
+import { netOf } from "./net.js";
 import { ensureWorker, solText } from "./session.js";
 import { SESSIONS, writePart } from "./sessions.js";
 
@@ -64,12 +65,26 @@ const FAILED = "The execute failed on chain. The approval is still valid.";
 const UNREAD = "The history of the proposal account is not complete yet.";
 export const PAYMENT_EXPIRED = "This payment expired before it was executed. Propose it again.";
 const GONE = "The proposal account is gone, and no execute of it landed.";
-const NO_FUNDED_SEAT =
+/** Why no seat of this browser executes: none can pay. `coin` is the SOL of the network. */
+const noFundedSeat = (coin) =>
   "No device of this browser can pay the execute. A fee address needs " +
   solText(EXECUTE_MIN) +
   ": the fees of the execute, and the minimum balance that the address must keep. A browser " +
-  "with a funded device can execute this payment. To execute it in this browser, send Devnet SOL " +
+  `with a funded device can execute this payment. To execute it in this browser, send ${coin} ` +
   'to a fee address in "Fund the fee address".';
+
+// fee.js is in the plain closure. Its text names Devnet SOL and the faucet link of the fund card,
+// and a mainnet wallet has neither.
+const POOR_MAINNET = (seat) =>
+  "The fee address of device " +
+  seat +
+  ' has too little SOL. Send SOL to it (see "Fund the fee address"), then try again.';
+
+/** The poor-fee text of fee.js for the network of the wallet, or null when the payer has SOL. */
+export function poorText(c, run, seat) {
+  const text = poorFeeText(run, seat);
+  return text !== null && c.wallet?.cluster === "mainnet" ? POOR_MAINNET(seat) : text;
+}
 // A margin for the clock of this device: the program judges the expiry by the chain clock.
 const CLOCK_MARGIN_S = 600;
 
@@ -174,11 +189,11 @@ async function signedExecute(c, worker, ss, seat) {
 }
 
 /** Why a test run of the execute failed, as a text for the page. */
-function refusalOf(sim, seat) {
+function refusalOf(c, sim, seat) {
   if (STALE_ROOT.test(sim.err)) {
     return "The new proof went stale before it was sent. The approval is still valid.";
   }
-  return poorFeeText(sim, seat) ?? "The network refused the execute: " + sim.err;
+  return poorText(c, sim, seat) ?? "The network refused the execute: " + sim.err;
 }
 
 /** True when the account holds the proposal of `ss`: kind 1, a bump, then its body. */
@@ -266,7 +281,7 @@ async function attempt(c, worker, ss, seat, failSession) {
   if (pastExpiry(ss)) return failSession(c, ss, PAYMENT_EXPIRED);
   const { tx, txId } = await signedExecute(c, worker, ss, seat);
   const sim = await worker.call("simulate", { tx });
-  if (sim.err !== null) throw new Error(await poolNote(c, worker, refusalOf(sim, seat)));
+  if (sim.err !== null) throw new Error(await poolNote(c, worker, refusalOf(c, sim, seat)));
   // The re-proof may outlast the lease: take it again, or leave the send to the tab that holds it.
   if (!(await leased(ref))) return sleep(3000);
   await worker.call("send", { tx });
@@ -326,7 +341,8 @@ async function unfunded(c, worker, ss, { seat, failed }, failSession) {
 /** A failed read shows its red text; with every read good, the neutral line says none can pay. */
 function showLook(c, ss, error) {
   showOnCard(c, "execErrors", ss, error);
-  showOnCard(c, "execWait", ss, error === undefined ? NO_FUNDED_SEAT : undefined);
+  const wait = noFundedSeat(netOf(c.wallet?.cluster).coin);
+  showOnCard(c, "execWait", ss, error === undefined ? wait : undefined);
 }
 
 /**

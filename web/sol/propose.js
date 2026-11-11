@@ -12,9 +12,11 @@
 // The move of the beta funds to the PDA (`migrate`, and `createNonce` when the nonce account is
 // missing) is the one nonce payment left: the message is compiled from the fixed template with the
 // nonce, signed by the fee key, run once without the group signature, and then proposed.
+import { pruneAdded } from "./addsol.js";
 import { agreement } from "./ceremony.js";
 import { base58, keyOfBase58 } from "./docs.js";
-import { poorFeeText, readyFee } from "./fee.js";
+import { poorText } from "./execute.js";
+import { readyFee } from "./fee.js";
 import { payerSeat, settledBlock } from "./gate.js";
 import { poolNote } from "./localprove.js";
 import {
@@ -41,6 +43,7 @@ import {
   rolesOf,
   signAsFee,
 } from "./approve.js";
+import { netOf } from "./net.js";
 import { ensureWorker } from "./session.js";
 import { openInputs, writePart } from "./sessions.js";
 import { pairsBefore } from "./spend.js";
@@ -70,18 +73,18 @@ async function lifetimeOf(worker, kind, groupKey) {
 }
 
 /** What the network said to a test run, as a text, with the poor-fee text first. */
-function refusalOf(run, seat) {
+function refusalOf(c, run, seat) {
   const logs = run.logs.join(" | ").slice(0, 300);
   const refused = "The network refused this in a test run: " + run.err + " " + logs;
-  return poorFeeText(run, seat) ?? refused;
+  return poorText(c, run, seat) ?? refused;
 }
 
 /** The network runs the message once, with no signature. Nothing is charged. */
-async function preflight(worker, messageHex, seat) {
+async function preflight(c, worker, messageHex, seat) {
   const message = bytesOf(messageHex);
   const tx = wireBase64(message, new Uint8Array(64 * message[1]));
   const run = await worker.call("preflight", { tx });
-  if (run.err !== null) throw new Error(refusalOf(run, seat));
+  if (run.err !== null) throw new Error(refusalOf(c, run, seat));
 }
 
 /** The tree fee and the inputs of a draft spend: the snapshot for the check of the proposer. */
@@ -94,22 +97,79 @@ async function draftSpend(c, worker, prepared) {
   };
 }
 
-/** The payee and the amount that a person typed, checked. */
-function typedPayment(args) {
-  const payee = String(args.recipient ?? "")
+// A shielded address names no network, so the page writes one before it (view.js). A payee of
+// another network is refused before any proof: SOL paid to it could never move.
+const NETWORK = /^solana-(devnet|mainnet):/;
+// The network that a payee may name on each cluster ("" is no prefix). Mainnet needs its own.
+const PAYEE_NETWORKS = { devnet: ["", "devnet"], mainnet: ["mainnet"] };
+const NO_NETWORK =
+  "This payee names no network, so it can be the address of a Solana Devnet wallet. Copy the " +
+  "payee from the Solana tab of a mainnet wallet: it starts with solana-mainnet:. Nothing was " +
+  "sent.";
+
+/** Refuses a payee that names another network than `cluster`. `named` is "" with no prefix. */
+function sameNetwork(named, cluster) {
+  if (PAYEE_NETWORKS[cluster].includes(named)) return;
+  if (!named) throw new Error(NO_NETWORK);
+  const name = (net) => "Solana " + netOf(net).badge;
+  throw new Error(
+    `This payee is an address of a ${name(named)} wallet, and this wallet pays on ` +
+      `${name(cluster)}. Nothing was sent.`,
+  );
+}
+
+/** The payee (the bare hex, with its network checked) and the amount that a person typed. */
+function typedPayment(c, args) {
+  const typed = String(args.recipient ?? "")
     .trim()
     .toLowerCase();
+  const payee = typed.replace(NETWORK, "");
   const amount = lamportsOf(args.amount);
   if (!isAddress(payee)) throw new Error("Enter the full shielded address of the payee.");
+  sameNetwork(NETWORK.exec(typed)?.[1] ?? "", c.wallet?.cluster ?? "devnet");
   if (amount === null) throw new Error("Enter an amount of SOL, for example 0.005.");
   return { payee, amount };
 }
 
-/** The public recipient (a Solana address) and the amount of a withdrawal, checked. */
-function typedWithdrawal(args) {
+// Ed25519 (RFC 8032): the field prime, and the curve constant d = -121665 / 121666.
+const P = 2n ** 255n - 19n;
+
+/** `base` to the power `exp`, mod P. */
+function power(base, exp) {
+  let out = 1n;
+  let b = base % P;
+  for (let e = exp; e > 0n; e >>= 1n) {
+    if (e & 1n) out = (out * b) % P;
+    b = (b * b) % P;
+  }
+  return out;
+}
+const D = ((P - 121665n) * power(121666n, P - 2n)) % P;
+
+/**
+ * True when a key (hex) decompresses to an Ed25519 point, as `is_on_curve` of the wasm (pda.rs):
+ * y is the key with its sign bit cleared, mod P, and x² = (y² - 1) / (d·y² + 1) has a root.
+ */
+function onCurve(key) {
+  const y = (BigInt("0x" + key.match(/../g).reverse().join("")) % 2n ** 255n) % P;
+  const y2 = (y * y) % P;
+  const x2 = (((y2 - 1n + P) % P) * power((D * y2 + 1n) % P, P - 2n)) % P;
+  return x2 === 0n || power(x2, (P - 1n) / 2n) === 1n;
+}
+
+const PROGRAM_ADDRESS =
+  "This address is a program address, not a wallet: no key can move SOL from it. Nothing was " +
+  "sent.";
+
+/**
+ * The public recipient (a Solana address) and the amount of a withdrawal, checked. On mainnet a
+ * program address (off the curve) is refused: the checker of the pool has no rule for it yet.
+ */
+function typedWithdrawal(c, args) {
   const payee = keyOfBase58(String(args.recipient ?? "").trim());
   const amount = lamportsOf(args.amount);
   if (payee === null) throw new Error("Enter the Solana address of the recipient.");
+  if (c.wallet?.cluster === "mainnet" && !onCurve(payee)) throw new Error(PROGRAM_ADDRESS);
   if (amount === null) throw new Error("Enter an amount of SOL, for example 0.005.");
   return { payee, amount };
 }
@@ -128,6 +188,11 @@ async function proved(c, worker, kind, { payee, amount }, fee) {
   request.payer = base58(fee.key);
   request.avoid = openInputs(c.sessions); // a payment over them could never execute
   const prepared = await worker.call("prepare", request);
+  // The proof spends notes that the Worker synced, so they show the Add SOL of this tab. A move of
+  // the beta funds spends notes of the group key, which show none.
+  if (kind !== "migrate") {
+    pruneAdded(c, prepared.inputs.map(({ id, amount }) => ({ hash: id, amount })));
+  }
   const counts = { inputs: prepared.inputs.length, outputs: prepared.outputs.length };
   const fields = {
     plan: planHex(prepared),
@@ -150,10 +215,10 @@ async function settled(worker, txId) {
 }
 
 /** The test run, the send and the confirmation of a transaction that the fee key signed alone. */
-async function land(worker, message, signature, seat) {
+async function land(c, worker, message, signature, seat) {
   const tx = wireBase64(message, bytesOf(signature));
   const run = await worker.call("simulate", { tx });
-  if (run.err !== null) throw new Error(refusalOf(run, seat));
+  if (run.err !== null) throw new Error(refusalOf(c, run, seat));
   await worker.call("send", { tx });
   const txId = base58(signature);
   const seen = await settled(worker, txId);
@@ -188,7 +253,7 @@ async function createdBefore(worker, said, error) {
  */
 async function payDraft(c, worker, seat, fee, { kind, args }) {
   const how = PAYMENTS[kind];
-  const typed = how.typed(args);
+  const typed = how.typed(c, args);
   const { prepared, fields, terms } = await proved(c, worker, kind, typed, fee);
   const named = { ...terms, recipient: typed.payee };
   Object.assign(fields, { intent: intentHex(how.session, named), transact: prepared.data });
@@ -210,7 +275,7 @@ async function payDraft(c, worker, seat, fee, { kind, args }) {
   const createProposal = bytesOf(paymentHex(create, fields));
   const message = c.W.compile_message(createProposal, inputs.pins, new Uint8Array(0));
   const signature = signAsFee(c, seat, message, createProposal, inputs);
-  const createTx = await land(worker, message, signature, seat).catch((error) =>
+  const createTx = await land(c, worker, message, signature, seat).catch((error) =>
     createdBefore(worker, said, error),
   );
   return { ...fields, account: said.proposal, body: said.body, createTx };
@@ -252,7 +317,7 @@ async function betaFields(c, worker, seat, fee, draft) {
   const feeSig = feeSignature(c, unsigned, seat, draft.spend);
   const own = reviewOf(c, { ...unsigned, feeSig }, seat, draft.spend);
   if (!own.ok) throw new Error(own.why);
-  await preflight(worker, unsigned.message, seat).catch(async (e) => {
+  await preflight(c, worker, unsigned.message, seat).catch(async (e) => {
     throw new Error(await poolNote(c, worker, e.message));
   });
   return { ...draft.fields, message: unsigned.message, feeSig };
