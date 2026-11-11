@@ -485,12 +485,32 @@ step("a read of a wallet that closed shows no banner and writes no count");
   assert.match(shown("rent"),
     /The cancel is public.*"Find reclaimable rent" asks Helius .* your IP/);
   assert.match(shown("add-sol-text"), /amount and the sender are public.*IP address/);
-  assert.equal(shown("pool-upgrade"), "2kgbLowvCQuMWxDKbHUZAURycziuRrvmtTuDEYMGMRsj");
-  assert.equal(shown("pool-protocol"), "263Kgjft9NezaYTspFquMbAhgRf7xfAiyusaweLowdXo");
-  const CUSTODY = new RegExp("outside the group.*The upgrade key is a signing key.*replace the " +
-    "pool program.*needs 2 of its 5 keys.*pause the trees.*set the fees of the pool and change " +
-    "its other authorities, but not the upgrade key");
+  assert.equal(shown("pool-upgrade"), "AftkmqRyF25wtqEFq7eqxFGCqdL2jSo8DPGZE845Xyw9", "ring1G");
+  assert.equal(marked("pool-protocol").length, 0, "no protocol authority that nobody read");
+  const CUSTODY = new RegExp("upgrade key of the pool sits outside the group.*replace the pool " +
+    "program.*protocol authority outside the group.*pause the trees.*read from Devnet on 10 " +
+    "November 2026\\.$");
   assert.match(shown("custody-text"), CUSTODY);
+  const funds = (n) => findAll(n, (m) => m.attrs["data-sol"] === "funds").map(textOf);
+  assert.deepEqual(funds(marked("amount-" + id)[0]),
+    ["Solana Devnet: test SOL only. The fees are below."], "Devnet SOL is test SOL");
+  // The texts follow c.wallet.cluster. A stub wallet with the Devnet label and program keeps
+  // the agreement of this Devnet group, so the same screen shows the texts of mainnet.
+  const kept = c.wallet;
+  const program = c.W.sol_program_label();
+  c.wallet = { cluster: "mainnet", mode: "pool", label: "devnet", program };
+  try {
+    const onMainnet = findAll(marked("review-" + id)[0], (n) => n.tag === "a").map((n) => n.attrs);
+    assert.deepEqual(onMainnet, [{ ...link, href: explorer }], "no ?cluster on mainnet");
+    assert.deepEqual(funds(marked("amount-" + id)[0]),
+      ["Solana Mainnet: real SOL. The fees are below."], "mainnet SOL is real SOL");
+    const [card] = findAll(solView({ ...c, host: { ...c.host, el: node } }, (fn) => fn, {}),
+      (n) => n.attrs["data-session"] === id);
+    assert.match(textOf(card), /Solana Mainnet/, "the card names mainnet");
+    assert.doesNotMatch(textOf(card), /Devnet/, "and not Devnet");
+  } finally {
+    c.wallet = kept;
+  }
   assert.deepEqual(executorsOf(c, ssOf(id)), [1, 2, 3], "the proposing seat executes first");
   assert.deepEqual(executorsOf(c, { ...ssOf(id), by: 3 }), [3, 1, 2], "whichever seat proposed");
   await approve(c, ssOf(id), 2);

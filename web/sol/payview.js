@@ -21,6 +21,7 @@ import {
   readVerdict,
 } from "./intent.js";
 import { provesLocally, switchCard } from "./localprove.js";
+import { netOf } from "./net.js";
 import { usedDigest } from "./nonces.js";
 import { heldOf, reclaimRent, scanRent } from "./rent.js";
 import { privacyBadge, privacyNotice } from "../privacy-language.js";
@@ -30,6 +31,10 @@ import { beforeFee, heldLamports, heldNotes, isPayment, spentLamports } from "./
 import { labelOf } from "./wallet.js";
 
 export const SHOWN = 12;
+const clusterOf = (c) => c.wallet?.cluster ?? CLUSTER;
+const netOfWallet = (c) => netOf(clusterOf(c));
+/** "Solana Devnet" or "Solana Mainnet": the network of the wallet, for the labels of the cards. */
+const solanaOf = (c) => "Solana " + netOfWallet(c).badge;
 const FAUCET = "https://faucet.solana.com/";
 // The faucet is not Zigs: it sees the fee address that the person pastes (PRIVACY.md).
 const FAUCET_TEXT =
@@ -125,9 +130,10 @@ export const PROVER_MOVE_LOCAL =
 const proverSays = (local) => (local ? PROVER_LOCAL : PROVER_TEXT);
 const proverRow = (local) => (local ? PROVER_ROW_LOCAL : PROVER_TEXT);
 
-const FEE_TEXT =
+/** What a fee address pays and what its reads show. `coin` is the SOL of the network. */
+const feeText = (coin) =>
   "It pays the fees and the rents of the proposals that this device makes, and the fee of each " +
-  "payment that this device executes. Send Devnet SOL to it. Devices that propose or execute " +
+  `payment that this device executes. Send ${coin} to it. Devices that propose or execute ` +
   "need about 0.003 SOL. Devices that only approve need none. " +
   LINK_TEXT +
   " The page asks Helius for the balance of this address with your IP address, with no click. " +
@@ -145,7 +151,7 @@ function feeRow(c, seat) {
     "div",
     { style: "display:grid;gap:4px", "data-sol": "fee-" + seat },
     el("strong", {}, "Your fee address (device " + seat + ")"),
-    privacyBadge(el, "public", "Public fee funds · Solana Devnet"),
+    privacyBadge(el, "public", "Public fee funds · " + solanaOf(c)),
     el(
       "div",
       { class: "row-actions" },
@@ -160,36 +166,39 @@ function feeRow(c, seat) {
   );
 }
 
+/** The faucet link of a network that has one (Devnet). */
+function faucetLink(c) {
+  const attrs = {
+    class: "btn sm ghost",
+    href: FAUCET,
+    target: "_blank",
+    rel: "noopener",
+    "data-sol": "faucet",
+  };
+  return c.host.el("a", attrs, "Get Devnet SOL ↗");
+}
+
 function fundCard(c, act, actions) {
-  const { el } = c.host;
+  const { el } = c.host,
+    { coin, faucet } = netOfWallet(c);
   const seats = c.host.localSeats().filter((i) => holdsShare(solOf(c.host, c.gid, i)));
   return el(
     "div",
     { style: "display:grid;gap:8px" },
     el("h3", {}, "Fund the fee address"),
-    el("p", { class: "small", "data-sol": "fee-text" }, FEE_TEXT),
+    el("p", { class: "small", "data-sol": "fee-text" }, feeText(coin)),
     ...seats.map((seat) => feeRow(c, seat)),
     el(
       "div",
       { class: "row-actions" },
-      el(
-        "a",
-        {
-          class: "btn sm ghost",
-          href: FAUCET,
-          target: "_blank",
-          rel: "noopener",
-          "data-sol": "faucet",
-        },
-        "Get Devnet SOL ↗",
-      ),
+      faucet ? faucetLink(c) : null,
       el(
         "button",
         { class: "btn sm", type: "button", "data-sol": "refresh", onclick: act(actions.refresh) },
         "Check balance",
       ),
     ),
-    el("p", { class: "small", "data-sol": "faucet-text" }, FAUCET_TEXT),
+    faucet ? el("p", { class: "small", "data-sol": "faucet-text" }, FAUCET_TEXT) : null,
   );
 }
 
@@ -209,7 +218,7 @@ function seatLine(c, mark, what) {
 // The explorer of the cluster: a transaction (`tx`) or an account (`address`), in a new tab.
 const EXPLORER = "https://explorer.solana.com/";
 function explorerLink(c, kind, id) {
-  const href = EXPLORER + kind + "/" + encodeURIComponent(id) + "?cluster=" + CLUSTER;
+  const href = EXPLORER + kind + "/" + encodeURIComponent(id) + netOfWallet(c).explorer;
   return c.host.el("a", { href, target: "_blank", rel: "noopener" }, id + " ↗");
 }
 
@@ -231,6 +240,22 @@ function addedLine(c) {
   return [c.host.el("p", { class: "small", "data-sol": "added" }, said, link), explorerNote(c)];
 }
 
+/**
+ * The cap of a wallet that has one (mainnet), and how much SOL still fits by the last sync of both
+ * identities. Add SOL checks it again with a fresh sync before any signature (addsol.js).
+ */
+function capLine(c) {
+  if (c.wallet?.cap == null) return null;
+  const cap = BigInt(c.wallet.cap),
+    { lamports, oldBalance } = c.sync;
+  let text = "Private balance cap: " + solText(cap) + ".";
+  if (lamports !== undefined) {
+    const held = BigInt(lamports) + BigInt(oldBalance ?? "0");
+    text += " You can add up to " + solText(held < cap ? cap - held : 0n) + " now.";
+  }
+  return c.host.el("p", { class: "small", "data-sol": "cap" }, text);
+}
+
 function addSolCard(c, act, actions) {
   const { el } = c.host;
   const amount = el("input", {
@@ -246,12 +271,13 @@ function addSolCard(c, act, actions) {
     "div",
     { class: "sol-send-fields" },
     el("h3", {}, "Add SOL"),
-    privacyNotice(el, "public", "Public deposit · Solana Devnet",
+    privacyNotice(el, "public", "Public deposit · " + solanaOf(c),
       (
         "The chain shows the sender and deposit amount, linking "
         + "this device’s fee address to the group."
       )),
     el("p", { class: "small", "data-sol": "add-sol-text" }, ADD_TEXT),
+    capLine(c),
     seatLine(c, "add-sol-seat", "adds this SOL, from its fee address."),
     el(
       "div",
@@ -369,10 +395,10 @@ function withdrawForm(c, act, actions) {
     "div",
     { class: "sol-send-fields" },
     el("h4", {}, "Public withdrawal"),
-    privacyNotice(el, "public", "Public withdrawal · Solana Devnet", WITHDRAW_PUBLIC,
+    privacyNotice(el, "public", "Public withdrawal · " + solanaOf(c), WITHDRAW_PUBLIC,
       { "data-sol": "withdraw-public", id: "sol-withdraw-privacy" }),
     el("label", { class: "field" }, el("span", {}, "Recipient (Solana address)"), to),
-    c.host.recipientSelect?.({ asset: "SOL", network: CLUSTER, type: "public",
+    c.host.recipientSelect?.({ asset: "SOL", network: clusterOf(c), type: "public",
       id: "sol-withdraw-saved", onSelect: (address) => {
         to.value = address;
         to.dispatchEvent(new Event("input", { bubbles: true }));
@@ -406,7 +432,7 @@ function sendForm(c, act, actions) {
     privacyNotice(el, "partial", "Amount hidden · payee public", SEND_PUBLIC,
       { "data-sol": "send-public", id: "sol-send-privacy" }),
     el("label", { class: "field" }, el("span", {}, "Payee (full shielded address)"), to),
-    c.host.recipientSelect?.({ asset: "SOL", network: CLUSTER, type: "shielded",
+    c.host.recipientSelect?.({ asset: "SOL", network: clusterOf(c), type: "shielded",
       id: "sol-send-saved", onSelect: (address) => {
         to.value = address;
         to.dispatchEvent(new Event("input", { bubbles: true }));
@@ -437,7 +463,7 @@ const MOVE_TEXT =
 function moveCard(c, act, actions) {
   const { el } = c.host;
   const held = BigInt(c.sync?.oldBalance ?? "0");
-  if (held <= 0n || c.wallet?.cluster === "mainnet") return null;
+  if (held <= 0n || clusterOf(c) === "mainnet") return null;
   const nonce = { created: "created", missing: "not created yet" }[c.chain?.nonce] ?? "?";
   return el(
     "div",
@@ -631,6 +657,12 @@ function paymentReview(c, ss, review, rows) {
         reviewList(c, rows.filter(technical))))];
 }
 
+// What the SOL of each network is worth, under the amount of a payment.
+const FUNDS = {
+  devnet: "Solana Devnet: test SOL only. The fees are below.",
+  mainnet: "Solana Mainnet: real SOL. The fees are below.",
+};
+
 // The amount of a payment as the checker of this device answered it, above its rows.
 function reviewHero(c, ss, review) {
   const { el } = c.host,
@@ -645,9 +677,9 @@ function reviewHero(c, ss, review) {
     el("strong", { class: "sol-amount money", role: "img", "aria-label": shown },
       shown.slice(0, -4), el("span", { class: "cur", "aria-hidden": "true" }, "SOL")),
     privacyNotice(el, withdraw ? "public" : "partial",
-      withdraw ? "Public · Solana Devnet" : "Amount hidden · payee public",
+      withdraw ? "Public · " + solanaOf(c) : "Amount hidden · payee public",
       withdraw ? WITHDRAW_PUBLIC : SEND_PUBLIC),
-    el("span", { class: "small muted" }, "Solana Devnet: test SOL only. The fees are below."),
+    el("span", { class: "small muted", "data-sol": "funds" }, FUNDS[clusterOf(c)]),
   );
 }
 
@@ -875,7 +907,7 @@ function reviewLayout(c, ss, review) {
   return [blocked ? reviewBlock(c, ss, review) : null,
     el("div", { class: "review-context" },
       el("strong", {}, c.host.state.g?.name || "This wallet"),
-      el("span", { class: "badge plain" }, "Solana Devnet")),
+      el("span", { class: "badge plain" }, solanaOf(c))),
     review && !blocked ? reviewBlock(c, ss, review) : null];
 }
 

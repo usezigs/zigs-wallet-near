@@ -13,10 +13,16 @@ import { feeMismatch, feeOf } from "./fee.js";
 import { signingBlock } from "./gate.js";
 import { PAYMENT_KINDS, decodeIntent } from "./intent.js";
 import { approvalClosed } from "./approve.js";
+import { netOf } from "./net.js";
 import { holdsShare, remoteStop, solOf, stopOf } from "./secrets.js";
 import { solText } from "./session.js";
 import { SESSIONS, isPayment } from "./sessions.js";
+import { labelOf, programOf } from "./wallet.js";
 import { privacyNotice, SOL_EXPOSURE } from "../privacy-language.js";
+
+const clusterOf = (c) => c.wallet?.cluster ?? "devnet";
+/** "Solana Devnet" or "Solana Mainnet": the network of the wallet, for the labels of the tab. */
+const solanaOf = (c) => "Solana " + netOf(clusterOf(c)).badge;
 
 const ADD_TEXT =
   "A Solana program owns the funds of the group at a program address, which is public and links " +
@@ -52,7 +58,7 @@ const STATUS_TEXT = {
 function statusOf(c, ag) {
   if (startBlock(c.host)) return "unavailable";
   if (stopOf(c)) return "stopped";
-  if (!started(c.docs)) return "not started";
+  if (!started(c.docs, labelOf(c))) return "not started";
   return { agree: "ready", differ: "differs", wait: "running" }[ag.state];
 }
 
@@ -203,24 +209,60 @@ const PAY_TO =
   "Pay this group only to its full shielded address. The program address alone is not enough, " +
   "and a payment to another key is not counted.";
 
-// ponytail: read from Devnet on 18 October 2026 (the ProgramData account of the pool and its
-// protocol config), not live. Helius can change them; reading both accounts in the Worker
-// would show the current ones.
-const POOL_UPGRADE_KEY = "2kgbLowvCQuMWxDKbHUZAURycziuRrvmtTuDEYMGMRsj";
-const PROTOCOL_AUTHORITY = "263Kgjft9NezaYTspFquMbAhgRf7xfAiyusaweLowdXo";
-const CUSTODY_TEXT =
-  "Both keys sit outside the group: no device holds them, no device can stop them, and Zigs " +
-  "does not know who holds them. The upgrade key is a signing key, and it can replace the pool " +
-  "program. The protocol authority is an account that needs 2 of its 5 keys to act (a Squads " +
-  "account, by the Zolana spec). It can pause the trees, and then no payment can move the funds. " +
-  "It can also set the fees of the pool and change its other authorities, but not the upgrade " +
-  "key. Read from Devnet on 18 October 2026.";
+// ponytail: the upgrade keys of the pool ring1G, read on 10 November 2026 (its ProgramData
+// account, docs/zolana-v1.md), not live. The upgrade key of the Zigs program is the one of the
+// owner decision: the program was not deployed then, so nobody read it on chain. Reading the
+// accounts in the Worker would show the current keys.
+const POOL_KEY = {
+  devnet: "AftkmqRyF25wtqEFq7eqxFGCqdL2jSo8DPGZE845Xyw9",
+  mainnet: "CuZ42BsoBcLaNTUboJpGhekGmrYMZ7sRhwVki4frz1FB",
+};
+const ZIGS_KEY = "iFSbwFzpLpaGMKtn5S6gznvzXqAVunoB6rcSpGi956o";
+const POOL_TEXT =
+  "The upgrade key of the pool sits outside the group: no device holds it, no device can stop " +
+  "it, and Zigs does not know who controls it. It can replace the pool program. The pool also " +
+  "has a protocol authority outside the group. By the Zolana spec it can pause the trees, and " +
+  "then no payment can move the funds. Zigs did not read who holds that authority.";
+const CUSTODY_TEXT = {
+  devnet: POOL_TEXT + " The pool key was read from Devnet on 10 November 2026.",
+  mainnet:
+    POOL_TEXT +
+    " One key that the Zigs owner holds can replace the Zigs program, and then move the funds " +
+    "of every private wallet. The pool key was read from mainnet on 10 November 2026.",
+};
 
 // A shielded address names no network. A mainnet wallet shows and copies it with its network,
 // and propose.js refuses a mainnet payee without it. Devnet keeps the bare hex, the form that the
 // address book (recipients.js) stores.
 const shieldedShown = (c, hex) =>
-  hex && c.wallet?.cluster === "mainnet" ? "solana-mainnet:" + hex : hex;
+  hex && clusterOf(c) === "mainnet" ? "solana-mainnet:" + hex : hex;
+
+/** A label and its value, with a mark for the checks. */
+function kvRow(c, name, label, value) {
+  const { el } = c.host;
+  return [el("dt", {}, label), el("dd", { class: "hex", "data-sol": name }, value)];
+}
+
+/**
+ * The keys outside the group that can replace a program of this wallet (SOL-11): the upgrade key
+ * of the pool, and on mainnet the Zigs program and its upgrade key.
+ */
+function custodyRows(c) {
+  const cluster = clusterOf(c),
+    badge = netOf(cluster).badge;
+  const rows = [
+    kvRow(c, "pool-upgrade", "Upgrade key of the pool (" + badge + ")", POOL_KEY[cluster]),
+  ];
+  if (cluster === "mainnet") {
+    rows.push(
+      kvRow(c, "zigs-program", "Zigs program (" + badge + ")", programOf(c).split(":").at(-1)),
+      kvRow(c, "zigs-upgrade", "Upgrade key of the Zigs program (" + badge + ")", ZIGS_KEY),
+    );
+  }
+  const text = CUSTODY_TEXT[cluster];
+  rows.push([c.host.el("dd", { class: "small", "data-sol": "custody-text" }, text)]);
+  return rows.flat(); // el() flattens one level only
+}
 
 /** Copy for an address (the fee address has its own in payview.js). `what` names the value. */
 function copyButton(c, text, mark, what) {
@@ -268,8 +310,8 @@ const NEVER_PUBLIC = "Never send public SOL to this address. No code can move it
 function ownerRow(c, done) {
   const { el } = c.host;
   const value = done.pda ? base58(done.pda) : null;
-  const label = "Program address of the group (Devnet)";
-  if (c.wallet?.cluster !== "mainnet") {
+  const label = "Program address of the group (" + netOf(clusterOf(c)).badge + ")";
+  if (clusterOf(c) !== "mainnet") {
     return copyRow(c, { name: "owner", label, value, mark: "copy-program", what: "program" });
   }
   return [
@@ -285,22 +327,22 @@ function ownerRow(c, done) {
 
 function keyBlock(c, done) {
   const { el } = c.host,
-    row = (name, label, value) => [
-      el("dt", {}, label),
-      el("dd", { class: "hex", "data-sol": name }, value),
-    ];
+    row = (name, label, value) => kvRow(c, name, label, value);
   const shielded = shieldedShown(c, done.pdaAddress);
+  const label = "Shielded SOL address · " + netOf(clusterOf(c)).badge;
+  // privacy-language.js is in the plain closure and names Devnet; the network is set here.
+  const exposure = SOL_EXPOSURE.replace("Solana Devnet", solanaOf(c));
   return el(
     "dl",
     { class: "kv", "data-key": "sol-receive", tabindex: "-1",
       "aria-label": "Receive SOL and wallet details" },
     ownerRow(c, done),
     row("group-key", "Group key", done.groupKey),
-    copyRow(c, { name: "shielded", label: "Shielded SOL address · Devnet", value: shielded,
-      mark: "copy-shielded", what: "shielded" }),
-    el("dt", {}, "Privacy on Solana Devnet"),
+    copyRow(c, { name: "shielded", label, value: shielded, mark: "copy-shielded",
+      what: "shielded" }),
+    el("dt", {}, "Privacy on " + solanaOf(c)),
     el("dd", {}, privacyNotice(el, done.pdaAddress ? "partial" : "unknown",
-      done.pdaAddress ? "Amount hidden · payee public" : "Privacy unknown", SOL_EXPOSURE)),
+      done.pdaAddress ? "Amount hidden · payee public" : "Privacy unknown", exposure)),
     el("dd", { class: "small", "data-sol": "pay-to" }, PAY_TO,
       " Use a compatible shielded wallet. This is not a standard Solana "
       + "account address for an ordinary wallet or faucet. To add public SOL, fund this device’s "
@@ -311,9 +353,7 @@ function keyBlock(c, done) {
       "Public balance of the group key",
       c.chain?.balance ?? "not read yet",
     ),
-    row("pool-upgrade", "Upgrade key of the pool (Devnet)", POOL_UPGRADE_KEY),
-    row("pool-protocol", "Protocol authority of the pool (Devnet)", PROTOCOL_AUTHORITY),
-    el("dd", { class: "small", "data-sol": "custody-text" }, CUSTODY_TEXT),
+    custodyRows(c),
   );
 }
 
@@ -432,15 +472,15 @@ export function solView(c, act, actions) {
   return el(
     "section",
     { class: "card card-pad sol-view", style: "display:grid;gap:12px" },
-    el("div", { class: "card-head" }, el("span", { class: "badge plain" }, "Solana Devnet")),
+    el("div", { class: "card-head" }, el("span", { class: "badge plain" }, solanaOf(c))),
     // The word stays readable for the checks; a person reads the sentence.
     el("p", { class: "small" }, el("span", { "data-sol": "status", hidden: true }, status),
       STATUS_TEXT[status]),
     privacyNotice(el, status === "ready" ? "partial" : "unknown",
-      status === "ready" ? "Partial privacy · Solana Devnet" : "Privacy unknown",
+      status === "ready" ? "Partial privacy · " + solanaOf(c) : "Privacy unknown",
       provesLocally(c) ? PUBLIC_LOCAL : PUBLIC_TEXT, { "data-sol": "public-text" }),
     ...stopCards(c),
-    started(c.docs) ? seatList(c) : stopped ? null : startCard(c, act, actions),
+    started(c.docs, labelOf(c)) ? seatList(c) : stopped ? null : startCard(c, act, actions),
     ag.state === "differ" ? el("div", { class: "callout bad", role: "alert" }, ag.why) : null,
     ...readyCards(c, act, actions, ag),
     stopped ? null : backupCard(c, act, actions),

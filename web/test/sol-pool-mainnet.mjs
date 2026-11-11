@@ -3,7 +3,9 @@
 //  - the network of a payee address: a mainnet wallet shows and copies its shielded address
 //    with solana-mainnet:, and a payment refuses a payee of another network before any proof;
 //  - on mainnet the public program address has no Copy and a warning, no other address that no
-//    deployed program can move SOL from has a Copy, and the move of the beta funds is hidden.
+//    deployed program can move SOL from has a Copy, and the move of the beta funds is hidden;
+//  - the texts of the tab on each network: the names, the faucet, the explorer links, the
+//    saved recipients, the cap line and the keys outside the group.
 // Run: node web/test/sol-pool-mainnet.mjs   (Node 26)
 import assert from "node:assert/strict";
 import { agreement } from "../sol/ceremony.js";
@@ -52,9 +54,10 @@ const findAll = (n, pick) =>
   typeof n !== "object"
     ? []
     : [...(pick(n) ? [n] : []), ...n.kids.flatMap((kid) => findAll(kid, pick))];
-const view = () => solView({ ...c, host: { ...c.host, el: node } }, (fn) => fn, {});
-const marked = (name) => findAll(view(), (n) => n.attrs["data-sol"] === name);
-const shown = (name) => textOf(marked(name)[0]);
+const view = (host = {}) =>
+  solView({ ...c, host: { ...c.host, el: node, ...host } }, (fn) => fn, {});
+const marked = (name, tab = view()) => findAll(tab, (n) => n.attrs["data-sol"] === name);
+const shown = (name, tab = view()) => textOf(marked(name, tab)[0]);
 
 const copied = [];
 const clipboard = { writeText: async (text) => void copied.push(text) };
@@ -82,6 +85,55 @@ function withOldFunds(read) {
     c.sync = kept;
   }
 }
+
+/** Draws the tab with `fields` in `c` for a moment (the sync, the last Add SOL, the sessions). */
+function viewWith(fields, host = {}) {
+  const kept = Object.fromEntries(Object.keys(fields).map((k) => [k, c[k]]));
+  Object.assign(c, fields);
+  try {
+    return view(host);
+  } finally {
+    Object.assign(c, kept);
+  }
+}
+const TX = "5".repeat(64);
+// A proposal that landed: its card shows the network and the explorer link of its transaction.
+const LANDED = { id: "landed", by: 1, status: "sent", outcome: "confirmed", txId: TX, slot: 7 };
+const ADDED = { status: "confirmed", amount: 10_000_000n, seat: 1, txId: TX, at: 1 };
+
+/**
+ * The texts of the tab that depend on the network, read from one drawing with the last Add SOL,
+ * a landed proposal and a sync of `sync` (or none).
+ */
+function networkTexts(sync) {
+  const networks = [];
+  const recipientSelect = (args) => void networks.push(args.network);
+  const fields = { added: ADDED, sessions: [LANDED], sync: { ...c.sync, ...sync } };
+  const tab = viewWith(fields, { recipientSelect });
+  const link = (mark) => findAll(marked(mark, tab)[0], (n) => n.tag === "a")[0]?.attrs.href;
+  const [card] = findAll(tab, (n) => n.attrs["data-session"] === LANDED.id);
+  return {
+    all: textOf(tab),
+    head: textOf(findAll(tab, (n) => n.attrs.class === "card-head")[0]),
+    labels: findAll(tab, (n) => n.tag === "dt").map(textOf),
+    fee: shown("fee-text", tab),
+    faucet: marked("faucet", tab).length + marked("faucet-text", tab).length,
+    cap: marked("cap", tab).map(textOf),
+    links: [link("added"), link("result")],
+    card: textOf(card),
+    networks,
+    custody: ["pool-upgrade", "zigs-program", "zigs-upgrade"].map((m) => marked(m, tab)[0])
+      .map((n) => n && textOf(n)),
+    custodyText: shown("custody-text", tab),
+    status: shown("status", tab),
+  };
+}
+const EXPLORER = "https://explorer.solana.com/tx/" + TX;
+const POOL_TEXT =
+  "The upgrade key of the pool sits outside the group: no device holds it, no device can stop " +
+  "it, and Zigs does not know who controls it. It can replace the pool program. The pool also " +
+  "has a protocol authority outside the group. By the Zolana spec it can pause the trees, and " +
+  "then no payment can move the funds. Zigs did not read who holds that authority.";
 
 /** Proposes a payment to `recipient`: the refusal (or STOP) and the payees that reached prepare. */
 async function payTo(recipient) {
@@ -133,6 +185,31 @@ step("Devnet: a bare or solana-devnet: payee reaches the proof as bare hex; main
 }
 step("Devnet: the program address has Copy, and the move of the beta funds shows");
 
+{
+  const got = networkTexts({ lamports: "300000000", oldBalance: "0" });
+  assert.equal(got.status, "ready");
+  assert.equal(got.head, "Solana Devnet");
+  const labels = ["Program address of the group (Devnet)", "Shielded SOL address · Devnet",
+    "Privacy on Solana Devnet", "Upgrade key of the pool (Devnet)"];
+  for (const label of labels) assert.ok(got.labels.includes(label), label);
+  assert.match(got.all, /Solana Devnet hides a private payment’s amount on chain/);
+  assert.match(got.fee, /Send Devnet SOL to it\./);
+  assert.equal(got.faucet, 2, "the faucet link and its note");
+  assert.deepEqual(got.cap, [], "Devnet has no cap");
+  assert.deepEqual(got.links, [EXPLORER + "?cluster=devnet", EXPLORER + "?cluster=devnet"]);
+  assert.match(got.card, /Solana Devnet/, "the card of a proposal names the network");
+  assert.deepEqual(got.networks, ["devnet", "devnet"], "the saved recipients of Devnet");
+  for (const label of ["Public fee funds", "Public deposit", "Public withdrawal"]) {
+    assert.ok(got.all.includes(label + " · Solana Devnet"), label);
+  }
+  const ring1G = "AftkmqRyF25wtqEFq7eqxFGCqdL2jSo8DPGZE845Xyw9";
+  assert.deepEqual(got.custody, [ring1G, undefined, undefined], "the pool key of ring1G");
+  assert.equal(got.custodyText, POOL_TEXT + " The pool key was read from Devnet on 10 November " +
+    "2026.");
+  assert.doesNotMatch(got.all, /2kgbLow|263Kgjft|Mainnet|mainnet/, "no retired key, no mainnet");
+}
+step("Devnet: the tab names Devnet, the faucet, ?cluster=devnet and the pool key of ring1G");
+
 // ── A private mainnet wallet: the ceremony under mainnet-private, and the stub ──
 const gidP = await rig.wallet({ name: "Private" });
 await t.solLoad();
@@ -179,6 +256,41 @@ step("mainnet: the copied solana-mainnet: address pays; bare hex and Devnet are 
   assert.equal(withOldFunds(() => marked("move").length), 0, "no move of the beta funds");
 }
 step("mainnet: the program address has no Copy and a warning, and no move card shows");
+
+{
+  const got = networkTexts({ lamports: "300000000", oldBalance: "50000000" });
+  assert.equal(got.status, "ready", "the start under mainnet-private counts");
+  assert.equal(marked("add").length, 0, "no start card");
+  assert.equal(got.head, "Solana Mainnet");
+  const labels = ["Program address of the group (Mainnet)", "Shielded SOL address · Mainnet",
+    "Privacy on Solana Mainnet", "Upgrade key of the pool (Mainnet)", "Zigs program (Mainnet)",
+    "Upgrade key of the Zigs program (Mainnet)"];
+  for (const label of labels) assert.ok(got.labels.includes(label), label);
+  assert.match(got.all, /Solana Mainnet hides a private payment’s amount on chain/);
+  assert.match(got.fee, /Send SOL to it\./);
+  assert.equal(got.faucet, 0, "no faucet");
+  const cap = "Private balance cap: 0.5 SOL. You can add up to 0.15 SOL now.";
+  assert.deepEqual(got.cap, [cap], "the cap line counts both identities of the last sync");
+  assert.deepEqual(got.links, [EXPLORER, EXPLORER], "no ?cluster");
+  assert.match(got.card, /Solana Mainnet/, "the card of a proposal names the network");
+  assert.deepEqual(got.networks, ["mainnet", "mainnet"], "the saved recipients of mainnet");
+  for (const label of ["Public fee funds", "Public deposit", "Public withdrawal"]) {
+    assert.ok(got.all.includes(label + " · Solana Mainnet"), label);
+  }
+  const program = J(W.sol_pool_wallet("mainnet")).program.split(":").at(-1);
+  const pool = "CuZ42BsoBcLaNTUboJpGhekGmrYMZ7sRhwVki4frz1FB";
+  const owner = "iFSbwFzpLpaGMKtn5S6gznvzXqAVunoB6rcSpGi956o";
+  assert.deepEqual(got.custody, [pool, program, owner], "the keys outside the group");
+  assert.equal(got.custodyText, POOL_TEXT + " One key that the Zigs owner holds can replace the " +
+    "Zigs program, and then move the funds of every private wallet. The pool key was read from " +
+    "mainnet on 10 November 2026.");
+  assert.doesNotMatch(got.all, /Devnet|devnet|faucet\.solana|2kgbLow|263Kgjft/, "no Devnet text");
+  const over = networkTexts({ lamports: "450000000", oldBalance: "100000000" }).cap;
+  assert.deepEqual(over, ["Private balance cap: 0.5 SOL. You can add up to 0 SOL now."]);
+  const unsynced = networkTexts({ lamports: undefined }).cap;
+  assert.deepEqual(unsynced, ["Private balance cap: 0.5 SOL."], "no amount before a sync");
+}
+step("mainnet: the tab names mainnet, has no faucet and no ?cluster, and shows the cap line");
 
 console.log("sol-pool-mainnet: ok");
 process.exit(0);
