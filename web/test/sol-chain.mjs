@@ -14,6 +14,7 @@
 // closes the account. `reprove` answers from `chain.reproved`, as the prover would.
 import { createHash, createPublicKey, randomBytes, verify } from "node:crypto";
 import { base58 } from "../sol/docs.js";
+import { CLUSTERS } from "../sol/guard.js";
 import { nonceAccountHex } from "../sol/intent.js";
 import { proposalFilters } from "../sol/owned.js";
 import * as kit from "../sol/zolana.bundle.js";
@@ -41,6 +42,8 @@ const PROGRAM = "5PHZEHBMaYbFL9SFmMyP8kUayh3TFEyq2dvEYY3UGjkL";
 const ED25519 = "Ed25519SigVerify111111111111111111111111111";
 const GENESIS = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
 const keyHex = (address) => hex(kit.getAddressEncoder().encode(address));
+// The approvals program of Devnet, deployed: Add SOL reads it before the fee key signs (addsol.js).
+const DEPLOYED = { owner: keyHex("BPFLoaderUpgradeab1e11111111111111111111111"), executable: true };
 const PDA_MARKER = Buffer.from("ProgramDerivedAddress");
 const sha256 = (...parts) => {
   const h = createHash("sha256");
@@ -543,7 +546,8 @@ export function makeChain() {
       throw new Error("no payment is proved again");
     },
     oldUtxos: [], // what the sync of the group key returns: the beta funds before the move
-    accounts: new Map(), // the proposal accounts of the approvals program, by address
+    // the approvals program and its proposal accounts, by address
+    accounts: new Map([[CLUSTERS.devnet.program, DEPLOYED]]),
     now: 0n, // the unix_timestamp of the Clock sysvar, which the program uses
     rpcNow: null, // a false unix_timestamp that the RPC answers instead
     history: new Map(), // per proposal address: the transactions that touched it, newest first

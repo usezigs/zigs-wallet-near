@@ -5,11 +5,16 @@
 // it has none. The parts of the page that name the Solana network (the tab header, the SOL and
 // USDC rows, the Send and Receive pickers and the Add SOL row of Activity) say Mainnet for a
 // private wallet and Devnet for a testnet wallet. The page loads the plain controller once and
-// never unloads it, so the plain wallet comes last and only its sections are read.
+// never unloads it, so the plain wallet comes last and only its sections are read. The fake chain
+// of the tests (sol-chain.mjs) holds the deployed approvals program of Devnet, so the program
+// guard of Add SOL passes there.
 // Run: node web/test/sol-wallet-page.mjs   (Node 26)
 import assert from "node:assert/strict";
 import { SOL_EXPOSURE } from "../privacy-language.js";
 import { agreement } from "../sol/ceremony.js";
+import { keyOfBase58 } from "../sol/docs.js";
+import { CLUSTERS } from "../sol/guard.js";
+import { answersOf, makeChain } from "./sol-chain.mjs";
 import { loadRig, mainnetConfig } from "./sol-rig.mjs";
 
 const rig = await loadRig();
@@ -125,6 +130,15 @@ const noDevnet = (parts, what) => {
     if (text !== null) assert.doesNotMatch(text, /Devnet/, what + ": the " + name + " part");
   }
 };
+
+// ── The fake chain holds the approvals program of Devnet, as a deployed program ──
+{
+  const LOADER = keyOfBase58("BPFLoaderUpgradeab1e11111111111111111111111");
+  const got = answersOf(makeChain()).recipientAccount({ account: CLUSTERS.devnet.program });
+  assert.deepEqual([got.exists, got.executable, got.owner], [true, true, LOADER],
+    "the account that requireProgram of addsol.js reads");
+}
+step("the fake chain holds the deployed approvals program of Devnet");
 
 // ── A testnet wallet keeps its Solana tab and the Devnet texts ──
 const testnet = await rig.wallet({ name: "Testnet" });
