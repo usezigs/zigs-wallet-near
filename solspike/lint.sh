@@ -31,6 +31,7 @@ JS=(solspike/harness/*.mjs solspike/tools/*.mjs solspike/build.mjs solspike/vend
   web/test/sol-pay-lease.mjs web/test/sol-pay-look.mjs web/test/sol-pay-end.mjs
   web/help-model.js web/test/help.mjs
   web/test/unified-setup.mjs web/sol/owned.js web/sol/rent.js web/test/sol-rent.mjs
+  web/test/sol-addsol.mjs
   web/test/sol-nonce-tabs.mjs web/test/mempool.mjs web/test/nonce-locks.mjs
   web/sol/plain/*.js web/test/plain-worker.mjs web/app-sol.js
   web/guided-setup-model.js web/backup-check.js
