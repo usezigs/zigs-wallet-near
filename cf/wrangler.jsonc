@@ -54,7 +54,7 @@
     "staging": {
       "name": "zec-frost-staging",
       "vars": {
-        "SOL": "1", "SOL_MAINNET": "1", "SOL_POOL_MAINNET": "0", "DEV_NO_AUTH": "0",
+        "SOL": "1", "SOL_MAINNET": "1", "SOL_POOL_MAINNET": "1", "DEV_NO_AUTH": "0",
         "NEAR_LIVE": "1"
       },
       "routes": [{ "pattern": "staging.zigs.app", "custom_domain": true }],
