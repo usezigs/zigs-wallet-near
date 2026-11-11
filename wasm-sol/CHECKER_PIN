@@ -404,12 +404,17 @@ step 8b2). A pool wallet can be a wallet of mainnet, under the approvals program
 - tests/mainnet.rs (new): the mainnet row, the 194-byte pins, the round label, the retired intents
   and the cap. The other tests pass the Devnet row, the label "devnet" or `held: 0`.
   examples/gen_vectors.rs: `held: 0`.
+- vectors/program/mainnet.json (slice 8a, from a Python script of its own): the owner PDA, a
+  proposal, its cancellation and the approval digest under 9mE7 on mainnet. tests/mainnet.rs and
+  sol-program/svm-tests/tests/cluster.rs both read it, so the wasm and the program agree.
 - vectors/smoke: gen_vectors makes the 34 .pins files and shield.intent again (the new wire). No
   answer file changes. Against a run of gen_vectors at 69803a1d, only these 35 files differ.
 - The wasm: SHA-256 c8311093fda63bac68af8b5aaffc8759b94e2e3690bc04149777728fd690f1fa, 1,114,486
   bytes raw, built by build.sh with wasm-bindgen 0.2.129 and committed as
   web/sol/wasm/sol_wasm_bg.wasm. tools/smoke.cjs: 34 vectors, 98 rules, 21 plain vectors, 26
   plain rules, 0 different from native. tools/diff_cases.cjs: 4689 cases, 0 traps.
+  The glue web/sol/wasm/sol_wasm.js also changes in lines 6-16: wasm-bindgen copies the new doc
+  text of check_message in src/wasm.rs (194-byte pins). These are comment lines only.
 - The differential (solspike/tools/plain_equiv.mjs, slice 8 design 3.4) of the wasm at 69803a1d
   against this wasm: 4552 calls, 7 different, each one in its EXPECTED list: the rule list (one
   new line, shield-over-cap), the two answers of the new sol_pool_wallet, and sol_commit,
@@ -475,7 +480,7 @@ ca8677c3aa51b9e5ec1d98c20e7c2653cd35c037f384b8dedf876820b9735d6b  tests/fee_key.
 0e00739de2e1421678f304e9739860f62d3482c48764568a2eb9ba3de8a6ff56  tests/fee_payer.rs  new
 1dfae10ef78b6c9d28b57a9a5cba1d8e7731318018106c6a3b7fd46cc0c71249  tests/fix_round.rs  modified
 cfc68ad047d9dff9f4cb368c901238019de4d6284cbd23853b5224f97a2bf3ca  tests/frost_dkg.rs  new
-dd34ee699df22e2166c8cfb2c83be5683b777b655289d72a474497f7d267c00c  tests/mainnet.rs  new
+2c9d242b1848816b6e39b565d71e0a50cc1713d6e5e3be8eb20a8b5c94357c1f  tests/mainnet.rs  new
 b736ecb8a454a6dfae5c4d33cd793c4fc838fa0f572da7257d6ce2b4736b767d  tests/negative.rs  modified
 d9be8eaae119d4ef3c956bc70f61a24dceb4d049294bb586f6e908eb09ec5ae4  tests/p3c.rs  modified
 23e026384d7c10e616677511d1f4949a5d104697d5513319f9e8aa2fd46f2a10  tests/pay_vectors.rs  new
@@ -620,6 +625,7 @@ ba13214af271b7012acae5350d9633cc8f48a9f18707d61948f90db35db38cae  vectors/plain/
 1e91981016d332f9d0b004ee8dcb76e8712114fd83a11f063cb200b955239137  vectors/plain/mainnet-wrong-genesis.msg  new
 f048ed34e504e0be3da71901adf56fd52f03863ab39d9a1f8ae1cf7e51949e1e  vectors/plain/mainnet-wrong-genesis.pins  new
 000eab1bc460dde942f2c48570bec3b0a364ea0601f05246ad8f386bb7ea47f7  vectors/program/landed.json  new
+e87fa54ebae422e0e1b22520c1805271c3072ddbcad7db1a8eca9820c37f2179  vectors/program/mainnet.json  new
 c76c4455922d40026491f8f1e16d10d70b959fde9cb5cdba85915a420d016dc9  vectors/real/chain-p6a.msg  verbatim
 69634e9bc1223148d8074b6313ef6f47e09c89dcf5084fd159e874c16b258304  vectors/real/chain-p6b.msg  verbatim
 ea618db42963d0d7d1adb2d3e95501fb1b9f08d257b345e38ad6e065dd2a4cb0  vectors/real/chain-register.msg  verbatim

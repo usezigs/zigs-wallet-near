@@ -1,16 +1,18 @@
 # The Solana approvals program: `build.sh test` builds the Devnet ELF and checks its Linux hash,
 # checks the cluster builds, builds the pool of the pinned privacy-rings commit, and runs the unit and
-# LiteSVM tests (VEL-5). Runs only when its files change.
+# LiteSVM tests (VEL-5). Runs only when its files or the shared program vectors change.
 name: sol-program
 
 on:
   push:
     paths:
       - sol-program/**
+      - wasm-sol/vectors/program/**
       - .github/workflows/sol-program.yml
   pull_request:
     paths:
       - sol-program/**
+      - wasm-sol/vectors/program/**
       - .github/workflows/sol-program.yml
 
 permissions:

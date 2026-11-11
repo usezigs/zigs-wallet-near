@@ -1,7 +1,7 @@
 //! The private mainnet wallet in the checker: the deployment table, the 194-byte pins, the label
-//! of the signing round, the intents of a mainnet group and the cap of a Shield. The values of
-//! `the_mainnet_addresses_and_digest_are_the_values_of_the_program_tests` are those of the
-//! vector `vectors/program/mainnet.json` of the program tests.
+//! of the signing round, the intents of a mainnet group and the cap of a Shield.
+//! `the_mainnet_addresses_and_digest_are_the_values_of_the_program_tests` reads the vector
+//! `vectors/program/mainnet.json`, which sol-program/svm-tests/tests/cluster.rs also reads.
 
 #[path = "support/ceremony.rs"]
 mod ceremony;
@@ -261,15 +261,18 @@ fn the_devnet_row_keeps_its_labels_and_ids() {
 
 #[test]
 fn the_mainnet_addresses_and_digest_are_the_values_of_the_program_tests() {
-    let group = common::hex32("9f5719b2eaa329185b25316806d65a7abab6ab7255eb09c7da3a21fdea688fce");
+    let v: Value = serde_json::from_str(include_str!("../vectors/program/mainnet.json")).unwrap();
+    let text = |name: &str| v[name].as_str().unwrap().to_string();
+    let number = |name: &str| v[name].as_u64().unwrap();
+    assert_eq!(text("program"), hex::encode(MULTISIG_MAINNET));
+    assert_eq!(text("genesis"), hex::encode(MAINNET_GENESIS));
+    assert_eq!(text("domain"), hex::encode(b"Zigs_SolApproval_v1"));
+    let group = common::hex32(&text("group"));
     let program = Address::new_from_array(MULTISIG_MAINNET);
-    let bump = |seeds: &[&[u8]]| Address::find_program_address(seeds, &program).1;
+    let bump = |seeds: &[&[u8]]| u64::from(Address::find_program_address(seeds, &program).1);
     let owner = owner_pda(&MAINNET, &group).unwrap();
-    assert_eq!(
-        hex::encode(owner),
-        "86de9c569d82affaa3a5ecc48fe43b0578acda76d62e32dd90c319f9e0dfc60a"
-    );
-    assert_eq!(bump(&[b"multisig", &group]), 254);
+    assert_eq!(hex::encode(owner), text("owner"));
+    assert_eq!(bump(&[b"multisig", &group]), number("owner_bump"));
     let expiry = hex::decode("80234b6b00000000").unwrap();
     let body = [
         &[0x5a; 32][..],
@@ -280,30 +283,27 @@ fn the_mainnet_addresses_and_digest_are_the_values_of_the_program_tests() {
         &[0xb6; 32],
     ]
     .concat();
+    assert_eq!(hex::encode(&body), text("body"));
     let (proposal, proposal_bump) = proposal_address(&MAINNET, &group, &[0x5a; 32], &body).unwrap();
-    assert_eq!(
-        hex::encode(proposal),
-        "44d6f6ef9f47a2237f32ebd7f9af657f973078117f7164ad2d648b643c677906"
-    );
-    assert_eq!(proposal_bump, 254);
+    assert_eq!(hex::encode(proposal), text("proposal"));
+    assert_eq!(u64::from(proposal_bump), number("proposal_bump"));
     assert_eq!(
         hex::encode(cancellation_address(&MAINNET, &proposal).unwrap()),
-        "454b897fbe3d73e44ef47a026cc5a23bd49bf3d981e622f778d3802806361105"
+        text("cancellation")
     );
-    assert_eq!(bump(&[b"cancelled_transaction", &proposal]), 253);
-    let digest = "e58ae97136e58939b4d151095a4fe26698a2ba549a1138d5c91e0de825218519";
+    assert_eq!(
+        bump(&[b"cancelled_transaction", &proposal]),
+        number("cancellation_bump")
+    );
+    let digest = text("digest");
     assert_eq!(
         hex::encode(approval_digest(&MAINNET, &proposal, &body)),
         digest
     );
     let explicit: [u8; 32] = Sha256::new()
         .chain_update(b"Zigs_SolApproval_v1")
-        .chain_update(common::hex32(
-            "45296998a6f8e2a784db5d9f95e18fc23f70441a1039446801089879b08c7ef0",
-        ))
-        .chain_update(common::hex32(
-            "8231e0852aa8441b13d1375bddc094443e468b103b8fb99f4d649baddc970996",
-        ))
+        .chain_update(MAINNET_GENESIS)
+        .chain_update(MULTISIG_MAINNET)
         .chain_update(proposal)
         .chain_update(&body)
         .finalize()
