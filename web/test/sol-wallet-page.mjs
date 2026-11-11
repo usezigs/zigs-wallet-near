@@ -5,7 +5,8 @@
 // and a served plain wallet keep their tabs, and a plain wallet on a server that does not serve
 // it has none. The parts of the page that name the Solana network (the tab header, the SOL and
 // USDC rows, the Send and Receive pickers and the Add SOL row of Activity) say Mainnet for a
-// private wallet and Devnet for a testnet wallet. The page loads the plain controller once and
+// private wallet and Devnet for a testnet wallet. They name no test network for a private wallet
+// that does not open here, and its SOL row says why. The page loads the plain controller once and
 // never unloads it, so the plain wallet comes last and only its sections are read. The fake chain
 // of the tests (sol-chain.mjs) holds the deployed approvals program of Devnet, so the program
 // guard of Add SOL passes there.
@@ -29,6 +30,8 @@ const path = (gid, rel) => `groups/${gid}/${rel}`;
 const PRIVATE = "mainnet-private";
 const ACCEPT_INTRO = "Device 1 started a private Solana wallet on mainnet.";
 const UNSERVED = "This server does not serve the private Solana wallet, so it does not open here.";
+const ACCEPT_ROW = "This browser takes part only after you accept it in the Solana tab.";
+const UNSERVED_ROW = "This server does not serve it, so it does not open here.";
 const NO_ANONYMITY = MAINNET_DISCLOSURE.at(-1);
 assert.match(NO_ANONYMITY, /anonymity/, "control: the last line of the disclosure");
 
@@ -140,9 +143,11 @@ function networkParts() {
 // The last Add SOL of this tab, as addSol of web/sol/main.js keeps it.
 const added = (c) => Object.assign(c, { added: { seat: 1, amount: 20_000_000n, txId: "tx",
   status: "confirmed", slot: "4500123", at: Date.now() } });
-const noDevnet = (parts, what) => {
+// The parts of a mainnet wallet name no test network: neither Devnet nor testnet.
+const noTestnet = (parts, what) => {
   for (const [name, text] of Object.entries(parts)) {
-    if (text !== null) assert.doesNotMatch(text, /Devnet/, what + ": the " + name + " part");
+    if (text === null) continue;
+    assert.doesNotMatch(text, /devnet|testnet/i, what + ": the " + name + " part");
   }
 };
 
@@ -187,7 +192,7 @@ const priv = await rig.wallet({ name: "Private", network: "mainnet" });
   assert.equal(solMode(priv), "private");
   assert.ok(sections().includes("solana"));
   const parts = networkParts();
-  noDevnet(parts, "a private wallet");
+  noTestnet(parts, "a private wallet");
   assert.equal(parts.lead, "Solana Mainnet");
   assert.equal(parts.identity, "Shared wallet · Solana Mainnet");
   assert.match(parts.sol, /^SOLSolana Mainnet/);
@@ -222,7 +227,8 @@ const wait = await rig.wallet({ name: "Waits", network: "mainnet" });
   const accept = findAll(tab, (n) => n.attrs?.["data-sol"] === "accept-private");
   assert.equal(accept.length, 1, "with its Accept button");
   const parts = networkParts();
-  noDevnet(parts, "a wallet that waits for the accept");
+  noTestnet(parts, "a wallet that waits for the accept");
+  assert.ok(parts.sol.includes(ACCEPT_ROW), "the SOL row says how the wallet opens here");
   assert.deepEqual([parts.lead, parts.activity], ["Solana Mainnet", null]);
 }
 step("the SOL row of a wallet that waits for the accept opens the tab with the accept card");
@@ -239,7 +245,8 @@ const off = await rig.wallet({ name: "Off", network: "mainnet" });
   assert.ok(textOf(tab).includes(UNSERVED), "the tab says why it does not open");
   assert.notEqual(t.sol.ctl.gid, off, "and the pool controller does not follow it");
   const parts = networkParts();
-  noDevnet(parts, "an unserved wallet");
+  noTestnet(parts, "an unserved wallet");
+  assert.ok(parts.sol.includes(UNSERVED_ROW), "the SOL row says why the wallet does not open");
   assert.deepEqual([parts.lead, parts.activity], ["Solana Mainnet", null]);
   await probeWith(200);
 }

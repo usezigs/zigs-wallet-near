@@ -747,7 +747,16 @@ const solExposure = () => (poolMainnet() ? MAINNET_EXPOSURE : SOL_EXPOSURE);
 
 // The SOL row of a wallet with no pool part here. A private wallet that waits for the accept of
 // this browser, or that this server does not serve, has a Solana tab that says why. Its row is the
-// route to that tab, as the row of a plain wallet is, in place of Shield and Unshield.
+// route to that tab, as the row of a plain wallet is, in place of Shield and Unshield. Its details
+// name mainnet, because the wallet can hold real SOL.
+const SOL_TESTNET_ONLY = "Solana is available only for eligible version 3 testnet wallets. Do not "
+  + "send SOL to the Zcash address.";
+const SOL_MODE_DETAILS = {
+  accept: "This wallet is a private Solana wallet on mainnet. This browser takes part only after "
+    + "you accept it in the Solana tab. Do not send SOL to the Zcash address.",
+  unserved: "This wallet is a private Solana wallet on mainnet. This server does not serve it, so "
+    + "it does not open here. Do not send SOL to the Zcash address.",
+};
 function solUnavailableRow() {
   return el("section", { class: "card card-pad asset-card asset-row asset-unavailable",
     "aria-labelledby": "asset-sol" },
@@ -761,8 +770,7 @@ function solUnavailableRow() {
     solTabOn() ? plainOpen("open") : shieldingActions("sol", false)),
   assetNote("sol", "Solana details", [
     shieldingBreakdown("sol"),
-    el("p", { id: "sol-unavailable" }, "Solana is available only for eligible version 3 testnet "
-      + "wallets. Do not send SOL to the Zcash address."),
+    el("p", { id: "sol-unavailable" }, SOL_MODE_DETAILS[solMode()] ?? SOL_TESTNET_ONLY),
     el("p", { id: "sol-shielding-note" },
       "Shielded and unshielded percentages are unavailable for this wallet."),
   ]));
