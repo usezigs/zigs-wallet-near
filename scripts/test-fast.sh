@@ -20,7 +20,8 @@ FAST="optional-passkey demo-check chain-fallback chat backup-check graph persona
   payees vault lwd zns near-quote
   requests shim shim-status
   signed util account qr
-  sol-docs sol-transfer sol-wasm mainnet-on mempool sol-plain-app sol-mode sol-plain-reads
+  sol-docs sol-transfer sol-wasm mainnet-on mempool sol-plain-app sol-mode sol-private
+  sol-plain-reads
   sol-plain-view sol-plain-load sol-plain-security sol-plain-review sol-plain-direct
   sol-plain-sessions sol-plain-ui
   smoke help contrast orientation overview setup-stage approvals recovery security-dashboard

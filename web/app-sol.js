@@ -3,7 +3,8 @@ import { walletVersion } from "./util.js";
 import { recipientSelect } from "./app-recipients.js";
 import { docFields } from "./signed.js";
 import { banner, clearBadBanner, log, openCreate, showBanner, state, ui } from "./app-state.js";
-import { exclusive, said } from "./app-kit.js";
+import { exclusive, oldest, readLocal, said, saveMerged } from "./app-kit.js";
+import { pin } from "./chat.js";
 import { Z } from "./app-engine.js";
 import { mySeatSecrets, putSec, putSecHeld, sec, takeStored } from "./app-keystore.js";
 import { localSeats, seatIds } from "./app-seats.js";
@@ -84,7 +85,7 @@ export function solMode(gid = state.gid) {
 }
 // Does this server serve the private Worker? The same states as solServed. Only a private wallet
 // asks. The server answers 404 unless SOL and SOL_POOL_MAINNET are "1" (cf/src/index.js).
-function privateServed() {
+export function privateServed() {
   if (ui.privateServed === undefined) {
     ui.privateServed = null;
     globalThis.fetch(POOL_WORKER_MAINNET, { method: "HEAD", cache: "no-store" }).then((r) => {
@@ -92,6 +93,38 @@ function privateServed() {
     }).catch(() => { if (ui.privateServed === null) ui.privateServed = false; }).finally(refilter);
   }
   return ui.privateServed === true;
+}
+// The accept of this browser (design 2.4 Consent): the first-seen pin "solmode:<wallet id>" =
+// mainnet-private, read back from storage. A failed write refuses, and the tab forgets its own
+// copy, so a later save of zf-signpins does not store it either.
+const NO_PIN = "This browser could not save that it accepts the private Solana wallet. Nothing "
+  + "was started.";
+const OTHER_PART = "A device of this wallet in this browser holds a Solana part of another "
+  + "network or mode, so the private Solana wallet was not accepted.";
+// The label of a seat secret. Round 1 writes it before the seat publishes soldkg1 (ceremony.js),
+// and it stays after a stop. A part with no label is the pool on Devnet.
+const labelHeld = (s) => s?.cluster ?? (holdsPart(s) ? "devnet" : null);
+const otherPart = (gid) => mySeatSecrets(gid).some(([, s]) => {
+  const label = labelHeld(s?.sol);
+  return label !== null && label !== PRIVATE_LABEL;
+});
+/** Pins the private mode of wallet `gid` in this browser. Throws when it cannot. */
+export function acceptPrivate(gid) {
+  if (otherPart(gid)) throw new Error(OTHER_PART);
+  const key = MODE_PIN + gid;
+  const fresh = pin(signPins, key, PRIVATE_LABEL) === "new";
+  if (fresh) saveMerged("zf-signpins", signPins, oldest);
+  if (signPins[key] === PRIVATE_LABEL && readLocal("zf-signpins")[key] === PRIVATE_LABEL) return;
+  if (fresh && signPins[key] === PRIVATE_LABEL) delete signPins[key];
+  throw new Error(NO_PIN);
+}
+// MAINNET_DISCLOSURE of web/sol/net.js, the one text of the private wallet. A page module reads
+// web/sol only with import(), so the text is null until the module loads, and the load redraws.
+let disclosure = null, disclosureLoad = null;
+export function privateDisclosure() {
+  disclosureLoad ||= import("./sol/net.js").then((m) => { disclosure = m.MAINNET_DISCLOSURE; },
+    (e) => log("Solana text: " + said(e))).finally(render);
+  return disclosure;
 }
 // The group document asks for a Solana part (createGroup). It is a hint only: any holder of the
 // link can write it, so it changes the texts and the preload, and it never starts the ceremony.
@@ -407,9 +440,31 @@ const retryButton = () => el("button", { class: "btn sm", type: "button", "data-
 /** The Solana tab after a failed load: its text, and Try again only where a retry can mend it. */
 export const loadFail = (error, retry) => el("div", { style: "display:grid;gap:8px" },
   el("p", { class: "small" }, failText(error, retry)), retry ? el("div", {}, retryButton()) : null);
-export const solTab = () => sol ? guard(sol.view)
-  : solError ? loadFail(solError, !importFailed)
-  : (solLoad(), el("p", { class: "small" }, "Loading Solana…"));
+const UNSERVED = "This server does not serve the private Solana wallet, so it does not open here.";
+const ACCEPT_INTRO = "Device 1 started a private Solana wallet on mainnet. This browser takes part "
+  + "only after you accept it.";
+// The Solana tab of a private wallet that this browser has not accepted (solMode "accept").
+function acceptCard() {
+  const texts = privateDisclosure();
+  if (!texts) return el("p", { class: "small" }, "Loading Solana…");
+  const accept = act(() => {
+    acceptPrivate(state.gid);
+    refilter();
+  });
+  return el("div", { style: "display:grid;gap:8px" },
+    el("p", { class: "small" }, ACCEPT_INTRO),
+    texts.map((line) => el("p", { class: "small" }, line)),
+    el("div", {}, el("button", { class: "btn primary", type: "button",
+      "data-sol": "accept-private", onclick: accept }, "Accept the private wallet")));
+}
+const MODE_TABS = { accept: acceptCard, unserved: () => el("p", { class: "small" }, UNSERVED) };
+export function solTab() {
+  const modeTab = MODE_TABS[solMode()];
+  if (modeTab) return modeTab();
+  return sol ? guard(sol.view)
+    : solError ? loadFail(solError, !importFailed)
+    : (solLoad(), el("p", { class: "small" }, "Loading Solana…"));
+}
 // The plain controller follows wallet `gid`, which is shown as a plain wallet.
 const plainHere = (gid = state.gid) => !!plainSol && plainShown(gid) && plainSol.ctl.gid === gid;
 function fromPlain(what, read, none) {
