@@ -20,10 +20,14 @@ const plainImported = () => loaded.some((url) => url.endsWith("/web/sol/plain/co
 
 const { loadRig, mainnetConfig, sleep, storage } = await import("./sol-rig.mjs");
 const { MAINNET_DISCLOSURE } = await import("../sol/net.js");
+const { docFields } = await import("../signed.js");
+const { fakePasskey } = await import("./passkey-fixture.mjs");
 const rig = await loadRig();
 const { t, data, waitFor } = rig;
 const { acceptPrivate, privateDisclosure, privateServed, solMode, solTab }
   = await import("../app-sol.js");
+const { createDialog } = await import("../app-shell.js");
+const keystore = await import("../app-keystore.js");
 const step = (name) => console.log("ok  " + name);
 const path = (gid, rel) => `groups/${gid}/${rel}`;
 const PRIVATE = "mainnet-private";
@@ -31,6 +35,14 @@ const PLAIN = "mainnet-plain";
 const KEY = (gid) => "solmode:" + gid;
 const stored = () => JSON.parse(storage.get("zf-signpins") ?? "{}");
 assert.ok(loaded.some((url) => url.endsWith("/web/app-sol.js")), "control: the hook sees loads");
+// Every solstart/1 that the page writes: [wallet id, cluster]. The test writes its own with
+// data.set, which this hook does not see.
+const starts = [];
+const recordStarts = (p, value) => {
+  if (p.endsWith("/solstart/1")) starts.push([p.split("/")[1], value.cluster]);
+  return value;
+};
+rig.hook.before = recordStarts;
 
 // The private Worker (D14): HEAD /sol/worker-mainnet.js answers `probe.status`. The plain wallet
 // and the private Worker URL need /sol/config-mainnet.json (sol-rig.mjs).
@@ -60,6 +72,15 @@ async function pinsFail(fn) {
   } finally {
     globalThis.localStorage.setItem = real;
   }
+}
+// The browser needs protection before the create dialog goes on (as mainnet-on.mjs).
+async function protectBrowser() {
+  assert.equal(await keystore.persist(), true);
+  const { userAgent, onLine } = globalThis.navigator;
+  Object.defineProperty(globalThis, "navigator", { configurable: true,
+    value: { userAgent, onLine, ...fakePasskey() } });
+  await keystore.lockWithPasskey();
+  assert.equal(keystore.passkeyProtected(), true, "the browser is protected");
 }
 // A start document that seat 1 signed, as the store holds it.
 async function signStart(gid, cluster) {
@@ -176,6 +197,139 @@ const wait = await rig.wallet({ name: "Waits", network: "mainnet" });
   await probeWith(200);
 }
 step("the Solana tab shows the accept card with the disclosure, and the unserved text");
+
+// ── Seat 1 with solAuto, the pin and no probe signs nothing ──
+{
+  const off = await rig.wallet({ name: "No probe", network: "mainnet" });
+  await probeWith(404);
+  acceptPrivate(off);
+  await rig.db.doc("groups/" + off).update({ solana: true, solMode: PRIVATE });
+  await t.putSec(off, 1, { solAuto: true });
+  assert.equal(solMode(off), "unserved");
+  for (let k = 0; k < 10; k++) {
+    t.refilter();
+    await sleep(100);
+  }
+  assert.equal(data.get(path(off, "solstart/1")), undefined, "no start without the probe");
+  assert.deepEqual(starts, [], "the page wrote no start");
+  assert.notEqual(t.sol?.ctl.gid, off, "and no controller follows the wallet");
+  // Once the server serves it, seat 1 starts the private wallet.
+  await probeWith(200);
+  await waitFor("the private start", () => starts.length === 1);
+  assert.deepEqual(starts, [[off, PRIVATE]]);
+}
+step("seat 1 with solAuto and the pin signs nothing on a server without the private Worker");
+
+// ── The create dialog: the private choice of a new mainnet wallet ──
+await protectBrowser();
+const dialog = () => drawn(() => createDialog());
+const byId = (node, id) => findAll(node, (x) => x.attrs?.id === id)[0] ?? null;
+const withFields = (fields, fn) => {
+  const real = globalThis.document;
+  globalThis.document = new Proxy(real, { get: (o, k) => (k === "getElementById"
+    ? (id) => (Object.hasOwn(fields, id) ? fields[id] : real.getElementById(id)) : real[k]) });
+  try {
+    return fn();
+  } finally {
+    globalThis.document = real;
+  }
+};
+const DEVICE = { "g-n": { value: "3" }, "g-t": { value: "2" }, "my-name": { value: "Ana" } };
+// The dialog from the device step to the review, for a new mainnet wallet with the tick.
+async function review(name) {
+  Object.assign(t.ui, { create: true, createStep: 2, net: "mainnet", ack: true,
+    createDraft: { n: 3, t: 2 } });
+  await withFields({ ...DEVICE, "g-name": { value: name } }, () => dialog().on.submit(EV));
+  assert.equal(t.ui.createStep, 3, "the review");
+}
+const reviewText = () => textOf(findAll(dialog(),
+  (n) => n.attrs?.["aria-labelledby"] === "create-step-3")[0]);
+const choice = () => byId(dialog(), "g-private");
+const tick = () => choice().on.change({ target: { checked: true } });
+// The submit of the review: the new wallet, or null when none was made.
+async function submit() {
+  const before = t.state.gid;
+  await withFields({}, () => dialog().on.submit(EV));
+  return t.state.gid !== before ? t.state.gid : null;
+}
+const planned = (gid) => {
+  const g = data.get("groups/" + gid);
+  return { pin: stored()[KEY(gid)] ?? null, hint: [g.solana ?? null, g.solMode ?? null],
+    auto: t.sec(gid, 1)?.solAuto ?? null };
+};
+const NONE = { pin: null, hint: [null, null], auto: null };
+{
+  const CHOICE = "Private Solana on mainnet (staging test, at most 0.5 SOL).";
+  await probeWith(404);
+  await review("Not served");
+  assert.equal(choice(), null, "no choice without the probe");
+  assert.match(reviewText(), /Zcash mainnetZcash only/);
+  await probeWith(200);
+  assert.ok(choice(), "the choice with the probe");
+  assert.equal("checked" in choice().attrs, false, "and it is off by default");
+  says(reviewText(), [CHOICE, ...MAINNET_DISCLOSURE], "the choice");
+  assert.match(reviewText(), /Zcash mainnetZcash only/, "the summary while it is off");
+  t.ui.net = "testnet";
+  assert.equal(choice(), null, "a testnet wallet has no private choice");
+  t.ui.net = "mainnet";
+  // Off: the plain path, as before. No pin, no hint, no solAuto.
+  const plainPath = await submit();
+  assert.ok(plainPath, "the wallet is made");
+  assert.deepEqual(planned(plainPath), NONE, "the choice off plans nothing");
+  assert.equal(t.signPins[KEY(plainPath)], undefined);
+  // A probe that answers 404 before the submit: no wallet, and the dialog stays.
+  await review("Gone");
+  tick();
+  assert.match(reviewText(), /\+ private Solana on mainnet/, "the summary names the choice");
+  await probeWith(404);
+  assert.equal(await submit(), null, "no wallet without the probe at the submit");
+  assert.match(t.banner.text, /does not serve the private Solana wallet now/);
+  assert.equal(t.ui.createStep, 3, "the dialog stays at the review");
+  await probeWith(200);
+  // A failed write of the pin: the wallet is made, and nothing of Solana starts.
+  const failed = await pinsFail(submit);
+  assert.ok(failed, "the Zcash wallet is made");
+  assert.match(t.banner.text, /could not save that it accepts the private Solana wallet/);
+  assert.deepEqual(planned(failed), NONE, "a failed pin starts nothing");
+  assert.equal(t.signPins[KEY(failed)], undefined, "and the tab keeps no pin");
+}
+step("the create dialog offers the private choice only with the probe, off by default");
+
+// ── The choice on: the pin, the hint, solAuto; the ceremony signs mainnet-private ──
+const made = await (async () => {
+  await review("Private");
+  tick();
+  const order = [];
+  rig.hook.before = (p, value) => {
+    recordStarts(p, value);
+    const hint = /^groups\/\w+$/.test(p) && value.solMode && !order.length;
+    if (hint) order.push(planned(p.split("/")[1]));
+    return value;
+  };
+  const gid = await submit();
+  rig.hook.before = recordStarts;
+  assert.ok(gid, "the private wallet is made");
+  assert.deepEqual(order, [{ pin: PRIVATE, hint: [null, null], auto: null }],
+    "the pin is saved before the hint, and solAuto comes after it");
+  assert.deepEqual(planned(gid), { pin: PRIVATE, hint: [true, PRIVATE], auto: true });
+  return gid;
+})();
+{
+  await waitFor("seat 1", () => t.state.seats[1]);
+  for (const i of [2, 3]) await t.takeSeat(i, 3);
+  await waitFor("every seat", () => Object.keys(t.state.seats).length === 3);
+  await waitFor("wallet checked", () => Object.keys(t.state.verify).length === 3 && t.state.wallet);
+  const dones = () => [1, 2, 3].map((i) => data.get(path(made, "soldone/" + i)));
+  await waitFor("every private soldone", () => dones().every(Boolean), 30000);
+  for (const d of dones().map(docFields)) assert.equal(d.cluster, PRIVATE, "each soldone");
+  assert.equal(docFields(data.get(path(made, "solstart/1"))).cluster, PRIVATE);
+  assert.deepEqual(starts.filter(([gid]) => gid === made), [[made, PRIVATE]],
+    "seat 1 signed one start");
+  assert.ok(starts.every(([, cluster]) => cluster === PRIVATE),
+    "no start of the page names another label");
+  assert.equal(t.plainLoading, null, "the plain controller never loaded");
+}
+step("the choice on pins, writes the hint, then solAuto, and seat 1 never signs mainnet-plain");
 
 // ── A browser with the pin never imported the plain controller ──
 assert.equal(t.plainLoading, null, "the plain controller never loaded");

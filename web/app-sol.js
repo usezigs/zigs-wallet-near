@@ -83,8 +83,9 @@ export function solMode(gid = state.gid) {
   if (mode !== "private") return mode;
   return privateServed() ? mode : "unserved";
 }
-// Does this server serve the private Worker? The same states as solServed. Only a private wallet
-// asks. The server answers 404 unless SOL and SOL_POOL_MAINNET are "1" (cf/src/index.js).
+// Does this server serve the private Worker? The same states as solServed. A private wallet and the
+// create dialog of a mainnet wallet ask. The server answers 404 unless SOL and SOL_POOL_MAINNET
+// are "1" (cf/src/index.js).
 export function privateServed() {
   if (ui.privateServed === undefined) {
     ui.privateServed = null;
@@ -117,6 +118,15 @@ export function acceptPrivate(gid) {
   if (signPins[key] === PRIVATE_LABEL && readLocal("zf-signpins")[key] === PRIVATE_LABEL) return;
   if (fresh && signPins[key] === PRIVATE_LABEL) delete signPins[key];
   throw new Error(NO_PIN);
+}
+// The private choice of the create dialog (design 2.4 Create), in this order: the accept of this
+// browser, the hint for the other seats (texts only), then solAuto in the secret of seat 1, which
+// starts the ceremony with no button. A step that fails starts nothing after it.
+export async function planPrivate(gid) {
+  if (!sec(gid, 1)) throw new Error("Only device 1 can start the private Solana wallet.");
+  acceptPrivate(gid);
+  await sdb.doc("groups/" + gid).update({ solana: true, solMode: PRIVATE_LABEL });
+  await putSec(gid, 1, { solAuto: true });
 }
 // MAINNET_DISCLOSURE of web/sol/net.js, the one text of the private wallet. A page module reads
 // web/sol only with import(), so the text is null until the module loads, and the load redraws.

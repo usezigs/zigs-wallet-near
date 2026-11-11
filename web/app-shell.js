@@ -20,7 +20,7 @@ import {
 import { contactName, contactOf, joinChat, joinLinks, unreadIn } from "./app-messages.js";
 import { createGroup } from "./app-dkg.js";
 import {
-  newWallet, planSolana, solPending, solServed,
+  newWallet, planPrivate, planSolana, privateDisclosure, privateServed, solPending, solServed,
 } from "./app-sol.js";
 import { personal, personalError, personalPending } from "./app-account.js";
 import { restore } from "./app-backups.js";
@@ -710,6 +710,38 @@ function solChoice() {
       el("span", { class: "small muted" }, "Included after the Zcash address checks, when service is available. Clear this option for a Zcash-only wallet.")));
 }
 
+// A new mainnet wallet can be a private Solana wallet (slice 8, design 2.4 Create), on a server
+// that serves the private Worker. The choice is off by default and lives in the draft only.
+const PRIVATE_CHOICE = "Private Solana on mainnet (staging test, at most 0.5 SOL).";
+const PRIVATE_GONE = "This server does not serve the private Solana wallet now. Clear the private "
+  + "Solana choice, or try again later.";
+const privateDrafted = () => ui.net === "mainnet" && ui.createDraft?.solPrivate === true;
+function privateChoice() {
+  const texts = ui.net === "mainnet" && privateServed() ? privateDisclosure() : null;
+  if (!texts) return null;
+  const pick = (ev) => {
+    ui.createDraft = { ...ui.createDraft, solPrivate: ev.target.checked };
+    render();
+  };
+  return el("div", { class: "surface-quiet" },
+    el("label", { class: "ack" },
+      el("input", { type: "checkbox", id: "g-private", name: "private",
+        checked: privateDrafted(), onchange: pick }),
+      el("span", {}, el("b", {}, PRIVATE_CHOICE))),
+    texts.map((line) => el("p", { class: "small muted" }, line)));
+}
+const solSummary = (includeSol) => includeSol
+  ? solServed() ? "+ Solana Devnet" : "Solana Devnet · waiting for service"
+  : privateDrafted() ? "+ private Solana on mainnet" : "Zcash only";
+// The Solana part that a new wallet plans: Devnet for a testnet wallet, or the private wallet for a
+// mainnet wallet on a server that serves it. A replacement wallet plans none.
+function chainPlan(from, network, sol, solPrivate) {
+  if (solChosen(from, network, sol)) return planSolana;
+  if (from || network !== "mainnet" || solPrivate !== true) return null;
+  if (!privateServed()) throw new Error(PRIVATE_GONE);
+  return planPrivate;
+}
+
 function planningNetworks() {
   if (ui.net !== "testnet") return null;
   const served = solServed();
@@ -836,14 +868,15 @@ export function endCreate() {
 const closeCreate = () => { endCreate(); render(); };
 
 // A replacement wallet stays on its predecessor's network: funds cannot move between networks.
-async function submitWallet({ name, n, t, sol, solExpected = false, description = "" }, from) {
+async function submitWallet({ name, n, t, sol, solExpected = false, description = "",
+  solPrivate }, from) {
   requireSetupProtection();
   checkRule(n, t);
   const network = from ? from.network || "testnet" : ui.net;
   // A replacement wallet has no tick: the person ticked when the old wallet was made.
   if (!from && network === "mainnet" && !ui.ack) throw new Error("Confirm that you understand "
     + "Zigs is not audited before you create a mainnet wallet.");
-  const withSol = solChosen(from, network, sol);
+  const plan = chainPlan(from, network, sol, solPrivate);
   endCreate();
   const gid = await createGroup(name, n, t, from && from.id, network);
   if (!from && description) {
@@ -853,7 +886,7 @@ async function submitWallet({ name, n, t, sol, solExpected = false, description 
     try { beginGuided(gid, { solExpected: network === "testnet" && solExpected }); }
     catch (e) { showBanner("bad", e.message); }
   }
-  if (withSol) await planSolana(gid);
+  if (plan) await plan(gid);
 }
 const MOVED_ALREADY = "This wallet moved already. Open the wallet that it moved to.";
 // The first submit closes the dialog before it waits: a second submit of the same form is stale
@@ -996,9 +1029,9 @@ function reviewStep() {
           el("div", {}, el("strong", {}, String(d.n)), el("span", {}, "devices at setup")),
           el("div", {}, el("strong", {}, String(d.t) + " of " + d.n), el("span", {}, "approvals per payment")),
           el("div", {}, el("strong", {}, "Zcash " + curNetLabel()),
-            el("span", {}, includeSol ? solServed() ? "+ Solana Devnet" : "Solana Devnet · waiting for service"
-              : "Zcash only"))),
+            el("span", {}, solSummary(includeSol)))),
         ui.net === "mainnet" ? el("p", { class: "callout bad" }, mainnetRisk()) : null,
+        privateChoice(),
         el("p", { class: "small muted" }, "All " + d.n + " devices join and check the wallet before use. Initial formation needs no fee funding or on-chain deployment. Later Deposit and Send operations show their own costs."),
         el("p", { class: "small muted" }, "Recovery files are recommended and optional. Each copies one device’s share and needs its separate passphrase. You can save or check files later."))),
     // Preserve the existing setup submission value without displaying the network section.
