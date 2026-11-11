@@ -6,6 +6,7 @@
 // one round trip to the group server, then answers "hosted" only when the server shows no switch
 // and no seat of this browser holds the pin. The Worker refuses that answer: the SDK of the pool
 // v1 has no hosted prover in the clear, so a proof is made on a device or not at all.
+import { agreement } from "./ceremony.js";
 import { CLUSTER, readDocs } from "./docs.js";
 import { holdsShare, putSol, solOf, stopOf } from "./secrets.js";
 
@@ -180,6 +181,8 @@ export function reactProve(c, ensure) {
 function maybeCheck(c, seats, ensure) {
   const unchecked = seats.some((i) => !solOf(c.host, c.gid, i).proveCheck);
   if (!unchecked || !c.viewed || !c.rpcUrl || c.proveChecked) return;
+  // The Worker starts only for agreed keys: a check before the soldone documents load would fail.
+  if (agreement(c).state !== "agree") return;
   c.proveChecked = true;
   c.host.once("sol:provecheck:" + c.opened, () => checkDevice(c, ensure));
 }

@@ -12,6 +12,7 @@ import {
   checkLine,
   gateAnswer,
   provesLocally,
+  reactProve,
   turnOnLocal,
 } from "../sol/localprove.js";
 import { putSol } from "../sol/secrets.js";
@@ -189,6 +190,25 @@ step("SOL-4 a yes signs the switch of the seat and pins every seat of this brows
   assert.equal(solOf(1).proveCheck, undefined, "a check of a closed wallet was stored");
 }
 step("SOL-4 a seat that sees the switch tests its device once, and the tile shows the result");
+
+// ── The device check waits until the seats agree on one key, then runs once ──
+// A copy of the controller state: the reactor of the page refreshes the documents of `c` itself.
+{
+  for (const i of [1, 2, 3]) await putSol(c.host, gid, i, { proveCheck: null });
+  const before = selftests();
+  const early = { ...c, docs: { ...c.docs, soldone: {} }, viewed: true, proveChecked: false };
+  reactProve(early, () => ensureWorker(c));
+  assert.equal(early.proveChecked, false, "the check started before the soldone documents");
+  await sleep(300);
+  assert.equal(selftests(), before, "a selftest ran before the agreement");
+  assert.equal([1, 2, 3].some((i) => solOf(i).proveCheck), false, "a check was stored");
+  early.docs = c.docs;
+  reactProve(early, () => ensureWorker(c));
+  assert.equal(early.proveChecked, true, "the agreement starts the check");
+  await waitFor("the device check", () => solOf(1).proveCheck?.ok === true);
+  assert.equal(selftests(), before + 1, "one check after the agreement");
+}
+step("SOL-4 the device check waits for the agreement and runs after it");
 
 console.log("sol-prove: ok");
 process.exit(0);
