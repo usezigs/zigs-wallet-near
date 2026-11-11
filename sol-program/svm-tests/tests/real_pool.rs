@@ -38,7 +38,15 @@ fn pool_transact(legs: u64) -> TransactIxData {
 /// The body commits to the settlement addresses of the changed list, so the program's own checks
 /// pass and the pool reads the list. Returns the custom error code.
 fn execute(legs: u64, change: impl FnOnce(&mut [AccountMeta], &mut Vec<Keypair>)) -> u32 {
-    let mut rig = Rig::with_real_pool();
+    execute_on(Rig::with_real_pool(), legs, change)
+}
+
+/// [`execute`] on the given rig, which must hold the real pool.
+fn execute_on(
+    mut rig: Rig,
+    legs: u64,
+    change: impl FnOnce(&mut [AccountMeta], &mut Vec<Keypair>),
+) -> u32 {
     let transact = pool_transact(legs);
     let placeholder = rig.body_with([0; 32]);
     let legs = settlements(&transact);
@@ -75,6 +83,16 @@ fn the_pool_accepts_the_layout_of_the_program() {
             code::POOL_TREE_STAGE,
             "legs {legs}"
         );
+    }
+}
+
+/// The mainnet build at `9mE7…` builds the same list, and the pool reads it as it reads the
+/// Devnet list: the owner PDA of the mainnet program is the signer of the run.
+#[test]
+fn the_pool_accepts_the_layout_of_the_mainnet_program() {
+    for legs in [0, 1, 2] {
+        let code = execute_on(Rig::mainnet_with_real_pool(), legs, |_, _| {});
+        assert_eq!(code, code::POOL_TREE_STAGE, "legs {legs}");
     }
 }
 

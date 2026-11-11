@@ -1,0 +1,15 @@
+{
+ "format": "Fixed values of the mainnet approvals program 9mE7WUJHK6dQwzK6AP6wf1eyPmePULZrGeRbXqke2ukq. Every value is hex of its raw bytes; bumps are numbers. owner = PDA [\"multisig\", group] under program. body = commitment(32) || group(32) || expiry(u64 LE) || rent recipient(32) || count(1) || authorities(32 each). proposal = PDA [\"proposed_transaction\", group, commitment, SHA-256(body)] under program. cancellation = PDA [\"cancelled_transaction\", proposal] under program. digest = SHA-256(domain || genesis || program || proposal || body). genesis is the mainnet genesis hash. Computed by a Python script of its own (SHA-256 and a curve check), not by the program crates. Read by sol-program/svm-tests/tests/cluster.rs.",
+ "program": "8231e0852aa8441b13d1375bddc094443e468b103b8fb99f4d649baddc970996",
+ "genesis": "45296998a6f8e2a784db5d9f95e18fc23f70441a1039446801089879b08c7ef0",
+ "domain": "5a6967735f536f6c417070726f76616c5f7631",
+ "group": "9f5719b2eaa329185b25316806d65a7abab6ab7255eb09c7da3a21fdea688fce",
+ "owner": "86de9c569d82affaa3a5ecc48fe43b0578acda76d62e32dd90c319f9e0dfc60a",
+ "owner_bump": 254,
+ "body": "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a9f5719b2eaa329185b25316806d65a7abab6ab7255eb09c7da3a21fdea688fce80234b6b00000000a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a501b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6",
+ "proposal": "44d6f6ef9f47a2237f32ebd7f9af657f973078117f7164ad2d648b643c677906",
+ "proposal_bump": 254,
+ "cancellation": "454b897fbe3d73e44ef47a026cc5a23bd49bf3d981e622f778d3802806361105",
+ "cancellation_bump": 253,
+ "digest": "e58ae97136e58939b4d151095a4fe26698a2ba549a1138d5c91e0de825218519"
+}

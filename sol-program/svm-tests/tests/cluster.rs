@@ -5,10 +5,12 @@
 
 use std::{fs, path::PathBuf};
 
+use sha2::{Digest, Sha256};
 use solana_pubkey::Pubkey;
 use zigs_min_multisig_svm_tests::{
-    approval_ix, code, digest_with, execute_ix, program_dir, refused_with, sample_transact,
-    serialize, Rig, DEVNET_GENESIS, DOMAIN, MAINNET_ELF, MAINNET_GENESIS, POOL_ID, PROGRAM_ID,
+    approval_ix, cancellation_under, code, digest_with, execute_ix, owner_address, owner_under,
+    program_dir, refused_with, sample_transact, serialize, Rig, DEVNET_GENESIS, DOMAIN,
+    MAINNET_ELF, MAINNET_GENESIS, MAINNET_PROGRAM_ID, POOL_ID, PROGRAM_ID,
 };
 
 /// The forwarded position of the pool account, in the account list of `execute`.
@@ -36,36 +38,43 @@ fn each_elf_holds_the_pool_and_the_genesis_hash_of_its_cluster_only() {
     }
 }
 
-/// An approval over each genesis hash, with each pool account at the pool's place.
+/// An approval over each pair of genesis hash and program id, with each pool account at the
+/// pool's place. The mainnet program sits at its own id and takes only the mainnet pair.
 #[test]
 fn the_mainnet_program_takes_mainnet_approvals_and_calls_the_pool() {
     let cases = [
-        (MAINNET_GENESIS, POOL_ID, None),
-        (DEVNET_GENESIS, POOL_ID, Some(code::BAD_APPROVAL)),
+        (MAINNET_GENESIS, MAINNET_PROGRAM_ID, POOL_ID, None),
         (
             MAINNET_GENESIS,
+            PROGRAM_ID,
+            POOL_ID,
+            Some(code::BAD_APPROVAL),
+        ),
+        (
+            DEVNET_GENESIS,
+            MAINNET_PROGRAM_ID,
+            POOL_ID,
+            Some(code::BAD_APPROVAL),
+        ),
+        (
+            MAINNET_GENESIS,
+            MAINNET_PROGRAM_ID,
             NOT_THE_POOL,
             Some(code::INVALID_SPP_PROGRAM),
         ),
     ];
     let transact = sample_transact();
-    for (genesis, pool, refusal) in cases {
+    for (genesis, program, pool, refusal) in cases {
         let mut rig = Rig::mainnet();
         let body = rig.body(&transact);
         rig.create(&body).expect("create");
         let mut metas = rig.metas(&body, &transact);
         metas[POOL_AT].pubkey = pool;
-        let digest = digest_with(
-            DOMAIN,
-            &genesis,
-            &PROGRAM_ID,
-            &body.proposal(),
-            &body.bytes(),
-        );
+        let digest = digest_with(DOMAIN, &genesis, &program, &body.proposal(), &body.bytes());
         let approval = approval_ix(&rig.group, &digest);
         let result = rig.send(&[approval, execute_ix(metas, &serialize(&transact))], &[]);
         match refusal {
-            Some(code) => assert_eq!(refused_with(result), code),
+            Some(code) => assert_eq!(refused_with(result), code, "{genesis} {program}"),
             // `Rig::send` allows a call to the rig's pool only: here the stub at the pool id.
             None => {
                 let meta = result.expect("a mainnet approval settles");
@@ -75,4 +84,83 @@ fn the_mainnet_program_takes_mainnet_approvals_and_calls_the_pool() {
             }
         }
     }
+}
+
+/// The value of a line of the shared vector file, `"name": "value"` or `"name": number`.
+fn field(name: &str) -> String {
+    let text = include_str!("../../../wasm-sol/vectors/program/mainnet.json");
+    let key = format!("\"{name}\": ");
+    let line = text
+        .lines()
+        .find_map(|line| line.trim().strip_prefix(&key))
+        .unwrap_or_else(|| panic!("field {name}"));
+    line.trim_end_matches(',').trim_matches('"').to_string()
+}
+
+fn bytes(name: &str) -> Vec<u8> {
+    let text = field(name);
+    (0..text.len())
+        .step_by(2)
+        .map(|at| u8::from_str_radix(&text[at..at + 2], 16).expect("hex"))
+        .collect()
+}
+
+fn key(name: &str) -> Pubkey {
+    Pubkey::try_from(bytes(name).as_slice()).expect("a 32-byte key")
+}
+
+/// The shared vector (`wasm-sol/vectors/program/mainnet.json`, made by a script that does not use
+/// these crates) equals what the rig derives and what the mainnet program accepts.
+#[test]
+fn the_shared_mainnet_vector_matches_the_rig_and_the_program() {
+    assert_eq!(key("program"), MAINNET_PROGRAM_ID);
+    assert_eq!(key("genesis"), MAINNET_GENESIS);
+    assert_eq!(bytes("domain"), DOMAIN);
+    let group = key("group");
+    let (owner, bump) = owner_under(&MAINNET_PROGRAM_ID, &group);
+    assert_eq!(
+        (owner, bump.to_string()),
+        (key("owner"), field("owner_bump"))
+    );
+    let body = bytes("body");
+    let hash: [u8; 32] = Sha256::digest(&body).into();
+    let (proposal, bump) = Pubkey::find_program_address(
+        &[b"proposed_transaction", group.as_ref(), &body[..32], &hash],
+        &MAINNET_PROGRAM_ID,
+    );
+    assert_eq!(
+        (proposal, bump.to_string()),
+        (key("proposal"), field("proposal_bump"))
+    );
+    let (cancel, bump) = cancellation_under(&MAINNET_PROGRAM_ID, &proposal);
+    assert_eq!(
+        (cancel, bump.to_string()),
+        (key("cancellation"), field("cancellation_bump"))
+    );
+    let digest = digest_with(
+        DOMAIN,
+        &MAINNET_GENESIS,
+        &MAINNET_PROGRAM_ID,
+        &proposal,
+        &body,
+    );
+    assert_eq!(digest.to_vec(), bytes("digest"));
+    // The same body under the Devnet program gives other addresses and another digest.
+    assert_ne!(owner_under(&PROGRAM_ID, &group).0, owner);
+    assert_ne!(owner_address(&group), owner);
+}
+
+/// The mainnet program, loaded at `9mE7…`, accepts the owner PDA that is derived under `9mE7…`.
+#[test]
+fn the_mainnet_program_settles_with_the_owner_address_under_its_own_id() {
+    let mut rig = Rig::mainnet();
+    let transact = sample_transact();
+    let body = rig.body(&transact);
+    assert_eq!(
+        body.owner(),
+        owner_under(&MAINNET_PROGRAM_ID, &body.group).0
+    );
+    rig.create(&body).expect("create");
+    rig.execute(&body, &transact)
+        .expect("the owner PDA is the one under 9mE7");
 }
