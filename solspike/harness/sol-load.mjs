@@ -26,7 +26,7 @@ const START = async (roles) => {
   const { startSolWorker } = await import("/sol/client.js");
   window.__sol = startSolWorker();
   const { rpcUrl } = await (await fetch("/sol/config.json")).json();
-  const init = await window.__sol.call("init", { rpcUrl, ...roles });
+  const init = await window.__sol.call("init", { cluster: "devnet", rpcUrl, ...roles });
   return { init, ms: Math.round(performance.now() - t0) };
 };
 

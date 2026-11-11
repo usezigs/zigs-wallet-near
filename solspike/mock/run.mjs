@@ -47,7 +47,7 @@ function config(servers, roles, keys) {
     decoy,
     nonceAccount: NONCE_ACCOUNT,
     treeAccount: TREE_ACCOUNT,
-    init: { rpcUrl: `${mock}/?${KEY_NAME}=${keys.good}`, ...roles.secrets },
+    init: { cluster: "devnet", rpcUrl: `${mock}/?${KEY_NAME}=${keys.good}`, ...roles.secrets },
     deadUrl: `${mock}/?${KEY_NAME}=${keys.dead}`,
     deadKey: keys.dead,
   };
