@@ -32,6 +32,7 @@ function wasmFile(href) {
 function rpcAnswer(init) {
   const body = init?.body ? JSON.parse(init.body) : null;
   const results = { getSlot: 9, getBalance: { context: { slot: 9 }, value: 5 } };
+  results.getGenesisHash = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
   return Response.json({ jsonrpc: "2.0", id: body?.id, result: results[body?.method] ?? null });
 }
 function helius(url, init) {
@@ -57,6 +58,7 @@ function ask(cmd, args) {
 }
 
 const init = await ask("init", {
+  cluster: "devnet",
   rpcUrl: "https://devnet.helius-rpc.com/?api-key=" + "k3y9".repeat(5),
   nullifierSecret: "c1".repeat(31),
   pdaNullifierSecret: "c3".repeat(31),

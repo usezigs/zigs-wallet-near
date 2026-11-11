@@ -127,7 +127,7 @@ for (const junk of ["", "{}", "zz"]) {
 }
 // The PDA identity: its nullifier secret is HKDF-SHA256 over solSeed with the label and the PDA
 // as info, 31 bytes, so it is a field element and only the seats can make it.
-const pdaRoles = json(S.sol_pda_roles(done[0].sol_seed, done[0].group_key));
+const pdaRoles = json(S.sol_pda_roles(CLUSTER, done[0].sol_seed, done[0].group_key));
 {
   const info = Buffer.concat([
     Buffer.from("zigs-sol/pda-nullifier-secret/v1"),
@@ -138,12 +138,15 @@ const pdaRoles = json(S.sol_pda_roles(done[0].sol_seed, done[0].group_key));
   assert.notEqual(pdaRoles.nullifier_pk, roles.nullifier_pk, "another key than the group key's");
   assert.notEqual(pdaRoles.address, roles.address, "and another address");
   assert.equal(pdaRoles.address.length, 99 * 2);
-  const seat2 = json(S.sol_pda_roles(done[1].sol_seed, done[1].group_key));
+  const seat2 = json(S.sol_pda_roles(CLUSTER, done[1].sol_seed, done[1].group_key));
   assert.deepEqual(seat2, pdaRoles, "every seat derives the same PDA identity");
 }
+// The pins of a Devnet pool wallet: the cluster byte 1 first, the Devnet genesis hash last.
+const DEVNET_GENESIS = "ce59db5080fc2c6d3bcf7ca90712d3c2e5e6c28f27f0dfbb9953bdb0894c03ab";
 const pinsOf = (payer) =>
   fromHex(
-    done[0].group_key + roles.nullifier_pk + roles.viewing_pk + payer + pdaRoles.nullifier_pk,
+    "01" + done[0].group_key + roles.nullifier_pk + roles.viewing_pk + payer +
+      pdaRoles.nullifier_pk + DEVNET_GENESIS,
   );
 assert.equal(Buffer.from(roles.seal_key, "base64url").length, 32, "a 32 byte base64url secret");
 assert.throws(() => S.sol_roles("zz", done[0].group_key), /solSeed/);
@@ -166,7 +169,7 @@ const snapshot = Buffer.concat([
 assert.equal(snapshot.length, 74);
 const verdict = S.check_message(message, proposal, pins, snapshot, BigInt(NOW));
 assert.ok(verdict.startsWith("accepted"), verdict);
-assert.equal(S.rule_list().split("\n").length, 97);
+assert.equal(S.rule_list().split("\n").length, 98);
 
 // Seats 1 and 2 sign in separate calls. The page keeps the nonces under the digest.
 const digest = S.sol_digest(CLUSTER, message);

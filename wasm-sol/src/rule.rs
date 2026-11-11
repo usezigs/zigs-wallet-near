@@ -234,6 +234,8 @@ rules! {
          the rent-exempt minimum after the withdrawal";
     MigrationPayee, "migration-payee", Policy,
         "a nonce payment pays its inputs whole to the program address of the group, no change";
+    ShieldOverCap, "shield-over-cap", Policy,
+        "on a cluster with a cap, the synced private balance plus the Shield is at most the cap";
     IntentRetired, "intent-retired", Policy,
         "no nonce withdrawal or nonce cancel, and the group key signs no program message";
 }

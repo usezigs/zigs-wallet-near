@@ -228,6 +228,7 @@ pub fn accept_vectors() -> Vec<Vector> {
     let shield = Intent::Shield {
         blockhash: NONCE,
         amount: facts.amount("shield"),
+        held: 0,
     };
     let cancel = Intent::Cancel { nonce: NONCE };
     let cases: Vec<(&'static str, Intent, Option<&Transact>)> = vec![

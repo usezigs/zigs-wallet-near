@@ -59,14 +59,15 @@ const fee = keyOf(randomBytes(32));
 const groupKey = keyOf(randomBytes(32)).public;
 const solSeed = hexOf(randomBytes(32));
 const roles = JSON.parse(W.sol_roles(solSeed, groupKey));
-const pda = JSON.parse(W.sol_pda_roles(solSeed, groupKey));
+const pda = JSON.parse(W.sol_pda_roles("devnet", solSeed, groupKey));
 const done = {
+  cluster: "devnet",
   groupKey,
   nullifierPk: roles.nullifier_pk,
   viewingPk: roles.viewing_pk,
   pdaNullifierPk: pda.nullifier_pk,
 };
-const pins = bytesOf(pinsHex(done, fee.public));
+const pins = bytesOf(pinsHex(done, fee.public, await rpc("getGenesisHash", [])));
 const snapshot = bytesOf(snapshotHex({ ...roles, nullifier_secret: pda.nullifier_secret }));
 
 const compact = (n) => (n < 128 ? [n] : [(n & 0x7f) | 0x80, n >> 7]);

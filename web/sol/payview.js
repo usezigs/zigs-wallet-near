@@ -27,6 +27,7 @@ import { privacyBadge, privacyNotice } from "../privacy-language.js";
 import { holdsShare, solOf } from "./secrets.js";
 import { solText } from "./session.js";
 import { beforeFee, heldLamports, heldNotes, isPayment, spentLamports } from "./sessions.js";
+import { labelOf } from "./wallet.js";
 
 export const SHOWN = 12;
 const FAUCET = "https://faucet.solana.com/";
@@ -650,8 +651,9 @@ function reviewHero(c, ss, review) {
 // The digest of the proposal, or null when it cannot be read.
 function digestOf(c, ss) {
   try {
-    if (isPayment(ss)) return c.W.sol_approval_digest(String(ss.account), String(ss.body));
-    return c.W.sol_digest(CLUSTER, bytesOf(ss.message));
+    const label = labelOf(c);
+    if (isPayment(ss)) return c.W.sol_approval_digest(label, String(ss.account), String(ss.body));
+    return c.W.sol_digest(label, bytesOf(ss.message));
   } catch {
     return null;
   }

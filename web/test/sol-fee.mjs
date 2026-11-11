@@ -12,7 +12,15 @@ import { feeSignature, refusalText, reviewOf } from "../sol/approve.js";
 import { base58 } from "../sol/docs.js";
 import { feeMismatch, feeOf, readyFee } from "../sol/fee.js";
 import { readySeat } from "../sol/gate.js";
-import { bytesOf, describeMessage, hexOf, intentHex, pinsHex } from "../sol/intent.js";
+import { CLUSTERS } from "../sol/guard.js";
+import {
+  bytesOf,
+  decodeIntent,
+  describeMessage,
+  hexOf,
+  intentHex,
+  pinsHex,
+} from "../sol/intent.js";
 import { propose } from "../sol/propose.js";
 import { refreshChain } from "../sol/session.js";
 import { readSolSession, writePart } from "../sol/sessions.js";
@@ -43,6 +51,7 @@ const step = (name) => console.log("ok  " + name);
 const FEE = 5000n;
 const J = JSON.parse;
 const PKCS8 = Buffer.from("302e020100300506032b657004220420", "hex");
+const GENESIS = CLUSTERS.devnet.genesis;
 
 // ── Each seat made a fee key, and its document says so ──
 {
@@ -236,7 +245,7 @@ hook.before = saved;
 const { blockhashHex } = await c.worker.call("blockhash");
 const create = intentHex("createNonce", { blockhash: blockhashHex });
 {
-  const fee2 = bytesOf(pinsHex(done, feeOf(c, 2).key));
+  const fee2 = bytesOf(pinsHex(done, feeOf(c, 2).key, GENESIS));
   const message = W.compile_message(bytesOf(create), fee2, new Uint8Array(0));
   const ss = { id: "by-2", status: "collecting", by: 2, intent: create, message: hexOf(message) };
   ss.feeSig = feeSignature(c, ss, 2);
@@ -253,8 +262,9 @@ step("a proposal of seat 2 is paid by the fee key of seat 2");
   const stranger = createPrivateKey({ key: der, format: "der", type: "pkcs8" });
   const spki = createPublicKey(stranger).export({ format: "der", type: "spki" });
   const strange = spki.subarray(-32).toString("hex");
+  const pinsOf = (payer) => bytesOf(pinsHex(done, payer, GENESIS));
   const compile = (payer) =>
-    hexOf(W.compile_message(bytesOf(create), bytesOf(pinsHex(done, payer)), new Uint8Array(0)));
+    hexOf(W.compile_message(bytesOf(create), pinsOf(payer), new Uint8Array(0)));
   // The proposer names the stranger as payer, compiles the message for it and signs as it.
   const forged = { id: "forged", status: "collecting", by: 2, intent: create };
   forged.message = compile(strange);
@@ -323,7 +333,15 @@ const roles = J(W.sol_roles(solOf(1).solSeed, done.groupKey));
 {
   const nonce = chain.nonce,
     before = { sessions: sessions(), landed: chain.landed.length };
-  const got = await addSol(c, { amount: "0.01" });
+  const intents = [],
+    real = c.W;
+  const compile = (intent, ...rest) => {
+    intents.push(hexOf(intent));
+    return real.compile_message(intent, ...rest);
+  };
+  c.W = new Proxy(real, { get: (w, k) => (k === "compile_message" ? compile : w[k]) });
+  const got = await addSol(c, { amount: "0.01" }).finally(() => { c.W = real; });
+  assert.equal(decodeIntent(intents.at(-1)).held, 0n, "a Devnet Add SOL sends held 0");
   assert.deepEqual([got.seat, got.amount, got.status], [1, 10_000_000n, "confirmed"]);
   assert.equal(chain.landed.length, before.landed + 1);
   const landed = chain.landed.at(-1),
@@ -383,15 +401,21 @@ function base58hex(text) {
     /refused this in a test run: SomeOther/,
   );
   chain.refuse = null;
+  // Until the cap reads the synced balance (phase 2), a mainnet wallet adds nothing.
+  const commands = chain.commands.length;
+  c.wallet = { cluster: "mainnet", mode: "pool", ...J(W.sol_pool_wallet("mainnet")) };
+  await assert.rejects(() => addSol(c, { amount: "0.01" }),
+    /Add SOL on mainnet is not ready\. Nothing was sent\./).finally(() => delete c.wallet);
+  assert.equal(chain.commands.length, commands, "a mainnet wallet sends the Worker nothing");
   assert.equal(chain.landed.length, landed, "none of them reached the chain");
 }
-step("Add SOL refuses a bad amount, an unfunded address and a refusal of the network");
+step("Add SOL refuses a bad amount, an unfunded address, a network refusal and mainnet");
 
 // ── The fee key signs no deposit to another owner, and no message that another key pays ──
 {
   const { blockhashHex } = await c.worker.call("blockhash");
-  const intent = intentHex("shield", { blockhash: blockhashHex, amount: 10_000_000n });
-  const pins = (payer) => bytesOf(pinsHex(done, payer));
+  const intent = intentHex("shield", { blockhash: blockhashHex, amount: 10_000_000n, held: 0n });
+  const pins = (payer) => bytesOf(pinsHex(done, payer, GENESIS));
   const compile = (payer) => W.compile_message(bytesOf(intent), pins(payer), new Uint8Array(0));
   const ss = (message) => ({ id: "x", by: 1, intent, message: hexOf(message) });
   const good = compile(feeOf(c, 1).key);
@@ -409,8 +433,8 @@ step("the fee key signs no deposit to another owner and no message that another 
 // ── An Add SOL message written as a session: a refusal, and the tab stays up ──
 {
   const { blockhashHex } = await c.worker.call("blockhash");
-  const intent = intentHex("shield", { blockhash: blockhashHex, amount: 10_000_000n });
-  const pins = bytesOf(pinsHex(done, feeOf(c, 2).key));
+  const intent = intentHex("shield", { blockhash: blockhashHex, amount: 10_000_000n, held: 0n });
+  const pins = bytesOf(pinsHex(done, feeOf(c, 2).key, GENESIS));
   const message = hexOf(W.compile_message(bytesOf(intent), pins, new Uint8Array(0)));
   const draft = { id: "shield-session", status: "collecting", by: 2, intent, message };
   const feeSig = feeSignature(c, draft, 2);
@@ -431,7 +455,7 @@ step("an Add SOL message written as a session gets a refusal and the tab stays r
   const nonceOf = (n) => String(n).repeat(64).slice(0, 64);
   const signatures = {};
   const intentOf = (n) => intentHex("createNonce", { blockhash: nonceOf(n) });
-  const pins = bytesOf(pinsHex(done, feeOf(c, 1).key));
+  const pins = bytesOf(pinsHex(done, feeOf(c, 1).key, GENESIS));
   const messageOf = (n) => hexOf(W.compile_message(bytesOf(intentOf(n)), pins, new Uint8Array(0)));
   const part = (id, name, fields) =>
     writePart(c, id, name, fields, { seat: 1, create: name === "proposal" });

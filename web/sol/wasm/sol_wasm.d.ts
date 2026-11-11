@@ -7,11 +7,13 @@
  *
  * - `intent`: the proposal, `Proposal::encode`: the intent and, for a spend, the approved
  *   plaintext outputs.
- * - `pins`: 161 bytes, the group key, `nullifier_pk` and `viewing_pk` of the `soldone` document,
- *   the payer of the proposal and the `nullifier_pk` of the PDA identity (`Pins::wire`). The
- *   page takes the payer from the `solfee` document of the proposing seat. The `owner_hash` is
- *   computed from the pins, and the snapshot secrets must derive exactly the pinned keys of the
- *   identity that the intent uses (the PDA for Shield and the program messages).
+ * - `pins`: 194 bytes, the cluster byte of the deployment (1 Devnet, 2 mainnet), the group key,
+ *   `nullifier_pk` and `viewing_pk` of the `soldone` document, the payer of the proposal, the
+ *   `nullifier_pk` of the PDA identity and the genesis hash that the page read from its RPC
+ *   (`Pins::wire`). A genesis of another cluster is an error. The page takes the payer from the
+ *   `solfee` document of the proposing seat. The `owner_hash` is computed from the pins, and the
+ *   snapshot secrets must derive exactly the pinned keys of the identity that the intent uses
+ *   (the PDA for Shield and the program messages).
  * - `snapshot`: the device snapshot, `Snapshot::encode`.
  * - `now`: the Unix time of the device, in seconds.
  *
@@ -84,11 +86,11 @@ export function rule_list(): string;
 export function sol_aggregate(message: Uint8Array, public_key_package: string, commitments: string, shares: string): string;
 
 /**
- * The approval digest (hex) of a proposal account and its body (`program::approval_digest`).
- * It checks no rule: a seat runs `check_payment` before it signs this digest. The page counts
- * the commits and shares of a payment by it.
+ * The approval digest (hex) of a proposal account and its body (`program::approval_digest`)
+ * under the pool label of the wallet. It checks no rule: a seat runs `check_payment` before it
+ * signs this digest. The page counts the commits and shares of a payment by it.
  */
-export function sol_approval_digest(proposal: string, body: string): string;
+export function sol_approval_digest(label: string, proposal: string, body: string): string;
 
 /**
  * The share of a seat over the approval digest of a payment. It runs `check_payment` with the
@@ -156,10 +158,10 @@ export function sol_fee_verify(_public: string, message: Uint8Array, signature: 
 export function sol_nonces(key_package: string, digest: string): string;
 
 /**
- * The PDA identity of `solSeed` under the group key, as JSON: `pda`, `nullifier_secret`,
- * `nullifier_pk`, `owner_hash` and `address`.
+ * The PDA identity of `solSeed` under the group key and the pool label of the wallet, as JSON:
+ * `pda`, `nullifier_secret`, `nullifier_pk`, `owner_hash` and `address`.
  */
-export function sol_pda_roles(sol_seed: string, group_key: string): string;
+export function sol_pda_roles(label: string, sol_seed: string, group_key: string): string;
 
 /**
  * The digest (hex) of the exact message bytes of a plain wallet, which includes the label of its
@@ -180,6 +182,13 @@ export function sol_plain_fee_sign(message: Uint8Array, intent: Uint8Array, pins
  * where `cluster` is the wallet label and the nonces are those of `sol_plain_digest`.
  */
 export function sol_plain_sign_share(message: Uint8Array, intent: Uint8Array, pins: Uint8Array, chain: Uint8Array, round: string): string;
+
+/**
+ * The pool wallet of a cluster (`devnet` or `mainnet`) as JSON: `label`, which the ceremony and
+ * the signing round hash; `program`, the program label that a `soldone` document carries; and
+ * `cap`, the private balance cap in lamports as decimal text, or null.
+ */
+export function sol_pool_wallet(cluster: string): string;
 
 /**
  * The version label of the program ids: what a `soldone` document must carry.
@@ -228,7 +237,7 @@ export interface InitOutput {
     readonly plain_rule_list: (a: number) => void;
     readonly rule_list: (a: number) => void;
     readonly sol_aggregate: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
-    readonly sol_approval_digest: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly sol_approval_digest: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly sol_approval_share: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => void;
     readonly sol_commit: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => void;
     readonly sol_digest: (a: number, b: number, c: number, d: number, e: number) => void;
@@ -240,10 +249,11 @@ export interface InitOutput {
     readonly sol_fee_sign: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => void;
     readonly sol_fee_verify: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
     readonly sol_nonces: (a: number, b: number, c: number, d: number, e: number) => void;
-    readonly sol_pda_roles: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly sol_pda_roles: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly sol_plain_digest: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly sol_plain_fee_sign: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => void;
     readonly sol_plain_sign_share: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => void;
+    readonly sol_pool_wallet: (a: number, b: number, c: number) => void;
     readonly sol_program_label: (a: number) => void;
     readonly sol_roles: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly sol_share_fits: (a: number, b: number) => number;

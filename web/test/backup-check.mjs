@@ -77,8 +77,13 @@ wrong(sol, (f) => { f.cluster = "mainnet-beta"; }, "another Solana cluster"); ch
 // The label of the file is the label of the wallet kind: the pool on Devnet, the plain wallet on
 // mainnet. Both sides must name the same known label.
 const plain = freeze({ ...clone(sol), cluster: "mainnet-plain" });
-assert.deepEqual(SOL_LABELS, [walletOf(W, "testnet").label, walletOf(W, "mainnet").label],
+const labels = [walletOf(W, "testnet").label, walletOf(W, "mainnet").label];
+assert.deepEqual(SOL_LABELS, [...labels, JSON.parse(W.sol_pool_wallet("mainnet")).label],
   "the labels of the check are the labels of the wallet kinds");
+const pool = freeze({ ...clone(sol), cluster: "mainnet-private" });
+assert.equal(checkBackupPayload(pool, pool), true, "a private file fits a private seat"); checks++;
+wrong(pool, (f) => { f.cluster = "devnet"; }, "a Devnet file for a private seat"); checks++;
+wrong(sol, (f) => { f.cluster = "mainnet-private"; }, "a private file for a Devnet seat"); checks++;
 assert.equal(checkBackupPayload(plain, plain), true, "a plain file fits a plain seat"); checks++;
 wrong(plain, (f) => { f.cluster = "devnet"; }, "a pool file for a plain seat"); checks++;
 wrong(sol, (f) => { f.cluster = "mainnet-plain"; }, "a plain file for a pool seat"); checks++;

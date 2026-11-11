@@ -9,6 +9,7 @@ use p3_check::codec::{base64url, unhex, unhex_array};
 use p3_check::consts::{POOL_DEVNET, REGISTRY_DEVNET};
 use p3_check::frost::{CLUSTER, PROGRAM_LABEL};
 use p3_check::hashes::owner_hash;
+use p3_check::program::DEVNET;
 use p3_check::roles::{
     derive, derive_pda, pda_address, pda_nullifier_secret, pda_roles, roles, secrets,
     shielded_address,
@@ -77,7 +78,7 @@ fn the_pda_identity_of_a_seed_equals_the_independent_node_and_sdk_derivation() {
     for v in vectors() {
         let name = v["name"].as_str().unwrap();
         let (seed, group) = (field(&v, "solSeed"), field(&v, "groupKey"));
-        let pda = derive_pda(&seed, &group).unwrap();
+        let pda = derive_pda(&DEVNET, &seed, &group).unwrap();
         assert_eq!(pda.pda, field::<32>(&v, "pda"), "{name}: PDA");
         assert!(
             pda.nullifier_secret == field::<31>(&v, "pdaNullifierSecret"),
@@ -96,6 +97,7 @@ fn the_pda_identity_of_a_seed_equals_the_independent_node_and_sdk_derivation() {
         );
         let text: Value = serde_json::from_str(
             &pda_roles(
+                "devnet",
                 v["solSeed"].as_str().unwrap(),
                 v["groupKey"].as_str().unwrap(),
             )
@@ -111,8 +113,8 @@ fn the_pda_identity_of_a_seed_equals_the_independent_node_and_sdk_derivation() {
 fn the_pda_secret_depends_on_the_pda_and_is_not_the_secret_of_the_group_key() {
     let seed = [7u8; 32];
     let (a, b) = (
-        derive_pda(&seed, &[3; 32]).unwrap(),
-        derive_pda(&seed, &[4; 32]).unwrap(),
+        derive_pda(&DEVNET, &seed, &[3; 32]).unwrap(),
+        derive_pda(&DEVNET, &seed, &[4; 32]).unwrap(),
     );
     assert!(a.pda != b.pda && a.nullifier_secret != b.nullifier_secret);
     assert!(a.nullifier_secret != secrets(&seed).unwrap().0);
@@ -136,7 +138,7 @@ fn the_pda_identity_of_the_spike_seed_owns_the_landed_option_d_deposit() {
     let file = format!("{}/vectors/program/landed.json", env!("CARGO_MANIFEST_DIR"));
     let landed: Value = serde_json::from_slice(&std::fs::read(file).unwrap()).unwrap();
     let group: [u8; 32] = unhex_array(landed["group"].as_str().unwrap(), "group").unwrap();
-    let pda = derive_pda(&seed, &group).unwrap();
+    let pda = derive_pda(&DEVNET, &seed, &group).unwrap();
     assert_eq!(hex::encode(pda.pda), landed["pda"].as_str().unwrap());
     let data = unhex(landed["deposit_d"]["data"].as_str().unwrap(), "deposit").unwrap();
     let deposit = p3_check::fixed::parse_deposit(&data).unwrap();

@@ -19,7 +19,7 @@ use p3_check::hashes::{
 use p3_check::intent::{Intent, Pay, Payee, Program, Spend};
 use p3_check::pins::Pins;
 use p3_check::plan::{OutPlan, Plan, Proposal, Role};
-use p3_check::program::{owner_pda, private_tx_hash};
+use p3_check::program::{owner_pda, private_tx_hash, Deployment, DEVNET};
 use p3_check::rule::Rule;
 use p3_check::snapshot::{InputUtxo, Snapshot};
 use p3_check::template::compile;
@@ -109,8 +109,13 @@ pub fn pda_wallet() -> Wallet {
 
 /// The PDA identity of a group key, with the secrets of `pda_wallet`.
 pub fn pda_wallet_of(group_key: &Key) -> Wallet {
+    pda_wallet_on(&DEVNET, group_key)
+}
+
+/// `pda_wallet_of` at the PDA of the approvals program of `row`.
+pub fn pda_wallet_on(row: &Deployment, group_key: &Key) -> Wallet {
     Wallet {
-        signer: owner_pda(group_key).unwrap(),
+        signer: owner_pda(row, group_key).unwrap(),
         nullifier_secret: [0x4d; 31],
         viewing_sk: group().viewing_sk,
         tag: 2,
@@ -315,7 +320,18 @@ impl Fixture {
 
     /// `payment` for the PDA of another group key (a group of a real ceremony).
     pub fn payment_for(spec: &Spec, group_key: Key) -> Self {
-        let mut fixture = Self::build_for(spec, group_key, pda_wallet_of(&group_key), payee());
+        Self::payment_on(&DEVNET, spec, group_key, payee())
+    }
+
+    /// `payment_for` on the deployment `row`, to `payee`.
+    pub fn payment_on(
+        row: &'static Deployment,
+        spec: &Spec,
+        group_key: Key,
+        payee: Wallet,
+    ) -> Self {
+        let wallet = pda_wallet_on(row, &group_key);
+        let mut fixture = Self::build_on(row, spec, group_key, wallet, payee);
         let (spend, payee, mint, amount) = match fixture.intent.clone() {
             Intent::Transfer {
                 spend,
@@ -391,6 +407,17 @@ impl Fixture {
     /// The spend of `spec` from `wallet` to `payee`, under the pins of `group_key` (the keys of
     /// `group` and the PDA key of `pda_wallet_of(group_key)`).
     pub fn build_for(spec: &Spec, group_key: Key, wallet: Wallet, payee: Wallet) -> Self {
+        Self::build_on(&DEVNET, spec, group_key, wallet, payee)
+    }
+
+    /// `build_for` under the pins of the deployment `row`.
+    pub fn build_on(
+        row: &'static Deployment,
+        spec: &Spec,
+        group_key: Key,
+        wallet: Wallet,
+        payee: Wallet,
+    ) -> Self {
         let (nullifier_pk, viewing_pk) = group().keys();
         let pins = Pins::devnet(
             group_key,
@@ -399,6 +426,7 @@ impl Fixture {
             PAYER,
             pda_wallet_of(&group_key).keys().0,
         )
+        .and_then(|pins| pins.on_deployment(row, row.genesis))
         .expect("pins");
         let snapshot = snapshot_of(spec, &wallet);
         let nullifiers: Vec<Key> = snapshot

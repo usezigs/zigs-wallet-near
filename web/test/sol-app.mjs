@@ -601,6 +601,7 @@ const serve = (policy) => async (url) => {
   const headers = policy ? { "content-security-policy": policy } : {};
   return new Response("export {}", { headers });
 };
+const GENESIS = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
 const syncState = (rpcUrl = RPC) => ({
   host: { localSeats: () => [1], sec: t.sec, render() {}, Z },
   W,
@@ -625,8 +626,10 @@ const syncState = (rpcUrl = RPC) => ({
 {
   const s1 = solOf(gid, 1),
     roles = JSON.parse(W.sol_roles(s1.solSeed, s1.groupKey)),
-    pda = JSON.parse(W.sol_pda_roles(s1.solSeed, s1.groupKey));
+    pda = JSON.parse(W.sol_pda_roles("devnet", s1.solSeed, s1.groupKey));
   const right = {
+    cluster: "devnet",
+    genesis: GENESIS,
     owner: base58(s1.groupKey),
     shielded: roles.address,
     pda: base58(pda.pda),
@@ -656,10 +659,12 @@ const syncState = (rpcUrl = RPC) => ({
   );
   assert.deepEqual(
     Object.keys(sent[0].args).sort(),
-    ["groupKey", "nullifierSecret", "pda", "pdaNullifierSecret", "rpcUrl", "viewingSecret"],
-    "the Worker gets six fields",
+    ["cluster", "groupKey", "nullifierSecret", "pda", "pdaNullifierSecret", "rpcUrl"]
+      .concat("viewingSecret"),
+    "the Worker gets seven fields",
   );
   assert.deepEqual(sent[0].args, {
+    cluster: "devnet",
     rpcUrl: RPC,
     nullifierSecret: roles.nullifier_secret,
     pdaNullifierSecret: pda.nullifier_secret,
@@ -673,6 +678,7 @@ const syncState = (rpcUrl = RPC) => ({
   }
   assert.equal(c.sync.balance, "0 SOL");
   assert.match(c.sync.text, /synced at slot 9, the SDK addresses equal the wasm addresses/);
+  assert.equal(c.genesis, GENESIS, "the page keeps the genesis that the Worker read");
   await syncSolana(c);
   assert.deepEqual(
     sent.map((m) => m.cmd),
@@ -697,6 +703,13 @@ const syncState = (rpcUrl = RPC) => ({
     );
     assert.match(bad.sync.text, /failed: The Solana worker made another address/);
   }
+  // A Worker that answers for another cluster is not used either.
+  init = { ...right, cluster: "mainnet" };
+  sent.length = 0;
+  const other = syncState();
+  await assert.rejects(() => syncSolana(other), /runs on another network/);
+  assert.deepEqual(sent.map((m) => m.cmd), ["init"], "no sync on another cluster");
+  assert.equal(other.genesis, undefined, "no genesis of another cluster is kept");
   delete globalThis.Worker;
   globalThis.fetch = realFetch;
 }

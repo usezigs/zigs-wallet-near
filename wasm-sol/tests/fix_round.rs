@@ -27,6 +27,7 @@ fn shield(f: &Fixture, pins: &Pins) -> (Intent, Vec<u8>) {
     let intent = Intent::Shield {
         blockhash: NONCE,
         amount: 1_000,
+        held: 0,
     };
     let bytes = v1::write(&compile(&intent, pins, None).unwrap()).unwrap();
     let _ = f;

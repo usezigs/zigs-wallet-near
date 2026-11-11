@@ -286,21 +286,28 @@ async function round3(c, i) {
 // derived the same keys again in WASM: 50 to 65 ms per click. The public fields are kept per
 // key-share object; a new share or a lock gives a new object. The cache copies no secret field: the
 // seed it compares with lives only as long as the share that holds it.
+// The PDA identity depends on the pool label too: it is the first argument of the call.
 const derived = new WeakMap();
-function publicKeys(W, s, name, fields) {
+function publicKeys(W, s, name, fields, label) {
   const all = derived.get(s) ?? new Map();
   derived.set(s, all);
-  const hit = all.get(name);
+  const slot = label === undefined ? name : name + "/" + label;
+  const hit = all.get(slot);
   if (hit && hit.W === W && hit.seed === s.solSeed && hit.key === s.groupKey) return hit.out;
-  const r = J(W[name](s.solSeed, s.groupKey));
+  const args = label === undefined ? [s.solSeed, s.groupKey] : [label, s.solSeed, s.groupKey];
+  const r = J(W[name](...args));
   const out = Object.fromEntries(fields.map((k) => [k, r[k]]));
-  all.set(name, { W, seed: s.solSeed, key: s.groupKey, out });
+  all.set(slot, { W, seed: s.solSeed, key: s.groupKey, out });
   return out;
 }
 
-/** The PDA identity that a key share and solSeed give (ZOLANA.md 7.2), as soldone names it. */
-export function pdaFields(W, s) {
-  const pda = publicKeys(W, s, "sol_pda_roles", ["pda", "nullifier_pk", "owner_hash", "address"]);
+/**
+ * The PDA identity that a key share and solSeed give under the pool label `label` (ZOLANA.md
+ * 7.2), as soldone names it.
+ */
+export function pdaFields(W, s, label = CLUSTER) {
+  const fields = ["pda", "nullifier_pk", "owner_hash", "address"];
+  const pda = publicKeys(W, s, "sol_pda_roles", fields, label);
   return {
     pda: pda.pda,
     pdaNullifierPk: pda.nullifier_pk,
@@ -311,9 +318,12 @@ export function pdaFields(W, s) {
 
 /**
  * The soldone fields of a seat: the group key, the public keys, the address of the group key,
- * cluster, label, and the PDA identity that owns the funds of the program design.
+ * the label and the program label of the wallet, and the PDA identity that owns the funds of the
+ * program design.
  */
-function doneFields(W, s) {
+function doneFields(c, s) {
+  const { W } = c,
+    label = labelOf(c);
   const roles = J(W.sol_roles(s.solSeed, s.groupKey));
   return {
     groupKey: s.groupKey,
@@ -321,9 +331,9 @@ function doneFields(W, s) {
     nullifierPk: roles.nullifier_pk,
     viewingPk: roles.viewing_pk,
     address: roles.address,
-    cluster: CLUSTER,
-    program: W.sol_program_label(),
-    ...pdaFields(W, s),
+    cluster: label,
+    program: programOf(c),
+    ...pdaFields(W, s, label),
     at: Date.now(),
   };
 }
@@ -341,10 +351,10 @@ const plainDoneFields = (c, s, label) => ({
 });
 
 async function publishDone(c, i) {
-  const { host, W, gid, base } = c,
+  const { host, gid, base } = c,
     label = labelOf(c),
     s = solOf(host, gid, i);
-  const fields = isPlain(c) ? plainDoneFields(c, s, label) : doneFields(W, s);
+  const fields = isPlain(c) ? plainDoneFields(c, s, label) : doneFields(c, s);
   const doc = await host.signedDoc(gid, "soldone/" + i, i, fields);
   await host.sdb.doc(base + "/soldone/" + i).set(doc);
   await putSol(host, gid, i, { doneSent: true });
@@ -488,9 +498,10 @@ const pdaShaped = (d) => Object.entries(PDA_SHAPES).every(([k, ok]) => ok(d[k]))
 
 /**
  * True when a Solana key share and solSeed give the keys and the address that `done` publishes,
- * and the PDA identity too when `done` names one.
+ * and the PDA identity under the pool label `label` (pdaFields: devnet when undefined) too when
+ * `done` names one.
  */
-export function fitsSolana(W, seat, s, done) {
+export function fitsSolana(W, seat, s, done, label) {
   if (!done || !fitsPublished(seat, s, done)) return false;
   try {
     const r = publicKeys(W, s, "sol_roles", ["nullifier_pk", "viewing_pk", "address"]);
@@ -498,7 +509,7 @@ export function fitsSolana(W, seat, s, done) {
       r.nullifier_pk === done.nullifierPk &&
       r.viewing_pk === done.viewingPk &&
       r.address === done.address;
-    const pda = pdaFields(W, s);
+    const pda = pdaFields(W, s, label);
     return same && (!hasPda(done) || PDA_FIELDS.every((k) => pda[k] === done[k]));
   } catch {
     return false;
@@ -507,10 +518,10 @@ export function fitsSolana(W, seat, s, done) {
 
 const SAME = ["groupKey", "nullifierPk", "viewingPk", "address", "cluster", "program"];
 const SHAPES = { groupKey: HEX(32), nullifierPk: HEX(32), viewingPk: HEX(33), address: HEX(99) };
-const shaped = (W, d) =>
+const shaped = (c, d) =>
   Object.entries(SHAPES).every(([k, ok]) => ok(d[k])) &&
-  d.cluster === CLUSTER &&
-  d.program === W.sol_program_label();
+  d.cluster === labelOf(c) &&
+  d.program === programOf(c);
 
 /** The documents that name a PDA identity name the same one, with every field well formed. */
 function samePda(dones) {
@@ -529,12 +540,12 @@ function pdaOf(c, dones) {
   const named = dones.find(hasPda);
   if (named) return Object.fromEntries(PDA_FIELDS.map((k) => [k, named[k]]));
   const seat = c.host.localSeats().find((i) => holdsShare(solOf(c.host, c.gid, i)));
-  return seat === undefined ? {} : pdaFields(c.W, solOf(c.host, c.gid, seat));
+  return seat === undefined ? {} : pdaFields(c.W, solOf(c.host, c.gid, seat), labelOf(c));
 }
 
 // Does the key share of seat `seat` fit its soldone? A plain share has no pool keys to compare.
 export const fitsLocal = (c, seat, s, done) =>
-  isPlain(c) ? !!done && fitsPublished(seat, s, done) : fitsSolana(c.W, seat, s, done);
+  isPlain(c) ? !!done && fitsPublished(seat, s, done) : fitsSolana(c.W, seat, s, done, labelOf(c));
 
 /**
  * Why a key share of this browser does not fit the documents, or null: its own soldone, and the
@@ -548,19 +559,19 @@ function localMisfit(c, dones) {
   const named = dones.find(hasPda);
   const seat = mine.find((i) => holdsShare(solOf(host, c.gid, i)));
   if (!named || seat === undefined) return null;
-  const own = pdaFields(W, solOf(host, c.gid, seat));
+  const own = pdaFields(W, solOf(host, c.gid, seat), labelOf(c));
   const fits = PDA_FIELDS.every((k) => own[k] === named[k]);
   return fits ? null : "The PDA identity of the documents does not fit the key share here.";
 }
 
 function poolAgreement(c) {
-  const { host, docs, W } = c,
+  const { host, docs } = c,
     dones = host.seatIds().map((i) => docs.soldone[i]);
   if (!dones.length || !dones.every(Boolean)) return { state: "wait" };
   const same =
     SAME.every((k) => dones.every((d) => d[k] === dones[0][k])) &&
     samePackages(dones.map((d) => d.publicKeyPackage));
-  if (!same || !shaped(W, dones[0]) || !samePda(dones))
+  if (!same || !shaped(c, dones[0]) || !samePda(dones))
     return { state: "differ", why: "The devices published different Solana keys." };
   const why = localMisfit(c, dones);
   if (why) return { state: "differ", why };

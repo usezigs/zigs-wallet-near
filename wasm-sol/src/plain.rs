@@ -10,7 +10,7 @@
 //! - `plain_sign.rs` and `fee.rs` sign only after the plain checker accepted the exact bytes.
 //!
 //! The pool path (`check.rs`, `template.rs`, `beta.rs`, `Pins`, `Intent`) is not used here and is
-//! not changed. The wire form of the plain pins has 66 bytes and the pool pins have 161, and the
+//! not changed. The wire form of the plain pins has 66 bytes and the pool pins have 194, and the
 //! plain intent tags start at 13, which `Intent::decode` refuses, so one kind of input is never
 //! read as the other.
 
@@ -28,7 +28,7 @@ pub enum Cluster {
 }
 
 /// What the wallet does with its funds: `Plain` is the wallet of this file, `Pool` is the private
-/// Zolana pool beta, which runs on Devnet only.
+/// Zolana pool on Devnet. The private mainnet wallet is a row of `program::DEPLOYMENTS` only.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
     Plain,

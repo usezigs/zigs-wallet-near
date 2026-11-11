@@ -24,8 +24,9 @@ use crate::address::Address;
 use crate::bytes::hex;
 use crate::codec::{base64url, blake2b_256, unhex_array};
 use crate::consts::Key;
+use crate::frost::check_cluster;
 use crate::hashes::{nullifier_pk, owner_hash};
-use crate::program::owner_pda;
+use crate::program::{owner_pda, Deployment};
 use crate::viewing::{clamp, ViewingKey};
 
 const INFO_NULLIFIER: &[u8] = b"zigs-sol/nullifier-secret/v1";
@@ -147,9 +148,9 @@ pub fn pda_nullifier_secret(seed: &[u8; 32], pda: &Key) -> Result<[u8; 31], Stri
     Ok(secret)
 }
 
-/// The PDA identity of a seed under a group key.
-pub fn derive_pda(seed: &[u8; 32], group: &Key) -> Result<PdaRoles, String> {
-    let pda = owner_pda(group)?;
+/// The PDA identity of a seed under a group key, at the PDA of the approvals program of `row`.
+pub fn derive_pda(row: &Deployment, seed: &[u8; 32], group: &Key) -> Result<PdaRoles, String> {
+    let pda = owner_pda(row, group)?;
     let nullifier_secret = pda_nullifier_secret(seed, &pda)?;
     let nullifier_pk = nullifier_pk(&nullifier_secret)?;
     let viewing_pk = ViewingKey::from_bytes(&secrets(seed)?.1).public();
@@ -162,10 +163,11 @@ pub fn derive_pda(seed: &[u8; 32], group: &Key) -> Result<PdaRoles, String> {
     })
 }
 
-/// `derive_pda` for the entry point: the seed and the group key as hex, the answer as JSON with
-/// every value as hex.
-pub fn pda_roles(sol_seed: &str, group_key: &str) -> Result<String, String> {
+/// `derive_pda` for the entry point: the pool label of the wallet, the seed and the group key as
+/// hex, the answer as JSON with every value as hex.
+pub fn pda_roles(label: &str, sol_seed: &str, group_key: &str) -> Result<String, String> {
     let roles = derive_pda(
+        check_cluster(label)?,
         &unhex_array(sol_seed, "solSeed")?,
         &unhex_array(group_key, "group key")?,
     )?;

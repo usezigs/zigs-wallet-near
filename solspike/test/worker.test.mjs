@@ -8,7 +8,9 @@
 // and the nonce version tag, the order of commands and the prover that the client uses. The fetch
 // guard has three more: it refuses a redirect (a fake fetch records the mode, and real loopback
 // servers show that no redirect is followed), it checks and fetches every URL, and loopback RPC
-// URLs pass only in the test mode of guard.js, which the real mock entry script turns on.
+// URLs pass only in the test mode of guard.js, which the real mock entry script turns on. init
+// binds the Worker to a cluster: the host of the RPC URL, then the genesis hash that the server
+// shows; a server of another cluster locks the Worker, and owned scans the program of the cluster.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
@@ -54,7 +56,16 @@ const ZOLANA = `https://devnet.helius-rpc.com/v1/spr?${KEY_NAME}=${KEY}&x=${EXTR
 const GROUP_KEY = "e5".repeat(32);
 const PDA_NULLIFIER = "c3".repeat(31);
 const PDA_HEX = "d4".repeat(32);
+const GENESIS = {
+  devnet: "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+  mainnet: "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
+};
+const PROGRAMS = {
+  devnet: "5PHZEHBMaYbFL9SFmMyP8kUayh3TFEyq2dvEYY3UGjkL",
+  mainnet: "9mE7WUJHK6dQwzK6AP6wf1eyPmePULZrGeRbXqke2ukq",
+};
 const INIT = {
+  cluster: "devnet",
   rpcUrl: RPC,
   nullifierSecret: NULLIFIER,
   pdaNullifierSecret: PDA_NULLIFIER,
@@ -91,7 +102,8 @@ globalThis.fetch = fakeFetch;
  * testMode the Worker starts from the entry script of the mock run, as the mock page does.
  */
 async function freshWorker({ testMode = false } = {}) {
-  Object.assign(control, { options: null, rpc: {}, utxos: [], fail: {} });
+  const rpc = { getGenesisHash: async () => GENESIS.devnet };
+  Object.assign(control, { options: null, rpc, utxos: [], fail: {} });
   Object.assign(control, { request: null, proved: null, instruction: null, signed: null });
   Object.assign(control, { rebuilt: null, synced: null });
   control.calls.length = 0;
@@ -272,6 +284,8 @@ async function initWiring() {
     [result.owner, result.shielded, result.ownerHash, typeof result.hasherMs],
     [OWNER, "01020304", "f1f2f3f4", "number"],
   );
+  assert.deepEqual([result.cluster, result.genesis], ["devnet", GENESIS.devnet]);
+  assert.deepEqual(control.calls, ["createSprClient", "rpc:getGenesisHash"]);
   assert.deepEqual(
     [result.pda, result.pdaShielded, result.pdaOwnerHash],
     [PDA, "090a0b0c", "f9fafbfc"],
@@ -289,6 +303,7 @@ async function initWiring() {
     "proverTee is not set: a loopback prover needs no TEE policy, and proverTee false is refused",
   );
   step("init gives the SDK the RPC URL, the /v1/spr URL, the loopback prover and the CU limit");
+  step("init reads the genesis hash and answers its cluster and genesis");
 }
 
 async function fetchGuard() {
@@ -410,6 +425,101 @@ async function loopbackNeedsTestMode() {
   await freshWorker();
   await refused("init", loopback, bad, "the test mode of one load reached the next");
   step("a loopback RPC URL needs the test mode that only the mock entry script turns on");
+}
+
+const MAINNET_RPC = `https://mainnet.helius-rpc.com/?${KEY_NAME}=${KEY}`;
+const LOCK = /This server is not Solana (devnet|mainnet)\. This Worker refuses every command\./;
+
+/** init needs a cluster, and the host of the RPC URL must be the Helius host of that cluster. */
+async function clusterNeedsItsHost() {
+  await freshWorker();
+  const bare = { ...INIT };
+  delete bare.cluster;
+  await refused("init", bare, /init: field cluster is missing or malformed/, "no cluster");
+  await refused("init", { ...INIT, cluster: "testnet" }, /field cluster/, "another cluster");
+  const host = /init: rpcUrl is not on the Helius host of/;
+  await refused("init", { ...INIT, rpcUrl: MAINNET_RPC }, host, "a mainnet URL as devnet");
+  await refused("init", { ...INIT, cluster: "mainnet" }, host, "a Devnet URL as mainnet");
+  assert.deepEqual(control.calls, [], "a refused init reached the SDK");
+  assert.equal((await ask("init", INIT)).ok, true, "a refused host locked the Worker");
+  step("init needs a cluster and the Helius host of that cluster, before it reaches the SDK");
+}
+
+/** A mainnet Worker reads the mainnet genesis and scans the mainnet approvals program. */
+async function ownedScansTheCluster() {
+  for (const cluster of ["devnet", "mainnet"]) {
+    await freshWorker();
+    control.rpc.getGenesisHash = async () => GENESIS[cluster];
+    const rpcUrl = cluster === "devnet" ? RPC : MAINNET_RPC;
+    const init = await ask("init", { ...INIT, cluster, rpcUrl });
+    assert.equal(init.ok, true, init.error);
+    assert.deepEqual([init.result.cluster, init.result.genesis], [cluster, GENESIS[cluster]]);
+    const scanned = [];
+    control.rpc.getProgramAccounts = async (program) => {
+      scanned.push(program);
+      return [];
+    };
+    const found = await ask("owned", { fee: "ab".repeat(32), group: "cd".repeat(32) });
+    assert.deepEqual([found.ok, found.result], [true, []], found.error);
+    assert.deepEqual(scanned, [PROGRAMS[cluster]], `${cluster}: the scanned program`);
+  }
+  step("owned scans 5PHZ on Devnet and 9mE7 on mainnet");
+}
+
+/** A server that shows another genesis locks the Worker: every later command is refused. */
+async function otherGenesisLocks() {
+  for (const [cluster, shown] of [
+    ["devnet", GENESIS.mainnet],
+    ["mainnet", GENESIS.devnet],
+    ["devnet", null],
+    ["devnet", GENESIS.devnet.slice(1) + "1"],
+  ]) {
+    await freshWorker();
+    control.rpc.getGenesisHash = async () => shown;
+    const rpcUrl = cluster === "devnet" ? RPC : MAINNET_RPC;
+    const init = await refused("init", { ...INIT, cluster, rpcUrl }, LOCK, `${cluster} ${shown}`);
+    assert.ok(init.error.includes(`Solana ${cluster}.`), init.error);
+    control.rpc.getGenesisHash = async () => GENESIS[cluster];
+    control.calls.length = 0;
+    for (const [cmd, args] of [
+      ["init", { ...INIT, cluster, rpcUrl }],
+      ["sync", {}],
+      ["blockhash", {}],
+      ["owned", { fee: "ab".repeat(32), group: "cd".repeat(32) }],
+    ]) {
+      await refused(cmd, args, LOCK, `${cmd} after the lock`);
+    }
+    assert.deepEqual(control.calls, [], "a command of a locked Worker reached the SDK");
+  }
+  step("a server with another genesis locks the Worker, and every later command is refused");
+}
+
+/** A genesis read that fails is no answer of the server: init fails and the Worker stays open. */
+async function failedGenesisReadDoesNotLock() {
+  await freshWorker();
+  control.rpc.getGenesisHash = async () => {
+    throw new Error("fetch failed");
+  };
+  const failed = await ask("init", INIT);
+  assert.equal(failed.ok, false);
+  assert.doesNotMatch(failed.error, LOCK);
+  await refused("sync", {}, /the Worker is not initialised/, "a sync after a failed init");
+  control.rpc.getGenesisHash = async () => GENESIS.devnet;
+  assert.equal((await ask("init", INIT)).ok, true, "a failed read locked the Worker");
+  step("a genesis read that fails does not lock the Worker");
+}
+
+/** The test mode skips the host check only: the loopback server must still show the genesis. */
+async function loopbackKeepsTheGenesisCheck() {
+  const loopback = `http://127.0.0.1:9/?${KEY_NAME}=${KEY}`;
+  await freshWorker({ testMode: true });
+  control.rpc.getGenesisHash = async () => GENESIS.mainnet;
+  const main = await ask("init", { ...INIT, cluster: "mainnet", rpcUrl: loopback });
+  assert.equal(main.ok, true, main.error);
+  await freshWorker({ testMode: true });
+  const other = { ...INIT, cluster: "mainnet", rpcUrl: loopback };
+  await refused("init", other, LOCK, "a loopback server with the Devnet genesis as mainnet");
+  step("the loopback test mode skips the host check but not the genesis check");
 }
 
 const LEAKS = [RPC, `?${KEY_NAME}=${KEY}&x=${EXTRA}`, KEY, EXTRA, VIEWING, NULLIFIER];
@@ -1038,6 +1148,11 @@ await everyUrlIsChecked();
 await redirectMode();
 await redirectIsRefused();
 await loopbackNeedsTestMode();
+await clusterNeedsItsHost();
+await ownedScansTheCluster();
+await otherGenesisLocks();
+await failedGenesisReadDoesNotLock();
+await loopbackKeepsTheGenesisCheck();
 await errorsAreRedacted();
 await nonceVersion();
 await finiteExpiry();

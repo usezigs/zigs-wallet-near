@@ -2,21 +2,102 @@
 //! it derives, the proposal body, the approval digest, the Ed25519 instruction that carries the
 //! approval, and the commitment that it recomputes from the `transact` data.
 //!
-//! The client is of program version 5 (`MULTISIG_DEVNET`, the interface of version 4), which Devnet
-//! runs since 17 October 2026 (ZOLANA.md 7.2).
+//! The client is of program version 6 (version 5 on the spr crates of the pool ring1G, the
+//! interface of version 4), which Devnet runs since 10 November 2026 (ZOLANA.md 6.10).
+//! `DEPLOYMENTS` names the program of each cluster.
 //! Its proposal address is `["proposed_transaction", group key, commitment, SHA-256(body)]`;
 //! `proposal_address` is the one place that names those seeds.
 
 use sha2::{Digest, Sha256};
 use spr_hasher::primitives::right_align;
 
+use crate::assets::AssetTable;
 use crate::bytes::Reader;
 use crate::consts::{
-    Key, APPROVAL_DOMAIN, DEVNET_GENESIS, MULTISIG_DEVNET, SEED_CANCEL, SEED_OWNER, SEED_PROPOSAL,
+    Key, APPROVAL_DOMAIN, DEVNET_GENESIS, MAINNET_GENESIS, MULTISIG_DEVNET, MULTISIG_MAINNET,
+    PRIVATE_CAP_MAINNET, SEED_CANCEL, SEED_OWNER, SEED_PROPOSAL,
 };
+use crate::frost::{CLUSTER, PROGRAM_LABEL};
 use crate::hashes::poseidon;
 use crate::pda::find_program_address;
 use crate::transact::Transact;
+
+/// One deployment of the pool wallet: a cluster and the approvals program on it.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Deployment {
+    /// The cluster byte of the pins wire: 1 Devnet, 2 mainnet.
+    pub wire: u8,
+    /// The label that the ceremony and the signing round hash.
+    pub label: &'static str,
+    /// The version label of the program ids that a `soldone` document carries.
+    pub program_label: &'static str,
+    pub genesis: Key,
+    /// The approvals program.
+    pub program: Key,
+    /// The most lamports that a Shield may bring the private balance of a group to.
+    pub cap: Option<u64>,
+}
+
+impl Deployment {
+    /// True on Devnet. Only there the group key holds beta funds to move to the PDA, and only
+    /// there the asset table holds SPL mints.
+    pub fn is_devnet(&self) -> bool {
+        self.genesis == DEVNET_GENESIS
+    }
+
+    /// The asset table of the row. Mainnet has none: SOL (id 1) is implicit, and every SPL mint
+    /// fails closed.
+    pub fn assets(&self) -> Result<AssetTable, String> {
+        if self.is_devnet() {
+            return AssetTable::devnet();
+        }
+        AssetTable::new([])
+    }
+}
+
+/// The Devnet pool wallet. Its labels keep their bytes, so a Devnet group keeps its keys.
+pub static DEVNET: Deployment = Deployment {
+    wire: 1,
+    label: CLUSTER,
+    program_label: PROGRAM_LABEL,
+    genesis: DEVNET_GENESIS,
+    program: MULTISIG_DEVNET,
+    cap: None,
+};
+
+/// The private mainnet wallet. The pool, the registry and the pool code are the same as on
+/// Devnet, and the last field of the program label is the approvals program.
+pub static MAINNET: Deployment = Deployment {
+    wire: 2,
+    label: "mainnet-private",
+    program_label: "zolana-mainnet:ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW:\
+regy3WAeRXMYuMYxr5iK3Bf9Arr3PcxGxyzAddbiqDQ:spr-v1:9mE7WUJHK6dQwzK6AP6wf1eyPmePULZrGeRbXqke2ukq",
+    genesis: MAINNET_GENESIS,
+    program: MULTISIG_MAINNET,
+    cap: Some(PRIVATE_CAP_MAINNET),
+};
+
+/// Every deployment of the pool wallet.
+pub static DEPLOYMENTS: [&Deployment; 2] = [&DEVNET, &MAINNET];
+
+/// The row of a cluster byte of the pins wire.
+pub fn deployment_of_wire(byte: u8) -> Option<&'static Deployment> {
+    DEPLOYMENTS.iter().copied().find(|row| row.wire == byte)
+}
+
+/// The row of a label that the ceremony and the signing round hash.
+pub fn deployment_of_label(label: &str) -> Option<&'static Deployment> {
+    DEPLOYMENTS.iter().copied().find(|row| row.label == label)
+}
+
+/// The row of the cluster name of a wallet: `devnet` or `mainnet`.
+pub fn pool_row(cluster: &str) -> Result<&'static Deployment, String> {
+    match cluster {
+        "devnet" => Ok(&DEVNET),
+        "mainnet" => Ok(&MAINNET),
+        other => Err(format!("unknown cluster {other:?}")),
+    }
+}
 
 /// The kind byte of a stored proposal: the account data is `[1, bump] || body`.
 pub const KIND_PROPOSAL: u8 = 1;
@@ -51,28 +132,34 @@ pub const APPROVAL_IX_LEN: usize = 16 + 32 + 64 + 32;
 /// ASCII `"TXPB"`: the private transaction blinding (`DOMAIN_PRIVATE_TX_BLINDING_V1` of the SDK).
 const DOMAIN_PRIVATE_TX_BLINDING: u32 = 0x5458_5042;
 
-fn derive(seeds: &[&[u8]], what: &str) -> Result<(Key, u8), String> {
-    find_program_address(seeds, &MULTISIG_DEVNET).ok_or_else(|| format!("no address for {what}"))
+fn derive(program: &Key, seeds: &[&[u8]], what: &str) -> Result<(Key, u8), String> {
+    find_program_address(seeds, program).ok_or_else(|| format!("no address for {what}"))
 }
 
 /// The PDA that owns the shielded funds of the group: `["multisig", group key]`.
-pub fn owner_pda(group: &Key) -> Result<Key, String> {
-    derive(&[SEED_OWNER, group], "the owner").map(|(key, _)| key)
+pub fn owner_pda(row: &Deployment, group: &Key) -> Result<Key, String> {
+    derive(&row.program, &[SEED_OWNER, group], "the owner").map(|(key, _)| key)
 }
 
 /// The proposal account of a body and its bump. The body hash gives each body its own address,
 /// so a body that someone else creates first for the commitment cannot block the signed one.
-pub fn proposal_address(group: &Key, commitment: &Key, body: &[u8]) -> Result<(Key, u8), String> {
+pub fn proposal_address(
+    row: &Deployment,
+    group: &Key,
+    commitment: &Key,
+    body: &[u8],
+) -> Result<(Key, u8), String> {
     let body_hash: Key = Sha256::digest(body).into();
     derive(
+        &row.program,
         &[SEED_PROPOSAL, group, commitment, &body_hash],
         "the proposal",
     )
 }
 
 /// The record that a cancel of `proposal` leaves: `["cancelled_transaction", proposal]`.
-pub fn cancellation_address(proposal: &Key) -> Result<Key, String> {
-    derive(&[SEED_CANCEL, proposal], "the cancellation").map(|(key, _)| key)
+pub fn cancellation_address(row: &Deployment, proposal: &Key) -> Result<Key, String> {
+    derive(&row.program, &[SEED_CANCEL, proposal], "the cancellation").map(|(key, _)| key)
 }
 
 /// The body of a proposal: the `create` data and the bytes that the approval signs.
@@ -129,13 +216,13 @@ impl Body {
     }
 }
 
-/// `SHA-256("Zigs_SolApproval_v1" || Devnet genesis || program id || proposal || body)`: the
+/// `SHA-256("Zigs_SolApproval_v1" || genesis || program id || proposal || body)` of the row: the
 /// 32 bytes that the group key signs. They can never parse as a Solana message.
-pub fn approval_digest(proposal: &Key, body: &[u8]) -> [u8; 32] {
+pub fn approval_digest(row: &Deployment, proposal: &Key, body: &[u8]) -> [u8; 32] {
     Sha256::new()
         .chain_update(APPROVAL_DOMAIN)
-        .chain_update(DEVNET_GENESIS)
-        .chain_update(MULTISIG_DEVNET)
+        .chain_update(row.genesis)
+        .chain_update(row.program)
         .chain_update(proposal)
         .chain_update(body)
         .finalize()

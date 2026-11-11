@@ -12,6 +12,8 @@ import { payerSeat, settledBlock } from "./gate.js";
 import { bytesOf, hexOf, intentHex, lamportsOf, pinsHex, wireBase64 } from "./intent.js";
 import { ensureWorker } from "./session.js";
 
+const MAINNET_NOT_READY = "Add SOL on mainnet is not ready. Nothing was sent.";
+
 /** What the network said to a test run of the deposit, as a text for the page. */
 function refusalOf(run, seat) {
   const logs = run.logs.join(" | ").slice(0, 300);
@@ -26,6 +28,7 @@ function refusalOf(run, seat) {
  * confirmed or the wait ended (status "unknown"). `at` is the time of the answer (ms).
  */
 export async function addSol(c, args) {
+  if (c.wallet?.cluster === "mainnet") throw new Error(MAINNET_NOT_READY);
   const block = await settledBlock(c);
   if (block) throw new Error(block);
   const seat = payerSeat(c);
@@ -34,8 +37,9 @@ export async function addSol(c, args) {
   const fee = readyFee(c, seat);
   const worker = await ensureWorker(c);
   const { blockhashHex } = await worker.call("blockhash");
-  const intent = intentHex("shield", { blockhash: blockhashHex, amount });
-  const pins = bytesOf(pinsHex(agreement(c).done, fee.key));
+  // ponytail: held 0 is right on Devnet only, which has no cap. Mainnet needs the synced balance.
+  const intent = intentHex("shield", { blockhash: blockhashHex, amount, held: 0n });
+  const pins = bytesOf(pinsHex(agreement(c).done, fee.key, c.genesis));
   const message = c.W.compile_message(bytesOf(intent), pins, new Uint8Array(0));
   const proposal = { id: "add-sol", by: seat, intent, message: hexOf(message) };
   const signature = feeSignature(c, proposal, seat);

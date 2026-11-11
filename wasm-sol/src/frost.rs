@@ -33,12 +33,14 @@ use crate::codec::{
     to_value, unhex_array,
 };
 use crate::plain::{Mode, Wallet};
+use crate::program::{deployment_of_label, Deployment};
 
 const COMMIT_PERSONAL: &[u8; 16] = b"Zigs_SolCmt___v1";
 const ECHO_PERSONAL: &[u8; 16] = b"Zigs_SolEcho__v1";
 const SEED_PERSONAL: &[u8; 16] = b"Zigs_SolSeed__v1";
 
-/// The only cluster of the spike: a testnet wallet gets Devnet, a mainnet wallet gets no Solana.
+/// The label of the Devnet pool wallet, which a testnet wallet gets. The private mainnet wallet
+/// has its own label (`program::MAINNET`).
 pub const CLUSTER: &str = "devnet";
 /// The wallet of the web app has 2 to 7 signers.
 pub const MAX_SEATS: u16 = 7;
@@ -54,24 +56,20 @@ fn frost_err(what: &'static str) -> impl Fn(frost_ed25519::Error) -> String {
     move |e| format!("{what}: {e}")
 }
 
-/// Refuses every cluster but Devnet. The pins of the checker are Devnet constants.
-pub fn check_cluster(cluster: &str) -> Result<(), String> {
-    if cluster == CLUSTER {
-        Ok(())
-    } else {
-        Err(format!("the cluster must be {CLUSTER}"))
-    }
+/// The pool deployment of a label. Every other label gets the error text of the Devnet spike.
+pub fn check_cluster(cluster: &str) -> Result<&'static Deployment, String> {
+    deployment_of_label(cluster).ok_or_else(|| format!("the cluster must be {CLUSTER}"))
 }
 
 /// The ceremony takes the label of any wallet: the label of a plain wallet (`Wallet::label`), or
-/// else the pool label through `check_cluster`, so the pool stays on Devnet. The signing paths of
-/// the pool call `check_cluster` and refuse the plain labels. The label enters the commitments,
-/// the echo and the seed, so the ceremony of one wallet kind never equals another.
+/// else a pool label through `check_cluster`. The signing paths of the pool call `check_cluster`
+/// and refuse the plain labels. The label enters the commitments, the echo and the seed, so the
+/// ceremony of one wallet kind never equals another.
 pub fn check_label(label: &str) -> Result<(), String> {
     if Wallet::from_label(label).is_ok_and(|wallet| wallet.mode == Mode::Plain) {
         return Ok(());
     }
-    check_cluster(label)
+    check_cluster(label).map(|_| ())
 }
 
 fn ident(seat: u16) -> Result<Identifier, String> {

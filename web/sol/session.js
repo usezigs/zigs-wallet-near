@@ -14,6 +14,7 @@ import { PROPOSAL_SPACE, nonceAccountHex } from "./intent.js";
 import { holdsShare, refuseStopped, solOf, stopOf } from "./secrets.js";
 import { SESSIONS, isPayment } from "./sessions.js";
 import { loadSnap, saveSnap } from "./store.js";
+import { labelOf } from "./wallet.js";
 
 const J = JSON.parse;
 export const UNAVAILABLE = "Solana is not available on this server";
@@ -69,8 +70,11 @@ export const shareSeat = (c) =>
 const CLOSED = "The wallet closed during this Solana step.";
 export const stillOpen = (c, opened) => c.opened === opened;
 
-/** Throws when the Worker made other addresses than the wasm for this group. */
-function sameAddresses(init, roles, groupKey) {
+/** Throws when the Worker runs on another cluster or made other addresses than the wasm. */
+function sameAddresses(init, roles, groupKey, cluster) {
+  if (init.cluster !== cluster) {
+    throw new Error("The Solana worker runs on another network. Do not use this wallet.");
+  }
   const { pda } = roles;
   const old = init.shielded === roles.address && init.owner === base58(groupKey);
   const owner = init.pdaShielded === pda.address && init.pda === base58(pda.pda);
@@ -83,12 +87,14 @@ function sameAddresses(init, roles, groupKey) {
 
 async function start(c, rpcUrl, roles, groupKey) {
   if (c.worker && c.inited === rpcUrl) return;
-  const opened = c.opened;
+  const opened = c.opened,
+    cluster = c.wallet?.cluster ?? "devnet";
   await requireWorkerPolicy();
   if (!stillOpen(c, opened)) throw new Error(CLOSED);
   c.worker ??= startSolWorker(undefined, () => gateAnswer(c));
   const { pda } = roles;
   const init = await c.worker.call("init", {
+    cluster,
     rpcUrl,
     nullifierSecret: roles.nullifier_secret,
     pdaNullifierSecret: pda.nullifier_secret,
@@ -96,7 +102,9 @@ async function start(c, rpcUrl, roles, groupKey) {
     groupKey,
     pda: pda.pda,
   });
-  sameAddresses(init, roles, groupKey);
+  sameAddresses(init, roles, groupKey, cluster);
+  if (!stillOpen(c, opened)) throw new Error(CLOSED);
+  c.genesis = init.genesis;
   c.inited = rpcUrl;
   c.workerAddress = "the SDK addresses equal the wasm addresses";
 }
@@ -111,7 +119,8 @@ function workerInputs(c) {
   if (!rpcUrl) throw new Error(UNAVAILABLE);
   const s = solOf(host, gid, seat);
   const roles = J(W.sol_roles(s.solSeed, s.groupKey));
-  return { rpcUrl, s, roles: { ...roles, pda: J(W.sol_pda_roles(s.solSeed, s.groupKey)) } };
+  const pda = J(W.sol_pda_roles(labelOf(c), s.solSeed, s.groupKey));
+  return { rpcUrl, s, roles: { ...roles, pda } };
 }
 
 /** The Worker of this tab, started if needed (it checks its own policy and its addresses). */

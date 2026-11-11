@@ -5,7 +5,7 @@
 
 use p3_check::program::{
     approval_digest, approval_ix_data, cancellation_address, commitment, owner_pda,
-    proposal_address, Body, APPROVAL_IX_LEN,
+    proposal_address, Body, APPROVAL_IX_LEN, DEVNET,
 };
 use p3_check::sign::verify_strict;
 use p3_check::transact;
@@ -61,7 +61,10 @@ fn track(name: &str) -> Landed {
 #[test]
 fn the_owner_pda_of_the_spike_group_is_the_landed_owner() {
     let all = landed();
-    assert_eq!(owner_pda(&key(&all["group"])).unwrap(), key(&all["pda"]));
+    assert_eq!(
+        owner_pda(&DEVNET, &key(&all["group"])).unwrap(),
+        key(&all["pda"])
+    );
     for name in ["dmain", "emain"] {
         let t = track(name);
         assert_eq!(t.accounts[2], key(&all["pda"]), "{name}: execute account 2");
@@ -97,7 +100,7 @@ fn the_proposal_address_is_of_version_5_and_the_cancellation_address_is_the_land
     for name in ["dmain", "emain"] {
         let t = track(name);
         let body = Body::parse(&t.body).unwrap();
-        let (address, _) = proposal_address(&t.group, &body.commitment, &t.body).unwrap();
+        let (address, _) = proposal_address(&DEVNET, &t.group, &body.commitment, &t.body).unwrap();
         let v5 = key(&landed()[name]["proposal_v5"]);
         assert_eq!(
             address, v5,
@@ -109,7 +112,7 @@ fn the_proposal_address_is_of_version_5_and_the_cancellation_address_is_the_land
         );
         assert_eq!(t.accounts[1], t.proposal, "{name}: execute account 1");
         assert_eq!(
-            cancellation_address(&t.proposal).unwrap(),
+            cancellation_address(&DEVNET, &t.proposal).unwrap(),
             t.accounts[3],
             "{name}"
         );
@@ -138,7 +141,7 @@ fn the_commitment_of_the_landed_transact_data_is_the_commitment_of_the_body() {
 fn the_digest_and_the_ed25519_data_are_those_that_landed_and_the_signature_verifies() {
     for name in ["dmain", "emain"] {
         let t = track(name);
-        let digest = approval_digest(&t.proposal, &t.body);
+        let digest = approval_digest(&DEVNET, &t.proposal, &t.body);
         assert_eq!(t.approval.len(), APPROVAL_IX_LEN, "{name}");
         assert_eq!(&t.approval[112..], &digest, "{name}: digest");
         assert_eq!(&t.approval[16..48], &t.group, "{name}: key");
@@ -156,7 +159,8 @@ fn the_digest_and_the_ed25519_data_are_those_that_landed_and_the_signature_verif
 fn the_digest_entry_of_the_page_gives_the_landed_digest_and_refuses_a_bad_body() {
     for name in ["dmain", "emain"] {
         let t = track(name);
-        let got = sol_approval_digest(&hex::encode(t.proposal), &hex::encode(&t.body)).unwrap();
+        let (proposal, body) = (hex::encode(t.proposal), hex::encode(&t.body));
+        let got = sol_approval_digest("devnet", &proposal, &body).unwrap();
         assert_eq!(hex::decode(got).unwrap(), &t.approval[112..], "{name}");
     }
     let t = track("dmain");
@@ -168,5 +172,6 @@ fn the_digest_entry_of_the_page_gives_the_landed_digest_and_refuses_a_bad_body()
 }
 
 fn digest_entry_refuses(proposal: &str, body: &str) -> bool {
-    std::panic::catch_unwind(|| sol_approval_digest(proposal, body).is_err()).unwrap_or(true)
+    std::panic::catch_unwind(|| sol_approval_digest("devnet", proposal, body).is_err())
+        .unwrap_or(true)
 }

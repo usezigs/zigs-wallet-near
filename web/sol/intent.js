@@ -7,6 +7,8 @@
 // `createNonce` and `transfer`. The page writes the intent bytes, the wasm compiles the messages
 // from them and checks them again on every approving device, so a wrong byte here makes a refusal
 // and never a bad signature.
+import { keyOfBase58 } from "./docs.js";
+
 export const hexOf = (bytes) => Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 export const bytesOf = (hex) => Uint8Array.from(hex.match(/../g) ?? [], (h) => parseInt(h, 16));
 export const bytesOfBase64 = (text) => Uint8Array.from(atob(text), (ch) => ch.charCodeAt(0));
@@ -35,7 +37,8 @@ export const EXECUTE_FEE = 2n * BASE_FEE;
 
 /**
  * The intent bytes (hex) of a kind: createNonce and transfer (the move of the beta funds, with a
- * nonce), shield (Add SOL: a recent blockhash, the payer signs alone), approve and withdraw (a
+ * nonce), shield (Add SOL: a recent blockhash and `held`, the synced private balance in lamports
+ * that the cap of a mainnet wallet counts; the payer signs alone), approve and withdraw (a
  * payment of the program design to a shielded or a public address), propose and proposeWithdraw
  * (their create messages) and execute (tag 11 with the `recipient` of a withdrawal, else 7), and
  * cancelProposal, which gets back the rent of an expired proposal (SOL-52).
@@ -48,7 +51,7 @@ export function intentHex(kind, f) {
   const executed = () => le64(f.expiry) + f.rentRecipient + f.signature + f.blockhash;
   const fields = {
     createNonce: () => "00" + f.blockhash,
-    shield: () => "02" + f.blockhash + le64(f.amount),
+    shield: () => "02" + f.blockhash + le64(f.amount) + le64(f.held),
     transfer: () => "03" + spend() + checkedAddress(f.payee) + ZERO_KEY + le64(f.amount),
     propose: () => "06" + pay() + f.commitment + f.blockhash,
     execute: () => (f.recipient ? "0b" + executed() + checkedKey(f.recipient) : "07" + executed()),
@@ -73,7 +76,12 @@ function checkedKey(recipient) {
 
 const READERS = {
   0: (h) => ({ kind: "createNonce", blockhash: h.slice(2, 66) }),
-  2: (h) => ({ kind: "shield", blockhash: h.slice(2, 66), amount: le64Of(h.slice(66, 82)) }),
+  2: (h) => ({
+    kind: "shield",
+    blockhash: h.slice(2, 66),
+    amount: le64Of(h.slice(66, 82)),
+    held: le64Of(h.slice(82, 98)),
+  }),
   3: (h) => ({
     kind: "transfer",
     nonce: h.slice(2, 66),
@@ -102,7 +110,7 @@ const READERS = {
     amount: le64Of(h.slice(86, 102)),
   }),
 };
-const LENGTHS = { 0: 33, 2: 41, 3: 182, 8: 150, 10: 51 };
+const LENGTHS = { 0: 33, 2: 49, 3: 182, 8: 150, 10: 51 };
 /** The kinds of a session intent that the group approves with a digest (ZOLANA.md 7.2). */
 export const PAYMENT_KINDS = new Set(["approve", "withdraw"]);
 
@@ -114,16 +122,34 @@ export function decodeIntent(hex) {
   return READERS[tag](hex);
 }
 
+// The cluster byte of the pins for the label of a pool wallet (wasm-sol/src/program.rs).
+const CLUSTER_BYTE = { devnet: "01", "mainnet-private": "02" };
+
 /**
- * The 161 pin bytes (hex): the group key, nullifier_pk and viewing_pk of the agreed soldone, the
- * payer of the proposal (a fee key, see fee.js) and the nullifier_pk of the PDA identity.
+ * The 194 pin bytes (hex): the cluster byte of the label of the agreed soldone, its group key,
+ * nullifier_pk and viewing_pk, the payer of the proposal (a fee key, see fee.js), the
+ * nullifier_pk of the PDA identity and `genesis`, the genesis hash (base58) that the Worker read
+ * from its RPC server. The wasm refuses a genesis of another cluster.
  */
-export function pinsHex(done, payer) {
+export function pinsHex(done, payer, genesis) {
   const checks = [KEY(done?.groupKey), KEY(done?.nullifierPk), isHex(33)(done?.viewingPk)];
   if (!checks.every(Boolean) || !KEY(done?.pdaNullifierPk))
     throw new Error("The Solana keys of this wallet are not well formed.");
   if (!KEY(payer)) throw new Error("The fee key of the payer is not well formed.");
-  return done.groupKey + done.nullifierPk + done.viewingPk + payer + done.pdaNullifierPk;
+  const keys = done.groupKey + done.nullifierPk + done.viewingPk + payer + done.pdaNullifierPk;
+  return clusterByte(done.cluster) + keys + genesisHex(genesis);
+}
+
+function clusterByte(label) {
+  if (!Object.hasOwn(CLUSTER_BYTE, label))
+    throw new Error("The Solana wallet names an unknown cluster: " + String(label));
+  return CLUSTER_BYTE[label];
+}
+
+function genesisHex(genesis) {
+  const hex = keyOfBase58(genesis);
+  if (!hex) throw new Error("The genesis hash of the Solana server is not known yet.");
+  return hex;
 }
 
 /**

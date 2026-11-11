@@ -107,17 +107,21 @@ fn a_payer_that_is_the_group_key_with_the_template_of_two_signers_is_refused_too
 fn the_wire_of_the_pins_holds_the_payer_then_the_pda_key() {
     let pins = pins();
     let wire = pins.wire();
-    assert_eq!(wire.len(), 161);
-    assert_eq!(&wire[97..129], &PAYER);
-    assert_eq!(&wire[129..], &pins.pda_nullifier_pk);
+    assert_eq!(wire.len(), 194);
+    assert_eq!(&wire[98..130], &PAYER);
+    assert_eq!(&wire[130..162], &pins.pda_nullifier_pk);
     assert_eq!(Pins::decode(&wire).unwrap(), pins);
     assert!(
-        Pins::decode(&wire[..97]).is_err(),
+        Pins::decode(&wire[..98]).is_err(),
         "the payer is not optional"
     );
     assert!(
-        Pins::decode(&wire[..129]).is_err(),
+        Pins::decode(&wire[..130]).is_err(),
         "the PDA key is not optional"
+    );
+    assert!(
+        Pins::decode(&wire[..162]).is_err(),
+        "the genesis is not optional"
     );
 }
 

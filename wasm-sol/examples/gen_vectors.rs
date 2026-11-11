@@ -74,6 +74,7 @@ fn plain_cases() -> Vec<Case> {
             Intent::Shield {
                 blockhash: common::NONCE,
                 amount: 50_000_000,
+                held: 0,
             },
         ),
         (

@@ -4,6 +4,7 @@
 //! `sol_*` function is a thin wrapper of a function in `frost`, `roles` or `sign`, which the
 //! native tests call.
 
+use serde_json::json;
 use wasm_bindgen::prelude::{wasm_bindgen, JsError};
 
 use crate::approve::{Approved, Device};
@@ -22,7 +23,7 @@ use crate::plain_display::base58;
 use crate::plain_sign;
 use crate::plain_template;
 use crate::plan::Proposal;
-use crate::program::{approval_digest, Body};
+use crate::program::{approval_digest, pool_row, Body};
 use crate::roles;
 use crate::rule::{INFO, PLAIN_INFO};
 use crate::sign::{self, ApprovalCheck, Check};
@@ -160,11 +161,13 @@ fn run_payment(input: &ApprovalCheck, now: u64) -> Result<String, String> {
 ///
 /// - `intent`: the proposal, `Proposal::encode`: the intent and, for a spend, the approved
 ///   plaintext outputs.
-/// - `pins`: 161 bytes, the group key, `nullifier_pk` and `viewing_pk` of the `soldone` document,
-///   the payer of the proposal and the `nullifier_pk` of the PDA identity (`Pins::wire`). The
-///   page takes the payer from the `solfee` document of the proposing seat. The `owner_hash` is
-///   computed from the pins, and the snapshot secrets must derive exactly the pinned keys of the
-///   identity that the intent uses (the PDA for Shield and the program messages).
+/// - `pins`: 194 bytes, the cluster byte of the deployment (1 Devnet, 2 mainnet), the group key,
+///   `nullifier_pk` and `viewing_pk` of the `soldone` document, the payer of the proposal, the
+///   `nullifier_pk` of the PDA identity and the genesis hash that the page read from its RPC
+///   (`Pins::wire`). A genesis of another cluster is an error. The page takes the payer from the
+///   `solfee` document of the proposing seat. The `owner_hash` is computed from the pins, and the
+///   snapshot secrets must derive exactly the pinned keys of the identity that the intent uses
+///   (the PDA for Shield and the program messages).
 /// - `snapshot`: the device snapshot, `Snapshot::encode`.
 /// - `now`: the Unix time of the device, in seconds.
 ///
@@ -239,26 +242,38 @@ pub fn sol_approval_share(
     js(sign::approval_share(&input, round))
 }
 
-/// The approval digest (hex) of a proposal account and its body (`program::approval_digest`).
-/// It checks no rule: a seat runs `check_payment` before it signs this digest. The page counts
-/// the commits and shares of a payment by it.
+/// The approval digest (hex) of a proposal account and its body (`program::approval_digest`)
+/// under the pool label of the wallet. It checks no rule: a seat runs `check_payment` before it
+/// signs this digest. The page counts the commits and shares of a payment by it.
 #[wasm_bindgen]
-pub fn sol_approval_digest(proposal: &str, body: &str) -> Result<String, JsError> {
-    js(digest_of_proposal(proposal, body))
+pub fn sol_approval_digest(label: &str, proposal: &str, body: &str) -> Result<String, JsError> {
+    js(digest_of_proposal(label, proposal, body))
 }
 
-fn digest_of_proposal(proposal: &str, body: &str) -> Result<String, String> {
+fn digest_of_proposal(label: &str, proposal: &str, body: &str) -> Result<String, String> {
+    let row = frost::check_cluster(label)?;
     let proposal: [u8; 32] = unhex_array(proposal, "proposal")?;
     let body = unhex(body, "body")?;
     Body::parse(&body)?;
-    Ok(hex(&approval_digest(&proposal, &body)))
+    Ok(hex(&approval_digest(row, &proposal, &body)))
 }
 
-/// The PDA identity of `solSeed` under the group key, as JSON: `pda`, `nullifier_secret`,
-/// `nullifier_pk`, `owner_hash` and `address`.
+/// The PDA identity of `solSeed` under the group key and the pool label of the wallet, as JSON:
+/// `pda`, `nullifier_secret`, `nullifier_pk`, `owner_hash` and `address`.
 #[wasm_bindgen]
-pub fn sol_pda_roles(sol_seed: &str, group_key: &str) -> Result<String, JsError> {
-    js(roles::pda_roles(sol_seed, group_key))
+pub fn sol_pda_roles(label: &str, sol_seed: &str, group_key: &str) -> Result<String, JsError> {
+    js(roles::pda_roles(label, sol_seed, group_key))
+}
+
+/// The pool wallet of a cluster (`devnet` or `mainnet`) as JSON: `label`, which the ceremony and
+/// the signing round hash; `program`, the program label that a `soldone` document carries; and
+/// `cap`, the private balance cap in lamports as decimal text, or null.
+#[wasm_bindgen]
+pub fn sol_pool_wallet(cluster: &str) -> Result<String, JsError> {
+    js(pool_row(cluster).map(|row| {
+        let cap = row.cap.map(|cap| cap.to_string());
+        json!({"label": row.label, "program": row.program_label, "cap": cap}).to_string()
+    }))
 }
 
 /// Every rule as `id<TAB>statement`, one per line.
@@ -278,7 +293,7 @@ fn js<T>(result: Result<T, String>) -> Result<T, JsError> {
 ///
 /// - `proposal`: the bytes that `check_message` takes as `intent` (the intent and, for a spend,
 ///   the plan). Only the intent is read here.
-/// - `pins`: the 161 bytes of `check_message`.
+/// - `pins`: the 194 bytes of `check_message`.
 /// - `transact`: the data of the `transact` instruction, tag byte included, as the Worker cuts it
 ///   out of the SDK message. Empty for every intent but a Transfer and a Withdrawal.
 pub fn compile_proposal(proposal: &[u8], pins: &[u8], transact: &[u8]) -> Result<Vec<u8>, String> {

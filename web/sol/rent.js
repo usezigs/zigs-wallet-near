@@ -70,7 +70,7 @@ async function cancel(c, worker, seat, p) {
   const fields = { commitment: p.commitment, expiry: p.expiry, blockhash: blockhashHex };
   const intent = bytesOf(intentHex("cancelProposal", fields));
   const inputs = {
-    pins: bytesOf(pinsHex(agreement(c).done, fee.key)),
+    pins: bytesOf(pinsHex(agreement(c).done, fee.key, c.genesis)),
     snapshot: bytesOf(snapshotHex(rolesOf(c, seat, "cancelProposal"))),
   };
   const message = c.W.compile_message(intent, inputs.pins, new Uint8Array(0));
