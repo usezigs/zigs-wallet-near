@@ -1,6 +1,7 @@
 // The wallet page of a private Solana wallet on mainnet (slice 8g) against the real page modules
 // and the rig (sol-rig.mjs). The Solana tab shows for a wallet that waits for the accept of this
-// browser and for a wallet that this server does not serve: the tab says why. A testnet wallet
+// browser and for a wallet that this server does not serve: the tab says why, and the Open Solana
+// button of the SOL row of Overview opens it, as a person does. A testnet wallet
 // and a served plain wallet keep their tabs, and a plain wallet on a server that does not serve
 // it has none. The parts of the page that name the Solana network (the tab header, the SOL and
 // USDC rows, the Send and Receive pickers and the Add SOL row of Activity) say Mainnet for a
@@ -98,6 +99,20 @@ function panel(id) {
   t.ui.tab = id;
   const tree = drawn(() => t.walletView(null, null));
   return one(tree, (n) => n.attrs?.id === "panel-" + id);
+}
+// The Solana panel as a person reaches it: the Open Solana button of the SOL row of Overview,
+// then the page as it draws after the click. No write to ui.tab after Overview.
+function viaSolRow() {
+  t.ui.tab = "overview";
+  const row = one(drawn(() => t.walletView(null, null)),
+    (n) => n.attrs?.["aria-labelledby"] === "asset-sol");
+  const open = one(row, (n) => n.tag === "button" && textOf(n) === "Open Solana");
+  assert.ok(open && !("disabled" in open.attrs), "the SOL row has an Open Solana button");
+  open.on.click();
+  assert.equal(t.ui.tab, "solana", "the button opens the Solana tab");
+  const tab = one(drawn(() => t.walletView(null, null)), (n) => n.attrs?.id === "panel-solana");
+  assert.ok(tab, "the page draws the Solana panel");
+  return tab;
 }
 // The texts of the parts of the open wallet that name the Solana network: the lead above the
 // title and the identity line of the Solana tab, the SOL and USDC rows and the two pickers of
@@ -199,8 +214,7 @@ const wait = await rig.wallet({ name: "Waits", network: "mainnet" });
   assert.ok(sections().includes("solana"), "the accept wallet lists the Solana tab");
   privateDisclosure();
   await waitFor("the disclosure", () => privateDisclosure() !== null);
-  const tab = panel("solana");
-  assert.ok(tab, "the page draws the Solana panel");
+  const tab = viaSolRow();
   const text = textOf(tab);
   for (const line of [ACCEPT_INTRO, ...MAINNET_DISCLOSURE]) {
     assert.ok(text.includes(line), "the accept card says: " + line);
@@ -211,7 +225,7 @@ const wait = await rig.wallet({ name: "Waits", network: "mainnet" });
   noDevnet(parts, "a wallet that waits for the accept");
   assert.deepEqual([parts.lead, parts.activity], ["Solana Mainnet", null]);
 }
-step("a wallet that waits for the accept shows the Solana tab with the accept card");
+step("the SOL row of a wallet that waits for the accept opens the tab with the accept card");
 
 // ── Unserved: the tab says that this server does not serve the private wallet ──
 const off = await rig.wallet({ name: "Off", network: "mainnet" });
@@ -221,8 +235,7 @@ const off = await rig.wallet({ name: "Off", network: "mainnet" });
   assert.equal(solMode(off), "unserved");
   assert.deepEqual([t.solOn(off), t.plainOn(off), solTabOn(off)], [false, false, true]);
   assert.ok(sections().includes("solana"), "the unserved wallet lists the Solana tab");
-  const tab = panel("solana");
-  assert.ok(tab, "the page draws the Solana panel");
+  const tab = viaSolRow();
   assert.ok(textOf(tab).includes(UNSERVED), "the tab says why it does not open");
   assert.notEqual(t.sol.ctl.gid, off, "and the pool controller does not follow it");
   const parts = networkParts();
@@ -230,7 +243,7 @@ const off = await rig.wallet({ name: "Off", network: "mainnet" });
   assert.deepEqual([parts.lead, parts.activity], ["Solana Mainnet", null]);
   await probeWith(200);
 }
-step("an unserved private wallet shows the Solana tab with the unserved text");
+step("the SOL row of an unserved private wallet opens the tab with the unserved text");
 
 // ── Plain: a served plain wallet keeps its tab, and one that is not served has none ──
 {

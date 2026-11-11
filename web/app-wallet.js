@@ -155,8 +155,9 @@ export const walletReady = () => !!(state.wallet && state.wallet.birthday)
   && !mySeatSecrets(state.gid).some(([, s]) => s.stopped || (s.aborted && !s.keyPackage));
 
 /**
- * The sections of the open wallet: [id, label, count] each. The side menu lists them; the Solana
- * section exists only while the Solana part is on, or while its tab says why it is not.
+ * The sections of the open wallet: [id, label, count] each. currentSection picks the shown one
+ * from them; the side menu does not list them. The Solana section exists only while the Solana
+ * part is on, or while its tab says why it is not.
  */
 export function walletSections() {
   const sections = [
@@ -744,24 +745,35 @@ const MAINNET_EXPOSURE = "Solana Mainnet hides the amount of a private payment o
   + "service disclosures apply in Solana details.";
 const solExposure = () => (poolMainnet() ? MAINNET_EXPOSURE : SOL_EXPOSURE);
 
+// The SOL row of a wallet with no pool part here. A private wallet that waits for the accept of
+// this browser, or that this server does not serve, has a Solana tab that says why. Its row is the
+// route to that tab, as the row of a plain wallet is, in place of Shield and Unshield.
+function solUnavailableRow() {
+  return el("section", { class: "card card-pad asset-card asset-row asset-unavailable",
+    "aria-labelledby": "asset-sol" },
+  el("div", { class: "asset-row-main" },
+    el("div", { class: "asset-position" }, assetHead("sol", "SOL", solNetwork()),
+      solBalancePrivacy(el, null)),
+    el("div", { class: "asset-balance-block" }, el("span", { class: "label" }, "Wallet balance"),
+      el("p", { class: "asset-balance unknown" }, "Unavailable"),
+      el("p", { class: "asset-row-status small asset-row-warning" },
+        "Do not send SOL to the Zcash address.")),
+    solTabOn() ? plainOpen("open") : shieldingActions("sol", false)),
+  assetNote("sol", "Solana details", [
+    shieldingBreakdown("sol"),
+    el("p", { id: "sol-unavailable" }, "Solana is available only for eligible version 3 testnet "
+      + "wallets. Do not send SOL to the Zcash address."),
+    el("p", { id: "sol-shielding-note" },
+      "Shielded and unshielded percentages are unavailable for this wallet."),
+  ]));
+}
+
 // The SOL row: the private balance of the last sync, or the state of the Solana part.
 function solAsset() {
   if (plainShown()) return plainAsset("sol");
   const row = solRow({ on: solOn(), error: solError, loading: !!(sol || solLoading),
     setup: solSetup(), balance: solBalance(), sync: solSync() });
-  if (!row) return el("section", { class: "card card-pad asset-card asset-row asset-unavailable", "aria-labelledby": "asset-sol" },
-    el("div", { class: "asset-row-main" },
-    el("div", { class: "asset-position" }, assetHead("sol", "SOL", solNetwork()),
-      solBalancePrivacy(el, row)),
-    el("div", { class: "asset-balance-block" }, el("span", { class: "label" }, "Wallet balance"),
-      el("p", { class: "asset-balance unknown" }, "Unavailable"),
-      el("p", { class: "asset-row-status small asset-row-warning" }, "Do not send SOL to the Zcash address.")),
-    shieldingActions("sol", false)),
-    assetNote("sol", "Solana details", [
-      shieldingBreakdown("sol"),
-      el("p", { id: "sol-unavailable" }, "Solana is available only for eligible version 3 testnet wallets. Do not send SOL to the Zcash address."),
-      el("p", { id: "sol-shielding-note" }, "Shielded and unshielded percentages are unavailable for this wallet."),
-    ]));
+  if (!row) return solUnavailableRow();
   const amount = /^[\d.]+ SOL$/.test(row.text) ? solAmount(row.text)
     : el("p", { class: "asset-balance unknown" }, row.text);
   const status = { synced: "At last sync", saved: "Saved balance", stale: "Sync failed · saved balance",
@@ -803,7 +815,8 @@ function usdcAsset() {
 // Solana part. It has no Shield and Unshield (no pool), and its details say what is public.
 const PLAIN_STATUS = { stale: "Update failed · old balance" };
 // The SOL row is the route to the Solana tab of a plain wallet in every state: the side menu has
-// no wallet sections, and Send and Receive wait until the part is ready.
+// no wallet sections, and Send and Receive wait until the part is ready. solUnavailableRow uses it
+// for a private wallet that does not open here.
 const plainOpen = (state) => el("div", { class: "row-actions" },
   el("button", { class: "btn", type: "button", onclick: openSolana },
     state === "none" ? "Add Solana" : "Open Solana"));
