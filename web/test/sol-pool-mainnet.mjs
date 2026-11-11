@@ -1,10 +1,13 @@
 // The private mainnet wallet next to the Devnet one, with the real page modules, the real wasm
 // and a stubbed Worker:
 //  - the network of a payee address: a mainnet wallet shows and copies its shielded address
-//    with solana-mainnet:, and a payment refuses a payee of another network before any proof.
+//    with solana-mainnet:, and a payment refuses a payee of another network before any proof;
+//  - on mainnet the public program address has no Copy and a warning, no other address that no
+//    deployed program can move SOL from has a Copy, and the move of the beta funds is hidden.
 // Run: node web/test/sol-pool-mainnet.mjs   (Node 26)
 import assert from "node:assert/strict";
 import { agreement } from "../sol/ceremony.js";
+import { base58 } from "../sol/docs.js";
 import { feeOf } from "../sol/fee.js";
 import { propose } from "../sol/propose.js";
 import { ensureWorker } from "../sol/session.js";
@@ -63,6 +66,23 @@ async function copy(mark) {
   return copied.pop();
 }
 
+/** The marks of the Copy buttons of the tab, sorted. */
+const copyMarks = () =>
+  findAll(view(), (n) => String(n.attrs["data-sol"]).startsWith("copy-"))
+    .map((n) => n.attrs["data-sol"])
+    .sort();
+const FEES = ["copy-fee-1", "copy-fee-2", "copy-fee-3"];
+/** The cards of the tab while the group key holds 0.005 SOL of beta funds. */
+function withOldFunds(read) {
+  const kept = c.sync;
+  c.sync = { ...kept, oldBalance: "5000000" };
+  try {
+    return read();
+  } finally {
+    c.sync = kept;
+  }
+}
+
 /** Proposes a payment to `recipient`: the refusal (or STOP) and the payees that reached prepare. */
 async function payTo(recipient) {
   const at = prepared.length;
@@ -103,6 +123,16 @@ const devnet = agreement(c).done.pdaAddress;
 }
 step("Devnet: a bare or solana-devnet: payee reaches the proof as bare hex; mainnet is refused");
 
+{
+  const pda = base58(agreement(c).done.pda);
+  assert.equal(shown("owner"), pda, "Devnet shows the program address");
+  assert.equal(await copy("copy-program"), pda, "and copies it");
+  assert.equal(marked("owner-warning").length, 0, "with no warning");
+  assert.deepEqual(copyMarks(), ["copy-program", "copy-shielded", ...FEES].sort());
+  assert.equal(withOldFunds(() => marked("move").length), 1, "the move of the beta funds");
+}
+step("Devnet: the program address has Copy, and the move of the beta funds shows");
+
 // ── A private mainnet wallet: the ceremony under mainnet-private, and the stub ──
 const gidP = await rig.wallet({ name: "Private" });
 await t.solLoad();
@@ -139,6 +169,16 @@ const mainnet = agreement(c).done.pdaAddress;
   }
 }
 step("mainnet: the copied solana-mainnet: address pays; bare hex and Devnet are refused");
+
+{
+  const pda = base58(agreement(c).done.pda);
+  assert.equal(shown("owner"), pda, "mainnet shows the program address");
+  const NEVER = "Never send public SOL to this address. No code can move it.";
+  assert.equal(shown("owner-warning"), NEVER, "with the warning");
+  assert.deepEqual(copyMarks(), ["copy-shielded", ...FEES].sort(), "and no Copy");
+  assert.equal(withOldFunds(() => marked("move").length), 0, "no move of the beta funds");
+}
+step("mainnet: the program address has no Copy and a warning, and no move card shows");
 
 console.log("sol-pool-mainnet: ok");
 process.exit(0);

@@ -430,22 +430,15 @@ const MOVE_TEXT =
   "before. One move takes up to 8 notes, so many small notes need more than one move. The card " +
   "shows again if a payer sends SOL to the old address.";
 
-/** The one-time move of the beta funds (SOL-36 condition 3). Null when the group key holds none. */
+/**
+ * The one-time move of the beta funds (SOL-36 condition 3). Null when the group key holds none,
+ * and on mainnet, where the checker retires the nonce intents of the move.
+ */
 function moveCard(c, act, actions) {
   const { el } = c.host;
   const held = BigInt(c.sync?.oldBalance ?? "0");
-  if (held <= 0n) return null;
-  const missing = c.chain?.nonce === "missing";
+  if (held <= 0n || c.wallet?.cluster === "mainnet") return null;
   const nonce = { created: "created", missing: "not created yet" }[c.chain?.nonce] ?? "?";
-  const steps = missing
-    ? [
-        button(c, act, "create-nonce", "Create the nonce account", () =>
-          actions.propose("createNonce"),
-        ),
-      ]
-    : [button(c, act, "move-funds", "Move to the program address", () =>
-        actions.propose("migrate"),
-      )];
   return el(
     "div",
     { class: "callout", style: "display:grid;gap:8px", "data-sol": "move" },
@@ -458,8 +451,18 @@ function moveCard(c, act, actions) {
     ),
     el("p", { class: "small", "data-sol": "move-held" }, "Old address: " + solText(held)),
     el("p", { class: "small", "data-sol": "nonce-state" }, "Nonce account: " + nonce),
-    el("div", { class: "row-actions" }, steps),
+    el("div", { class: "row-actions" }, moveStep(c, act, actions)),
   );
+}
+
+/** The next step of the move: the nonce account while it is missing, then the move itself. */
+function moveStep(c, act, actions) {
+  if (c.chain?.nonce === "missing") {
+    const create = () => actions.propose("createNonce");
+    return button(c, act, "create-nonce", "Create the nonce account", create);
+  }
+  const move = () => actions.propose("migrate");
+  return button(c, act, "move-funds", "Move to the program address", move);
 }
 
 const sum = (list) => list.reduce((total, one) => total + one.amount, 0n);

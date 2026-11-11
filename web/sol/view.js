@@ -243,16 +243,12 @@ function copyButton(c, text, mark, what) {
   return c.host.el("button", attrs, "Copy");
 }
 
-function keyBlock(c, done) {
-  const { el } = c.host,
-    row = (name, label, value) => [
-      el("dt", {}, label),
-      el("dd", { class: "hex", "data-sol": name }, value),
-    ];
-  // A payer copies the full shielded address: it has no checksum, so a typed character more or
-  // less gives another address that looks right. The program address is copied to compare it.
-  // The button sits in the dd of its value, so the label, the value and the button stay together.
-  const copyRow = (name, label, value, mark, what) => [
+// A payer copies the full shielded address: it has no checksum, so a typed character more or
+// less gives another address that looks right. The program address is copied to compare it.
+// The button sits in the dd of its value, so the label, the value and the button stay together.
+function copyRow(c, { name, label, value, mark, what }) {
+  const { el } = c.host;
+  return [
     el("dt", {}, label),
     el(
       "dd",
@@ -261,15 +257,47 @@ function keyBlock(c, done) {
       value ? copyButton(c, value, mark, what) : null,
     ),
   ];
-  const owner = done.pda ? base58(done.pda) : null;
+}
+
+const NEVER_PUBLIC = "Never send public SOL to this address. No code can move it.";
+
+/**
+ * The program address of the group. On mainnet it has no Copy and a warning: public SOL sent to
+ * it makes a System account, and no deployed program can move SOL out of that account.
+ */
+function ownerRow(c, done) {
+  const { el } = c.host;
+  const value = done.pda ? base58(done.pda) : null;
+  const label = "Program address of the group (Devnet)";
+  if (c.wallet?.cluster !== "mainnet") {
+    return copyRow(c, { name: "owner", label, value, mark: "copy-program", what: "program" });
+  }
+  return [
+    el("dt", {}, label),
+    el(
+      "dd",
+      {},
+      el("span", { class: "hex", "data-sol": "owner" }, value ?? "?"),
+      el("p", { class: "small bad", "data-sol": "owner-warning" }, NEVER_PUBLIC),
+    ),
+  ];
+}
+
+function keyBlock(c, done) {
+  const { el } = c.host,
+    row = (name, label, value) => [
+      el("dt", {}, label),
+      el("dd", { class: "hex", "data-sol": name }, value),
+    ];
+  const shielded = shieldedShown(c, done.pdaAddress);
   return el(
     "dl",
     { class: "kv", "data-key": "sol-receive", tabindex: "-1",
       "aria-label": "Receive SOL and wallet details" },
-    copyRow("owner", "Program address of the group (Devnet)", owner, "copy-program", "program"),
+    ownerRow(c, done),
     row("group-key", "Group key", done.groupKey),
-    copyRow("shielded", "Shielded SOL address · Devnet", shieldedShown(c, done.pdaAddress),
-      "copy-shielded", "shielded"),
+    copyRow(c, { name: "shielded", label: "Shielded SOL address · Devnet", value: shielded,
+      mark: "copy-shielded", what: "shielded" }),
     el("dt", {}, "Privacy on Solana Devnet"),
     el("dd", {}, privacyNotice(el, done.pdaAddress ? "partial" : "unknown",
       done.pdaAddress ? "Amount hidden · payee public" : "Privacy unknown", SOL_EXPOSURE)),
