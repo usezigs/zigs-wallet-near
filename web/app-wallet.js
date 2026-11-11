@@ -40,8 +40,9 @@ import { helpView } from "./app-help.js";
 import {
   sol, solActivity, solBackup, solBalance, solError, solFile, solLoad, solLoading,
   solActivityWaits, solLoadingCount, solOlderCount, solOn, solPending, solPendingRows, solSetup,
-  solNotAdded, solObserveOverview, solPartError, solPartSetup, solSync, solTab, plainAdded,
-  plainLoading, plainNotAdded, plainPick, plainRead, plainSetup, plainShown, plainSol, plainTab,
+  solNotAdded, solObserveOverview, solPartError, solPartSetup, solSync, solTab, solTabOn,
+  plainAdded, plainLoading, plainNotAdded, plainPick, plainRead, plainSetup, plainShown, plainSol,
+  plainTab,
 } from "./app-sol.js";
 import {
   createZecPrice, formatUsdBalance, pendingShortcut, plainRow, portfolioView, solRow, zecInProgress,
@@ -155,7 +156,7 @@ export const walletReady = () => !!(state.wallet && state.wallet.birthday)
 
 /**
  * The sections of the open wallet: [id, label, count] each. The side menu lists them; the Solana
- * section exists only while the Solana part is on.
+ * section exists only while the Solana part is on, or while its tab says why it is not.
  */
 export function walletSections() {
   const sections = [
@@ -166,8 +167,7 @@ export function walletSections() {
     ["messages", "Messages", countBadge(unreadIn(state.gid), "unread", "note")],
     ["members", "Devices"], ["recovery", "Security"], ["settings", "Settings"],
   ];
-  if (solOn()) sections.push(["solana", "Solana", countBadge(solPending(), "to approve", "attn")]);
-  else if (plainShown()) {
+  if (solTabOn() || plainShown()) {
     sections.push(["solana", "Solana", countBadge(solPending(), "to approve", "attn")]);
   }
   return sections;
@@ -1432,7 +1432,7 @@ function securityRecoveryTab(formed = true) {
     blocked: f.blocked || (muted ? "This browser has no signing key for device " + muted
       + ". Restore that device’s recovery file." : ""),
     storageIssue: f.storageIssue, reportIssue: f.reportIssue,
-    openSolana: solOn() || plainShown() ? openWalletSection("solana") : null };
+    openSolana: solTabOn() || plainShown() ? openWalletSection("solana") : null };
   return securityDashboard(facts, {
     backup: (id, chain, ev) => chain === "sol" ? act(() => solBackup(id))(ev) : openBackup(id),
     check: (id, chain) => openBackupCheck(id, chain),

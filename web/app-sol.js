@@ -494,6 +494,8 @@ function acceptCard() {
       "data-sol": "accept-private", onclick: accept }, "Accept the private wallet")));
 }
 const MODE_TABS = { accept: acceptCard, unserved: () => el("p", { class: "small" }, UNSERVED) };
+/** Does wallet `gid` show the Solana tab of the pool? Also a private wallet that it explains. */
+export const solTabOn = (gid = state.gid) => solOn(gid) || Object.hasOwn(MODE_TABS, solMode(gid));
 export function solTab() {
   const modeTab = MODE_TABS[solMode()];
   if (modeTab) return modeTab();
