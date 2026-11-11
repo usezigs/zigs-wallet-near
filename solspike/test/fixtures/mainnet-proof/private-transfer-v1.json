@@ -1,0 +1,137 @@
+{
+ "signature": "2BVSYhanQUwcsjdKLcT3EHayEnBBMeTPA3E1KvpQK3eaWHXcJ5YPHMR4EdzjtYH4NwdhWnv2xCvM6tmcSJn47HyU",
+ "result": {
+  "blockTime": 1794347482,
+  "meta": {
+   "computeUnitsConsumed": 142891,
+   "costUnits": 145133,
+   "err": null,
+   "fee": 5000,
+   "innerInstructions": [
+    {
+     "index": 0,
+     "instructions": [
+      {
+       "accounts": [
+        0,
+        3
+       ],
+       "data": "3Bxs4PckVVt51W8w",
+       "programIdIndex": 4,
+       "stackHeight": 2
+      },
+      {
+       "accounts": [
+        2
+       ],
+       "data": "SYXsBqL14VAeKEU4f3gSASboksAcWNiFQj9Uz3JeJHipZsi2",
+       "programIdIndex": 4,
+       "stackHeight": 2
+      },
+      {
+       "accounts": [
+        1
+       ],
+       "data": "SYXsBqL14VAeKEU4f3gSASboksAcWNiFQj9Uz3JeJHipZsi2",
+       "programIdIndex": 4,
+       "stackHeight": 2
+      },
+      {
+       "accounts": [],
+       "data": "LTd63kET6bhzKzdFkeqmfbB9Q4TFUhbdrkwhCAfxsCcBC2UCoes3odYsKQNP2pBEjbnCWbmcRh3Q9gYNZaUh5tLCr8Lg1EKFk1pxHtxeJVkyskxjcsSzK",
+       "programIdIndex": 5,
+       "stackHeight": 2
+      }
+     ]
+    }
+   ],
+   "loadedAddresses": {
+    "readonly": [],
+    "writable": []
+   },
+   "logMessages": [
+    "Program ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW invoke [1]",
+    "Program 11111111111111111111111111111111 invoke [2]",
+    "Program 11111111111111111111111111111111 success",
+    "Program 11111111111111111111111111111111 invoke [2]",
+    "Program 11111111111111111111111111111111 success",
+    "Program 11111111111111111111111111111111 invoke [2]",
+    "Program 11111111111111111111111111111111 success",
+    "Program ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW invoke [2]",
+    "Program ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW consumed 48 of 307199 compute units",
+    "Program ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW success",
+    "Program ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW consumed 142891 of 450000 compute units",
+    "Program ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW success"
+   ],
+   "postBalances": [
+    514091760,
+    706120,
+    706120,
+    1056377768720,
+    1,
+    833120
+   ],
+   "postTokenBalances": [],
+   "preBalances": [
+    514101760,
+    0,
+    0,
+    1056379175960,
+    1,
+    833120
+   ],
+   "preTokenBalances": [],
+   "rewards": [],
+   "status": {
+    "Ok": null
+   }
+  },
+  "slot": 467878219,
+  "transaction": {
+   "message": {
+    "accountKeys": [
+     "4ecx7KQwQ5s3WfyH2e9Yd7TP8UTwpJjLbEtLbLiLgg4r",
+     "3zRr45nurv6Cbo1iE8MLTER1WToCSpJHt45c5ZhXNf5E",
+     "6MDNStpzQnjV26eRiNbKWW8jsyGvEXittW6Pz4KJKpsq",
+     "777pvSGe5LaBd9nCczvE2FXEauiwtfGJ5XRpjKyniGor",
+     "11111111111111111111111111111111",
+     "ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW"
+    ],
+    "header": {
+     "numReadonlySignedAccounts": 0,
+     "numReadonlyUnsignedAccounts": 2,
+     "numRequiredSignatures": 1
+    },
+    "instructions": [
+     {
+      "accounts": [
+       0,
+       3,
+       5,
+       4,
+       3,
+       2,
+       1,
+       0
+      ],
+      "data": "BSG12Nhjf5EnkaqjjWKR24qMV6Sg7gCH6CshfCW2SLye3ou4rH7KKTjnMvjhXunKjNz6MCQ74FZm4CueC79e7jQGjJdMZXzYd4dVPZJ2nB7outmRqSRKrktY7PKHaeJ8ekkKB47sqA2nZg9boM5HgqYEF3JKsFhU6HkYTb9uKfuotfH24GNvazx2KP2TYMN5zBRzLu11QcqChGVhyWRgMWDmzYXvkGZ8W7zbXEYFf1QJF5D3v8NFYoEDscDoCkjLJbRC2gj5GfX24ZbyLN713hdtvR1J9G7xFxTWiNF9mwvkNT1dzKcXKHfHrWhvVzUu6Xszx1jFfNtoBiyYgXCCp41SQDp5Dc1qNdNMgjaBnj7uwLHrL3gRZseA1i2mKLieUt9h6wVNChPApXhPePzEKTbMXZMbdCpbt85YZ1a335KctZXUwUKLsPhWNkbEsDBuRpc4hQcNGiAVvNLgJkn9AABEiARk5nySUhfDSJtwdxKJQbkBS881YwBMF7m3LYhiZR1k5oeRjNe7v3GjTjyVLcMP2TAPKGZyFeE4pFxDSMbfVnbB7suELGtjuLgqYgMYeTnqRQAt2c8Vk12AxmB6EhMo6Ng84Y63J5PuvSToqoPW4juvSBpZdJWvw9pDxdU8oxYbNvagjajzyZuzQBbPHy1auApH1V3BkqL7XKwF45ooecmu2bxHU76ZZiCJXbXYwS81cmjq81RNhxQH9ibnDznDZK5gNjmmn94zTGqBXgHzXWJheCPXASV41qwgnoX5nVqKSccSxba3KEg4Uzv5U2GJvkoMendu3MU5BkrQNofnwMzmtp27AgFkJexwRsaUv5YqWopaj",
+      "programIdIndex": 5,
+      "stackHeight": 1
+     }
+    ],
+    "recentBlockhash": "HMhPJnfNd4a2LDqvEWBMZ2H7puGDr1vhnKQhheVYMnf1",
+    "transactionConfig": {
+     "computeUnitLimit": 450000,
+     "heapSize": null,
+     "loadedAccountsDataSizeLimit": 67108864,
+     "priorityFee": null
+    }
+   },
+   "signatures": [
+    "2BVSYhanQUwcsjdKLcT3EHayEnBBMeTPA3E1KvpQK3eaWHXcJ5YPHMR4EdzjtYH4NwdhWnv2xCvM6tmcSJn47HyU"
+   ]
+  },
+  "transactionIndex": 191,
+  "version": 1
+ }
+}

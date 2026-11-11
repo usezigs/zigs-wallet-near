@@ -557,3 +557,23 @@ the deploy record in ZOLANA.md 6.15 and the custody record in ZOLANA.md 7.2.
   private wallet, the funding of the fee addresses, one shield, one private send, one withdrawal
   and the cap check. The repo records no Zigs payment through ring1G on any cluster. The baseline
   record waits for the end of the local-server ban.
+- **Evidence before the run (ZOLANA.md 6.16).** Third-party traffic shows that the pool works on
+  mainnet. A Zigs shield and a `9mE7…` create built by the staging code pass `simulateTransaction`
+  on mainnet (`solspike/tools/mainnet_sim.mjs`). No signature is checked, so G6 stays open until
+  a Zigs transaction lands.
+- **Owner run, the proof.** On staging.zigs.app, with wallet A (2 devices, threshold 2) and
+  wallet B (receive only, no funds):
+  1. Make A and B as private mainnet wallets: tick "Private Solana on mainnet". Device 2 of A
+     ticks "This device accepts the private Solana wallet on mainnet." before it joins. Each
+     device of A shows the same shielded address. Turn on local proving on A.
+  2. Send 0.06 SOL to the fee address of device 1 of A and 0.01 SOL to device 2.
+  3. On device 1, Add SOL 0.05. After a sync the cap line says "You can add up to 0.45 SOL now."
+  4. Send 0.02 SOL privately to the shielded address of B. Click "Approve as device 2" on
+     device 2. The execute starts by itself. After a sync A holds 0.03 SOL and B holds 0.02 SOL.
+  5. Withdraw 0.01 SOL to an ordinary address that the owner holds. Click "Approve as device 2"
+     on device 2.
+  6. Read the room R in the cap line. Add SOL R + 0.001 must fail with the cap text, and nothing
+     is signed. "Find reclaimable rent" finds nothing.
+
+  Stop at the first error. Do not retry with more funds. Then run the checker of ZOLANA.md 6.16
+  with the two fee addresses of A and the recipient. A PASS is the proof, and it closes G6.

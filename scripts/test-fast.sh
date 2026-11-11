@@ -29,7 +29,7 @@ FAST="optional-passkey demo-check chain-fallback chat backup-check graph persona
   plain-worker
   cf/test/gate sol-nonce-tabs nonce-locks no-storage
   solspike/test/pool-run.test solspike/test/policy.test solspike/test/plain-equiv.test
-  solspike/test/worker.test solspike/test/worker-schema.test"
+  solspike/test/worker.test solspike/test/worker-schema.test solspike/test/mainnet-proof.test"
 SLOW="app sol-fee sol-sessions sol-limits sol-ceremony sol-app sol-pay sol-pay-exec sol-pay-seats
   sol-pay-lease sol-pay-look sol-pay-end unified-setup sol-prove sol-plain-ceremony
   sol-plain-sign"

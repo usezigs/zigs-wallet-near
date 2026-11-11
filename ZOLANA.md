@@ -1286,6 +1286,54 @@ coordinator ran only reads and prepared the commands). Times are UTC.
 - Keep the program keypairs of `9mE7…` and `5PHZ…`. A program at the same id is the only way to
   recover a deposit to a PDA under that id. Never close `9mE7…` while a group PDA holds notes.
 
+**6.16 Mainnet evidence before the owner run, 11 November 2026** (read-only calls and
+`simulateTransaction` on the public RPC `api.mainnet-beta.solana.com`; no chain write and no
+keypair; the tools `solspike/tools/mainnet_sim.mjs` and `solspike/tools/mainnet_proof.mjs`).
+Times are UTC. Only the owner run of section 9 of docs/zolana-v1.md proves Zigs on mainnet.
+
+- State, slot 468173586. ring1G is executable and names `CMV9…` (deploy slot 467127839,
+  authority `CuZ42…`). `9mE7…` is executable and names `AdVK3…` (slot 468153564, authority
+  `iFSb…`). Tree 0 holds 1,054,670,300,480 lamports. The genesis is `5eykt4…`.
+- Third-party traffic. The 120 newest finalized transactions of tree 0 (slots 468153804 to
+  468173333, 14:17 to 15:27) all succeeded. 119 are version 1 messages. By lamport deltas: 86
+  private transfers, 18 SOL deposits, 3 SOL withdrawals, and 13 token or DEX transactions (6 of
+  them also move at least 6,000,000 lamports of pool SOL). Two fee payers sent 103 of the 120, so
+  the sample shows few independent users. This proves that the pool works on mainnet. It proves
+  nothing about Zigs.
+- The pool SOL sits in the SOL interface `CiNmas621VuyofiDSrEPfTXHKrdZuB6jMKECyNiMpLXE`
+  (51,053,813,087 lamports at slot 468174643), not in tree 0. A deposit leaves tree 0 unchanged.
+  A spend pays a tree fee of 5,000 to tree 0, and tree 0 pays 706,120 lamports of rent for each
+  new nullifier account (G2).
+- Examples, each finalized with `err` null:
+  - Deposit of 1.394 SOL, slot 468170579, 37,906 CU:
+    `4gyEUMkJhFeYNdHQaiqA47mWN1BsTsX1Exr5SfWJuMjvp859rTXpcmvxGz7MoyjsX3m7udkerKHZapbkUh6sVCy`.
+  - Withdrawal of 0.01 SOL to an outside address, slot 468159953, 144,401 CU:
+    `63Av5C7DcLZ4DiYpA1FFUmySJpR1TwQFTMgHiH8tXZKbjvbmEqgxu4mt3xfb73JdYsC8BKzqEWJU1esXwmg1pzUv`.
+  - Private transfer with 2 nullifiers, slot 468173333, 148,934 CU:
+    `4f5nsZWEPRWVVwsRUgMD8aUJXHKUANvJb2cUokE8nhAXUUgZY6fNKQ8AKEAYtTMQTA3Wq1xxu8bao7Tehn7vV4T8`.
+  The logs show the ring1G success line but no line of the proof check itself.
+- Zigs messages in simulation, slots 468179322 to 468179341. The script builds each message with
+  the code that staging serves (`web/sol/intent.js`, `web/sol/plain/intent.js` and the wasm
+  `compile_message` with the `mainnet-private` pins of 194 bytes). It uses fresh random keys and
+  `iFSb…` as the fee payer, with `sigVerify` false and 64 zero bytes per signature. Nothing is
+  spent. Each message is version 1 (0x81).
+  1. Add SOL of 0.01 SOL: the ring1G deposit (tag 15) runs, `err` null, 37,934 CU.
+  2. The `9mE7…` create (tag 0) of a private send and of a withdrawal: `err` null, 6,562 CU each.
+     Other runs used 8,062 to 17,062 CU, because the PDA search depends on the random keys. This
+     is the first run of the deployed `9mE7…` code.
+  3. The plain wallet: a create-nonce message runs, `err` null, 300 CU. A plain send stops at
+     AdvanceNonceAccount (`InvalidAccountData`), because no nonce account exists.
+  Limits: no signature is checked. The execute, the Ed25519 approval and the transact CPI need a
+  real note and cannot run before a shield. The owner PDA and the commitment are random.
+- G6. Mainnet parses and runs Zigs version 1 messages for the shield, the create and the plain
+  nonce. This is evidence for the message format. G6 closes only when a Zigs transaction lands.
+- The checker of the owner run reads only. After the run, give it the fee addresses and the
+  withdrawal recipient:
+  `node solspike/tools/mainnet_proof.mjs --fee <device 1> --fee <device 2> --recipient <address>`.
+  It finds the transactions, checks each step (funding, shield, create, execute, withdrawal) and
+  links each execute to its create by the approval digest. It prints PASS or FAIL and says if G6
+  closed. Its self-check `solspike/test/mainnet-proof.test.mjs` reads no network.
+
 ## 7. Risks, questions and recommendation
 
 | Risk | Fact |
