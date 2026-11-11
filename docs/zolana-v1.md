@@ -499,3 +499,60 @@ PASS-WITH-GAPS. One fix commit closed the findings that code can close.
   redeploy, which the owner approves.
 - Known limits: `fee_rule` charges the input tree fee for each distinct tree (pins use tree 0
   only). `vendor/spr-hasher` keeps light-poseidon 0.4 and ark 0.5; the upstream hash vectors pass.
+
+## 9. Slice 8: the private mainnet wallet on staging (11 November 2026)
+
+The owner took three decisions on 10 November 2026. They replace the recommendations above where
+they differ.
+
+1. Override SOL-45 (a multisig upgrade key with a time lock before mainnet) and the audit no-go of
+   ZOLANA.md 7, for staging only, with a cap: the checker refuses a shield that takes the private
+   balance of a group above 0.5 SOL.
+2. A new mainnet approvals program `9mE7WUJHK6dQwzK6AP6wf1eyPmePULZrGeRbXqke2ukq`. The owner
+   alone holds its upgrade authority `iFSbwFzpLpaGMKtn5S6gznvzXqAVunoB6rcSpGi956o` for the staging
+   test. It moves to a Squads multisig with a time lock before any production use.
+3. A new mainnet wallet becomes private by a mode that device 1 chooses at setup and that every
+   device accepts. Existing plain mainnet wallets stay plain.
+
+Slices 8a to 8e and 8g are merged on `zolana-sdk` at `e38961ed`. Slice 8f is this record, with
+the deploy record in ZOLANA.md 6.15 and the custody record in ZOLANA.md 7.2.
+
+- **8a, program.** The test rig loads the mainnet ELF at `9mE7…`. The shared vector
+  `wasm-sol/vectors/program/mainnet.json` holds the owner PDA, the proposal and cancellation
+  addresses and the approval digest under `9mE7…`. The svm-tests and `wasm-sol/tests/mainnet.rs`
+  both read it, so the wasm and the program must agree. `EXPECTED_MAINNET_LINUX` in
+  `sol-program/build.sh` pins the mainnet ELF (`00aa2169…`, 54,728 bytes).
+- **8b, checker and cluster binding.** The checker has a mainnet row: the label `mainnet-private`,
+  a program label that ends in `9mE7…`, and the mainnet genesis. The pins wire has 194 bytes and
+  starts with a cluster byte. `Pins::decode` refuses an RPC genesis that is not the genesis of the
+  row. The pool Worker binds to the cluster of its wallet and checks `getGenesisHash`. The rule
+  `shield-over-cap` refuses a shield above the cap (98 pool rules). On mainnet the group key signs
+  no v1 message: CreateNonce and Transfer are retired there. The plain differential compared the
+  new wasm with the slice 8 base.
+- **8c, transport.** `/sol/worker-mainnet.js` serves the body of `/sol/worker.js` with a policy
+  that names only the Helius mainnet host and the folder of proving keys. The server answers 404
+  for it unless `SOL` and `SOL_POOL_MAINNET` are both `"1"` (D14). The private wallet reads its
+  URL from `/sol/config-mainnet.json`, the secret of the plain wallet. `web/sol/net.js` holds the
+  cluster table of the pool pages, and no plain-closure file imports it (`cf/test/gate.mjs`).
+- **8d, setup, routing and restore.** Device 1 offers the private wallet when it makes a mainnet
+  wallet. Each device accepts it before it joins, with a first-seen pin `solmode:<wallet id>` in
+  `zf-signpins`. A private mainnet wallet opens in the pool controller, and a `mainnet-private`
+  backup file restores through the private route. The local proving switch binds to the label of
+  the wallet.
+- **8e, Add SOL and texts.** Add SOL first checks that the approvals program exists, runs and
+  belongs to the upgradeable loader. On mainnet it then syncs and refuses an amount above the room
+  under the cap, and it counts the Add SOL of the tab that a sync does not show yet. A mainnet
+  wallet that names no cap refuses Add SOL. The payee of a private payment binds to its network,
+  and a mainnet withdrawal to a program address is refused. The public PDA copy and the move card
+  do not show on mainnet.
+- **8g, wallet page.** The Solana tab shows for a private wallet that waits for the accept or that
+  the server does not serve. The SOL row opens it, and the page names Solana Mainnet.
+- **Deploy.** The owner deployed `9mE7…` on 11 November 2026 in slot 468153564 (ZOLANA.md 6.15).
+  A read-only preflight the same day passed: the program and its ProgramData, tree 0 (G2, closed)
+  and the genesis. G6, a landed Zigs v1 message on mainnet, is open: the repo records no plain
+  mainnet send from staging.
+- **Still open.** `SOL_POOL_MAINNET` is `"0"` on production and on staging at `e38961ed`; the
+  owner turns it on for staging only. The owner steps have not run: the setup of the first
+  private wallet, the funding of the fee addresses, one shield, one private send, one withdrawal
+  and the cap check. The repo records no Zigs payment through ring1G on any cluster. The baseline
+  record waits for the end of the local-server ban.

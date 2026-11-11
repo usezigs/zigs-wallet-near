@@ -1230,6 +1230,61 @@ public Devnet RPC; a new fee key `AxyGpUZN…` of a new test group `23yfnuAB…`
 - The fee key returned the rest to the funder (`cy1CJtix…`, slot 512,394,979). Cost: 4
   transactions, 20,000 lamports of fees.
 
+**6.15 Mainnet deploy of the approvals program, 11 November 2026** (the program of the private
+mainnet wallet, docs/zolana-v1.md section 9; the owner decision of 10 November 2026 and the
+custody record are in 7.2; the Agave CLI v4.3.0; the owner ran every transaction, and the
+coordinator ran only reads and prepared the commands). Times are UTC.
+
+- Program `9mE7WUJHK6dQwzK6AP6wf1eyPmePULZrGeRbXqke2ukq`, owned by
+  `BPFLoaderUpgradeab1e11111111111111111111111`. Upgrade authority
+  `iFSbwFzpLpaGMKtn5S6gznvzXqAVunoB6rcSpGi956o`, which the owner alone holds; it also paid every
+  transaction. ProgramData `AdVK3obBMyZ4vKXXZHmeDxKj1aRCerSrRQfptrxx7iCp`: 57,752 bytes of data
+  (`--max-len 57752`, as on Devnet), 294,259,000 lamports.
+- The ELF is the version 6 source of 6.10, the code that Devnet `5PHZ…` runs since slot
+  520862900, built for mainnet (the mainnet genesis): 54,728 bytes, SHA-256
+  `00aa216979c9799b151067ff7fdc06e6b64d0b2c769f479979560064a496f1b9`, the
+  `EXPECTED_MAINNET_LINUX` pin of `sol-program/build.sh` (commit `69803a1d`). CI run 42914233820
+  built the deploy file. CI run 42943424117 (commit `fd35957b`) built it again with the same hash
+  and passed the tests of the program at `9mE7…`.
+- Funding. The owner sent 482,610,450 lamports to `iFSb…`, slot 468059740:
+  `4itLAK85veTBckBXGgWa1Ps8jZnZwp8EUDqZo2TsJnTxHGZVLTPDjw3JiUbvtEVGnGgQ9uYxZGkrHka8DpnQLy9Q`.
+- Buffer `7TFF19RdtZeyzu7TeVDDSceZNNxjBZjtXjo1kfL9RZGX`. The writes and the deploy used a
+  compute-unit price of 100,000 micro-lamports. A dump of the buffer before the deploy hashed to
+  `00aa2169…` over its first 54,728 bytes.
+- Deploy
+  `hFvhZ5Usn14Wjevpn4wmWZpkRMHLmvn4KKZYK7c69Uw68VKXAQ21PQLZczqR664kYCsbERiAEPsqXZfjC5yTv8m`,
+  slot 468153564, 14:16:29, fee 10,297 lamports. It created the program account (833,120
+  lamports) and ProgramData (294,259,000 lamports), and it moved all 278,856,441 lamports of the
+  buffer to `iFSb…`. A dump of the program after the deploy hashes to `00aa2169…` over its first
+  54,728 bytes, and the 3,024 bytes after the ELF are zero.
+- Cost. `iFSb…` sent 63 transactions, all without error, with 326,037 lamports of fees in total.
+  The deploy cost 295,418,157 lamports: 295,092,120 locked as rent in the program and ProgramData
+  accounts, and the fees. `iFSb…` keeps 187,192,293 lamports.
+- Lesson. The public RPC `api.mainnet-beta.solana.com` answered HTTP 429 to the buffer write with
+  `--use-rpc` (57 sends and their status reads from one IP address). The write finished through
+  an unrestricted Helius key of the owner, with the transactions sent to the validators (no
+  `--use-rpc`). The restricted Helius key of staging answers 403 to a call without the staging
+  origin, so the CLI cannot use it. This record holds no key and no URL with a key.
+- Read-only preflight, slot 468153615, the same day:
+  1. `9mE7…` is executable, the loader owns it, and it names `AdVK3…`.
+  2. `AdVK3…` names the deploy slot 468153564 and the authority `iFSb…`, with 57,752 bytes of
+     data.
+  3. G2, the rent of the nullifier PDAs: the pool pays the rent of each new nullifier PDA
+     (706,120 lamports) from tree 0, so a tree at its reserve refuses every spend (7044, as in
+     6.1). Tree 0 `777pvSGe5LaBd9nCczvE2FXEauiwtfGJ5XRpjKyniGor` holds 1,054,803,968,280
+     lamports. Its reserve is 204,256,640 (the rent of its 40,080 bytes) + its fee balance (about
+     5.8 million) + 2 × 706,120, so the margin is more than 4,900 times. This closes G2 on chain.
+  4. `getGenesisHash` answers `5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d`, the mainnet
+     genesis.
+  5. G6, mainnet acceptance of a Zigs v1 message (version byte 0x81; the pool and the plain
+     wallet both send v1), is open. The coordinator did not check it, and no file of this repo
+     records a landed plain mainnet send from staging. Other parties' v1 transactions land on
+     ring1G on mainnet with no priority fee, but that proves no Zigs message. Before the first
+     shield, the owner lands one plain mainnet send on staging, or accepts the risk. Each send
+     simulates first, so a refused message costs no fee.
+- Keep the program keypairs of `9mE7…` and `5PHZ…`. A program at the same id is the only way to
+  recover a deposit to a PDA under that id. Never close `9mE7…` while a group PDA holds notes.
+
 ## 7. Risks, questions and recommendation
 
 | Risk | Fact |
@@ -1631,16 +1686,17 @@ Notes of the delta review:
   not change, and the rig computes the digest on its own. Run one real Devnet round on version 5
   before the beta uses it (step 7 of the upgrade plan).
 
-**The upgrade key: options for the owner (decided 16 October 2026, SOL-40).** Rent below is for the
-version 5 ELF at the default rate of 6,960 lamports per byte. Devnet charges 5,080: the proposal
-rent of 6.10 is 1,356,360 lamports for 267 bytes.
+**The upgrade key: options for the owner (decided 16 October 2026, SOL-40).** Rent below is at
+5,080 lamports per byte, the rate that mainnet and Devnet both charged on 10 and 11 November 2026.
+An earlier version of this text used 6,960 for mainnet. The proposal rent of 6.10 is 1,356,360
+lamports for 267 bytes.
 
 | | Immutable after an audit (`--final`) | Multisig upgrade key with a timelock |
 |---|---|---|
 | What it stops | No one can replace the code: no spend with a seat or the prover, no freeze by a new version, no rent taken, no rule dropped | One key alone cannot replace the code. The key holders together still can, after the delay |
 | A bug in the program | Stays for ever. A fix is a new program id, so a new owner PDA per group. Each group moves its funds with one approved payment, and that payment needs the old program to work | An upgrade fixes it after the delay. The delay also gives that time to an attacker who knows the bug |
 | A pool upgrade that changes `transact` (R6) | Can freeze every group for ever: the program cannot follow it | An upgrade can follow it, after the delay |
-| Rent | About 0.37 SOL in the program accounts stays locked for ever (an immutable program cannot close), and each new version locks its own | Comes back when the program closes. Each upgrade needs a buffer account of the ELF size for a short time, and the multisig's fees |
+| Rent | About 0.295 SOL in the program accounts (295,092,120 lamports with `--max-len 57752`, 6.15) stays locked for ever (an immutable program cannot close), and each new version locks its own | Comes back when the program closes. Each upgrade needs a buffer account of the ELF size for a short time, and the multisig's fees |
 | What else it needs | The audit before the freeze, and the published mainnet build (SOL-47) | A multisig program (for example Squads) and its own upgrade policy; key holders on separate hardware keys; a delay longer than the time a group needs to leave (a plan, a FROST round, a proof and an `execute`, plus the longest open approval); public monitoring of the ProgramData account with a warning in the app; a safe place to leave to, such as another, immutable deployment |
 | Open approvals at an upgrade | No upgrade | They stay valid: the digest binds the program id, not the code. Optional: bind the ProgramData slot into the digest, so that every upgrade ends them |
 
@@ -1652,6 +1708,54 @@ the upgrade key or a seat until SOL-4 closes.
 **Decision (SOL-40).** The owner takes them in turn. During the Devnet beta the program keeps the
 single development upgrade key. Before mainnet, the upgrade key moves to a multisig with a timelock
 (SOL-45). After the audit, the program becomes immutable with `--final` (SOL-46).
+
+**Custody of the mainnet approvals program (owner decision of 10 November 2026).** The owner
+overrides SOL-45 and the audit no-go of the recommendation below for staging only, with a cap of
+0.5 SOL. The program is `9mE7WUJHK6dQwzK6AP6wf1eyPmePULZrGeRbXqke2ukq` (deploy in 6.15). The rest
+of SOL-40 stays: the multisig with a time lock, the audit and `--final` come before any production
+use.
+
+- Scope. Only staging.zigs.app may serve the private mainnet wallet, and only to a new mainnet
+  wallet whose devices all accept the private mode at setup (label `mainnet-private`). Existing
+  plain mainnet wallets stay plain. Production (app.zigs.app) stays frozen. `SOL_POOL_MAINNET` is
+  `"0"` there (D14), so production answers 404 for `/sol/worker-mainnet.js`. At commit `e38961ed`
+  the flag is `"0"` on staging too, until the owner turns it on.
+- Holder. The owner alone holds the upgrade authority `iFSbwFzpLpaGMKtn5S6gznvzXqAVunoB6rcSpGi956o`
+  and the program keypair of `9mE7…`. Agents never sign with either key. They only read the chain
+  and prepare commands, and the owner runs each transaction.
+- What the one key can do. It can replace the code of `9mE7…`, and the new code can sign as the
+  owner PDA of every private mainnet group. A spend also needs a proof, and a proof needs the
+  witness of the notes (Custody, above): with one seat or with viewing-key material, the key can
+  spend every note of every group. Mainnet proofs are local only, so the hosted prover is no path
+  here. The key can also freeze every group with broken code, take the rent of open proposals and
+  records, and drop the digest rule. A close of `9mE7…` strands the notes of every group PDA for
+  good, so never close it while a PDA holds notes.
+- The loss limit and its gaps. The checker refuses a shield that takes the private balance of a
+  group above 0.5 SOL (rule `shield-over-cap`), and Add SOL refuses it first in the page. This is
+  a check of the Zigs app only, run in the browser of the seat that adds. It does not bound the
+  balance:
+  - Only the fee key of that seat signs a shield, so a changed client on one device can skip it.
+  - Anyone who knows the PDA address can deposit with the SDK: a seat or another person.
+  - A private payment into the PDA address passes it. Zigs cannot refuse an incoming payment.
+  - An indexer that hides notes makes the synced balance too low. Each shield then stays at most
+    0.5 SOL, but the total has no bound. An indexer that shows too much only makes the rule
+    refuse.
+  - The program has no code that moves public SOL from the PDA address, so public SOL sent there
+    stays there.
+
+  So the exposure to the one key is the number of private groups × 0.5 SOL, plus what other
+  people send to them.
+- Parties outside Zigs. The upgrade authority of the pool ring1G on mainnet is
+  `CuZ42BsoBcLaNTUboJpGhekGmrYMZ7sRhwVki4frz1FB` (read on 10 November 2026). Zigs did not verify
+  who controls it. It can replace the pool program, and then every local proof stops with
+  `POOL_CHANGED`. The protocol authority and the fee authority of the pool on mainnet were not
+  read. By the Zolana spec the protocol authority can pause the trees, and the fee authority can
+  claim tree lamports (section 7).
+- The exit before production, in this order: move the upgrade authority to a Squads v4 multisig
+  with a time lock (members on separate hardware keys, a threshold of at least 2, a time lock
+  longer than the 24-hour expiry window, the 1-hour skew and the time to leave), and pin the
+  ProgramData slot in the Worker to detect an upgrade (SOL-45); then the audit; then `--final`
+  (SOL-46).
 
 **Devnet upgrade plan, version 2 to version 5.** Versions 3 and 4 are not deployed. The Devnet
 program goes from version 2 to version 5 in one upgrade, with the development key (SOL-40).

@@ -60,6 +60,16 @@ proposer chooses one ([comparison](PRIVACY.md#on-chain)).
   URL. It is not audited. The web app can receive, send SOL and USDC, create a nonce account and
   enable USDC. The server turns it on with `SOL_MAINNET`: `"1"` on staging, `"0"` on production
   ([ZOLANA.md](ZOLANA.md) 3.10, [PRIVACY.md](PRIVACY.md#solana-mainnet-plain-wallet)).
+- Solana on mainnet (private wallet, staging only): a new mainnet wallet can be a private Solana
+  wallet in Zolana v1 on mainnet, when every device accepts the private mode at setup. It uses
+  real SOL. It is a test on staging, and no one audited it. One upgrade key, which the Zigs owner
+  holds, can replace the Zigs approvals program and then move the funds of every private wallet.
+  The app caps the private balance at 0.5 SOL at each Add SOL, but only in this app: deposits by
+  other people and private payments in can take a group above it. Never send public SOL to the
+  PDA address: no code can move it. Do not expect anonymity: the mainnet pool is small. The
+  devices make the proofs. The server serves it only where `SOL_POOL_MAINNET` is `"1"`: it is
+  `"0"` on production, and on staging until the owner turns it on ([ZOLANA.md](ZOLANA.md) 6.15
+  and 7.2, [PRIVACY.md](PRIVACY.md#solana-mainnet-private-wallet-staging-only)).
 - The wallet follows chain reorganisations of up to 100 blocks
   ([how](PROTOCOL.md#6-receiving-and-sync)). After a deeper one, the web, iPhone and Mac apps
   scan the wallet again from its birthday.
@@ -184,6 +194,7 @@ flowchart LR
 | Zcash network | A shielded transaction with the shape of a shielded payment from a standard wallet, except for its one-day expiry (a standard wallet sets about 50 minutes) and an optional priority fee, which can mark it as a Zigs payment |
 | Helius (Solana beta, testnet wallets only) | IP address, the app origin, the owner key, and for each spend the amounts, recipients and the nullifier secret that its prover needs. Never a key share |
 | Helius and the explorer (plain Solana wallet, mainnet) | Helius: IP address, the app origin, the group address, the fee addresses and the nonce accounts that the page reads, and each signed transaction that the page sends, with its recipient and amount. The explorer: the address that you open, and your IP address. Balances and payments are public on chain anyway. Never a key share |
+| Helius and its key host (private Solana wallet, mainnet, staging only) | Helius: IP address, the app origin, the PDA and the group key, the fee addresses of this browser, and which notes each payment spends. The devices make the proofs, so Helius gets no witness. The key host: your IP address and the app origin when it sends a proving key. Never a key share |
 | ZNS resolver (testnet names) | That the app Worker downloads the whole name registry. Never which name a person pays, never a key |
 
 ## Creating a wallet
@@ -484,6 +495,13 @@ and `"1"` in staging. Set the secret like the Devnet one (`npx wrangler secret p
 the route answers 503. The plain wallet itself (`web/sol/plain/`, the Solana tab, the balances and
 the backup, the sends, ZOLANA.md 3.8 to 3.10) can receive and send SOL and USDC. Keep
 `SOL_MAINNET` at `"0"` at the top level (production) until the owner turns the part on there.
+
+The private Solana wallet on mainnet uses the same secret through `/sol/config-mainnet.json`, and
+its own Worker path `/sol/worker-mainnet.js`, whose policy names only the Helius mainnet host and
+the folder of proving keys. The server answers 404 for that path unless `SOL` and
+`SOL_POOL_MAINNET` in `cf/wrangler.jsonc` are both `"1"`. `SOL_POOL_MAINNET` is `"0"` at the top
+level (production) and in staging. Only the owner turns it on, and only for staging. Keep it at
+`"0"` on production (docs/zolana-v1.md section 9).
 
 To try the beta by hand, make a testnet wallet, add the Solana part, and open the Solana tab. Each
 device that this browser holds shows **Your fee address**. Send Devnet SOL to it (the **Get Devnet
@@ -868,6 +886,10 @@ folder path.
 - **Solana mainnet is a plain account on staging.** A mainnet wallet there can hold, receive and
   send real SOL and USDC in a public account. It is not audited, and it has no privacy. A signed
   send cannot be cancelled yet.
+- **The private Solana wallet on mainnet is a staging test.** Real SOL, no audit, and one upgrade
+  key that the Zigs owner holds can replace its program and then move its funds. The 0.5 SOL cap
+  is a check of this app only. The mainnet pool is small, so do not expect anonymity. The server
+  keeps it off on production.
 
 ## License
 

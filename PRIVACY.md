@@ -32,6 +32,12 @@ is a bug: please report it.
   That part has no pool and no privacy: every balance and payment is public on chain. Helius sees
   your IP address, the group address and each signed transaction, and the explorer sees the address
   that it opens. Read [Solana mainnet plain wallet](#solana-mainnet-plain-wallet).
+- A new mainnet wallet can be a private Solana wallet in the Zolana pool on mainnet (web app only;
+  the server turns it on: it is off on production, and off on staging until the owner turns it
+  on). It uses real SOL. It is a test with no audit, and one upgrade key that the Zigs owner holds
+  can replace its program. Its cap of 0.5 SOL is a check of this app only. The devices make the
+  proofs. Do not expect anonymity: the mainnet pool is small. Read
+  [Solana mainnet private wallet](#solana-mainnet-private-wallet-staging-only).
 - The personal account (web app only) sends and reads messages on chain. A message is the memo of
   a shielded transaction. The account, its contacts and its messages never reach the group
   server. The light-wallet server sees the transactions that the account fetches and sends, and
@@ -514,9 +520,11 @@ What stays visible:
 
 A testnet wallet in the web app can also hold private SOL on Devnet, in Zolana, the Helius
 shielded pool on Solana ([ZOLANA.md](ZOLANA.md)). It is a beta. The Zcash part of the wallet stays
-as it is above. A mainnet wallet never loads this code and never connects to the Helius Devnet host.
-A mainnet wallet with the plain Solana part is described in
-[Solana mainnet plain wallet](#solana-mainnet-plain-wallet).
+as it is above. A mainnet wallet never connects to the Helius Devnet host. A plain mainnet wallet
+never loads this code. A mainnet wallet with the plain Solana part is described in
+[Solana mainnet plain wallet](#solana-mainnet-plain-wallet). A private mainnet wallet on staging
+loads this code in a mainnet Worker, described in
+[Solana mainnet private wallet](#solana-mainnet-private-wallet-staging-only).
 
 The Solana code runs in a Worker of its own, `/sol/worker.js`. Only the Solana Worker scripts
 (`/sol/worker.js` and `/sol/plain/worker.js`) carry a policy that names a Helius host. The policy
@@ -718,6 +726,51 @@ Four controls keep this part apart from the pool:
 3. The drift abort. A seat part with another label stops (`driftOf` in `web/sol/ceremony.js`).
 4. The restore check. A restore refuses a file of another label, and a key share that does not fit
    the published key (`web/sol/backup.js`).
+
+## Solana mainnet private wallet (staging only)
+
+A new mainnet wallet in the web app can be a private Solana wallet. It holds SOL in Zolana v1, the
+Helius shielded pool on mainnet (`ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW`), through the Zigs
+approvals program `9mE7WUJHK6dQwzK6AP6wf1eyPmePULZrGeRbXqke2ukq` ([ZOLANA.md](ZOLANA.md) 6.15
+and 7.2, [docs/zolana-v1.md](docs/zolana-v1.md) section 9). Device 1 chooses the private mode at
+setup, and every device accepts it before it joins. An existing plain mainnet wallet stays plain.
+The server serves this wallet only where the variables `SOL` and `SOL_POOL_MAINNET` are both
+`"1"`. Production keeps `"0"`. Staging also has `"0"` until the owner turns it on for the test.
+
+Before the setup, the page shows a disclosure with these facts (`MAINNET_DISCLOSURE` in
+`web/sol/net.js`):
+
+- This private wallet uses real SOL.
+- It is a test on staging. No one audited it.
+- One upgrade key can replace the program, and then move the funds of every private wallet. The
+  Zigs owner holds that key.
+- The cap is 0.5 SOL. The app checks the private balance at each Add SOL, and only in this app.
+  Private payments from other wallets and deposits by other people can let a group hold more over
+  time.
+- Never send public SOL to the PDA address. No code can move it.
+- Each fee address must keep 650,240 lamports, which never leave it. Any SOL above that amount
+  leaves only through Add SOL.
+- Do not expect anonymity. The mainnet pool is small.
+
+ZOLANA.md 7.2 states what the upgrade key can do, what it cannot do alone, and the gaps of the cap.
+
+What the [Solana beta](#solana-beta-helius-devnet) section says about the fee addresses, Add SOL,
+the approvals program and the table of what is public applies here too, with these differences:
+
+- The Worker is `/sol/worker-mainnet.js`. Its policy names only the Helius mainnet host and the
+  folder of proving keys. It reads the Helius URL from `/sol/config-mainnet.json`, the same secret
+  as the plain wallet (`HELIUS_MAINNET_URL`), so the two wallets share one Helius quota. The
+  Worker checks the genesis hash of the RPC server and stops on a server of another cluster.
+- The devices make every proof. A payment is refused while local proving is off, and the page
+  never uses the hosted prover. So Helius never gets the witness of a spend. The indexer of Helius
+  still sees which notes a payment spends, the tags and nullifiers that the wallet looks up, and
+  your IP address. The key host sees your IP address and the app origin when it sends a proving
+  key.
+- There is no faucet link. The explorer links have no cluster parameter.
+- The pool has an upgrade authority outside the group,
+  `CuZ42BsoBcLaNTUboJpGhekGmrYMZ7sRhwVki4frz1FB` (read from mainnet on 10 November 2026). Zigs
+  does not know who controls it. The protocol authority of the pool on mainnet was not read. The
+  details screen names the pool key and the upgrade key of the approvals program.
 
 ## Use Zigs over Tor
 
