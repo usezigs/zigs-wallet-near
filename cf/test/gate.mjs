@@ -433,7 +433,7 @@ let session = null;
     const MAIN_POLICY = WORKER_POLICY.replace("devnet.helius", "mainnet.helius");
     assert.equal(WORKER_POLICY_MAINNET, MAIN_POLICY, "the page and the server agree on one text");
     assert.equal(wrangler.vars.SOL_POOL_MAINNET, "0", "the private mainnet wallet is off");
-    assert.equal(wrangler.env.staging.vars.SOL_POOL_MAINNET, "1", "staging serves it (cap 0.5 SOL)");
+    assert.equal(wrangler.env.staging.vars.SOL_POOL_MAINNET, "1", "staging serves it, cap 0.5");
     const vars = [wrangler.vars, wrangler.env.staging.vars];
     for (const v of vars) {
       const flags = [undefined, "0", "", "true", " 1", "1 ", "on", 1, true, null];
