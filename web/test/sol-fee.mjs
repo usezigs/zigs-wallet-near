@@ -401,9 +401,15 @@ function base58hex(text) {
     /refused this in a test run: SomeOther/,
   );
   chain.refuse = null;
+  // Until the cap reads the synced balance (phase 2), a mainnet wallet adds nothing.
+  const commands = chain.commands.length;
+  c.wallet = { cluster: "mainnet", mode: "pool", ...J(W.sol_pool_wallet("mainnet")) };
+  await assert.rejects(() => addSol(c, { amount: "0.01" }),
+    /Add SOL on mainnet is not ready\. Nothing was sent\./).finally(() => delete c.wallet);
+  assert.equal(chain.commands.length, commands, "a mainnet wallet sends the Worker nothing");
   assert.equal(chain.landed.length, landed, "none of them reached the chain");
 }
-step("Add SOL refuses a bad amount, an unfunded address and a refusal of the network");
+step("Add SOL refuses a bad amount, an unfunded address, a network refusal and mainnet");
 
 // ── The fee key signs no deposit to another owner, and no message that another key pays ──
 {
