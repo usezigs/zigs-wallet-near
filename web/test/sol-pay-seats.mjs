@@ -127,6 +127,7 @@ step("a tab with no funded seat marks an execute that another device landed");
   const [line] = marked("exec-wait-" + id);
   const NEEDS = /^No device of this browser can pay the execute\. A fee address needs 0\.001 SOL/;
   assert.match(textOf(line), NEEDS);
+  assert.match(textOf(line), /send Devnet SOL to a fee address in "Fund the fee address"\.$/);
   assert.doesNotMatch(line.attrs.class, /\bbad\b/, "the line is no error");
   assert.equal(c.execErrors[id], undefined, "no red text");
   assert.equal(c.tries[id] ?? 0, 0, "no try");

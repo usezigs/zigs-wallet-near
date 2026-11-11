@@ -5,12 +5,17 @@
 //  - on mainnet the public program address has no Copy and a warning, no other address that no
 //    deployed program can move SOL from has a Copy, and the move of the beta funds is hidden;
 //  - the texts of the tab on each network: the names, the faucet, the explorer links, the
-//    saved recipients, the cap line and the keys outside the group.
+//    saved recipients, the cap line and the keys outside the group;
+//  - the texts of a fee address with too little SOL (Add SOL, the line of an execute that no
+//    seat of this browser can pay) on each network.
 // Run: node web/test/sol-pool-mainnet.mjs   (Node 26)
 import assert from "node:assert/strict";
+import { addSol } from "../sol/addsol.js";
 import { agreement } from "../sol/ceremony.js";
-import { base58 } from "../sol/docs.js";
+import { base58, keyOfBase58 } from "../sol/docs.js";
+import { forgetBalances, maybeExecute } from "../sol/execute.js";
 import { feeOf } from "../sol/fee.js";
+import { CLUSTERS } from "../sol/guard.js";
 import { propose } from "../sol/propose.js";
 import { ensureWorker } from "../sol/session.js";
 import { solView } from "../sol/view.js";
@@ -20,19 +25,35 @@ import { W, c, chain, data, path, rig, t, waitFor } from "./sol-setup.mjs";
 const step = (name) => console.log("ok  " + name);
 const J = JSON.parse;
 
-// ── The stubbed Worker: prepare records the payee and stops the proposal there ──
+// ── The stubbed Worker ──
+// prepare records the payee and stops the proposal there. The approvals program is deployed,
+// the syncs show nothing, every fee address is empty, and the network refuses a test run for
+// lack of SOL. `world.proposal` is the account of a payment that waits for its execute.
 const STOP = "the test stops at prepare";
 const prepared = [];
+const calls = [];
+const LOADER = keyOfBase58("BPFLoaderUpgradeab1e11111111111111111111111");
+const BLOCK = "ab".repeat(32);
+const world = { proposal: null };
+const fallback = answersOf(chain);
 const ANSWERS = {
   prepare: (args) => {
     prepared.push(args.recipient);
     throw new Error(STOP);
   },
+  recipientAccount: () => ({ exists: true, owner: LOADER, lamports: "1", executable: true }),
+  sync: () => ({ slot: "9", balance: "0", utxos: [] }),
+  syncOld: () => ({ slot: "9", balance: "0", movable: "0", utxos: [] }),
+  blockhash: () => ({ blockhash: base58(BLOCK), blockhashHex: BLOCK, lastValidBlockHeight: "1" }),
+  simulate: () => ({ err: "InsufficientFundsForFee", logs: [] }),
+  balance: () => ({ lamports: "0" }),
+  account: (args) =>
+    args.account === world.proposal?.address ? world.proposal.account : fallback.account(args),
 };
-const fallback = answersOf(chain);
 const stub = {
   close() {},
   async call(cmd, args) {
+    calls.push(cmd);
     return (ANSWERS[cmd] ?? fallback[cmd])(args);
   },
 };
@@ -135,6 +156,34 @@ const POOL_TEXT =
   "has a protocol authority outside the group. By the Zolana spec it can pause the trees, and " +
   "then no payment can move the funds. Zigs did not read who holds that authority.";
 
+/** Add SOL from an empty fee address: the refusal. Nothing is sent. */
+async function poorAdd() {
+  const at = calls.length;
+  const error = await addSol(c, { amount: "0.01" }).then(() => null, (e) => e.message);
+  assert.ok(calls.slice(at).includes("simulate"), "the test run said it");
+  assert.ok(!calls.slice(at).includes("send"), "nothing sent");
+  return error;
+}
+
+/** The line of a signed payment that no seat of this browser can pay (execute.js). */
+async function noFundedLine() {
+  forgetBalances();
+  const id = "unfunded-" + c.gid;
+  const body = "cd".repeat(40);
+  const account = { exists: true, owner: "00".repeat(32), lamports: "1", data: "01ff" + body };
+  world.proposal = { address: base58(BLOCK), account };
+  const expiry = String(Math.floor(Date.now() / 1000) + 3600);
+  const ss = { id, by: 1, status: "signed", account: BLOCK, body, expiry };
+  // The run waits 15 s after the line: the test reads the line and does not wait for it.
+  const launch = (_c, _key, run) => void run();
+  maybeExecute(c, ss, { launch, failSession: () => assert.fail("the payment did not end") });
+  await waitFor("the line of the wait", () => c.execWait[id] !== undefined);
+  const line = c.execWait[id];
+  delete c.execWait[id];
+  return line;
+}
+const FUND = 'to a fee address in "Fund the fee address".';
+
 /** Proposes a payment to `recipient`: the refusal (or STOP) and the payees that reached prepare. */
 async function payTo(recipient) {
   const at = prepared.length;
@@ -210,6 +259,14 @@ step("Devnet: the program address has Copy, and the move of the beta funds shows
 }
 step("Devnet: the tab names Devnet, the faucet, ?cluster=devnet and the pool key of ring1G");
 
+{
+  const poor = "The fee address of device 1 has too little Devnet SOL. Fund it with the link in " +
+    "the fund card, then try again.";
+  assert.equal(await poorAdd(), poor, "the text of fee.js");
+  assert.ok((await noFundedLine()).endsWith("send Devnet SOL " + FUND));
+}
+step("Devnet: an empty fee address asks for Devnet SOL and points to the faucet link");
+
 // ── A private mainnet wallet: the ceremony under mainnet-private, and the stub ──
 const gidP = await rig.wallet({ name: "Private" });
 await t.solLoad();
@@ -224,6 +281,7 @@ const published = () =>
 await waitFor("every private fee key", published);
 assert.equal(agreement(c).done.cluster, "mainnet-private");
 useStub();
+c.genesis = CLUSTERS.mainnet.genesis;
 const mainnet = agreement(c).done.pdaAddress;
 
 // ── Mainnet: the address names its network, and a payee must name mainnet ──
@@ -291,6 +349,16 @@ step("mainnet: the program address has no Copy and a warning, and no move card s
   assert.deepEqual(unsynced, ["Private balance cap: 0.5 SOL."], "no amount before a sync");
 }
 step("mainnet: the tab names mainnet, has no faucet and no ?cluster, and shows the cap line");
+
+{
+  const poor = 'The fee address of device 1 has too little SOL. Send SOL to it (see "Fund the ' +
+    'fee address"), then try again.';
+  assert.equal(await poorAdd(), poor, "no Devnet SOL and no faucet link");
+  const line = await noFundedLine();
+  assert.ok(line.endsWith("send SOL " + FUND), line);
+  assert.doesNotMatch(line, /Devnet/);
+}
+step("mainnet: an empty fee address asks for SOL, with no faucet link");
 
 console.log("sol-pool-mainnet: ok");
 process.exit(0);

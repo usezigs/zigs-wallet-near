@@ -8,7 +8,8 @@
 import { feeSignature } from "./approve.js";
 import { agreement } from "./ceremony.js";
 import { base58, keyOfBase58 } from "./docs.js";
-import { poorFeeText, readyFee } from "./fee.js";
+import { poorText } from "./execute.js";
+import { readyFee } from "./fee.js";
 import { payerSeat, settledBlock } from "./gate.js";
 import { CLUSTERS } from "./guard.js";
 import { bytesOf, hexOf, intentHex, lamportsOf, pinsHex, wireBase64 } from "./intent.js";
@@ -30,10 +31,10 @@ const capText = (cap, room) =>
   `You can add up to ${solText(room)} now. Nothing was sent.`;
 
 /** What the network said to a test run of the deposit, as a text for the page. */
-function refusalOf(run, seat) {
+function refusalOf(c, run, seat) {
   const logs = run.logs.join(" | ").slice(0, 300);
   return (
-    poorFeeText(run, seat) ?? "The network refused this in a test run: " + run.err + " " + logs
+    poorText(c, run, seat) ?? "The network refused this in a test run: " + run.err + " " + logs
   );
 }
 
@@ -123,7 +124,7 @@ async function deposit(c, { seat, amount, fee, tab }) {
   const signature = feeSignature(c, proposal, seat);
   const tx = wireBase64(message, bytesOf(signature));
   const run = await worker.call("simulate", { tx });
-  if (run.err !== null) throw new Error(refusalOf(run, seat));
+  if (run.err !== null) throw new Error(refusalOf(c, run, seat));
   const txId = base58(signature);
   // Counted from the send on: a send that throws may still land.
   const sent = { txId, amount, before, status: "unknown" };

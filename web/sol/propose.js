@@ -14,7 +14,8 @@
 // nonce, signed by the fee key, run once without the group signature, and then proposed.
 import { agreement } from "./ceremony.js";
 import { base58, keyOfBase58 } from "./docs.js";
-import { poorFeeText, readyFee } from "./fee.js";
+import { poorText } from "./execute.js";
+import { readyFee } from "./fee.js";
 import { payerSeat, settledBlock } from "./gate.js";
 import { poolNote } from "./localprove.js";
 import {
@@ -71,18 +72,18 @@ async function lifetimeOf(worker, kind, groupKey) {
 }
 
 /** What the network said to a test run, as a text, with the poor-fee text first. */
-function refusalOf(run, seat) {
+function refusalOf(c, run, seat) {
   const logs = run.logs.join(" | ").slice(0, 300);
   const refused = "The network refused this in a test run: " + run.err + " " + logs;
-  return poorFeeText(run, seat) ?? refused;
+  return poorText(c, run, seat) ?? refused;
 }
 
 /** The network runs the message once, with no signature. Nothing is charged. */
-async function preflight(worker, messageHex, seat) {
+async function preflight(c, worker, messageHex, seat) {
   const message = bytesOf(messageHex);
   const tx = wireBase64(message, new Uint8Array(64 * message[1]));
   const run = await worker.call("preflight", { tx });
-  if (run.err !== null) throw new Error(refusalOf(run, seat));
+  if (run.err !== null) throw new Error(refusalOf(c, run, seat));
 }
 
 /** The tree fee and the inputs of a draft spend: the snapshot for the check of the proposer. */
@@ -174,10 +175,10 @@ async function settled(worker, txId) {
 }
 
 /** The test run, the send and the confirmation of a transaction that the fee key signed alone. */
-async function land(worker, message, signature, seat) {
+async function land(c, worker, message, signature, seat) {
   const tx = wireBase64(message, bytesOf(signature));
   const run = await worker.call("simulate", { tx });
-  if (run.err !== null) throw new Error(refusalOf(run, seat));
+  if (run.err !== null) throw new Error(refusalOf(c, run, seat));
   await worker.call("send", { tx });
   const txId = base58(signature);
   const seen = await settled(worker, txId);
@@ -234,7 +235,7 @@ async function payDraft(c, worker, seat, fee, { kind, args }) {
   const createProposal = bytesOf(paymentHex(create, fields));
   const message = c.W.compile_message(createProposal, inputs.pins, new Uint8Array(0));
   const signature = signAsFee(c, seat, message, createProposal, inputs);
-  const createTx = await land(worker, message, signature, seat).catch((error) =>
+  const createTx = await land(c, worker, message, signature, seat).catch((error) =>
     createdBefore(worker, said, error),
   );
   return { ...fields, account: said.proposal, body: said.body, createTx };
@@ -276,7 +277,7 @@ async function betaFields(c, worker, seat, fee, draft) {
   const feeSig = feeSignature(c, unsigned, seat, draft.spend);
   const own = reviewOf(c, { ...unsigned, feeSig }, seat, draft.spend);
   if (!own.ok) throw new Error(own.why);
-  await preflight(worker, unsigned.message, seat).catch(async (e) => {
+  await preflight(c, worker, unsigned.message, seat).catch(async (e) => {
     throw new Error(await poolNote(c, worker, e.message));
   });
   return { ...draft.fields, message: unsigned.message, feeSig };
