@@ -242,11 +242,13 @@ export let sol = null, solLoading = null, solError = "";
 export let plainSol = null, plainLoading = null, plainError = "";
 let solStartDoc = null;   // the stored solstart/1 of the open wallet, whoever wrote it
 let solWatched = null;    // the wallet that solWatch took up
+let plainWatched = null;  // the wallet that plainWatch took up
 let startWatched = null;  // the wallet whose start document is watched
 let solStartRead = null;  // the wallet whose start documents arrived
 export function resetSolStart() {
   plainSol?.close();
-  solStartDoc = null; solWatched = null; startWatched = null; solStartRead = null;
+  solStartDoc = null; solWatched = null; plainWatched = null; startWatched = null;
+  solStartRead = null;
 }
 // host.putSec is the save of a step that holds the lock of the secrets (putSol, shareOnce).
 export const solHost = () => ({
@@ -422,7 +424,9 @@ function barredWatch() {
   const gid = state.gid;
   if (!gid || !plainBarred()) return;
   watchStart(gid, "groups/" + gid);
-  if (plainSol?.ctl.gid === gid && solStartRead === gid) plainSol.close();
+  if (plainSol?.ctl.gid !== gid || solStartRead !== gid) return;
+  plainSol.close();
+  plainWatched = null;
 }
 export function solReact() {
   barredWatch();
@@ -451,12 +455,14 @@ export function plainLoad() {
   });
   return plainLoading;
 }
-// The plain controller follows the open wallet while it is plain and the server serves it, also
-// after it left the wallet (barredWatch). Before it loads, the page watches the start document.
+// The open wallet gets its watch once it is a plain wallet and the server serves it, and again
+// after barredWatch closed the plain controller. A close by any other caller stays.
 function plainWatch() {
   const gid = state.gid;
-  if (!plainSol) watchStart(gid, "groups/" + gid);
-  else if (plainSol.ctl.gid !== gid) plainSol.open(gid, "groups/" + gid);
+  if (plainWatched === gid) return;
+  plainWatched = gid;
+  if (plainSol) plainSol.open(gid, "groups/" + gid);
+  else watchStart(gid, "groups/" + gid);
 }
 // Only a wallet that is plain on a server that serves it comes here. A testnet wallet never asks.
 function plainReact() {
