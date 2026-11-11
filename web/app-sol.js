@@ -241,11 +241,12 @@ const SOL_OFF = "Solana is not available on this server";
 export let sol = null, solLoading = null, solError = "";
 export let plainSol = null, plainLoading = null, plainError = "";
 let solStartDoc = null;   // the stored solstart/1 of the open wallet, whoever wrote it
-let solWatched = null;    // the wallet whose start document is watched
+let solWatched = null;    // the wallet that solWatch or plainWatch took up
+let startWatched = null;  // the wallet whose start document is watched
 let solStartRead = null;  // the wallet whose start documents arrived
 export function resetSolStart() {
   plainSol?.close();
-  solStartDoc = null; solWatched = null; solStartRead = null;
+  solStartDoc = null; solWatched = null; startWatched = null; solStartRead = null;
 }
 // host.putSec is the save of a step that holds the lock of the secrets (putSol, shareOnce).
 export const solHost = () => ({
@@ -394,6 +395,8 @@ export function solAttach(gid, base) {
   watchStart(gid, base);
 }
 function watchStart(gid, base) {
+  if (startWatched === gid) return;
+  startWatched = gid;
   unsubGroup.push(sdb.collection(base + "/solstart").onSnapshot((snap) => {
     solStartDoc = snap.docs.find((d) => d.id === "1")?.data() ?? null;
     solStartRead = gid;
@@ -411,7 +414,15 @@ function solPreload() {
   const auto = sec(state.gid, 1)?.solAuto === true;
   if (!sol && !solLoading && (solPlanned() || auto) && localSeats().length) solLoad();
 }
+// A mainnet wallet that is not plain (private, "accept" or "unserved") keeps its own watch of the
+// start that seat 1 signed, whichever controller follows it: a signed mainnet-plain start must
+// reach the router (rule 2 of design 2.4), also on a server without the private Worker.
+function barredWatch() {
+  const gid = state.gid;
+  if (gid && plainBarred()) watchStart(gid, "groups/" + gid);
+}
 export function solReact() {
+  barredWatch();
   plainReact();
   solPreload();
   if (!solOn()) return;

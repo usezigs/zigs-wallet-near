@@ -23,7 +23,7 @@ JS=(solspike/harness/*.mjs solspike/tools/*.mjs solspike/build.mjs solspike/vend
   web/test/sol-plain-view.mjs web/test/sol-plain-load.mjs web/test/sol-plain-security.mjs
   web/test/sol-plain-review.mjs web/test/sol-plain-direct.mjs web/test/sol-plain-sessions.mjs
   web/test/sol-plain-sign.mjs web/test/sol-plain-ui.mjs web/test/sol-mode.mjs
-  web/test/sol-private.mjs
+  web/test/sol-private.mjs web/test/sol-start-watch.mjs
   web/test/closure.mjs
   web/test/sol-wasm.mjs web/test/sol-chain.mjs web/test/sol-sessions.mjs
   web/sol/spend.js web/sol/transfer.js web/test/sol-limits.mjs web/test/sol-setup.mjs
