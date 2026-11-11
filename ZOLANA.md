@@ -1259,8 +1259,9 @@ coordinator ran only reads and prepared the commands). Times are UTC.
   54,728 bytes, and the 3,024 bytes after the ELF are zero.
 - Cost. 63 transactions touch `iFSb…`: the funding, and 62 that it signed and paid, all without
   error, with 326,037 lamports of fees in total. The deploy cost 295,418,157 lamports: 295,092,120
-  locked as rent in the program and ProgramData accounts, and the fees. `iFSb…` keeps 187,192,293
-  lamports.
+  locked as rent in the program and ProgramData accounts, and the fees. `iFSb…` kept 187,192,293
+  lamports. At 17:27 the owner moved 177,000,000 of them to a wallet of the owner (`2ZYgMqCz…`,
+  slot 468206950, fee 5,000). `iFSb…` keeps 10,187,293 lamports for the fee of the move to Squads.
 - Lesson. The public RPC `api.mainnet-beta.solana.com` answered HTTP 429 to the buffer write with
   `--use-rpc` (57 sends and their status reads from one IP address). The write finished through
   an unrestricted Helius key of the owner, with the transactions sent to the validators (no
@@ -1771,7 +1772,8 @@ use.
   14:23 UTC, after the deploy and the preflight of 6.15.
 - Holder. The owner alone holds the upgrade authority `iFSbwFzpLpaGMKtn5S6gznvzXqAVunoB6rcSpGi956o`
   and the program keypair of `9mE7…`. Agents never sign with either key. They only read the chain
-  and prepare commands, and the owner runs each transaction.
+  and prepare commands, and the owner runs each transaction. Since 11 November 2026 at 17:27 UTC
+  `iFSb…` holds only 10,187,293 lamports, for the fee of the move to Squads (6.15).
 - What the one key can do. It can replace the code of `9mE7…`, and the new code can sign as the
   owner PDA of every private mainnet group. A spend also needs a proof, and a proof needs the
   witness of the notes (Custody, above): with one seat of a group, or with the viewing-key
