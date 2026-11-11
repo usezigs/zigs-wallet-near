@@ -158,8 +158,9 @@ const second = await rig.wallet({ name: "Second", network: "mainnet" });
   assert.throws(() => acceptPrivate(tampered), /could not save/);
   assert.equal(t.signPins[KEY(tampered)], PLAIN, "the value seen first stays");
   // A seat of this browser that holds a part of another label refuses: a plain part, a Devnet
-  // part (no label), and a seat that published round 1 under the plain label and then stopped.
+  // part (no label), a seat in plain round 1 (soldkg1 published), and one that then stopped.
   const parts = [{ cluster: PLAIN, keyPackage: { k: 1 } }, { r1secret: { s: 1 } },
+    { cluster: PLAIN, r1secret: { s: 1 }, r1package: { p: 1 } },
     { cluster: PLAIN, aborted: "Solana setup stopped: a test." }];
   for (const part of parts) {
     await setPart(tampered, 2, part);
