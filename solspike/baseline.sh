@@ -91,7 +91,7 @@ TESTS=(messaging-presentation messaging-cost-review messaging-account-view premi
   lwd zns near-quote
   sol-config sol-docs sol-ceremony sol-plain-ceremony sol-plain-app sol-plain-reads
   sol-plain-view sol-plain-load sol-plain-security sol-plain-review sol-plain-direct
-  sol-plain-sessions sol-plain-sign sol-plain-ui sol-app
+  sol-plain-sessions sol-plain-sign sol-plain-ui sol-mode sol-app
   sol-wasm
   sol-sessions
   sol-limits

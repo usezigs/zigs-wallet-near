@@ -18,23 +18,22 @@ import { openBackupCheck, restore, sealAndSave } from "./app-backups.js";
 import { focusAfter, once, react, render } from "./app-loop.js";
 import { checkSolSwap } from "./app-swap-sol.js";
 
-// Devnet, for version 3 wallets on the testnet that the people of the wallet confirmed (SOL-34).
-// web/sol loads from the Solana tab, a signed solstart document, or the unsigned Solana hint
-// (solPreload), which any holder of the invite link can write.
+// The pool: Devnet, for version 3 wallets on the testnet that the people of the wallet confirmed
+// (SOL-34), and the private wallet on mainnet (solMode). web/sol loads from the Solana tab, a
+// signed solstart document, or the unsigned Solana hint (solPreload), which any holder of the
+// invite link can write.
 const solGroup = (gid) =>
   (gid === state.gid && state.g) || state.groups.find((x) => x.id === gid);
-export const solOn = (gid = state.gid) => {
+const testnetOn = (gid) => {
   const g = solGroup(gid);
   const testnet = g?.network === "testnet" && netConfirmed(gid) === "testnet";
   return testnet && walletVersion(g) === 3 && signedMode(gid);
 };
+export const solOn = (gid = state.gid) => testnetOn(gid) || solMode(gid) === "private";
 // The plain Solana wallet, for version 3 wallets on the mainnet that the people of the wallet
-// confirmed (ZOLANA.md 3.8). Its controller has its own slot (plainSol) and never the pool slot.
-export const plainOn = (gid = state.gid) => {
-  const g = solGroup(gid);
-  const mainnet = g?.network === "mainnet" && netConfirmed(gid) === "mainnet";
-  return mainnet && walletVersion(g) === 3 && signedMode(gid);
-};
+// confirmed (ZOLANA.md 3.8) and that are not private (solMode). Its controller has its own slot
+// (plainSol) and never the pool slot.
+export const plainOn = (gid = state.gid) => solMode(gid) === "plain";
 // The plain wallet is shown when the server serves it. Without that answer a mainnet wallet looks
 // as it did before the plain wallet.
 export const plainShown = (gid = state.gid) => plainOn(gid) && ui.plainServed === true;
@@ -327,10 +326,17 @@ export function solLoad() {
 // the wallet opened, so the reactor asks again.
 export function solWatch() {
   const gid = state.gid;
-  if (!gid || solWatched === gid || !solOn(gid)) return;
-  solWatched = gid;
-  solAttach(gid, "groups/" + gid);
+  if (!gid || !solOn(gid)) return;
+  if (solWatched !== gid) {
+    solWatched = gid;
+    solAttach(gid, "groups/" + gid);
+  } else if (privateLate(gid)) {
+    sol.open(gid, "groups/" + gid);
+  }
 }
+// The pool controller does not follow the open private wallet: the wallet became private after
+// its first watch (the answer of the probe, or the pin of an accept).
+const privateLate = (gid) => !!sol && sol.ctl.gid !== gid && solMode(gid) === "private";
 // Before the module loads, one watch keeps the start document. Any holder of the invite link can
 // write one, so solReact loads the module from it only when a seat signed it.
 export function solAttach(gid, base) {
@@ -363,9 +369,13 @@ export function solReact() {
   if (sol) sol.react();
   else if (!solLoading && solStartSigned()) solLoad();
 }
+// Only a plain wallet loads the plain controller: a private wallet never imports it, also not
+// through a caller outside this file (the swap check of app-swap-zec.js).
+const plainBarred = () => ![null, "plain"].includes(solMode());
 // The plain controller loads once. A failed load shows one banner and the reactor does not try
 // again: only a reload mends it.
 export function plainLoad() {
+  if (!plainLoading && plainBarred()) return Promise.resolve();
   plainLoading ||= import("./sol/plain/control.js").then((m) => m.attach(solHost())).then((m) => {
     plainSol = m;
     if (plainOn()) plainSol.open(state.gid, "groups/" + state.gid);
