@@ -6,11 +6,13 @@
  *
  * - `intent`: the proposal, `Proposal::encode`: the intent and, for a spend, the approved
  *   plaintext outputs.
- * - `pins`: 161 bytes, the group key, `nullifier_pk` and `viewing_pk` of the `soldone` document,
- *   the payer of the proposal and the `nullifier_pk` of the PDA identity (`Pins::wire`). The
- *   page takes the payer from the `solfee` document of the proposing seat. The `owner_hash` is
- *   computed from the pins, and the snapshot secrets must derive exactly the pinned keys of the
- *   identity that the intent uses (the PDA for Shield and the program messages).
+ * - `pins`: 194 bytes, the cluster byte of the deployment (1 Devnet, 2 mainnet), the group key,
+ *   `nullifier_pk` and `viewing_pk` of the `soldone` document, the payer of the proposal, the
+ *   `nullifier_pk` of the PDA identity and the genesis hash that the page read from its RPC
+ *   (`Pins::wire`). A genesis of another cluster is an error. The page takes the payer from the
+ *   `solfee` document of the proposing seat. The `owner_hash` is computed from the pins, and the
+ *   snapshot secrets must derive exactly the pinned keys of the identity that the intent uses
+ *   (the PDA for Shield and the program messages).
  * - `snapshot`: the device snapshot, `Snapshot::encode`.
  * - `now`: the Unix time of the device, in seconds.
  *
@@ -310,39 +312,42 @@ export function sol_aggregate(message, public_key_package, commitments, shares) 
 }
 
 /**
- * The approval digest (hex) of a proposal account and its body (`program::approval_digest`).
- * It checks no rule: a seat runs `check_payment` before it signs this digest. The page counts
- * the commits and shares of a payment by it.
+ * The approval digest (hex) of a proposal account and its body (`program::approval_digest`)
+ * under the pool label of the wallet. It checks no rule: a seat runs `check_payment` before it
+ * signs this digest. The page counts the commits and shares of a payment by it.
+ * @param {string} label
  * @param {string} proposal
  * @param {string} body
  * @returns {string}
  */
-export function sol_approval_digest(proposal, body) {
-    let deferred4_0;
-    let deferred4_1;
+export function sol_approval_digest(label, proposal, body) {
+    let deferred5_0;
+    let deferred5_1;
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passStringToWasm0(proposal, wasm.__wbindgen_export2, wasm.__wbindgen_export4);
+        const ptr0 = passStringToWasm0(label, wasm.__wbindgen_export2, wasm.__wbindgen_export4);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passStringToWasm0(body, wasm.__wbindgen_export2, wasm.__wbindgen_export4);
+        const ptr1 = passStringToWasm0(proposal, wasm.__wbindgen_export2, wasm.__wbindgen_export4);
         const len1 = WASM_VECTOR_LEN;
-        wasm.sol_approval_digest(retptr, ptr0, len0, ptr1, len1);
+        const ptr2 = passStringToWasm0(body, wasm.__wbindgen_export2, wasm.__wbindgen_export4);
+        const len2 = WASM_VECTOR_LEN;
+        wasm.sol_approval_digest(retptr, ptr0, len0, ptr1, len1, ptr2, len2);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
         var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
-        var ptr3 = r0;
-        var len3 = r1;
+        var ptr4 = r0;
+        var len4 = r1;
         if (r3) {
-            ptr3 = 0; len3 = 0;
+            ptr4 = 0; len4 = 0;
             throw takeObject(r2);
         }
-        deferred4_0 = ptr3;
-        deferred4_1 = len3;
-        return getStringFromWasm0(ptr3, len3);
+        deferred5_0 = ptr4;
+        deferred5_1 = len4;
+        return getStringFromWasm0(ptr4, len4);
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
-        wasm.__wbindgen_export3(deferred4_0, deferred4_1, 1);
+        wasm.__wbindgen_export3(deferred5_0, deferred5_1, 1);
     }
 }
 
@@ -756,38 +761,41 @@ export function sol_nonces(key_package, digest) {
 }
 
 /**
- * The PDA identity of `solSeed` under the group key, as JSON: `pda`, `nullifier_secret`,
- * `nullifier_pk`, `owner_hash` and `address`.
+ * The PDA identity of `solSeed` under the group key and the pool label of the wallet, as JSON:
+ * `pda`, `nullifier_secret`, `nullifier_pk`, `owner_hash` and `address`.
+ * @param {string} label
  * @param {string} sol_seed
  * @param {string} group_key
  * @returns {string}
  */
-export function sol_pda_roles(sol_seed, group_key) {
-    let deferred4_0;
-    let deferred4_1;
+export function sol_pda_roles(label, sol_seed, group_key) {
+    let deferred5_0;
+    let deferred5_1;
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passStringToWasm0(sol_seed, wasm.__wbindgen_export2, wasm.__wbindgen_export4);
+        const ptr0 = passStringToWasm0(label, wasm.__wbindgen_export2, wasm.__wbindgen_export4);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passStringToWasm0(group_key, wasm.__wbindgen_export2, wasm.__wbindgen_export4);
+        const ptr1 = passStringToWasm0(sol_seed, wasm.__wbindgen_export2, wasm.__wbindgen_export4);
         const len1 = WASM_VECTOR_LEN;
-        wasm.sol_pda_roles(retptr, ptr0, len0, ptr1, len1);
+        const ptr2 = passStringToWasm0(group_key, wasm.__wbindgen_export2, wasm.__wbindgen_export4);
+        const len2 = WASM_VECTOR_LEN;
+        wasm.sol_pda_roles(retptr, ptr0, len0, ptr1, len1, ptr2, len2);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
         var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
-        var ptr3 = r0;
-        var len3 = r1;
+        var ptr4 = r0;
+        var len4 = r1;
         if (r3) {
-            ptr3 = 0; len3 = 0;
+            ptr4 = 0; len4 = 0;
             throw takeObject(r2);
         }
-        deferred4_0 = ptr3;
-        deferred4_1 = len3;
-        return getStringFromWasm0(ptr3, len3);
+        deferred5_0 = ptr4;
+        deferred5_1 = len4;
+        return getStringFromWasm0(ptr4, len4);
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
-        wasm.__wbindgen_export3(deferred4_0, deferred4_1, 1);
+        wasm.__wbindgen_export3(deferred5_0, deferred5_1, 1);
     }
 }
 
@@ -916,6 +924,40 @@ export function sol_plain_sign_share(message, intent, pins, chain, round) {
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
         wasm.__wbindgen_export3(deferred7_0, deferred7_1, 1);
+    }
+}
+
+/**
+ * The pool wallet of a cluster (`devnet` or `mainnet`) as JSON: `label`, which the ceremony and
+ * the signing round hash; `program`, the program label that a `soldone` document carries; and
+ * `cap`, the private balance cap in lamports as decimal text, or null.
+ * @param {string} cluster
+ * @returns {string}
+ */
+export function sol_pool_wallet(cluster) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passStringToWasm0(cluster, wasm.__wbindgen_export2, wasm.__wbindgen_export4);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.sol_pool_wallet(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+        var ptr2 = r0;
+        var len2 = r1;
+        if (r3) {
+            ptr2 = 0; len2 = 0;
+            throw takeObject(r2);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export3(deferred3_0, deferred3_1, 1);
     }
 }
 

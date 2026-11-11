@@ -626,7 +626,7 @@ const syncState = (rpcUrl = RPC) => ({
 {
   const s1 = solOf(gid, 1),
     roles = JSON.parse(W.sol_roles(s1.solSeed, s1.groupKey)),
-    pda = JSON.parse(W.sol_pda_roles(s1.solSeed, s1.groupKey));
+    pda = JSON.parse(W.sol_pda_roles("devnet", s1.solSeed, s1.groupKey));
   const right = {
     cluster: "devnet",
     genesis: GENESIS,

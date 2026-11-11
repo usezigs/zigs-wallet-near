@@ -10,7 +10,7 @@
 // The digest of a payment is the approval digest of its proposal account; of a message, the
 // digest of its bytes.
 import { agreement } from "./ceremony.js";
-import { CLUSTER, base58 } from "./docs.js";
+import { base58 } from "./docs.js";
 import { signingBlock, writerSeats } from "./gate.js";
 import { bytesOf, chainHex, decodeIntent, wireBase64 } from "./intent.js";
 import {
@@ -27,6 +27,7 @@ import { solOf, stopOf } from "./secrets.js";
 import { ensureWorker, stillOpen } from "./session.js";
 import { BEFORE_FEE, SESSIONS, beforeFee, isPayment, writePart } from "./sessions.js";
 import { deviceSpend } from "./spend.js";
+import { labelOf } from "./wallet.js";
 
 const J = JSON.parse,
   S = JSON.stringify;
@@ -76,8 +77,8 @@ async function failSession(c, ss, text) {
 
 const digestOf = (c, ss) =>
   isPayment(ss)
-    ? c.W.sol_approval_digest(String(ss.account), String(ss.body))
-    : c.W.sol_digest(CLUSTER, bytesOf(ss.message));
+    ? c.W.sol_approval_digest(labelOf(c), String(ss.account), String(ss.body))
+    : c.W.sol_digest(labelOf(c), bytesOf(ss.message));
 
 // Package
 
@@ -163,7 +164,7 @@ function roundOf(c, ss, i, entry) {
   const keyPackage = solOf(c.host, c.gid, i).keyPackage;
   return {
     now: Math.floor(Date.now() / 1000),
-    cluster: CLUSTER,
+    cluster: labelOf(c),
     keyPackage,
     commitments: verified,
   };
@@ -194,7 +195,9 @@ function shareAnswer(c, ss, i, { entry, round, seen }) {
 // The read of the chain comes before the lock of shareOnce, and the network writes after it, so a
 // slow server holds no other step of the secrets.
 async function makeShare(c, ss, i) {
-  // A read that fails is tried again by the reactor; only a refusal ends the session.
+  // A read that fails is tried again by the reactor; only a refusal ends the session. The pins
+  // need the genesis hash that the Worker read.
+  await ensureWorker(c);
   const seen = isPayment(ss) ? await deviceSeen(c, ss) : null;
   const made = await shareOnce(c, i, ss.id, (entry) => {
     const round = roundOf(c, ss, i, entry);

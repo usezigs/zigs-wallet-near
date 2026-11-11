@@ -34,8 +34,9 @@ export async function addSol(c, args) {
   const fee = readyFee(c, seat);
   const worker = await ensureWorker(c);
   const { blockhashHex } = await worker.call("blockhash");
-  const intent = intentHex("shield", { blockhash: blockhashHex, amount });
-  const pins = bytesOf(pinsHex(agreement(c).done, fee.key));
+  // ponytail: held 0 is right on Devnet only, which has no cap. Mainnet needs the synced balance.
+  const intent = intentHex("shield", { blockhash: blockhashHex, amount, held: 0n });
+  const pins = bytesOf(pinsHex(agreement(c).done, fee.key, c.genesis));
   const message = c.W.compile_message(bytesOf(intent), pins, new Uint8Array(0));
   const proposal = { id: "add-sol", by: seat, intent, message: hexOf(message) };
   const signature = feeSignature(c, proposal, seat);

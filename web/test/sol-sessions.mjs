@@ -13,8 +13,9 @@ import assert from "node:assert/strict";
 import { approve, feeSignature, reviewOf } from "../sol/approve.js";
 import { backupWords } from "../sol/backup.js";
 import { agreement } from "../sol/ceremony.js";
-import { base58 } from "../sol/docs.js";
+import { base58, keyOfBase58 } from "../sol/docs.js";
 import { feeOf } from "../sol/fee.js";
+import { CLUSTERS } from "../sol/guard.js";
 import {
   bytesOf,
   decodeIntent,
@@ -140,10 +141,13 @@ const rowsOf = (id) => {
 // ── The intents, the amounts and the pins that the page writes ──
 {
   const nonce = "ab".repeat(32);
-  const wire = "02" + nonce + "002d310100000000";
-  assert.equal(intentHex("shield", { blockhash: nonce, amount: 20_000_000n }), wire);
-  assert.deepEqual(decodeIntent(wire), { kind: "shield", blockhash: nonce, amount: 20_000_000n });
-  for (const bad of ["05" + nonce, "02" + nonce, "zz", "", 7]) {
+  const wire = "02" + nonce + "002d310100000000" + "0700000000000000";
+  const shield = { blockhash: nonce, amount: 20_000_000n, held: 7n };
+  assert.equal(intentHex("shield", shield), wire, "the held balance follows the amount");
+  assert.deepEqual(decodeIntent(wire), { kind: "shield", ...shield });
+  assert.throws(() => intentHex("shield", { blockhash: nonce, amount: 1n }), TypeError);
+  const old = "02" + nonce + "002d310100000000";
+  for (const bad of ["05" + nonce, "02" + nonce, old, "zz", "", 7]) {
     assert.equal(decodeIntent(bad), null, "no screen for " + bad);
   }
   assert.equal(lamportsOf("0.02"), 20_000_000n);
@@ -151,12 +155,26 @@ const rowsOf = (id) => {
   for (const bad of ["0", "0.0", "-1", "1e3", "0.0000000001", "", "x"]) {
     assert.equal(lamportsOf(bad), null, bad);
   }
-  assert.throws(() => pinsHex({ groupKey: "00" }, "11".repeat(32)), /not well formed/);
-  assert.throws(() => pinsHex(done, "00"), /fee key of the payer/);
-  const pins = pinsHex(done, "11".repeat(32));
-  assert.equal(pins.length, 161 * 2, "the group keys, the payer and the PDA nullifier key");
-  assert.equal(pins.slice(194, 258), "11".repeat(32), "the payer is the fourth pin");
-  assert.equal(pins.slice(258), done.pdaNullifierPk, "the PDA nullifier key is the last pin");
+  const genesis = CLUSTERS.devnet.genesis,
+    payer = "11".repeat(32);
+  assert.throws(() => pinsHex({ groupKey: "00" }, payer, genesis), /not well formed/);
+  assert.throws(() => pinsHex(done, "00", genesis), /fee key of the payer/);
+  for (const cluster of ["mainnet", "mainnet-plain", "devnet-plain", undefined]) {
+    assert.throws(() => pinsHex({ ...done, cluster }, payer, genesis), /unknown cluster/);
+  }
+  for (const bad of [undefined, null, "", "0OIl", genesis + "1"]) {
+    assert.throws(() => pinsHex(done, payer, bad), /genesis hash/, String(bad));
+  }
+  const pins = pinsHex(done, payer, genesis);
+  assert.equal(pins.length, 194 * 2, "the cluster byte, the keys, the payer and the genesis");
+  assert.equal(pins.slice(0, 2), "01", "the cluster byte of Devnet is first");
+  assert.equal(pins.slice(196, 260), payer, "the payer is the fifth pin");
+  assert.equal(pins.slice(260, 324), done.pdaNullifierPk, "then the PDA nullifier key");
+  assert.equal(pins.slice(324), keyOfBase58(genesis), "the genesis hash is the last pin");
+  const mainnet = pinsHex({ ...done, cluster: "mainnet-private" }, payer, genesis);
+  assert.equal(mainnet.slice(0, 2), "02", "the cluster byte of the private mainnet wallet");
+  assert.throws(() => W.compile_message(bytesOf(intentHex("shield", shield)), bytesOf(mainnet),
+    new Uint8Array(0)), /pins: /, "the wasm refuses mainnet pins with the Devnet genesis");
 }
 
 step("a wallet with a Solana part");
@@ -298,7 +316,17 @@ const created = await proposed("createNonce");
   assert.equal(hexOf(message.subarray(42, 74)), feeOf(c, 1).key, "the payer comes first");
   assert.equal(chain.commands.filter((m) => m.cmd === "preflight").length, 1, "one test run");
 }
+// A device whose Worker did not start yet has no genesis hash for the pins: its review waits, and
+// its approval starts the Worker first.
+{
+  c.worker.close();
+  Object.assign(c, { worker: null, inited: null, genesis: null });
+  const review = reviewOf(c, ssOf(created), 1);
+  assert.deepEqual([review.ok, review.waiting], [false, true], review.why);
+  assert.match(review.why, /reading your wallet/);
+}
 await approve(c, ssOf(created), 1);
+assert.equal(c.genesis, CLUSTERS.devnet.genesis, "the approval started the Worker");
 await sleep(300);
 assert.equal(ssOf(created).status, "collecting", "one approval is not enough");
 assert.equal(ssOf(created).package, undefined);
@@ -609,7 +637,7 @@ step("a Sync of a wallet that closed writes nothing into the next one");
 
 step("nonces are gone after the share");
 // ── Every approver refuses a bad message and writes nothing ──
-const pinsFor = (seat) => bytesOf(pinsHex(done, feeOf(c, seat).key));
+const pinsFor = (seat) => bytesOf(pinsHex(done, feeOf(c, seat).key, CLUSTERS.devnet.genesis));
 const compiled = (intent, seat = 1) =>
   W.compile_message(bytesOf(intent), pinsFor(seat), new Uint8Array(0));
 const flip = (hex) => (hex[0] === "a" ? "b" : "a") + hex.slice(1);
@@ -636,10 +664,12 @@ const tamper = async (label, { intent, message, by = 1, feeSig }, why) => {
 {
   const { blockhashHex } = await c.worker.call("blockhash");
   const create = intentHex("createNonce", { blockhash: blockhashHex });
-  const pins = bytesOf(pinsHex({ ...done, groupKey: flip(done.groupKey) }, feeOf(c, 1).key));
+  const other = { ...done, groupKey: flip(done.groupKey) };
+  const pins = bytesOf(pinsHex(other, feeOf(c, 1).key, CLUSTERS.devnet.genesis));
   const elsewhere = W.compile_message(bytesOf(create), pins, new Uint8Array(0));
   await tamper("another group", { intent: create, message: elsewhere }, /nonce|authority|group/i);
-  const cancel = compiled(intentHex("shield", { blockhash: blockhashHex, amount: 1000n }));
+  const shield = { blockhash: blockhashHex, amount: 1000n, held: 0n };
+  const cancel = compiled(intentHex("shield", shield));
   await tamper("other instruction", { intent: create, message: cancel }, /instruction|list|ix/i);
   const good = compiled(create);
   const mask = Uint8Array.from(good);

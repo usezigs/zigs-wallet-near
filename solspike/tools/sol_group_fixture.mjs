@@ -54,7 +54,7 @@ const groupKey = kept.group.key;
 const wasm = new URL("../../web/sol/wasm/sol_wasm_bg.wasm", import.meta.url);
 W.initSync({ module: readFileSync(wasm) });
 const roles = JSON.parse(W.sol_roles(solSeed, groupKey));
-const pdaRoles = JSON.parse(W.sol_pda_roles(solSeed, groupKey));
+const pdaRoles = JSON.parse(W.sol_pda_roles("devnet", solSeed, groupKey));
 if (pdaRoles.pda !== kept.group.pda || roles.address !== kept.group.address) {
   throw new Error("the roles of the kept group differ from the file");
 }

@@ -194,7 +194,7 @@ async function payDraft(c, worker, seat, fee, { kind, args }) {
   Object.assign(fields, { intent: intentHex(how.session, named), transact: prepared.data });
   const spend = await draftSpend(c, worker, prepared);
   const inputs = {
-    pins: bytesOf(pinsHex(agreement(c).done, fee.key)),
+    pins: bytesOf(pinsHex(agreement(c).done, fee.key, c.genesis)),
     snapshot: bytesOf(snapshotHex(rolesOf(c, seat, how.session), spend)),
   };
   const read = kind === "withdraw" ? await recipientRead(worker, typed.payee) : null;
@@ -244,7 +244,7 @@ async function migrationDraft(c, worker, seat, fee) {
 
 /** A message of the beta, signed by the fee key and run once, as the proposal part holds it. */
 async function betaFields(c, worker, seat, fee, draft) {
-  const pins = bytesOf(pinsHex(agreement(c).done, fee.key));
+  const pins = bytesOf(pinsHex(agreement(c).done, fee.key, c.genesis));
   const proposal = bytesOf(draft.fields.intent + (draft.fields.plan ?? ""));
   const compiled = c.W.compile_message(proposal, pins, draft.transact ?? new Uint8Array(0));
   const unsigned = { id: "new", status: "collecting", by: seat, ...draft.fields };

@@ -12,6 +12,7 @@
 // Run: node web/test/unified-setup.mjs   (Node 26)
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { CLUSTERS } from "../sol/guard.js";
 import { config, loadRig, sleep, storage } from "./sol-rig.mjs";
 import { fakePasskey } from "./passkey-fixture.mjs";
 
@@ -1318,6 +1319,9 @@ function sideMenu() {
 }
 async function approvalCount(ctl) {
   // The count follows approveSeats: the documents are checked (wait 0), so the cards show buttons.
+  // A review needs the genesis hash that the Worker read; this fixture starts no Worker.
+  const genesis = ctl.genesis;
+  ctl.genesis = CLUSTERS.devnet.genesis;
   const count = (sessions, commits = {}, change = {}) =>
     pendingCount({ ...ctl, wait: 0, sessWait: 0, ...change, sessions, commits });
   const docs = (change) => ({ docs: { ...ctl.docs, ...change } });
@@ -1330,6 +1334,8 @@ async function approvalCount(ctl) {
     loadingCount({ ...ctl, wait: 0, sessWait: 0, ...change, sessions, commits: {} });
   assert.equal(loading(two, { wait: 1 }), 2, "a proposal that waits for the read is loading");
   assert.equal(loading(two), 0, "a proposal with its Approve button is not loading");
+  assert.equal(count(two, {}, { genesis: null }), 0, "no Worker genesis yet: no Approve button");
+  assert.equal(loading(two, { genesis: null }), 2, "the proposals load until the Worker started");
   const many = Array.from({ length: SHOWN + 1 }, (_, i) => proposal("m" + i));
   assert.equal(count(many), SHOWN, "only the cards that the section shows count");
   const mixed = [proposal("s0", { status: "sent" }), ...many];
@@ -1395,6 +1401,7 @@ async function approvalCount(ctl) {
   } finally {
     [ctl.sessions, ctl.commits, t.state.groups] = kept;
     t.sol.observe = observe;
+    ctl.genesis = genesis;
   }
 }
 

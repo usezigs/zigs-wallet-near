@@ -9,6 +9,7 @@
 // Run: node web/test/sol-rent.mjs   (Node 26)
 import assert from "node:assert/strict";
 import { feeOf } from "../sol/fee.js";
+import { CLUSTERS } from "../sol/guard.js";
 import { bytesOf, intentHex, pinsHex } from "../sol/intent.js";
 import { proposalFilters } from "../sol/owned.js";
 import { heldOf, proposalOf, reclaimRent, reclaimable, scanRent } from "../sol/rent.js";
@@ -82,7 +83,8 @@ function programAccounts(message) {
 function cancelMessage(commitment, expiry) {
   const fields = { commitment, expiry, blockhash: "00".repeat(32) };
   const intent = bytesOf(intentHex("cancelProposal", fields));
-  return W.compile_message(intent, bytesOf(pinsHex(done, fee)), new Uint8Array(0));
+  const pins = bytesOf(pinsHex(done, fee, CLUSTERS.devnet.genesis));
+  return W.compile_message(intent, pins, new Uint8Array(0));
 }
 
 /** Puts an open proposal of this seat on the fake chain, at the address of the checker. */

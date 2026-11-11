@@ -11,7 +11,7 @@
 // message, which the payer signed when it was proposed: the device checks that signature too. Only
 // then does the device make its nonces, save them with the digest and publish its commitment.
 import { agreement } from "./ceremony.js";
-import { CLUSTER, base58 } from "./docs.js";
+import { base58 } from "./docs.js";
 import { feeOf, payerOf } from "./fee.js";
 import { isWait, settledBlock, signingBlock } from "./gate.js";
 import {
@@ -31,6 +31,7 @@ import { holdsShare, solOf } from "./secrets.js";
 import { ensureWorker } from "./session.js";
 import { SESSIONS, isPayment } from "./sessions.js";
 import { deviceSpend } from "./spend.js";
+import { labelOf } from "./wallet.js";
 
 const J = JSON.parse,
   S = JSON.stringify;
@@ -84,7 +85,8 @@ export function rolesOf(c, seat, kind) {
   const s = solOf(c.host, c.gid, seat);
   const roles = J(W.sol_roles(s.solSeed, s.groupKey));
   if (!PDA_KINDS.has(kind)) return roles;
-  return { ...roles, nullifier_secret: J(W.sol_pda_roles(s.solSeed, s.groupKey)).nullifier_secret };
+  const pda = J(W.sol_pda_roles(labelOf(c), s.solSeed, s.groupKey));
+  return { ...roles, nullifier_secret: pda.nullifier_secret };
 }
 
 /**
@@ -98,7 +100,7 @@ export function inputsOf(c, ss, seat, spend) {
     roles,
     message: isPayment(ss) ? new Uint8Array(0) : bytesOf(ss.message),
     intent: bytesOf(proposalHex(ss)),
-    pins: bytesOf(pinsHex(agreement(c).done, payerOf(c, ss))),
+    pins: bytesOf(pinsHex(agreement(c).done, payerOf(c, ss), c.genesis)),
     snapshot: bytesOf(snapshotHex(roles, spend)),
   };
 }
@@ -164,7 +166,8 @@ function reviewBlock(c, ss, seat, { spend, seen, block = signingBlock(c) }) {
     const why = "Device " + ss.by + " has not published its fee address, so the payer is unknown.";
     return { why };
   }
-  return waits(ss, spend, seen) ? { why: READING, waiting: true } : { intent };
+  // The pins need the genesis hash that the Worker read.
+  return waits(ss, spend, seen) || !c.genesis ? { why: READING, waiting: true } : { intent };
 }
 
 /**
@@ -222,7 +225,7 @@ function messageReview(c, ss, seat, { spend, intent }) {
   }
   const verdict = c.W.check_message(wasm.message, wasm.intent, wasm.pins, wasm.snapshot, now);
   if (!verdict.startsWith("accepted")) return { ok: false, why: refusalText(c.W, verdict) };
-  const digest = c.W.sol_digest(CLUSTER, wasm.message);
+  const digest = c.W.sol_digest(labelOf(c), wasm.message);
   const info = describeMessage(wasm.message);
   return { ok: true, intent, digest, info, verdict, payer, by: ss.by };
 }
@@ -315,6 +318,7 @@ async function readSeen(c, ss) {
 export async function approve(c, ss, seat) {
   const why = (await settledBlock(c)) ?? approveBlock(c, ss, seat);
   if (why) throw new Error(why);
+  await ensureWorker(c);
   if (isSpend(ss)) c.snaps[ss.id] = await deviceSpend(c, ss);
   if (isPayment(ss)) await readSeen(c, ss);
   const review = reviewOf(c, ss, seat);

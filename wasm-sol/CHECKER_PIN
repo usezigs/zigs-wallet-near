@@ -378,7 +378,8 @@ above are of earlier builds.
 
 The TS smoke vectors (11 November 2026, not signed by a verifier). vectors/ts changed in 7df33091,
 after the last run of gen_vectors, so the six ts-* smoke vectors were stale. `cargo run --example
-gen_vectors` at 69803a1d makes their msg, intent and snapshot files again from vectors/ts. No
+gen_vectors` at 69803a1d makes their msg, intent, snapshot and pins files again from vectors/ts.
+Commit 5bbec6a8 has the first three; the six pins files come with the 194-byte wire below. No
 answer file changes.
 
 The mainnet private mode (11 November 2026, branch zolana-sdk, not signed by a verifier; slice 8
@@ -404,7 +405,17 @@ step 8b2). A pool wallet can be a wallet of mainnet, under the approvals program
   and the cap. The other tests pass the Devnet row, the label "devnet" or `held: 0`.
   examples/gen_vectors.rs: `held: 0`.
 - vectors/smoke: gen_vectors makes the 34 .pins files and shield.intent again (the new wire). No
-  answer file changes.
+  answer file changes. Against a run of gen_vectors at 69803a1d, only these 35 files differ.
+- The wasm: SHA-256 c8311093fda63bac68af8b5aaffc8759b94e2e3690bc04149777728fd690f1fa, 1,114,486
+  bytes raw, built by build.sh with wasm-bindgen 0.2.129 and committed as
+  web/sol/wasm/sol_wasm_bg.wasm. tools/smoke.cjs: 34 vectors, 98 rules, 21 plain vectors, 26
+  plain rules, 0 different from native. tools/diff_cases.cjs: 4689 cases, 0 traps.
+- The differential (solspike/tools/plain_equiv.mjs, slice 8 design 3.4) of the wasm at 69803a1d
+  against this wasm: 4552 calls, 7 different, each one in its EXPECTED list: the rule list (one
+  new line, shield-over-cap), the two answers of the new sol_pool_wallet, and sol_commit,
+  sol_echo, sol_dkg3 and sol_digest with the label mainnet-private, which the old wasm refuses.
+  The plain, keyed and pool groups answer the same (the pool group gives the new wasm the new
+  wire of each Devnet smoke vector).
 
 Check: python3 -I tools/pin_check.py (the manifest below against the tree).
 

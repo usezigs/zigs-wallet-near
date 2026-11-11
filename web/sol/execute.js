@@ -165,7 +165,7 @@ async function signedExecute(c, worker, ss, seat) {
     intentHex("execute", { ...fields, signature: ss.signature, blockhash: blockhashHex }),
   );
   const inputs = {
-    pins: bytesOf(pinsHex(agreement(c).done, fee.key)),
+    pins: bytesOf(pinsHex(agreement(c).done, fee.key, c.genesis)),
     snapshot: bytesOf(snapshotHex(rolesOf(c, seat, "execute"))),
   };
   const message = c.W.compile_message(intent, inputs.pins, bytesOf(data));

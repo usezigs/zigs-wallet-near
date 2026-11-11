@@ -7,7 +7,9 @@
 //  - SHIELD: Add SOL is not fail-closed (a shield pays into the PDA that the wasm pins, and the
 //    pool accepts any owner hash), so the deposit instruction that the wasm compiles for the
 //    owner = the group PDA must equal the deposit instruction of the SDK byte for byte: data,
-//    accounts and flags, and the owner hash and view tag in it.
+//    accounts and flags, and the owner hash and view tag in it;
+//  - the same for the private mainnet wallet: its PDA under the approvals program 9mE7, its pins
+//    with the mainnet genesis, and the tables of guard.js against the wasm.
 // Run: node web/test/sol-sdk.mjs   (Node 26)
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -33,6 +35,7 @@ const json = (name) => J(readFileSync(new URL(name, import.meta.url), "utf8"));
 const POOL = "ring1GaLCuJnkUMVkX2JeZLTTX17wKsV4fZmPVzXANW";
 const TREE_BYTES = 40_080;
 const DEVNET_GENESIS = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
+const MAINNET_GENESIS = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d";
 let treeAccount = { owner: POOL, data: Buffer.alloc(TREE_BYTES) };
 function rpcAnswer(init) {
   const body = init?.body ? J(init.body) : null;
@@ -67,6 +70,7 @@ const sdk = await import(new URL("zolana.bundle.js", WEB_SOL).href);
 const { SOL_INTERFACE: PREPARE_SOL_INTERFACE } = await import(new URL("prepare.js", WEB_SOL).href);
 const { base58 } = await import(new URL("docs.js", WEB_SOL).href);
 const { bytesOf, hexOf, intentHex, pinsHex } = await import(new URL("intent.js", WEB_SOL).href);
+const { CLUSTERS } = await import(new URL("guard.js", WEB_SOL).href);
 await sdk.initializePoseidon();
 const hexOfAddress = (address) => hexOf(sdk.getAddressEncoder().encode(address));
 
@@ -87,9 +91,23 @@ const seeds = [
   ),
 ];
 
-// The PDA of ["multisig", group key] under the Devnet approvals program, derived here with
-// node:crypto and an Ed25519 off-curve test, so that no wasm value stands on both sides.
+// The PDA of ["multisig", group key] under an approvals program (Devnet: 5PHZ, mainnet: 9mE7),
+// derived here with node:crypto and an Ed25519 off-curve test, so that no wasm value stands on
+// both sides.
 const APPROVALS = "5PHZEHBMaYbFL9SFmMyP8kUayh3TFEyq2dvEYY3UGjkL";
+const MAINNET_APPROVALS = "9mE7WUJHK6dQwzK6AP6wf1eyPmePULZrGeRbXqke2ukq";
+const DEVNET = {
+  cluster: "devnet",
+  label: "devnet",
+  genesis: DEVNET_GENESIS,
+  approvals: APPROVALS,
+};
+const MAINNET = {
+  cluster: "mainnet",
+  label: "mainnet-private",
+  genesis: MAINNET_GENESIS,
+  approvals: MAINNET_APPROVALS,
+};
 const P = 2n ** 255n - 19n;
 const power = (base, exp) => {
   let out = 1n;
@@ -104,8 +122,8 @@ function onCurve(bytes) {
   const x2 = (u * power((D * y * y + 1n) % P, P - 2n)) % P;
   return x2 === 0n || power(x2, (P - 1n) / 2n) === 1n;
 }
-function derivePda(groupKeyHex) {
-  const program = Buffer.from(hexOf(sdk.getAddressEncoder().encode(APPROVALS)), "hex");
+function derivePda(groupKeyHex, approvals = APPROVALS) {
+  const program = Buffer.from(hexOf(sdk.getAddressEncoder().encode(approvals)), "hex");
   for (let bump = 255; bump >= 0; bump -= 1) {
     const hash = createHash("sha256")
       .update("multisig")
@@ -118,9 +136,9 @@ function derivePda(groupKeyHex) {
   }
   throw new Error("no bump");
 }
-const rolesOf = (seed) => ({
+const rolesOf = (seed, row = DEVNET) => ({
   ...J(W.sol_roles(seed.solSeed, seed.groupKey)),
-  pda: J(W.sol_pda_roles(seed.solSeed, seed.groupKey)),
+  pda: J(W.sol_pda_roles(row.label, seed.solSeed, seed.groupKey)),
 });
 const RPC_URL = "https://devnet.helius-rpc.com/?api-key=" + "k3y9".repeat(5);
 
@@ -195,16 +213,20 @@ step("the pool of the SDK is ring1G and its SOL interface is the one of prepare.
 const PAYER = "51".repeat(32);
 const BLOCKHASH = "07".repeat(32);
 
-/** The wasm message of Add SOL for a seed and an amount, cut into its one pool instruction. */
-function wasmShield(seed, roles, amount) {
+/**
+ * The wasm message of Add SOL for a seed and an amount on the row of a cluster, cut into its one
+ * pool instruction.
+ */
+function wasmShield(seed, roles, amount, row = DEVNET) {
   const done = {
+    cluster: row.label,
     groupKey: seed.groupKey,
     nullifierPk: roles.nullifier_pk,
     viewingPk: roles.viewing_pk,
     pdaNullifierPk: roles.pda.nullifier_pk,
   };
-  const intent = intentHex("shield", { blockhash: BLOCKHASH, amount });
-  const pins = bytesOf(pinsHex(done, PAYER));
+  const intent = intentHex("shield", { blockhash: BLOCKHASH, amount, held: 0n });
+  const pins = bytesOf(pinsHex(done, PAYER, row.genesis));
   const bytes = W.compile_message(bytesOf(intent), pins, new Uint8Array(0));
   const message = sdk.getCompiledTransactionMessageDecoder().decode(bytes);
   assert.equal(message.instructionHeaders.length, 1, "Add SOL is one instruction");
@@ -227,10 +249,10 @@ function wasmShield(seed, roles, amount) {
 }
 
 /** The deposit instruction of the SDK for the PDA identity of the seed. */
-async function sdkShield(seed, roles, amount, wasm) {
+async function sdkShield(seed, roles, amount, wasm, row = DEVNET) {
   const viewing = sdk.ViewingKey.fromBytes(Uint8Array.from(bytesOf(roles.viewing_sk)));
   const address = sdk.ShieldedAddress.forPda({
-    pda: bytesOf(derivePda(seed.groupKey)),
+    pda: bytesOf(derivePda(seed.groupKey, row.approvals)),
     nullifierPublicKey: bytesOf(roles.pda.nullifier_pk),
     viewingPublicKey: viewing.publicKey(),
   });
@@ -259,29 +281,64 @@ const client = await sdk.createSprClient({
   proofDataSource: "client",
 });
 
+/** The wasm deposit of a seed, an amount and a row equals the SDK deposit for its PDA owner. */
+async function sameShield(seed, amount, row) {
+  const roles = rolesOf(seed, row);
+  const pda = derivePda(seed.groupKey, row.approvals);
+  const wasm = wasmShield(seed, roles, amount, row);
+  const { ix, address } = await sdkShield(seed, roles, amount, wasm, row);
+  const label = `${seed.name} ${row.label} ${amount}`;
+  assert.equal(roles.pda.pda, pda, `${label}: the PDA of the wasm`);
+  assert.equal(wasm.program, sdk.SHIELDED_POOL_PROGRAM_ID, `${label}: program`);
+  assert.equal(ix.programAddress, wasm.program, `${label}: SDK program`);
+  assert.equal(wasm.accounts[0].address, client.tree, `${label}: tree 0 of the SDK`);
+  assert.equal(hexOf(wasm.data), hexOf(ix.data), `${label}: instruction data`);
+  const sdkAccounts = ix.accounts.map((a) => ({ address: a.address, ...roleFlags(a.role) }));
+  assert.deepEqual(wasm.accounts, sdkAccounts, `${label}: account metas`);
+  assert.equal(hexOf(address.ownerHash()), roles.pda.owner_hash, `${label}: owner hash`);
+  const tag = hexOf(address.confidentialViewTag());
+  assert.equal(tag, pda, `${label}: view tag`);
+  const data = hexOf(wasm.data);
+  assert.ok(data.includes(roles.pda.owner_hash), `${label}: the data holds the owner hash`);
+  assert.ok(data.includes(pda), `${label}: the data holds the view tag`);
+  assert.equal(wasm.accounts[1].address, base58(PAYER), `${label}: depositor is the payer`);
+  assert.equal(hexOfAddress(wasm.accounts[4].address), PREPARE_SOL_INTERFACE);
+}
+
 for (const seed of seeds) {
-  const roles = rolesOf(seed);
   for (const amount of [1n, 20_000_000n, 0xffff_ffff_ffff_ffffn]) {
-    const wasm = wasmShield(seed, roles, amount);
-    const { ix, address } = await sdkShield(seed, roles, amount, wasm);
-    const label = `${seed.name} ${amount}`;
-    assert.equal(wasm.program, sdk.SHIELDED_POOL_PROGRAM_ID, `${label}: program`);
-    assert.equal(ix.programAddress, wasm.program, `${label}: SDK program`);
-    assert.equal(wasm.accounts[0].address, client.tree, `${label}: tree 0 of the SDK`);
-    assert.equal(hexOf(wasm.data), hexOf(ix.data), `${label}: instruction data`);
-    const sdkAccounts = ix.accounts.map((a) => ({ address: a.address, ...roleFlags(a.role) }));
-    assert.deepEqual(wasm.accounts, sdkAccounts, `${label}: account metas`);
-    assert.equal(hexOf(address.ownerHash()), roles.pda.owner_hash, `${label}: owner hash`);
-    const tag = hexOf(address.confidentialViewTag());
-    assert.equal(tag, derivePda(seed.groupKey), `${label}: view tag`);
-    const data = hexOf(wasm.data);
-    assert.ok(data.includes(roles.pda.owner_hash), `${label}: the data holds the owner hash`);
-    assert.ok(data.includes(derivePda(seed.groupKey)), `${label}: the data holds the view tag`);
-    assert.equal(wasm.accounts[1].address, base58(PAYER), `${label}: depositor is the payer`);
-    assert.equal(hexOfAddress(wasm.accounts[4].address), PREPARE_SOL_INTERFACE);
+    await sameShield(seed, amount, DEVNET);
   }
 }
 step("the wasm Add SOL deposit equals the SDK deposit for the PDA owner (5 seeds, 3 amounts)");
+
+// ---- the private mainnet wallet ----
+
+// guard.js keeps its own table for the Worker: its programs and genesis hashes must be the ones
+// of the wasm rows. The program of mainnet is the last field of the signed program label.
+const pool = J(W.sol_pool_wallet("mainnet"));
+assert.deepEqual([pool.label, pool.cap], ["mainnet-private", "500000000"]);
+assert.equal(pool.program.split(":").at(-1), CLUSTERS.mainnet.program, "the program label");
+assert.equal(J(W.sol_pool_wallet("devnet")).cap, null, "Devnet has no cap");
+for (const row of [DEVNET, MAINNET]) {
+  const { program, genesis } = CLUSTERS[row.cluster];
+  assert.deepEqual([program, genesis], [row.approvals, row.genesis], row.cluster);
+  const other = row === DEVNET ? MAINNET : DEVNET;
+  for (const seed of seeds) {
+    const roles = rolesOf(seed, row);
+    assert.equal(roles.pda.pda, derivePda(seed.groupKey, program), `${seed.name}: ${row.label}`);
+    assert.equal(wasmShield(seed, roles, 1n, row).program, sdk.SHIELDED_POOL_PROGRAM_ID);
+    const wrong = { ...row, genesis: other.genesis };
+    assert.throws(() => wasmShield(seed, roles, 1n, wrong), /^Error: pins: /, "another genesis");
+  }
+}
+assert.notEqual(rolesOf(seeds[0], MAINNET).pda.pda, rolesOf(seeds[0]).pda.pda, "another PDA");
+step("guard.js names the programs and genesis hashes of the wasm rows; each row has its own PDA");
+
+for (const seed of seeds) {
+  for (const amount of [1n, 500_000_000n]) await sameShield(seed, amount, MAINNET);
+}
+step("the mainnet Add SOL deposit equals the SDK deposit for the PDA under 9mE7 (5 seeds)");
 
 console.log("sol-sdk: ok");
 process.exit(0);

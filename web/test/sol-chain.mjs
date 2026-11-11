@@ -51,7 +51,7 @@ const sha256 = (...parts) => {
 /** The chain view of a group: its keys, its two addresses and its nonce account. */
 export async function chainGroup(W, done, solSeed) {
   const roles = JSON.parse(W.sol_roles(solSeed, done.groupKey));
-  const pda = JSON.parse(W.sol_pda_roles(solSeed, done.groupKey));
+  const pda = JSON.parse(W.sol_pda_roles("devnet", solSeed, done.groupKey));
   return {
     key: done.groupKey,
     owner: base58(done.groupKey),

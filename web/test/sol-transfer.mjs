@@ -10,6 +10,7 @@
 // Run: node web/test/sol-transfer.mjs   (Node 26)
 import assert from "node:assert/strict";
 import { base58 } from "../sol/docs.js";
+import { CLUSTERS } from "../sol/guard.js";
 import {
   ZERO_KEY,
   bytesOf,
@@ -35,8 +36,12 @@ const MOVE = {
   payee: { address: G.group.pdaAddress, key: G.group.pda, ownerHash: G.group.pdaOwnerHash },
 };
 
+// A vector names no cluster: its group is a Devnet pool group.
+const pinsOf = (done, payer) =>
+  bytesOf(pinsHex({ ...done, cluster: "devnet" }, payer, CLUSTERS.devnet.genesis));
+
 function verdictOf(side, { spend = side.spend, ss = side.ss, message, payer = side.payer } = {}) {
-  const pins = bytesOf(pinsHex(side.done, payer));
+  const pins = pinsOf(side.done, payer);
   const made = message ?? W.compile_message(bytesOf(proposalHex(ss)), pins, bytesOf(side.transact));
   const snapshot = bytesOf(snapshotHex(side.roles, spend));
   const text = W.check_message(made, bytesOf(proposalHex(ss)), pins, snapshot, NOW);

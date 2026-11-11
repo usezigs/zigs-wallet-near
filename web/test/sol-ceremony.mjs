@@ -13,7 +13,8 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { docFields } from "../signed.js";
 import { newSignKey, signMsg } from "../chat.js";
-import { agreement, fitsSolana, seatProgress, startBlock } from "../sol/ceremony.js";
+import { readFileSync } from "node:fs";
+import { agreement, fitsSolana, pdaFields, seatProgress, startBlock } from "../sol/ceremony.js";
 import { backupText as solBackupText, backupWords } from "../sol/backup.js";
 import { base58 } from "../sol/docs.js";
 import { syncSolana } from "../sol/session.js";
@@ -636,7 +637,7 @@ const zcash = [1, 2, 3].map((i) => zcashOf(gid, i));
     [docs[0].address, docs[0].nullifierPk, docs[0].viewingPk],
     "the document has the wasm roles",
   );
-  const pda = JSON.parse(W.sol_pda_roles(s[0].solSeed, s[0].groupKey));
+  const pda = JSON.parse(W.sol_pda_roles("devnet", s[0].solSeed, s[0].groupKey));
   assert.deepEqual(
     PDA_KEYS.map((k) => docs[0][k]),
     [pda.pda, pda.nullifier_pk, pda.owner_hash, pda.address],
@@ -866,6 +867,41 @@ assert.deepEqual(
   zcash.map((z) => Object.keys(z).includes("sol")),
   [false, false, false],
 );
+
+// ── A private mainnet wallet runs the second DKG under the label mainnet-private ──
+// Phase 1 has no router for the private mode: the test gives the controller the wallet kind that
+// main.js sets for a private wallet (slice 8d), on a testnet wallet that the pool controller opens.
+{
+  const gidP = await rig.wallet({ name: "Private" });
+  await t.solLoad();
+  await waitFor("the private wallet", () => t.sol.ctl.gid === gidP);
+  const pool = JSON.parse(W.sol_pool_wallet("mainnet"));
+  const ctl = t.sol.ctl;
+  ctl.wallet = { cluster: "mainnet", mode: "pool", ...pool };
+  await t.sol.add();
+  await waitFor("every private soldone", () => haveDones(gidP), 30000);
+  await waitFor("the private agreement", () => agreement(ctl).state === "agree");
+  assert.equal(stored(gidP, "solstart")[1].cluster, "mainnet-private", "the start names the label");
+  const docs = dones(gidP).map(docFields);
+  for (const d of docs) {
+    assert.deepEqual([d.cluster, d.program], [pool.label, pool.program], "the soldone of " + d.by);
+  }
+  assert.equal(pool.program.split(":").at(-1), "9mE7WUJHK6dQwzK6AP6wf1eyPmePULZrGeRbXqke2ukq");
+  const s = solOf(gidP, 1);
+  const pda = JSON.parse(W.sol_pda_roles(pool.label, s.solSeed, s.groupKey));
+  const named = [pda.pda, pda.nullifier_pk, pda.owner_hash, pda.address];
+  for (const d of docs) assert.deepEqual(PDA_KEYS.map((k) => d[k]), named, "the PDA under 9mE7");
+  const devnet = JSON.parse(W.sol_pda_roles("devnet", s.solSeed, s.groupKey));
+  assert.notEqual(devnet.pda, pda.pda, "not the PDA under 5PHZ");
+  assert.equal(agreement(ctl).done.cluster, pool.label);
+  delete ctl.wallet;
+  assert.equal(agreement(ctl).state, "differ", "a Devnet controller refuses the private documents");
+  // A Devnet group keeps its PDA identity: the test group of sol-group.json.
+  const kept = JSON.parse(readFileSync(new URL("sol-group.json", import.meta.url), "utf8"));
+  const fields = pdaFields(W, { solSeed: kept.solSeed, groupKey: kept.group.key });
+  const keys = ["pda", "pdaNullifierPk", "pdaOwnerHash", "pdaAddress"];
+  assert.deepEqual(keys.map((k) => fields[k]), keys.map((k) => kept.group[k]), "sol-group.json");
+}
 
 // ── A seat refuses to start without the safety number that its person confirmed ──
 {
@@ -1214,6 +1250,7 @@ assert.deepEqual(
   assert.match(startBlock(host(1, "testnet")), /version 3/);
   assert.match(startBlock(host(3, "mainnet")), /Devnet only/);
   assert.equal(startBlock(host(3, "testnet")), null);
+
   const gid7 = await rig.wallet({ name: "Main", network: "mainnet" });
   await t.solLoad();
   await assert.rejects(() => t.sol.add(), /Devnet only/);
