@@ -331,6 +331,56 @@ const made = await (async () => {
 }
 step("the choice on pins, writes the hint, then solAuto, and seat 1 never signs mainnet-plain");
 
+// ── The join card of a wallet with the private hint: the text and the accept tick ──
+{
+  await t.createGroup("Join", 3, 2, null, "mainnet");
+  const gid = t.state.gid;
+  await waitFor("seat 1", () => t.state.seats[1]);
+  await rig.db.doc("groups/" + gid).update({ solana: true, solMode: PRIVATE });
+  await waitFor("the hint", () => t.state.g?.solMode === PRIVATE);
+  // A browser with no seat of the wallet gets the join card.
+  const kept = t.secrets[gid + ":1"];
+  delete t.secrets[gid + ":1"];
+  try {
+    const page = () => drawn(() => t.groupView());
+    const join = () => button(page(), "Join as device 2");
+    assert.ok(join(), "the join card");
+    says(textOf(page()), ["Private Solana on mainnet", ...MAINNET_DISCLOSURE], "the join card");
+    assert.equal("checked" in byId(page(), "j-private").attrs, false, "the tick is off");
+    t.ui.join.ack = true;   // the mainnet tick of the join card (mainnet-on.mjs)
+    await join().on.click(EV);
+    assert.match(t.banner.text, /accepts the private Solana wallet before you join/);
+    assert.deepEqual([t.localSeats(), t.signPins[KEY(gid)]], [[], undefined], "no seat, no pin");
+    byId(page(), "j-private").on.change({ target: { checked: true } });
+    await pinsFail(() => join().on.click(EV));
+    assert.match(t.banner.text, /could not save that it accepts the private Solana wallet/);
+    assert.deepEqual([t.localSeats(), t.signPins[KEY(gid)]], [[], undefined],
+      "a failed pin takes no seat");
+    await join().on.click(EV);
+    await waitFor("seat 2", () => t.localSeats().includes(2));
+    assert.equal(stored()[KEY(gid)], PRIVATE, "the join pinned the private mode first");
+  } finally {
+    t.secrets[gid + ":1"] = kept;
+    await t.putSec(gid, 1, {});
+  }
+  // Without the hint the card has no private text and no tick.
+  await t.createGroup("Join plain", 3, 2, null, "mainnet");
+  const other = t.state.gid;
+  await waitFor("seat 1", () => t.state.seats[1]);
+  const held = t.secrets[other + ":1"];
+  delete t.secrets[other + ":1"];
+  try {
+    const page = drawn(() => t.groupView());
+    assert.ok(button(page, "Join as device 2"), "the join card");
+    assert.equal(byId(page, "j-private"), null, "no private tick without the hint");
+    assert.doesNotMatch(textOf(page), /Private Solana on mainnet/);
+  } finally {
+    t.secrets[other + ":1"] = held;
+    await t.putSec(other, 1, {});
+  }
+}
+step("the join card of a private wallet shows the disclosure, and its tick writes the pin");
+
 // ── A browser with the pin never imported the plain controller ──
 assert.equal(t.plainLoading, null, "the plain controller never loaded");
 assert.equal(plainImported(), false, "and sol/plain/control.js never loaded");

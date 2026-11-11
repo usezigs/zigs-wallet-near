@@ -128,6 +128,11 @@ export async function planPrivate(gid) {
   await sdb.doc("groups/" + gid).update({ solana: true, solMode: PRIVATE_LABEL });
   await putSec(gid, 1, { solAuto: true });
 }
+// The group document asks for the private Solana wallet (planPrivate). A hint only, as
+// solPlanned: it changes the join card, and never the mode (solMode).
+export const privatePlanned = (g = state.g) =>
+  g?.solana === true && g.solMode === PRIVATE_LABEL && g.network === "mainnet"
+  && walletVersion(g) === 3;
 // MAINNET_DISCLOSURE of web/sol/net.js, the one text of the private wallet. A page module reads
 // web/sol only with import(), so the text is null until the module loads, and the load redraws.
 let disclosure = null, disclosureLoad = null;
