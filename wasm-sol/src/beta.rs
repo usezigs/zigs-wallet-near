@@ -14,6 +14,9 @@
 //!   registered, and the checker refuses every registry instruction.
 //!
 //! The rules of the PDA identity (Shield and the program messages) run with `Pins::for_pda`.
+//!
+//! On mainnet (`program::MAINNET`) a group has no beta funds: nothing signs CreateNonce or the
+//! nonce payment, and a Shield must keep the private balance within the cap of the row.
 
 use crate::approve::{approve, Approved, Device};
 use crate::check::{parse_transact_data, Refusal};
@@ -22,7 +25,7 @@ use crate::intent::{Intent, Program};
 use crate::pay::{approve_pay, Payment, Read, Recipient, Seen};
 use crate::pins::Pins;
 use crate::plan::{Proposal, Role};
-use crate::program::{approval_digest, commitment, proposal_address, settlements};
+use crate::program::{approval_digest, commitment, proposal_address, settlements, Deployment};
 use crate::roles::pda_address;
 use crate::rule::{Rule, Violation};
 use crate::sign::verify_strict;
@@ -36,10 +39,13 @@ pub enum Signer {
     Fee,
 }
 
-/// Why `signer` may not sign a message of this intent, or `None`.
-fn retired(intent: &Intent, signer: Signer) -> Option<String> {
+/// Why `signer` may not sign a message of this intent on `row`, or `None`.
+fn retired(intent: &Intent, signer: Signer, row: &Deployment) -> Option<String> {
     let name = intent.name();
     match intent {
+        Intent::CreateNonce { .. } | Intent::Transfer { .. } if !row.is_devnet() => {
+            Some(format!("nothing signs the intent {name} on {}", row.label))
+        }
         Intent::CreateNonce { .. } | Intent::Transfer { .. } => None,
         Intent::Shield { .. }
         | Intent::Program(
@@ -74,6 +80,20 @@ fn migration_violations(proposal: &Proposal, pins: &Pins) -> Vec<Violation> {
     }
     let why = "a nonce payment must pay its inputs whole to the program address of this group";
     vec![Violation::new(Rule::MigrationPayee, why)]
+}
+
+/// The cap of the row: the SOL of the PDA identity that the device synced, plus the deposit.
+fn cap_violations(intent: &Intent, row: &Deployment) -> Vec<Violation> {
+    let (Intent::Shield { amount, held, .. }, Some(cap)) = (intent, row.cap) else {
+        return Vec::new();
+    };
+    match held.checked_add(*amount) {
+        Some(total) if total <= cap => Vec::new(),
+        _ => {
+            let why = format!("{held} held + {amount} added lamports is over the cap of {cap}");
+            vec![Violation::new(Rule::ShieldOverCap, why)]
+        }
+    }
 }
 
 /// The `transact` data inside the `execute` of a message, if the message has one that parses.
@@ -116,8 +136,8 @@ fn execute_violations(bytes: &[u8], intent: &Intent, device: &Device) -> Vec<Vio
     let settled = settlements(&pins.sol_interface, *recipient);
     let digest = commitment(&tx.private_tx_hash, &tx, &settled).and_then(|commitment| {
         let body = body_of(pins, commitment, *expiry, *rent_recipient).write()?;
-        let (proposal, _) = proposal_address(&pins.multisig, &commitment, &body)?;
-        Ok(approval_digest(&proposal, &body))
+        let (proposal, _) = proposal_address(pins.deployment, &pins.multisig, &commitment, &body)?;
+        Ok(approval_digest(pins.deployment, &proposal, &body))
     });
     match digest.map(|digest| verify_strict(&pins.multisig, &digest, signature)) {
         Ok(Ok(())) => {}
@@ -171,7 +191,7 @@ pub fn approve_message(
 ) -> Result<Approved, Refusal> {
     let intent = &proposal.intent;
     let mut out = Vec::new();
-    if let Some(why) = retired(intent, signer) {
+    if let Some(why) = retired(intent, signer, device.pins.deployment) {
         out.push(Violation::new(Rule::IntentRetired, why));
     }
     let pins = identity(intent, device.pins)?;
@@ -180,6 +200,7 @@ pub fn approve_message(
         ..*device
     };
     out.extend(migration_violations(proposal, &pins));
+    out.extend(cap_violations(intent, pins.deployment));
     out.extend(propose_violations(proposal, &device));
     out.extend(execute_violations(bytes, intent, &device));
     let approved = approve(bytes, intent, &proposal.plan, &device);

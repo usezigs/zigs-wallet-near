@@ -149,12 +149,22 @@ pub const OFFCHAIN_MAGIC: [u8; 16] = [
 pub const DERIVE_PREFIX: &[u8] = b"TSPP/derive/";
 
 /// `5PHZEHBMaYbFL9SFmMyP8kUayh3TFEyq2dvEYY3UGjkL`, the approvals program of the group on Devnet
-/// (ZOLANA.md 6.10 and 7.2; this client is of version 5). It owns the shielded funds of every group
-/// at its PDA.
+/// (ZOLANA.md 6.10 and 7.2). Devnet runs version 6 since 10 November 2026. It owns the shielded
+/// funds of every group at its PDA.
 pub const MULTISIG_DEVNET: Key = [
     0x41, 0x24, 0x3e, 0xbc, 0x6a, 0xa6, 0x46, 0xb9, 0xdc, 0x5c, 0xd6, 0x42, 0xcc, 0x34, 0x34, 0xfa,
     0x27, 0x45, 0x17, 0x64, 0xad, 0x0a, 0x7c, 0x35, 0x31, 0xa0, 0x02, 0xdb, 0x9a, 0xa4, 0xb4, 0x41,
 ];
+
+/// `9mE7WUJHK6dQwzK6AP6wf1eyPmePULZrGeRbXqke2ukq`, the approvals program of the private mainnet
+/// wallet (owner decision 2026-11-10). It owns the shielded funds of every group at its PDA.
+pub const MULTISIG_MAINNET: Key = [
+    0x82, 0x31, 0xe0, 0x85, 0x2a, 0xa8, 0x44, 0x1b, 0x13, 0xd1, 0x37, 0x5b, 0xdd, 0xc0, 0x94, 0x44,
+    0x3e, 0x46, 0x8b, 0x10, 0x3b, 0x8f, 0xb9, 0x9f, 0x4d, 0x64, 0x9b, 0xad, 0xdc, 0x97, 0x09, 0x96,
+];
+
+/// The private balance cap of a mainnet group: 0.5 SOL (owner decision 2026-11-10).
+pub const PRIVATE_CAP_MAINNET: u64 = 500_000_000;
 
 /// `EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG`, the genesis hash of Devnet: the deployment id
 /// of the approval digest, so an approval for one cluster never verifies on another.

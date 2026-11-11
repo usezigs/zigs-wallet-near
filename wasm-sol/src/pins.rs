@@ -6,28 +6,38 @@
 //! (ZOLANA.md 5). The page matches it to that document before it calls the checker. The fifth is
 //! the `nullifier_pk` of the PDA identity that owns the funds of the program design (7.2): the
 //! PDA is derived here from the group key, never taken from the device.
+//!
+//! The wire names the deployment (`program::DEPLOYMENTS`) and the genesis hash that the page read
+//! from its RPC. `decode` refuses a genesis that is not the genesis of the deployment, so every
+//! entry that reads pins refuses an RPC of the other cluster.
 
 use crate::assets::AssetTable;
 use crate::bytes::{short_hex, Reader};
 use crate::consts::{
-    Key, COMPUTE_BUDGET_PROGRAM, ED25519_PROGRAM, INSTRUCTIONS_SYSVAR, MULTISIG_DEVNET, NONCE_SEED,
+    Key, COMPUTE_BUDGET_PROGRAM, DEVNET_GENESIS, ED25519_PROGRAM, INSTRUCTIONS_SYSVAR, NONCE_SEED,
     POOL_DEVNET, RECENT_BLOCKHASHES, REGISTRY_DEVNET, RENT_SYSVAR, SEED_CPI_AUTHORITY,
     SEED_NULLIFIER, SEED_SOL_INTERFACE, SEED_SOL_INTERFACE_INDEX, SEED_TREE, SEED_USER_RECORD,
     SYSTEM_PROGRAM,
 };
 use crate::hashes::owner_hash;
 use crate::pda::{create_with_seed, find_program_address};
-use crate::program::owner_pda;
+use crate::program::{deployment_of_wire, owner_pda, Deployment, DEVNET};
 
 /// Rent of the nonce account on Devnet (P2 result, ZOLANA.md 6.3).
 pub const NONCE_RENT_DEVNET: u64 = 1_056_640;
 
-/// The wire form of the pins at the wasm entry: group key, `nullifier_pk`, `viewing_pk`, payer,
-/// and the `nullifier_pk` of the PDA identity.
-pub const WIRE_LEN: usize = 32 + 32 + 33 + 32 + 32;
+/// The wire form of the pins at the wasm entry: the cluster byte of the deployment, group key,
+/// `nullifier_pk`, `viewing_pk`, payer, the `nullifier_pk` of the PDA identity, and the genesis
+/// hash that the page read from its RPC.
+pub const WIRE_LEN: usize = 1 + 32 + 32 + 33 + 32 + 32 + 32;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Pins {
+    /// The pool deployment of the wallet: its cluster, approvals program and cap.
+    pub deployment: &'static Deployment,
+    /// The genesis hash that the page read from its RPC. `decode` refuses one that is not the
+    /// genesis of the deployment.
+    pub rpc_genesis: Key,
     /// The owner key of the identity that the rules check: the group key, or the PDA after
     /// `for_pda`. Its `owner_hash` is `group_owner_hash`.
     pub group: Key,
@@ -82,11 +92,13 @@ impl Pins {
             "the SOL interface",
         )?;
         Ok(Self {
+            deployment: &DEVNET,
+            rpc_genesis: DEVNET_GENESIS,
             group,
             multisig: group,
-            pda: owner_pda(&group)?,
+            pda: owner_pda(&DEVNET, &group)?,
             pda_nullifier_pk,
-            program: MULTISIG_DEVNET,
+            program: DEVNET.program,
             nullifier_pk,
             viewing_pk,
             payer,
@@ -100,6 +112,24 @@ impl Pins {
             user_record: derive(&[SEED_USER_RECORD, &group], &REGISTRY_DEVNET, "the record")?,
             nonce_rent: NONCE_RENT_DEVNET,
             assets: AssetTable::devnet()?,
+        })
+    }
+
+    /// The same pins on another deployment, with the genesis that the page read from its RPC.
+    /// The PDA, the approvals program and the asset table follow the row. It does not compare the
+    /// genesis: `decode` does.
+    pub fn on_deployment(
+        &self,
+        row: &'static Deployment,
+        rpc_genesis: Key,
+    ) -> Result<Self, String> {
+        Ok(Self {
+            deployment: row,
+            rpc_genesis,
+            pda: owner_pda(row, &self.multisig)?,
+            program: row.program,
+            assets: row.assets()?,
+            ..self.clone()
         })
     }
 
@@ -123,15 +153,19 @@ impl Pins {
         })
     }
 
-    /// Reads the wire form of the wasm entry. The whole input must be used.
+    /// Reads the wire form of the wasm entry. The whole input must be used, the cluster byte must
+    /// name a deployment, and the genesis must be the genesis of that deployment.
     pub fn decode(bytes: &[u8]) -> Result<Self, String> {
         let short = |_| {
             format!(
-                "pins: need {WIRE_LEN} bytes: group key, nullifier_pk, viewing_pk, payer, \
-                 PDA nullifier_pk"
+                "pins: need {WIRE_LEN} bytes: cluster, group key, nullifier_pk, viewing_pk, \
+                 payer, PDA nullifier_pk, genesis"
             )
         };
         let mut r = Reader::new(bytes);
+        let cluster = r.u8().map_err(short)?;
+        let row = deployment_of_wire(cluster)
+            .ok_or_else(|| format!("pins: the cluster byte {cluster} names no deployment"))?;
         let (group, nullifier_pk, viewing_pk, payer, pda_nullifier_pk) = (
             r.array().map_err(short)?,
             r.array().map_err(short)?,
@@ -139,10 +173,18 @@ impl Pins {
             r.array().map_err(short)?,
             r.array().map_err(short)?,
         );
+        let rpc_genesis: Key = r.array().map_err(short)?;
         if !r.is_empty() {
             return Err(format!("pins: {} bytes, need {WIRE_LEN}", bytes.len()));
         }
-        Self::devnet(group, nullifier_pk, viewing_pk, payer, pda_nullifier_pk)
+        if rpc_genesis != row.genesis {
+            return Err(format!(
+                "pins: the RPC genesis is not the genesis of {}",
+                row.label
+            ));
+        }
+        Self::devnet(group, nullifier_pk, viewing_pk, payer, pda_nullifier_pk)?
+            .on_deployment(row, rpc_genesis)
     }
 
     /// The pins of the PDA identity: the PDA is the owner, with its own `nullifier_pk` and
@@ -156,14 +198,17 @@ impl Pins {
         })
     }
 
-    /// The wire form of the wasm entry, of the pins that `devnet` made (not of `for_pda`).
+    /// The wire form of the wasm entry, of the pins that `devnet` or `on_deployment` made (not of
+    /// `for_pda`).
     pub fn wire(&self) -> Vec<u8> {
         [
+            &[self.deployment.wire][..],
             &self.multisig[..],
             &self.nullifier_pk[..],
             &self.viewing_pk[..],
             &self.payer[..],
             &self.pda_nullifier_pk[..],
+            &self.rpc_genesis[..],
         ]
         .concat()
     }

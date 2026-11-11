@@ -354,7 +354,7 @@ pub fn body_of(pins: &Pins, commitment: Key, expiry: u64, recipient: Key) -> Bod
 /// `create`: the payer funds the proposal account at the address of the body.
 fn propose(pins: &Pins, commitment: Key, expiry: u64) -> Result<ExpectedIx, String> {
     let body = body_of(pins, commitment, expiry, pins.payer).write()?;
-    let (proposal, _) = proposal_address(&pins.multisig, &commitment, &body)?;
+    let (proposal, _) = proposal_address(pins.deployment, &pins.multisig, &commitment, &body)?;
     let accounts = vec![
         acct(pins.payer, true, true),
         acct(proposal, false, true),
@@ -368,11 +368,15 @@ fn propose(pins: &Pins, commitment: Key, expiry: u64) -> Result<ExpectedIx, Stri
 /// abort authority, so the program refuses it before the expiry (`NotAbortAuthority`).
 fn cancel_proposal(pins: &Pins, commitment: Key, expiry: u64) -> Result<ExpectedIx, String> {
     let body = body_of(pins, commitment, expiry, pins.payer).write()?;
-    let (proposal, _) = proposal_address(&pins.multisig, &commitment, &body)?;
+    let (proposal, _) = proposal_address(pins.deployment, &pins.multisig, &commitment, &body)?;
     let accounts = vec![
         acct(pins.payer, true, true),
         acct(proposal, false, true),
-        acct(cancellation_address(&proposal)?, false, true),
+        acct(
+            cancellation_address(pins.deployment, &proposal)?,
+            false,
+            true,
+        ),
         acct(pins.payer, false, true),
         acct(SYSTEM_PROGRAM, false, false),
     ];
@@ -396,14 +400,18 @@ fn execute(program: &Program, pins: &Pins, tx: &Transact) -> Result<Vec<Expected
     let settled = settlements(&pins.sol_interface, *recipient);
     let commitment = commitment(&tx.private_tx_hash, tx, &settled)?;
     let body = body_of(pins, commitment, *expiry, *rent_recipient).write()?;
-    let (proposal, _) = proposal_address(&pins.multisig, &commitment, &body)?;
-    let digest = approval_digest(&proposal, &body);
+    let (proposal, _) = proposal_address(pins.deployment, &pins.multisig, &commitment, &body)?;
+    let digest = approval_digest(pins.deployment, &proposal, &body);
     let approval = approval_ix_data(&pins.multisig, signature, &digest);
     let mut accounts = vec![
         acct(pins.payer, true, true),
         acct(proposal, false, true),
         acct(pins.group, false, false),
-        acct(cancellation_address(&proposal)?, false, false),
+        acct(
+            cancellation_address(pins.deployment, &proposal)?,
+            false,
+            false,
+        ),
         acct(*rent_recipient, false, true),
         acct(INSTRUCTIONS_SYSVAR, false, false),
     ];

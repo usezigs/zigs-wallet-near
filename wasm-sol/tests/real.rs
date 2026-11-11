@@ -116,6 +116,7 @@ fn real_shield_breaks_the_template_and_its_fields_fit() {
     let intent = Intent::Shield {
         blockhash: own_lifetime("real/work-shield-0.msg"),
         amount: Facts::load().amount("shield"),
+        held: 0,
     };
     let mut want = vec![ComputeUnitsOverCap, FeePayerNotPayer, AccountAddress];
     want.extend([AccountSet, AccountSet]);

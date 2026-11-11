@@ -517,7 +517,8 @@ pub fn approve_pay(
     let commitment = commitment(&private, &tx, &settled).map_err(plain)?;
     let want = body_of(pins, commitment, pay.expiry, pins.payer);
     let body = want.write().map_err(plain)?;
-    let (address, bump) = proposal_address(&pins.multisig, &commitment, &body).map_err(plain)?;
+    let (address, bump) =
+        proposal_address(pins.deployment, &pins.multisig, &commitment, &body).map_err(plain)?;
     let banned = program_addresses(pins);
     if banned.contains(&pins.payer) {
         let why = "the fee key of the proposing seat is an address of the program";
@@ -536,7 +537,7 @@ pub fn approve_pay(
     }
     Ok(Payment {
         commitment,
-        digest: approval_digest(&address, &body),
+        digest: approval_digest(pins.deployment, &address, &body),
         body,
         proposal: address,
         summary: run.summary,

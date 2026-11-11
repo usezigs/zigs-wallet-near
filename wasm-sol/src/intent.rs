@@ -59,10 +59,12 @@ pub enum Intent {
     },
     /// Add SOL: a pool deposit from the payer into the shielded balance of the group. The payer
     /// signs alone, with a recent blockhash: it is the SOL of one member, so the group does not
-    /// approve it and does not touch its nonce account.
+    /// approve it and does not touch its nonce account. `held` is the SOL of the PDA identity that
+    /// the device synced before the deposit; a row with a cap checks `held + amount` against it.
     Shield {
         blockhash: Key,
         amount: u64,
+        held: u64,
     },
     /// A private payment: the full shielded address of the payee, the asset and the amount.
     /// The approvers confirm the address on the screen (its fingerprint), so the checker binds
@@ -283,10 +285,15 @@ impl Intent {
                 out.push(0);
                 out.extend_from_slice(blockhash);
             }
-            Intent::Shield { blockhash, amount } => {
+            Intent::Shield {
+                blockhash,
+                amount,
+                held,
+            } => {
                 out.push(2);
                 out.extend_from_slice(blockhash);
                 out.extend_from_slice(&amount.to_le_bytes());
+                out.extend_from_slice(&held.to_le_bytes());
             }
             Intent::Transfer {
                 spend,
@@ -344,6 +351,7 @@ fn read_intent(r: &mut Reader) -> Result<Intent, String> {
         2 => Intent::Shield {
             blockhash: r.array().map_err(short)?,
             amount: r.u64().map_err(short)?,
+            held: r.u64().map_err(short)?,
         },
         3 => Intent::Transfer {
             spend: decode_spend(r).map_err(short)?,

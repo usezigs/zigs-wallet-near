@@ -11,7 +11,7 @@ use p3_check::pins::Pins;
 use p3_check::plan::{Plan, Proposal};
 use p3_check::sign::Check;
 use p3_check::snapshot::Snapshot;
-use p3_check::{frost, roles, sign, wasm};
+use p3_check::{frost, program, roles, sign, wasm};
 use rand_core::{OsRng, RngCore};
 use serde_json::{json, Value};
 
@@ -214,7 +214,8 @@ pub fn run(wallet: &str, t: u16, n: u16) -> Group {
         used_salts: Vec::new(),
     };
     let group_key = unhex32(&done[0].group_key);
-    let pda = roles::derive_pda(&unhex32(&done[0].sol_seed), &group_key).expect("PDA roles");
+    let seed = unhex32(&done[0].sol_seed);
+    let pda = roles::derive_pda(&program::DEVNET, &seed, &group_key).expect("PDA roles");
     let pins = Pins::devnet(
         group_key,
         derived.nullifier_pk,

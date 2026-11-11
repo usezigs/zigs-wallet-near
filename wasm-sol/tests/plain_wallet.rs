@@ -314,7 +314,7 @@ fn a_plain_entry_never_reads_pool_pins_and_a_pool_entry_never_reads_plain_pins()
     let plain = pins(Cluster::Devnet, Mode::Plain).wire();
     assert!(Pins::decode(&plain).is_err(), "pool pins need 161 bytes");
     let pool = Pins::devnet(GROUP, [3; 32], [2; 33], PAYER, [4; 32]).expect("pool pins");
-    assert_eq!(pool.wire().len(), 161);
+    assert_eq!(pool.wire().len(), 194);
     assert!(
         PlainPins::decode(&pool.wire()).is_err(),
         "plain pins have 66 bytes"
@@ -417,7 +417,7 @@ fn the_plain_rule_ids_are_unique_and_none_is_a_pool_rule_id() {
     }
     assert_eq!(
         p3_check::rule::INFO.len(),
-        97,
+        98,
         "the pool rule count does not change"
     );
 }

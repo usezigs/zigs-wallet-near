@@ -9,8 +9,9 @@
 //! - `sign_share`: signs the message bytes and nothing else. It runs `approve` on the exact bytes,
 //!   which refuses the off-chain prefix and the `TSPP/derive/` payloads (a group key signs any
 //!   text) and every message that breaks a rule of section 5. It requires that the key package is
-//!   the pinned group key, and that the nonces were made for the digest of these bytes. It builds
-//!   the signing package itself, so no caller can hand it another message.
+//!   the pinned group key, that the label of the round is the label of the deployment of the
+//!   pins, and that the nonces were made for the digest of these bytes. It builds the signing
+//!   package itself, so no caller can hand it another message.
 //! - `aggregate`: combines the shares and checks the signature with `verify_strict`, which the
 //!   cofactored frost verify does not do.
 
@@ -142,6 +143,9 @@ pub fn sign_share(message: &[u8], check: &Check, round: &str) -> Result<String, 
     let round = Round::parse(round)?;
     let pins = approved(message, check, round.now, Signer::Group)?;
     let digest = digest_of(&round.cluster, message)?;
+    if round.cluster != pins.deployment.label {
+        return Err("the round is for another cluster".to_string());
+    }
     if round.digest != digest {
         return Err("the nonces were made for another message".to_string());
     }
@@ -176,6 +180,9 @@ pub fn approval_share(input: &ApprovalCheck, round: &str) -> Result<String, Stri
     let proposal = Proposal::decode(input.check.intent)?;
     let snapshot = Snapshot::decode(input.check.snapshot)?;
     let pins = Pins::decode(input.check.pins)?;
+    if round.cluster != pins.deployment.label {
+        return Err("the round is for another cluster".to_string());
+    }
     let chain = Chain::decode(input.chain)?;
     let seen = chain
         .seen

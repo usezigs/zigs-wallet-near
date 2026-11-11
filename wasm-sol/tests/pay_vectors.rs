@@ -153,8 +153,9 @@ fn the_approval_recomputes_the_private_tx_hash_of_the_sdk_and_accepts_the_paymen
         };
         let commitment = key(&v, &["messageHash"]);
         let body = body_of(&pins.for_pda().unwrap(), commitment, EXPIRY, pins.payer);
+        let bytes = body.write().unwrap();
         let (_, bump) =
-            proposal_address(&pins.multisig, &commitment, &body.write().unwrap()).unwrap();
+            proposal_address(pins.deployment, &pins.multisig, &commitment, &bytes).unwrap();
         let seen = Seen {
             account: Some(Account {
                 owner: MULTISIG_DEVNET,

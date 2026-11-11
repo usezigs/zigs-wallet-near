@@ -97,15 +97,17 @@ fn the_pins_are_the_group_key_with_its_nullifier_pk_and_viewing_pk() {
     .unwrap();
     let snapshot = f.snapshot.encode().unwrap();
     let wire = f.pins.wire();
-    assert_eq!(wire.len(), 161, "32 + 32 + 33 + 32 + 32 bytes");
+    assert_eq!(wire.len(), 194, "1 + 32 + 32 + 33 + 32 + 32 + 32 bytes");
     assert!(check_message(&bytes, &proposal, &wire, &snapshot, NOW).starts_with("accepted"));
     // The old forms (the group key alone, the three keys without the payer, the four keys
-    // without the PDA key) are not pins.
+    // without the PDA key, the 161 bytes with no cluster byte and no genesis) are not pins.
     for old in [
         &GROUP[..],
-        &wire[..64],
-        &wire[..97],
-        &wire[..129],
+        &wire[..65],
+        &wire[..98],
+        &wire[..130],
+        &wire[1..162],
+        &wire[..162],
         &[wire.as_slice(), &[0]].concat(),
     ] {
         let answer = check_message(&bytes, &proposal, old, &snapshot, NOW);

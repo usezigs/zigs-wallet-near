@@ -23,7 +23,7 @@ use p3_check::pay::{Account, Chain, Payment, Recipient, RecipientAccount, Seen};
 use p3_check::pins::Pins;
 use p3_check::plan::{Plan, Proposal, Role};
 use p3_check::program::{
-    approval_digest, cancellation_address, commitment, proposal_address, settlements, Body,
+    approval_digest, cancellation_address, commitment, proposal_address, settlements, Body, DEVNET,
     KIND_PROPOSAL,
 };
 use p3_check::rule::Rule;
@@ -57,7 +57,7 @@ fn want_body(f: &Fixture) -> (Body, Key, u8) {
     let commitment = commitment(&private, &f.tx, &settled).unwrap();
     let body = body_of(&pda, commitment, EXPIRY, PAYER);
     let bytes = body.write().unwrap();
-    let (address, bump) = proposal_address(&f.pins.multisig, &commitment, &bytes).unwrap();
+    let (address, bump) = proposal_address(&DEVNET, &f.pins.multisig, &commitment, &bytes).unwrap();
     (body, address, bump)
 }
 
@@ -130,7 +130,7 @@ fn a_payment_of_the_pda_is_approved_with_its_commitment_proposal_and_digest() {
     assert_eq!(got.commitment, body.commitment);
     assert_eq!(got.body, body.write().unwrap());
     assert_eq!(got.proposal, address);
-    assert_eq!(got.digest, approval_digest(&address, &got.body));
+    assert_eq!(got.digest, approval_digest(&DEVNET, &address, &got.body));
     assert_eq!(body.group, GROUP);
     assert_eq!(body.expiry, EXPIRY);
     assert_eq!(
@@ -450,6 +450,7 @@ fn shield_message(pins: &Pins) -> (Proposal, Vec<u8>) {
     let intent = Intent::Shield {
         blockhash: [5; 32],
         amount: 1_000,
+        held: 0,
     };
     let message = v1::write(&compile(&intent, pins, None).unwrap()).unwrap();
     let proposal = Proposal {
@@ -743,7 +744,7 @@ fn any_seat_executes_a_fresh_proof_with_the_approval_and_pays_with_its_own_fee_k
     assert_eq!(at(4), PAYER, "the rent goes back to the proposing seat");
     assert_eq!(
         at(3),
-        cancellation_address(&got.proposal).unwrap(),
+        cancellation_address(&DEVNET, &got.proposal).unwrap(),
         "the record"
     );
     assert_eq!(
@@ -1274,12 +1275,13 @@ const CANCEL_CU: (u32, u32) = (1_224, 1_836);
 /// The proposal of the fee key of `f`: the body names it as rent recipient and abort authority.
 fn proposal_of(f: &Fixture) -> Key {
     let body = body_of(&f.pins.for_pda().unwrap(), COMMITMENT, EXPIRY, f.pins.payer);
-    let (key, _) = proposal_address(&f.pins.multisig, &COMMITMENT, &body.write().unwrap()).unwrap();
+    let body = body.write().unwrap();
+    let (key, _) = proposal_address(&DEVNET, &f.pins.multisig, &COMMITMENT, &body).unwrap();
     key
 }
 
 fn record_of(f: &Fixture) -> Key {
-    cancellation_address(&proposal_of(f)).unwrap()
+    cancellation_address(&DEVNET, &proposal_of(f)).unwrap()
 }
 
 /// The wire form that the page writes: the tag 12, the fields in order, then the blockhash.

@@ -225,6 +225,7 @@ fn a_cancel_and_a_shield_compile_without_transact_data() {
         Intent::Shield {
             blockhash: nonce,
             amount: 1_000,
+            held: 0,
         },
     ] {
         let proposal = Proposal {
