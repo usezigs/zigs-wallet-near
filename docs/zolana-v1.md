@@ -551,8 +551,9 @@ the deploy record in ZOLANA.md 6.15 and the custody record in ZOLANA.md 7.2.
   A read-only preflight the same day passed: the program and its ProgramData, tree 0 (G2, closed)
   and the genesis. G6, a landed Zigs v1 message on mainnet, is open: the repo records no plain
   mainnet send from staging.
-- **Still open.** `SOL_POOL_MAINNET` is `"0"` on production and on staging at `e38961ed`; the
-  owner turns it on for staging only. The owner steps have not run: the setup of the first
+- **Flag.** `SOL_POOL_MAINNET` is `"1"` on staging since commit `08a255d7`, deployed as `e8ea2126`
+  on 11 November 2026 at 14:23 UTC. Production keeps `"0"`.
+- **Still open.** The owner steps have not run: the setup of the first
   private wallet, the funding of the fee addresses, one shield, one private send, one withdrawal
   and the cap check. The repo records no Zigs payment through ring1G on any cluster. The baseline
   record waits for the end of the local-server ban.

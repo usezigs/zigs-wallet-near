@@ -68,7 +68,7 @@ proposer chooses one ([comparison](PRIVACY.md#on-chain)).
   other people and private payments in can take a group above it. Never send public SOL to the
   PDA address: no code can move it. Do not expect anonymity: the mainnet pool is small. The
   devices make the proofs. The server serves it only where `SOL_POOL_MAINNET` is `"1"`: it is
-  `"0"` on production, and on staging until the owner turns it on ([ZOLANA.md](ZOLANA.md) 6.15
+  `"1"` on staging and `"0"` on production ([ZOLANA.md](ZOLANA.md) 6.15
   and 7.2, [PRIVACY.md](PRIVACY.md#solana-mainnet-private-wallet-staging-only)).
 - The wallet follows chain reorganisations of up to 100 blocks
   ([how](PROTOCOL.md#6-receiving-and-sync)). After a deeper one, the web, iPhone and Mac apps
@@ -500,8 +500,8 @@ The private Solana wallet on mainnet uses the same secret through `/sol/config-m
 its own Worker path `/sol/worker-mainnet.js`, whose policy names only the Helius mainnet host and
 the folder of proving keys. The server answers 404 for that path unless `SOL` and
 `SOL_POOL_MAINNET` in `cf/wrangler.jsonc` are both `"1"`. `SOL_POOL_MAINNET` is `"0"` at the top
-level (production) and in staging. Only the owner turns it on, and only for staging. Keep it at
-`"0"` on production (docs/zolana-v1.md section 9).
+level (production). Staging has `"1"` since 11 November 2026, after the owner deployed the
+mainnet program. Keep it at `"0"` on production (docs/zolana-v1.md section 9).
 
 To try the beta by hand, make a testnet wallet, add the Solana part, and open the Solana tab. Each
 device that this browser holds shows **Your fee address**. Send Devnet SOL to it (the **Get Devnet

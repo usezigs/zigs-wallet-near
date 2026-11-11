@@ -735,10 +735,10 @@ approvals program `9mE7WUJHK6dQwzK6AP6wf1eyPmePULZrGeRbXqke2ukq` ([ZOLANA.md](ZO
 and 7.2, [docs/zolana-v1.md](docs/zolana-v1.md) section 9). Device 1 chooses the private mode at
 setup, and every device accepts it before it joins. An existing plain mainnet wallet stays plain.
 The server serves this wallet only where the variables `SOL` and `SOL_POOL_MAINNET` are both
-`"1"`. Production keeps `"0"`. Staging also has `"0"` until the owner turns it on for the test.
+`"1"`. Production keeps `"0"`. Staging has `"1"` since 11 November 2026.
 
-Before the setup, the page shows a disclosure with these facts (`MAINNET_DISCLOSURE` in
-`web/sol/net.js`):
+Before the setup, the page shows a disclosure with these facts. The list gives them in
+substance; the exact text is `MAINNET_DISCLOSURE` in `web/sol/net.js`.
 
 - This private wallet uses real SOL.
 - It is a test on staging. No one audited it.

@@ -1248,9 +1248,9 @@ coordinator ran only reads and prepared the commands). Times are UTC.
   and passed the tests of the program at `9mE7…`.
 - Funding. The owner sent 482,610,450 lamports to `iFSb…`, slot 468059740:
   `4itLAK85veTBckBXGgWa1Ps8jZnZwp8EUDqZo2TsJnTxHGZVLTPDjw3JiUbvtEVGnGgQ9uYxZGkrHka8DpnQLy9Q`.
-- Buffer `7TFF19RdtZeyzu7TeVDDSceZNNxjBZjtXjo1kfL9RZGX`. The writes and the deploy used a
-  compute-unit price of 100,000 micro-lamports. A dump of the buffer before the deploy hashed to
-  `00aa2169…` over its first 54,728 bytes.
+- Buffer `7TFF19RdtZeyzu7TeVDDSceZNNxjBZjtXjo1kfL9RZGX`. The first write run used a compute-unit
+  price of 10,000 micro-lamports; the rest of the writes and the deploy used 100,000. A dump of
+  the buffer before the deploy hashed to `00aa2169…` over its first 54,728 bytes.
 - Deploy
   `hFvhZ5Usn14Wjevpn4wmWZpkRMHLmvn4KKZYK7c69Uw68VKXAQ21PQLZczqR664kYCsbERiAEPsqXZfjC5yTv8m`,
   slot 468153564, 14:16:29, fee 10,297 lamports. It created the program account (833,120
@@ -1689,8 +1689,7 @@ Notes of the delta review:
 
 **The upgrade key: options for the owner (decided 16 October 2026, SOL-40).** Rent below is at
 5,080 lamports per byte, the rate that mainnet and Devnet both charged on 10 and 11 November 2026.
-An earlier version of this text used 6,960 for mainnet. The proposal rent of 6.10 is 1,356,360
-lamports for 267 bytes.
+The proposal rent of 6.10 is 1,356,360 lamports for 267 bytes.
 
 | | Immutable after an audit (`--final`) | Multisig upgrade key with a timelock |
 |---|---|---|
@@ -1719,8 +1718,9 @@ use.
 - Scope. Only staging.zigs.app may serve the private mainnet wallet, and only to a new mainnet
   wallet whose devices all accept the private mode at setup (label `mainnet-private`). Existing
   plain mainnet wallets stay plain. Production (app.zigs.app) stays frozen. `SOL_POOL_MAINNET` is
-  `"0"` there (D14), so production answers 404 for `/sol/worker-mainnet.js`. At commit `e38961ed`
-  the flag is `"0"` on staging too, until the owner turns it on.
+  `"0"` there (D14 of docs/zolana-v1.md), so production answers 404 for `/sol/worker-mainnet.js`.
+  Staging has `"1"` since commit `08a255d7`, deployed as `e8ea2126` on 11 November 2026 at
+  14:23 UTC, after the deploy and the preflight of 6.15.
 - Holder. The owner alone holds the upgrade authority `iFSbwFzpLpaGMKtn5S6gznvzXqAVunoB6rcSpGi956o`
   and the program keypair of `9mE7…`. Agents never sign with either key. They only read the chain
   and prepare commands, and the owner runs each transaction.
@@ -1731,7 +1731,7 @@ use.
   (`MAINNET_DISCLOSURE`) assumes the worst case. Mainnet proofs are local only, so the hosted
   prover is no path here. The key can also freeze every group with broken code, take the rent of
   open proposals and records, and drop the digest rule. A close of `9mE7…` strands the notes of
-  every group PDA for good, so never close it while a PDA holds notes.
+  every group PDA, and no code can get them back. Never close it while a PDA holds notes.
 - The loss limit and its gaps. The checker refuses a shield that takes the private balance of a
   group above 0.5 SOL (rule `shield-over-cap`), and Add SOL refuses it first in the page. This is
   a check of the Zigs app only, run in the browser of the seat that adds. It does not bound the
@@ -1754,11 +1754,13 @@ use.
   a Zigs page stops with `POOL_CHANGED`. The protocol authority and the fee authority of the pool
   on mainnet were not read. By the Zolana spec the protocol authority can pause the trees, and the
   fee authority can claim tree lamports (section 7).
-- The exit before production, in this order: move the upgrade authority to a Squads v4 multisig
-  with a time lock (members on separate hardware keys, a threshold of at least 2, a time lock
-  longer than the 24-hour expiry window, the 1-hour skew and the time to leave), and pin the
-  ProgramData slot in the Worker to detect an upgrade (SOL-45); then the audit; then `--final`
-  (SOL-46).
+- The exit before production, in this order:
+  1. Move the upgrade authority to a Squads v4 multisig with a time lock (SOL-45). Put the
+     members on separate hardware keys, with a threshold of at least 2. Make the time lock longer
+     than the 24-hour expiry window, the 1-hour skew and the time to leave.
+  2. Pin the ProgramData slot in the Worker, so that the page detects an upgrade (SOL-45).
+  3. Get the audit.
+  4. Make the program immutable with `--final` (SOL-46).
 
 **Devnet upgrade plan, version 2 to version 5.** Versions 3 and 4 are not deployed. The Devnet
 program goes from version 2 to version 5 in one upgrade, with the development key (SOL-40).
