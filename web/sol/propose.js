@@ -130,11 +130,45 @@ function typedPayment(c, args) {
   return { payee, amount };
 }
 
-/** The public recipient (a Solana address) and the amount of a withdrawal, checked. */
-function typedWithdrawal(_c, args) {
+// Ed25519 (RFC 8032): the field prime, and the curve constant d = -121665 / 121666.
+const P = 2n ** 255n - 19n;
+
+/** `base` to the power `exp`, mod P. */
+function power(base, exp) {
+  let out = 1n;
+  let b = base % P;
+  for (let e = exp; e > 0n; e >>= 1n) {
+    if (e & 1n) out = (out * b) % P;
+    b = (b * b) % P;
+  }
+  return out;
+}
+const D = ((P - 121665n) * power(121666n, P - 2n)) % P;
+
+/**
+ * True when a key (hex) decompresses to an Ed25519 point, as `is_on_curve` of the wasm (pda.rs):
+ * y is the key with its sign bit cleared, mod P, and x² = (y² - 1) / (d·y² + 1) has a root.
+ */
+function onCurve(key) {
+  const y = (BigInt("0x" + key.match(/../g).reverse().join("")) % 2n ** 255n) % P;
+  const y2 = (y * y) % P;
+  const x2 = (((y2 - 1n + P) % P) * power((D * y2 + 1n) % P, P - 2n)) % P;
+  return x2 === 0n || power(x2, (P - 1n) / 2n) === 1n;
+}
+
+const PROGRAM_ADDRESS =
+  "This address is a program address, not a wallet: no key can move SOL from it. Nothing was " +
+  "sent.";
+
+/**
+ * The public recipient (a Solana address) and the amount of a withdrawal, checked. On mainnet a
+ * program address (off the curve) is refused: the checker of the pool has no rule for it yet.
+ */
+function typedWithdrawal(c, args) {
   const payee = keyOfBase58(String(args.recipient ?? "").trim());
   const amount = lamportsOf(args.amount);
   if (payee === null) throw new Error("Enter the Solana address of the recipient.");
+  if (c.wallet?.cluster === "mainnet" && !onCurve(payee)) throw new Error(PROGRAM_ADDRESS);
   if (amount === null) throw new Error("Enter an amount of SOL, for example 0.005.");
   return { payee, amount };
 }

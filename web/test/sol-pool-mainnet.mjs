@@ -2,6 +2,7 @@
 // and a stubbed Worker:
 //  - the network of a payee address: a mainnet wallet shows and copies its shielded address
 //    with solana-mainnet:, and a payment refuses a payee of another network before any proof;
+//  - a mainnet withdrawal refuses a program address (off the curve) before any proof;
 //  - on mainnet the public program address has no Copy and a warning, no other address that no
 //    deployed program can move SOL from has a Copy, and the move of the beta funds is hidden;
 //  - the texts of the tab on each network: the names, the faucet, the explorer links, the
@@ -10,6 +11,7 @@
 //    seat of this browser can pay) on each network.
 // Run: node web/test/sol-pool-mainnet.mjs   (Node 26)
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { addSol } from "../sol/addsol.js";
 import { agreement } from "../sol/ceremony.js";
 import { base58, keyOfBase58 } from "../sol/docs.js";
@@ -202,10 +204,45 @@ const OTHER = (named, pays) =>
   `This payee is an address of a Solana ${named} wallet, and this wallet pays on Solana ` +
   `${pays}. Nothing was sent.`;
 
+/** Proposes a withdrawal to `recipient`: the refusal (or STOP) and the payees at prepare. */
+async function withdrawTo(recipient) {
+  const at = prepared.length;
+  const error = await propose(c, "withdraw", { recipient, amount: "0.01" }).then(
+    () => null,
+    (e) => e.message,
+  );
+  return { error, payees: prepared.slice(at) };
+}
+const PROGRAM_ADDRESS =
+  "This address is a program address, not a wallet: no key can move SOL from it. Nothing was " +
+  "sent.";
+
+/**
+ * The candidates of the PDA of a mainnet group from bump 255 down (hex), the PDA last. The wasm
+ * (find_program_address, dalek) found each one before the PDA on the curve.
+ */
+function pdaCandidates(done) {
+  const program = Buffer.from(keyOfBase58(CLUSTERS.mainnet.program), "hex");
+  const out = [];
+  for (let bump = 255; bump >= 0; bump -= 1) {
+    const hash = createHash("sha256")
+      .update("multisig")
+      .update(Buffer.from(done.groupKey, "hex"))
+      .update(Uint8Array.of(bump))
+      .update(program)
+      .update("ProgramDerivedAddress")
+      .digest("hex");
+    out.push(hash);
+    if (hash === done.pda) return out;
+  }
+  throw new Error("no bump gives the PDA of the group");
+}
+
 // ── Devnet: a bare or a Devnet payee passes, a mainnet payee is refused ──
 await ensureWorker(c); // the fake chain answers the init: the Devnet genesis
 useStub();
 const devnet = agreement(c).done.pdaAddress;
+const devnetPda = base58(agreement(c).done.pda);
 {
   assert.equal(shown("shielded"), devnet, "Devnet shows the bare hex");
   assert.equal(await copy("copy-shielded"), devnet, "and copies it");
@@ -223,6 +260,12 @@ const devnet = agreement(c).done.pdaAddress;
   }
 }
 step("Devnet: a bare or solana-devnet: payee reaches the proof as bare hex; mainnet is refused");
+
+{
+  const got = await withdrawTo(devnetPda);
+  assert.deepEqual(got, { error: STOP, payees: [keyOfBase58(devnetPda)] }, "no curve rule");
+}
+step("Devnet: a withdrawal to a program address reaches the proof");
 
 {
   const pda = base58(agreement(c).done.pda);
@@ -304,6 +347,23 @@ const mainnet = agreement(c).done.pdaAddress;
   }
 }
 step("mainnet: the copied solana-mainnet: address pays; bare hex and Devnet are refused");
+
+{
+  // The PDA of the Devnet group (the Devnet tab copies it) and of this group: no key can move
+  // SOL from them. Keys of the curve reach the proof.
+  const done = agreement(c).done;
+  for (const recipient of [devnetPda, base58(done.pda)]) {
+    const got = await withdrawTo(recipient);
+    assert.deepEqual(got, { error: PROGRAM_ADDRESS, payees: [] }, recipient);
+  }
+  const candidates = pdaCandidates(done);
+  const keys = [1, 2, 3].map((i) => feeOf(c, i).key);
+  for (const key of [...keys, done.groupKey, ...candidates.slice(0, -1)]) {
+    assert.deepEqual(await withdrawTo(base58(key)), { error: STOP, payees: [key] }, key);
+  }
+  console.log(`    ${candidates.length - 1} candidates of the PDA on the curve`);
+}
+step("mainnet: a withdrawal to a program address is refused before the proof");
 
 {
   const pda = base58(agreement(c).done.pda);
