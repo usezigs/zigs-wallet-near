@@ -244,6 +244,7 @@ step("mainnet: exactly 0.5 SOL passes, and a confirmed Add SOL counts until a sy
   world.notes = [...world.notes, note("04", SOL / 100n)];
   world.pda += SOL / 100n;
   await refused("0.14", capText("0.13"), "one note shows one Add SOL");
+  await refused("0.14", capText("0.13"), "and the next sync with that note shows no other one");
 }
 step("mainnet: an Add SOL with no answer blocks the next one until the chain answers");
 

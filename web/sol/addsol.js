@@ -63,8 +63,9 @@ async function requireProgram(c, worker) {
 // ponytail: the cap counts what this tab knows. Its ceiling: two devices that add at the same
 // time, deposits by other people and incoming private payments. The upgrade path: count the
 // unconfirmed deposits from a signed log of the group.
-// Per group PDA, in the memory of this tab only: an Add SOL that runs, and each Add SOL that the
-// chain confirmed (or did not answer) and that a sync did not show yet.
+// Per group PDA, in the memory of this tab only: an Add SOL that runs, each Add SOL that the
+// chain confirmed (or did not answer) and that a sync did not show yet, and the notes that showed
+// one.
 const tabs = new Map();
 
 /**
@@ -77,7 +78,7 @@ function tabOf(c) {
     if (c.wallet?.cluster === "mainnet" || done.cluster !== "devnet") throw new Error(NO_CAP);
     return null;
   }
-  if (!tabs.has(done.pda)) tabs.set(done.pda, { busy: false, sent: [] });
+  if (!tabs.has(done.pda)) tabs.set(done.pda, { busy: false, sent: [], shown: new Set() });
   return tabs.get(done.pda);
 }
 
@@ -93,14 +94,16 @@ async function settleLast(worker, tab) {
 
 /**
  * Drops each Add SOL that the sync shows: a note of its amount that was not there before it.
- * One note counts for one Add SOL. Returns the lamports of the ones that the sync does not show.
+ * One note shows one Add SOL, once: a later sync that still holds it shows no other one. Returns
+ * the lamports of the ones that the sync does not show.
  */
 function unseen(tab, utxos) {
-  const notes = [...utxos];
+  const notes = utxos.filter((u) => !tab.shown.has(u.hash));
   tab.sent = tab.sent.filter((d) => {
     const at = notes.findIndex((u) => u.amount === String(d.amount) && !d.before.has(u.hash));
-    if (at >= 0) notes.splice(at, 1);
-    return at < 0;
+    if (at < 0) return true;
+    tab.shown.add(notes.splice(at, 1)[0].hash);
+    return false;
   });
   return tab.sent.reduce((sum, d) => sum + d.amount, 0n);
 }
