@@ -28,6 +28,8 @@ const LOADER = hexOfAddress("BPFLoaderUpgradeab1e11111111111111111111111");
 const NOT_DEPLOYED =
   "The Zigs program of this network is not deployed yet, so Add SOL is refused. Nothing was sent.";
 const BUSY = "An Add SOL of this tab is still running. Nothing was sent.";
+const NO_CAP =
+  "The cap of this private wallet is not known, so Add SOL is refused. Nothing was sent.";
 const UNCONFIRMED =
   "The last Add SOL of this tab is not confirmed yet, so the cap cannot count it. Try again " +
   "when it is confirmed, or reload the page if it never arrives. Nothing was sent.";
@@ -169,6 +171,18 @@ world.notes = [];
   world.account = DEPLOYED;
 }
 step("mainnet: the program of the signed label must be deployed, before the cap is checked");
+
+{
+  // A mainnet wallet with no cap fails closed: no Add SOL with held 0.
+  const kept = c.wallet;
+  c.wallet = { ...kept, cap: null };
+  try {
+    await refused("0.01", NO_CAP, "mainnet with no cap");
+  } finally {
+    c.wallet = kept;
+  }
+}
+step("mainnet: a wallet with no cap is refused, never sent with held 0");
 
 {
   // The saved snapshot shows nothing; the fresh sync shows 0.45 SOL.

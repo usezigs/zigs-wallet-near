@@ -21,6 +21,8 @@ const CONFIRMED = new Set(["confirmed", "finalized"]);
 const NOT_DEPLOYED =
   "The Zigs program of this network is not deployed yet, so Add SOL is refused. Nothing was sent.";
 const BUSY = "An Add SOL of this tab is still running. Nothing was sent.";
+const NO_CAP =
+  "The cap of this private wallet is not known, so Add SOL is refused. Nothing was sent.";
 const UNCONFIRMED =
   "The last Add SOL of this tab is not confirmed yet, so the cap cannot count it. Try again " +
   "when it is confirmed, or reload the page if it never arrives. Nothing was sent.";
@@ -65,12 +67,18 @@ async function requireProgram(c, worker) {
 // chain confirmed (or did not answer) and that a sync did not show yet.
 const tabs = new Map();
 
-/** The Add SOL state of this tab for the wallet, or null when the wallet has no cap (Devnet). */
+/**
+ * The Add SOL state of this tab for the wallet, or null on Devnet (no cap). Any other wallet
+ * without a cap is refused.
+ */
 function tabOf(c) {
-  if (c.wallet?.cap == null) return null;
-  const key = agreement(c).done.pda;
-  if (!tabs.has(key)) tabs.set(key, { busy: false, sent: [] });
-  return tabs.get(key);
+  const { done } = agreement(c);
+  if (c.wallet?.cap == null) {
+    if (c.wallet?.cluster === "mainnet" || done.cluster !== "devnet") throw new Error(NO_CAP);
+    return null;
+  }
+  if (!tabs.has(done.pda)) tabs.set(done.pda, { busy: false, sent: [] });
+  return tabs.get(done.pda);
 }
 
 /** Asks the chain again for the last Add SOL with no answer. Refuses while it has none. */
