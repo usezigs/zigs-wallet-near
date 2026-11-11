@@ -36,6 +36,7 @@ const SOL_HOST_MAINNET = "https://mainnet.helius-rpc.com";
 const SOL_KEYS = "https://d3gbdb0egjwcw9.cloudfront.net/proving-keys/78751f5d1c591777/";
 const SOL_CONFIG = "/sol/config.json";
 const SOL_CONFIG_MAINNET = "/sol/config-mainnet.json";
+const SOL_WORKER_MAINNET = "/sol/worker-mainnet.js";
 // With SOL off and SOL_MAINNET "1", only these files of /sol answer, in this spelling: no other
 // path can map to a file of the Devnet beta. PLAIN_FILE covers web/sol/plain, including the Worker
 // script that the page starts by URL. Name a new module of web/sol/plain with this pattern.
@@ -49,11 +50,12 @@ const PLAIN_SOL_FILES = new Set([
   "/sol/wasm/sol_wasm_bg.wasm",
 ]);
 
-function solWorkerPolicy() {
+// connect-src names one Helius host: Devnet for /sol/worker.js, mainnet for the private Worker.
+function solWorkerPolicy(host = SOL_HOST) {
   return [
     "default-src 'none'",
     "script-src 'self' 'wasm-unsafe-eval'",
-    `connect-src 'self' ${SOL_HOST} ${SOL_KEYS}`,
+    `connect-src 'self' ${host} ${SOL_KEYS}`,
     "base-uri 'none'",
   ].join("; ");
 }
@@ -138,6 +140,16 @@ function solMainnetConfig(req, env) {
   }));
 }
 
+// The private mainnet Worker (D14): the script of /sol/worker.js with a mainnet-only policy. It
+// exists only where SOL and SOL_POOL_MAINNET are "1", and the asset server is not asked otherwise.
+async function poolMainnetWorker(req, env, url) {
+  if (env.SOL !== "1" || env.SOL_POOL_MAINNET !== "1") {
+    return new Response("Not found\n", { status: 404 });
+  }
+  const res = await env.ASSETS.fetch(new Request(new URL("/sol/worker.js", url), req));
+  return solResponse(res, solWorkerPolicy(SOL_HOST_MAINNET));
+}
+
 function policyOfPath(url) {
   if (isProverPath(url)) return proverPolicy();
   return isPlainPath(url) ? plainWorkerPolicy() : solWorkerPolicy();
@@ -149,6 +161,7 @@ const plainServes = (path) => PLAIN_FILE.test(path) || PLAIN_SOL_FILES.has(path)
 async function assets(req, env, url) {
   if (!isSolPath(url)) return env.ASSETS.fetch(req);
   if (url.pathname === SOL_CONFIG_MAINNET) return solMainnetConfig(req, env);
+  if (url.pathname === SOL_WORKER_MAINNET) return poolMainnetWorker(req, env, url);
   const plainOnly = env.SOL !== "1" && env.SOL_MAINNET === "1";
   if (plainOnly ? !plainServes(url.pathname) : env.SOL !== "1") {
     return new Response("Not found\n", { status: 404 });
