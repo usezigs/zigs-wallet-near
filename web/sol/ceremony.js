@@ -33,6 +33,8 @@ const stopText = (e) =>
   ". Do not use the Solana part of this wallet.";
 
 const PLAIN_NET = "The plain Solana wallet runs on a mainnet wallet that its people confirmed.";
+const PRIVATE_NET =
+  "The private Solana wallet runs on a mainnet wallet that its people confirmed.";
 
 /**
  * Why this wallet cannot get a Solana part, or null. Version 3 only. The pool controller needs
@@ -42,6 +44,9 @@ export function startBlock(host) {
   if (host.groupVersion() !== 3) return "Solana needs a version 3 wallet.";
   if (host.mode === "plain") {
     return host.netConfirmed(host.state.gid) === "mainnet" ? null : PLAIN_NET;
+  }
+  if (host.solMode?.(host.state.gid) === "private") {
+    return host.netConfirmed(host.state.gid) === "mainnet" ? null : PRIVATE_NET;
   }
   if (host.network() !== "testnet")
     return "Solana runs on Devnet only. A mainnet wallet gets none.";

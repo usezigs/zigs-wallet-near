@@ -5,11 +5,11 @@ import { docFields } from "./signed.js";
 import { banner, clearBadBanner, log, openCreate, showBanner, state, ui } from "./app-state.js";
 import { exclusive, said } from "./app-kit.js";
 import { Z } from "./app-engine.js";
-import { putSec, putSecHeld, sec, takeStored } from "./app-keystore.js";
+import { mySeatSecrets, putSec, putSecHeld, sec, takeStored } from "./app-keystore.js";
 import { localSeats, seatIds } from "./app-seats.js";
 import { netName } from "./app-chain.js";
 import {
-  canWriteAs, checkIn, netConfirmed, refilter, signedDoc, signedMode,
+  canWriteAs, checkIn, netConfirmed, refilter, signedDoc, signedMode, signPins,
 } from "./app-filter.js";
 import { openGroup, sdb, unsubGroup } from "./app-groups.js";
 import { act, announce, el, guard } from "./app-dom.js";
@@ -38,6 +38,62 @@ export const plainOn = (gid = state.gid) => {
 // The plain wallet is shown when the server serves it. Without that answer a mainnet wallet looks
 // as it did before the plain wallet.
 export const plainShown = (gid = state.gid) => plainOn(gid) && ui.plainServed === true;
+// The private Solana wallet on mainnet (slice 8, design 2.4): a version 3 wallet whose people
+// confirmed mainnet is private or plain. The label of a Solana part of a seat of this browser
+// decides first, then the start that seat 1 signed, then the accept of this browser: the pin
+// "solmode:<wallet id>" in zf-signpins, written once as the confirmed network is.
+const PLAIN_LABEL = "mainnet-plain";
+const PRIVATE_LABEL = "mainnet-private";
+const MODE_PIN = "solmode:";
+const POOL_WORKER_MAINNET = "/sol/worker-mainnet.js";
+const mainnetOn = (gid) => {
+  const g = solGroup(gid);
+  const mainnet = g?.network === "mainnet" && netConfirmed(gid) === "mainnet";
+  return mainnet && walletVersion(g) === 3 && signedMode(gid);
+};
+// A seat holds a Solana part once it holds ceremony material (driftOf of web/sol/ceremony.js).
+const holdsPart = (s) => !!(s?.r1secret || s?.r2secret || s?.keyPackage);
+const partOf = (gid) => mySeatSecrets(gid).map(([, s]) => s?.sol).find(holdsPart);
+// The label of the start that seat 1 signed, or null. The page reads the start of the open wallet
+// only (its own watch, or the controller that follows it), so another wallet counts as no start.
+function startLabel(gid) {
+  if (solStartRead === gid) return solStartSigned() ? solStartDoc.cluster : null;
+  const ctl = [sol?.ctl, plainSol?.ctl].find((c) => c?.gid === gid && c.loaded?.solstart);
+  return ctl?.docs.solstart[1]?.cluster ?? null;
+}
+// Rules 1 to 4 of design 2.4: the mode before the probe.
+function baseMode(gid) {
+  const part = partOf(gid);
+  if (part) return part.cluster === PRIVATE_LABEL ? "private" : "plain";
+  const start = startLabel(gid);
+  if (start === PLAIN_LABEL) return "plain";
+  const pinned = signPins[MODE_PIN + gid] === PRIVATE_LABEL;
+  if (start === PRIVATE_LABEL && !pinned) return "accept";
+  return pinned ? "private" : "plain";
+}
+/**
+ * The Solana mode of wallet `gid`: null for any wallet but a version 3 wallet whose people
+ * confirmed mainnet. Else "plain", "private" (the pool on mainnet), "accept" (seat 1 started a
+ * private wallet that this browser has not accepted) or "unserved" (a private wallet on a server
+ * that does not serve the private Worker, D14). A private wallet never falls back to plain.
+ */
+export function solMode(gid = state.gid) {
+  if (!mainnetOn(gid)) return null;
+  const mode = baseMode(gid);
+  if (mode !== "private") return mode;
+  return privateServed() ? mode : "unserved";
+}
+// Does this server serve the private Worker? The same states as solServed. Only a private wallet
+// asks. The server answers 404 unless SOL and SOL_POOL_MAINNET are "1" (cf/src/index.js).
+function privateServed() {
+  if (ui.privateServed === undefined) {
+    ui.privateServed = null;
+    globalThis.fetch(POOL_WORKER_MAINNET, { method: "HEAD", cache: "no-store" }).then((r) => {
+      ui.privateServed = r.status === 200;
+    }).catch(() => { if (ui.privateServed === null) ui.privateServed = false; }).finally(refilter);
+  }
+  return ui.privateServed === true;
+}
 // The group document asks for a Solana part (createGroup). It is a hint only: any holder of the
 // link can write it, so it changes the texts and the preload, and it never starts the ceremony.
 export const solPlanned = (g = state.g) =>
@@ -150,7 +206,7 @@ export const solHost = () => ({
   recipientSelect,
   exclusive, takeStored,
   canWriteAs, localSeats, seatIds, checkIn, safetyNo, seatCheck, confirmedNo, openGroup, restore,
-  groupVersion, sealAndSave, network: () => netName(state.g), netConfirmed, mode: "pool",
+  groupVersion, sealAndSave, network: () => netName(state.g), netConfirmed, mode: "pool", solMode,
   askBackup: (words) => { ui.backup = { words, made: false, busy: false }; render(); },
   newWallet,
   swapCheck: (ask) => checkSolSwap(ask),
@@ -416,7 +472,6 @@ async function plainBackup(i) {
   ui.backup = { words: backupWords(plainSol.ctl, i), made: false, busy: false };
   render();
 }
-const PLAIN_LABEL = "mainnet-plain";
 const NOT_LISTED = "This browser does not know this wallet yet. Wait a moment, then open the file "
   + "again.";
 const PROBE_MS = 10000;
