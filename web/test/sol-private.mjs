@@ -1,9 +1,12 @@
 // The private Solana wallet on mainnet at setup (slice 8d, design 2.4) against the real page
 // modules and the rig (sol-rig.mjs): the accept of this browser (the first-seen pin
-// "solmode:<wallet id>" in zf-signpins), and the Solana tab of a wallet that waits for the accept
-// or that this server does not serve. A module hook records every module that loads: a browser
-// with the pin never imports sol/plain/control.js. The page loads the plain controller once and
-// never unloads it, so the plain wallet comes last, and it shows that the hook sees that import.
+// "solmode:<wallet id>" in zf-signpins), the Solana tab of a wallet that waits for the accept or
+// that this server does not serve, the private choice of the create dialog, the accept tick of the
+// join card, and the restore of a mainnet-private file. Seat 1 with solAuto and the pin signs only
+// a mainnet-private start, and none without the private Worker. A module hook records every module
+// that loads: a browser with the pin never imports sol/plain/control.js. The page loads the plain
+// controller once and never unloads it, so the plain wallet comes last, and it shows that the hook
+// sees that import.
 // Run: node web/test/sol-private.mjs   (Node 26)
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
