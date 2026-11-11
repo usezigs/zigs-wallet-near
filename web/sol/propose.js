@@ -12,6 +12,7 @@
 // The move of the beta funds to the PDA (`migrate`, and `createNonce` when the nonce account is
 // missing) is the one nonce payment left: the message is compiled from the fixed template with the
 // nonce, signed by the fee key, run once without the group signature, and then proposed.
+import { pruneAdded } from "./addsol.js";
 import { agreement } from "./ceremony.js";
 import { base58, keyOfBase58 } from "./docs.js";
 import { poorText } from "./execute.js";
@@ -187,6 +188,11 @@ async function proved(c, worker, kind, { payee, amount }, fee) {
   request.payer = base58(fee.key);
   request.avoid = openInputs(c.sessions); // a payment over them could never execute
   const prepared = await worker.call("prepare", request);
+  // The proof spends notes that the Worker synced, so they show the Add SOL of this tab. A move of
+  // the beta funds spends notes of the group key, which show none.
+  if (kind !== "migrate") {
+    pruneAdded(c, prepared.inputs.map(({ id, amount }) => ({ hash: id, amount })));
+  }
   const counts = { inputs: prepared.inputs.length, outputs: prepared.outputs.length };
   const fields = {
     plan: planHex(prepared),

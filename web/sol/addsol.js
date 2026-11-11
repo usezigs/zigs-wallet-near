@@ -64,7 +64,8 @@ async function requireProgram(c, worker) {
 // ponytail: the cap counts what this tab knows. Its ceiling: two devices that add at the same
 // time, deposits by other people and incoming private payments. The upgrade path: count the
 // unconfirmed deposits from a signed log of the group. It fails closed until a reload for an Add
-// SOL with no answer that never landed: that one counts until a sync shows it.
+// SOL that no sync or proof of this tab shows: one with no answer that never landed, or one whose
+// note another tab spent first.
 // Per group PDA, in the memory of this tab only: an Add SOL that runs, each Add SOL that the
 // chain confirmed (or did not answer) and that a sync did not show yet, and the notes that showed
 // one.
@@ -111,6 +112,16 @@ function drop(tab, utxos) {
     tab.shown.add(notes.splice(at, 1)[0].hash);
     return false;
   });
+}
+
+/**
+ * Drops each Add SOL of this tab that `notes` ({ hash, amount }) show: notes of the PDA identity
+ * that the Worker read fresh, such as the inputs of a proof. A spend can take the note of an Add
+ * SOL before a sync of this tab shows it.
+ */
+export function pruneAdded(c, notes) {
+  const tab = tabs.get(agreement(c).done.pda);
+  if (tab) drop(tab, notes);
 }
 
 /**

@@ -4,6 +4,7 @@
 //  - a private mainnet wallet counts a fresh sync of the PDA identity, the group-key identity and
 //    the Add SOL of this tab that the sync does not show yet, against the cap of the wasm row;
 //  - the last Add SOL with no answer blocks a new one; Devnet has no cap;
+//  - the proof of a payment of this tab shows the Add SOL whose note it spends;
 //  - after a refusal, nothing is compiled, signed, simulated or sent;
 //  - the tables of guard.js (Worker only) name the programs and genesis hashes of the wasm rows.
 // Run: node web/test/sol-addsol.mjs   (Node 26)
@@ -14,6 +15,7 @@ import { base58, keyOfBase58 } from "../sol/docs.js";
 import { feeOf } from "../sol/fee.js";
 import { CLUSTERS } from "../sol/guard.js";
 import { bytesOf, decodeIntent, hexOf, intentHex, pinsHex } from "../sol/intent.js";
+import { propose } from "../sol/propose.js";
 import { ensureWorker } from "../sol/session.js";
 import * as kit from "../sol/zolana.bundle.js";
 import { answersOf } from "./sol-chain.mjs";
@@ -42,7 +44,7 @@ const capText = (room) =>
 const DEPLOYED = { exists: true, owner: LOADER, lamports: "1141440", executable: true };
 const BLOCK = "ab".repeat(32);
 const world = { program: "", account: DEPLOYED, pda: 0n, old: 0n, notes: [] };
-Object.assign(world, { confirm: "", status: "" });
+Object.assign(world, { confirm: "", status: "", inputs: [] });
 const calls = [];
 const note = (hash, amount) => ({ hash: hash.repeat(32), mint: "SOL", amount: String(amount) });
 const ANSWERS = {
@@ -55,6 +57,8 @@ const ANSWERS = {
   send: () => ({ signature: "sent" }),
   confirm: () => ({ status: world.confirm, slot: "9" }),
   status: () => ({ status: world.status, slot: "9" }),
+  // The inputs of a proof, and no more: the proposal ends there.
+  prepare: () => ({ inputs: world.inputs }),
 };
 // The jobs of the tab that run on their own (balances, rent) get the answers of the fake chain.
 const fallback = answersOf(chain);
@@ -123,6 +127,14 @@ async function later(ms, fn) {
   } finally {
     Date.now = now;
   }
+}
+
+/** Proposes `kind` up to the proof of the Worker, where the stub ends it. */
+async function proveOnly(kind, args) {
+  const at = calls.length;
+  await assert.rejects(() => propose(c, kind, args), kind);
+  const asked = calls.slice(at).filter((x) => x.cmd === "prepare");
+  assert.deepEqual(asked.map((x) => x.args.kind), [kind], kind + ": one proof");
 }
 
 /** The program account that the last Add SOL asked for. */
@@ -288,6 +300,38 @@ step("mainnet: an Add SOL with no answer blocks the next one until the chain ans
   await later(LATER, () => refused("0.08", capText("0.07"), "H after its window counts"));
 }
 step("mainnet: an Add SOL with no answer refuses until a sync shows it or its window ends");
+
+{
+  // G and H show. The other notes were spent: 0.04 in all.
+  const shown = [note("07", 3n * SOL / 100n), note("08", SOL / 100n)];
+  Object.assign(world, { pda: 4n * SOL / 100n, old: 0n, notes: shown, confirm: "confirmed" });
+  await refused("0.47", capText("0.46"), "the sync shows G and H");
+  // I (0.05) confirms, and the sync lags: it counts.
+  await added("0.05", "I");
+  await refused("0.42", capText("0.41"), "I counts while the sync lags");
+  // A payment of this tab spends the note of I in its proof. Then the sync shows the change only.
+  world.inputs = [{ id: "09".repeat(32), amount: String(5n * SOL / 100n) }];
+  const payee = "solana-mainnet:" + agreement(c).done.pdaAddress;
+  await proveOnly("pay", { recipient: payee, amount: "0.02" });
+  Object.assign(world, { pda: 7n * SOL / 100n, notes: [...shown, note("0a", 3n * SOL / 100n)] });
+  await refused("0.44", capText("0.43"), "the proof showed I: it counts once");
+  // J (0.01) lags. A move of the beta funds spends a note of the group key: it shows no Add SOL.
+  await added("0.01", "J");
+  world.inputs = [{ id: "0b".repeat(32), amount: String(SOL / 100n) }];
+  world.old = SOL / 100n;
+  await proveOnly("migrate");
+  world.old = 0n;
+  await refused("0.43", capText("0.42"), "J still counts after the move");
+  // K (0.01) lags too. A proof spends the note of J. The next sync still holds that note (the
+  // withdrawal did not run) and not the note of K: K still counts.
+  await added("0.01", "K");
+  const j = note("0c", SOL / 100n);
+  world.inputs = [{ id: j.hash, amount: j.amount }];
+  await proveOnly("withdraw", { recipient: base58(feeOf(c, 1).key), amount: "0.01" });
+  Object.assign(world, { pda: 8n * SOL / 100n, notes: [...world.notes, j] });
+  await refused("0.42", capText("0.41"), "the note of J shows no K");
+}
+step("mainnet: a proof of this tab shows the Add SOL whose note it spends");
 
 // ── guard.js against the wasm rows (the program and the genesis of each cluster) ──
 {
