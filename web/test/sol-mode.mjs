@@ -10,6 +10,7 @@
 import assert from "node:assert/strict";
 import { docFields } from "../signed.js";
 import { agreement } from "../sol/ceremony.js";
+import { provesLocally, turnOnLocal } from "../sol/localprove.js";
 import { labelOf, programOf } from "../sol/wallet.js";
 import { config, loadRig, mainnetConfig, sleep } from "./sol-rig.mjs";
 
@@ -179,6 +180,19 @@ const auto = await rig.wallet({ name: "Auto", network: "mainnet" });
   assert.equal(agreement(c).done.cluster, PRIVATE);
   await t.plainLoad();
   noPlain("seat 1 of a private wallet");
+  // The switch of local proving of a private wallet names its label.
+  const worker = {
+    call: async (cmd) => (cmd === "poolSlot" ? { slot: "1", pinned: "1" } : { ms: 1 }),
+  };
+  const said = globalThis.confirm;
+  globalThis.confirm = () => true;
+  try {
+    await turnOnLocal(c, worker);
+  } finally {
+    globalThis.confirm = said;
+  }
+  assert.equal(docFields(data.get(path(auto, "solprove/1"))).cluster, PRIVATE, "the switch");
+  assert.equal(provesLocally(c), true);
   // The label of the Solana part decides: no pin needed any more.
   delete t.signPins["solmode:" + auto];
   assert.equal(solMode(auto), "private", "the private part keeps the wallet private");

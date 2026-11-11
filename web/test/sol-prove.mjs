@@ -7,6 +7,7 @@
 // The approvals path with the switch on is in sol-pay.mjs, the backup pin in sol-app.mjs.
 // Run: node web/test/sol-prove.mjs   (Node 26)
 import assert from "node:assert/strict";
+import { docFields } from "../signed.js";
 import {
   UNREAD,
   checkLine,
@@ -18,7 +19,7 @@ import {
 import { putSol } from "../sol/secrets.js";
 import { ensureWorker } from "../sol/session.js";
 import { POOL_SLOT } from "./sol-chain.mjs";
-import { c, chain, data, gid, notify, path, solOf, waitFor } from "./sol-setup.mjs";
+import { J, W, c, chain, data, gid, notify, path, solOf, waitFor } from "./sol-setup.mjs";
 import { step } from "./sol-vector.mjs";
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
@@ -209,6 +210,27 @@ step("SOL-4 a seat that sees the switch tests its device once, and the tile show
   assert.equal(selftests(), before + 1, "one check after the agreement");
 }
 step("SOL-4 the device check waits for the agreement and runs after it");
+
+// ── A switch document turns on the wallet of its label only ──
+{
+  const privateWallet = { cluster: "mainnet", mode: "pool", ...J(W.sol_pool_wallet("mainnet")) };
+  // No seat of this browser holds the pin, so only the documents count.
+  const view = (wallet, cluster) => ({
+    ...c,
+    wallet,
+    docs: { ...c.docs, solprove: { 1: { local: true, cluster, at: 1 } } },
+    host: { ...c.host, localSeats: () => [] },
+  });
+  assert.equal(provesLocally(view(null, "devnet")), true, "a Devnet switch, a Devnet wallet");
+  assert.equal(provesLocally(view(privateWallet, "devnet")), false, "a Devnet switch, private");
+  assert.equal(provesLocally(view(privateWallet, "mainnet-private")), true);
+  assert.equal(provesLocally(view(null, "mainnet-private")), false, "a private switch, Devnet");
+  // The switch of a Devnet wallet keeps its fields.
+  const fields = docFields(data.get(path(gid, "solprove/1")));
+  assert.deepEqual(Object.keys(fields).sort(), ["at", "cluster", "local"]);
+  assert.deepEqual([fields.local, fields.cluster], [true, "devnet"]);
+}
+step("SOL-4 a switch document turns on the wallet of its label only");
 
 console.log("sol-prove: ok");
 process.exit(0);
