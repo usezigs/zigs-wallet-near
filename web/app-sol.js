@@ -241,7 +241,7 @@ const SOL_OFF = "Solana is not available on this server";
 export let sol = null, solLoading = null, solError = "";
 export let plainSol = null, plainLoading = null, plainError = "";
 let solStartDoc = null;   // the stored solstart/1 of the open wallet, whoever wrote it
-let solWatched = null;    // the wallet that solWatch or plainWatch took up
+let solWatched = null;    // the wallet that solWatch took up
 let startWatched = null;  // the wallet whose start document is watched
 let solStartRead = null;  // the wallet whose start documents arrived
 export function resetSolStart() {
@@ -416,10 +416,13 @@ function solPreload() {
 }
 // A mainnet wallet that is not plain (private, "accept" or "unserved") keeps its own watch of the
 // start that seat 1 signed, whichever controller follows it: a signed mainnet-plain start must
-// reach the router (rule 2 of design 2.4), also on a server without the private Worker.
+// reach the router (rule 2 of design 2.4), also on a server without the private Worker. The plain
+// controller leaves such a wallet once that watch has read the start, so the start stays known.
 function barredWatch() {
   const gid = state.gid;
-  if (gid && plainBarred()) watchStart(gid, "groups/" + gid);
+  if (!gid || !plainBarred()) return;
+  watchStart(gid, "groups/" + gid);
+  if (plainSol?.ctl.gid === gid && solStartRead === gid) plainSol.close();
 }
 export function solReact() {
   barredWatch();
@@ -448,13 +451,12 @@ export function plainLoad() {
   });
   return plainLoading;
 }
-// The open wallet gets its watch once it is a plain wallet and the server serves it.
+// The plain controller follows the open wallet while it is plain and the server serves it, also
+// after it left the wallet (barredWatch). Before it loads, the page watches the start document.
 function plainWatch() {
   const gid = state.gid;
-  if (!gid || solWatched === gid || !plainOn(gid)) return;
-  solWatched = gid;
-  if (plainSol) plainSol.open(gid, "groups/" + gid);
-  else watchStart(gid, "groups/" + gid);
+  if (!plainSol) watchStart(gid, "groups/" + gid);
+  else if (plainSol.ctl.gid !== gid) plainSol.open(gid, "groups/" + gid);
 }
 // Only a wallet that is plain on a server that serves it comes here. A testnet wallet never asks.
 function plainReact() {
