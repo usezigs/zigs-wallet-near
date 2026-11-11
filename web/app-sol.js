@@ -3,13 +3,14 @@ import { walletVersion } from "./util.js";
 import { recipientSelect } from "./app-recipients.js";
 import { docFields } from "./signed.js";
 import { banner, clearBadBanner, log, openCreate, showBanner, state, ui } from "./app-state.js";
-import { exclusive, said } from "./app-kit.js";
+import { exclusive, oldest, readLocal, said, saveMerged } from "./app-kit.js";
+import { pin } from "./chat.js";
 import { Z } from "./app-engine.js";
-import { putSec, putSecHeld, sec, takeStored } from "./app-keystore.js";
+import { mySeatSecrets, putSec, putSecHeld, sec, takeStored } from "./app-keystore.js";
 import { localSeats, seatIds } from "./app-seats.js";
 import { netName } from "./app-chain.js";
 import {
-  canWriteAs, checkIn, netConfirmed, refilter, signedDoc, signedMode,
+  canWriteAs, checkIn, netConfirmed, refilter, signedDoc, signedMode, signPins,
 } from "./app-filter.js";
 import { openGroup, sdb, unsubGroup } from "./app-groups.js";
 import { act, announce, el, guard } from "./app-dom.js";
@@ -18,26 +19,130 @@ import { openBackupCheck, restore, sealAndSave } from "./app-backups.js";
 import { focusAfter, once, react, render } from "./app-loop.js";
 import { checkSolSwap } from "./app-swap-sol.js";
 
-// Devnet, for version 3 wallets on the testnet that the people of the wallet confirmed (SOL-34).
-// web/sol loads from the Solana tab, a signed solstart document, or the unsigned Solana hint
-// (solPreload), which any holder of the invite link can write.
+// The pool: Devnet, for version 3 wallets on the testnet that the people of the wallet confirmed
+// (SOL-34), and the private wallet on mainnet (solMode). web/sol loads from the Solana tab, a
+// signed solstart document, or the unsigned Solana hint (solPreload), which any holder of the
+// invite link can write.
 const solGroup = (gid) =>
   (gid === state.gid && state.g) || state.groups.find((x) => x.id === gid);
-export const solOn = (gid = state.gid) => {
+const testnetOn = (gid) => {
   const g = solGroup(gid);
   const testnet = g?.network === "testnet" && netConfirmed(gid) === "testnet";
   return testnet && walletVersion(g) === 3 && signedMode(gid);
 };
+export const solOn = (gid = state.gid) => testnetOn(gid) || solMode(gid) === "private";
 // The plain Solana wallet, for version 3 wallets on the mainnet that the people of the wallet
-// confirmed (ZOLANA.md 3.8). Its controller has its own slot (plainSol) and never the pool slot.
-export const plainOn = (gid = state.gid) => {
+// confirmed (ZOLANA.md 3.8) and that are not private (solMode). Its controller has its own slot
+// (plainSol) and never the pool slot.
+export const plainOn = (gid = state.gid) => solMode(gid) === "plain";
+// The plain wallet is shown when the server serves it. Without that answer a mainnet wallet looks
+// as it did before the plain wallet.
+export const plainShown = (gid = state.gid) => plainOn(gid) && ui.plainServed === true;
+// The private Solana wallet on mainnet (slice 8, design 2.4): a version 3 wallet whose people
+// confirmed mainnet is private or plain. The label of a Solana part of a seat of this browser
+// decides first, then the start that seat 1 signed, then the accept of this browser: the pin
+// "solmode:<wallet id>" in zf-signpins, written once as the confirmed network is.
+const PLAIN_LABEL = "mainnet-plain";
+const PRIVATE_LABEL = "mainnet-private";
+const MODE_PIN = "solmode:";
+const POOL_WORKER_MAINNET = "/sol/worker-mainnet.js";
+const mainnetOn = (gid) => {
   const g = solGroup(gid);
   const mainnet = g?.network === "mainnet" && netConfirmed(gid) === "mainnet";
   return mainnet && walletVersion(g) === 3 && signedMode(gid);
 };
-// The plain wallet is shown when the server serves it. Without that answer a mainnet wallet looks
-// as it did before the plain wallet.
-export const plainShown = (gid = state.gid) => plainOn(gid) && ui.plainServed === true;
+// A seat holds a Solana part once it holds ceremony material (driftOf of web/sol/ceremony.js).
+const holdsPart = (s) => !!(s?.r1secret || s?.r2secret || s?.keyPackage);
+const partOf = (gid) => mySeatSecrets(gid).map(([, s]) => s?.sol).find(holdsPart);
+// The label of the start that seat 1 signed, or null. The page reads the start of the open wallet
+// only (its own watch, or the controller that follows it), so another wallet counts as no start.
+function startLabel(gid) {
+  if (solStartRead === gid) return solStartSigned() ? solStartDoc.cluster : null;
+  const ctl = [sol?.ctl, plainSol?.ctl].find((c) => c?.gid === gid && c.loaded?.solstart);
+  return ctl?.docs.solstart[1]?.cluster ?? null;
+}
+// Rules 1 to 4 of design 2.4: the mode before the probe.
+function baseMode(gid) {
+  const part = partOf(gid);
+  if (part) return part.cluster === PRIVATE_LABEL ? "private" : "plain";
+  const start = startLabel(gid);
+  if (start === PLAIN_LABEL) return "plain";
+  const pinned = signPins[MODE_PIN + gid] === PRIVATE_LABEL;
+  if (start === PRIVATE_LABEL && !pinned) return "accept";
+  return pinned ? "private" : "plain";
+}
+/**
+ * The Solana mode of wallet `gid`: null for any wallet but a version 3 wallet whose people
+ * confirmed mainnet. Else "plain", "private" (the pool on mainnet), "accept" (seat 1 started a
+ * private wallet that this browser has not accepted) or "unserved" (a private wallet on a server
+ * that does not serve the private Worker, D14). A private wallet never falls back to plain.
+ */
+export function solMode(gid = state.gid) {
+  if (!mainnetOn(gid)) return null;
+  const mode = baseMode(gid);
+  if (mode !== "private") return mode;
+  return privateServed() ? mode : "unserved";
+}
+// Does this server serve the private Worker? The same states as solServed. A private wallet and the
+// create dialog of a mainnet wallet ask. The server answers 404 unless SOL and SOL_POOL_MAINNET
+// are "1" (cf/src/index.js). privateAnswer is the promise of the probe, for a restore that waits.
+let privateAnswer = null;
+export function privateServed() {
+  if (ui.privateServed === undefined) {
+    ui.privateServed = null;
+    const head = { method: "HEAD", cache: "no-store" };
+    privateAnswer = globalThis.fetch(POOL_WORKER_MAINNET, head).then((r) => {
+      ui.privateServed = r.status === 200;
+    }).catch(() => { if (ui.privateServed === null) ui.privateServed = false; }).finally(refilter);
+  }
+  return ui.privateServed === true;
+}
+// The accept of this browser (design 2.4 Consent): the first-seen pin "solmode:<wallet id>" =
+// mainnet-private, read back from storage. A failed write refuses, and the tab forgets its own
+// copy, so a later save of zf-signpins does not store it either.
+const NO_PIN = "This browser could not save that it accepts the private Solana wallet. Nothing "
+  + "was started.";
+const OTHER_PART = "A device of this wallet in this browser holds a Solana part of another "
+  + "network or mode, so the private Solana wallet was not accepted.";
+// The label of a seat secret. Round 1 writes it before the seat publishes soldkg1 (ceremony.js),
+// and it stays after a stop. A part with no label is the pool on Devnet.
+const labelHeld = (s) => s?.cluster ?? (holdsPart(s) ? "devnet" : null);
+const otherPart = (gid) => mySeatSecrets(gid).some(([, s]) => {
+  const label = labelHeld(s?.sol);
+  return label !== null && label !== PRIVATE_LABEL;
+});
+/** Pins the private mode of wallet `gid` in this browser. Throws when it cannot. */
+export function acceptPrivate(gid) {
+  if (otherPart(gid)) throw new Error(OTHER_PART);
+  const key = MODE_PIN + gid;
+  const fresh = pin(signPins, key, PRIVATE_LABEL) === "new";
+  if (fresh) saveMerged("zf-signpins", signPins, oldest);
+  if (signPins[key] === PRIVATE_LABEL && readLocal("zf-signpins")[key] === PRIVATE_LABEL) return;
+  if (fresh && signPins[key] === PRIVATE_LABEL) delete signPins[key];
+  throw new Error(NO_PIN);
+}
+// The private choice of the create dialog (design 2.4 Create), in this order: the accept of this
+// browser, the hint for the other seats (texts only), then solAuto in the secret of seat 1, which
+// starts the ceremony with no button. A step that fails starts nothing after it.
+export async function planPrivate(gid) {
+  if (!sec(gid, 1)) throw new Error("Only device 1 can start the private Solana wallet.");
+  acceptPrivate(gid);
+  await sdb.doc("groups/" + gid).update({ solana: true, solMode: PRIVATE_LABEL });
+  await putSec(gid, 1, { solAuto: true });
+}
+// The group document asks for the private Solana wallet (planPrivate). A hint only, as
+// solPlanned: it changes the join card, and never the mode (solMode).
+export const privatePlanned = (g = state.g) =>
+  g?.solana === true && g.solMode === PRIVATE_LABEL && g.network === "mainnet"
+  && walletVersion(g) === 3;
+// MAINNET_DISCLOSURE of web/sol/net.js, the one text of the private wallet. A page module reads
+// web/sol only with import(), so the text is null until the module loads, and the load redraws.
+let disclosure = null, disclosureLoad = null;
+export function privateDisclosure() {
+  disclosureLoad ||= import("./sol/net.js").then((m) => { disclosure = m.MAINNET_DISCLOSURE; },
+    (e) => log("Solana text: " + said(e))).finally(render);
+  return disclosure;
+}
 // The group document asks for a Solana part (createGroup). It is a hint only: any holder of the
 // link can write it, so it changes the texts and the preload, and it never starts the ceremony.
 export const solPlanned = (g = state.g) =>
@@ -136,11 +241,14 @@ const SOL_OFF = "Solana is not available on this server";
 export let sol = null, solLoading = null, solError = "";
 export let plainSol = null, plainLoading = null, plainError = "";
 let solStartDoc = null;   // the stored solstart/1 of the open wallet, whoever wrote it
-let solWatched = null;    // the wallet whose start document is watched
+let solWatched = null;    // the wallet that solWatch took up
+let plainWatched = null;  // the wallet that plainWatch took up
+let startWatched = null;  // the wallet whose start document is watched
 let solStartRead = null;  // the wallet whose start documents arrived
 export function resetSolStart() {
   plainSol?.close();
-  solStartDoc = null; solWatched = null; solStartRead = null;
+  solStartDoc = null; solWatched = null; plainWatched = null; startWatched = null;
+  solStartRead = null;
 }
 // host.putSec is the save of a step that holds the lock of the secrets (putSol, shareOnce).
 export const solHost = () => ({
@@ -150,7 +258,7 @@ export const solHost = () => ({
   recipientSelect,
   exclusive, takeStored,
   canWriteAs, localSeats, seatIds, checkIn, safetyNo, seatCheck, confirmedNo, openGroup, restore,
-  groupVersion, sealAndSave, network: () => netName(state.g), netConfirmed, mode: "pool",
+  groupVersion, sealAndSave, network: () => netName(state.g), netConfirmed, mode: "pool", solMode,
   askBackup: (words) => { ui.backup = { words, made: false, busy: false }; render(); },
   newWallet,
   swapCheck: (ask) => checkSolSwap(ask),
@@ -271,10 +379,17 @@ export function solLoad() {
 // the wallet opened, so the reactor asks again.
 export function solWatch() {
   const gid = state.gid;
-  if (!gid || solWatched === gid || !solOn(gid)) return;
-  solWatched = gid;
-  solAttach(gid, "groups/" + gid);
+  if (!gid || !solOn(gid)) return;
+  if (solWatched !== gid) {
+    solWatched = gid;
+    solAttach(gid, "groups/" + gid);
+  } else if (privateLate(gid)) {
+    sol.open(gid, "groups/" + gid);
+  }
 }
+// The pool controller does not follow the open private wallet: the wallet became private after
+// its first watch (the answer of the probe, or the pin of an accept).
+const privateLate = (gid) => !!sol && sol.ctl.gid !== gid && solMode(gid) === "private";
 // Before the module loads, one watch keeps the start document. Any holder of the invite link can
 // write one, so solReact loads the module from it only when a seat signed it.
 export function solAttach(gid, base) {
@@ -282,6 +397,8 @@ export function solAttach(gid, base) {
   watchStart(gid, base);
 }
 function watchStart(gid, base) {
+  if (startWatched === gid) return;
+  startWatched = gid;
   unsubGroup.push(sdb.collection(base + "/solstart").onSnapshot((snap) => {
     solStartDoc = snap.docs.find((d) => d.id === "1")?.data() ?? null;
     solStartRead = gid;
@@ -299,7 +416,20 @@ function solPreload() {
   const auto = sec(state.gid, 1)?.solAuto === true;
   if (!sol && !solLoading && (solPlanned() || auto) && localSeats().length) solLoad();
 }
+// A mainnet wallet that is not plain (private, "accept" or "unserved") keeps its own watch of the
+// start that seat 1 signed, whichever controller follows it: a signed mainnet-plain start must
+// reach the router (rule 2 of design 2.4), also on a server without the private Worker. The plain
+// controller leaves such a wallet once that watch has read the start, so the start stays known.
+function barredWatch() {
+  const gid = state.gid;
+  if (!gid || !plainBarred()) return;
+  watchStart(gid, "groups/" + gid);
+  if (plainSol?.ctl.gid !== gid || solStartRead !== gid) return;
+  plainSol.close();
+  plainWatched = null;
+}
 export function solReact() {
+  barredWatch();
   plainReact();
   solPreload();
   if (!solOn()) return;
@@ -307,9 +437,13 @@ export function solReact() {
   if (sol) sol.react();
   else if (!solLoading && solStartSigned()) solLoad();
 }
+// Only a plain wallet loads the plain controller: a private wallet never imports it, also not
+// through a caller outside this file (the swap check of app-swap-zec.js).
+const plainBarred = () => ![null, "plain"].includes(solMode());
 // The plain controller loads once. A failed load shows one banner and the reactor does not try
 // again: only a reload mends it.
 export function plainLoad() {
+  if (!plainLoading && plainBarred()) return Promise.resolve();
   plainLoading ||= import("./sol/plain/control.js").then((m) => m.attach(solHost())).then((m) => {
     plainSol = m;
     if (plainOn()) plainSol.open(state.gid, "groups/" + state.gid);
@@ -321,11 +455,12 @@ export function plainLoad() {
   });
   return plainLoading;
 }
-// The open wallet gets its watch once it is a plain wallet and the server serves it.
+// The open wallet gets its watch once it is a plain wallet and the server serves it, and again
+// after barredWatch closed the plain controller. A close by any other caller stays.
 function plainWatch() {
   const gid = state.gid;
-  if (!gid || solWatched === gid || !plainOn(gid)) return;
-  solWatched = gid;
+  if (plainWatched === gid) return;
+  plainWatched = gid;
   if (plainSol) plainSol.open(gid, "groups/" + gid);
   else watchStart(gid, "groups/" + gid);
 }
@@ -341,9 +476,31 @@ const retryButton = () => el("button", { class: "btn sm", type: "button", "data-
 /** The Solana tab after a failed load: its text, and Try again only where a retry can mend it. */
 export const loadFail = (error, retry) => el("div", { style: "display:grid;gap:8px" },
   el("p", { class: "small" }, failText(error, retry)), retry ? el("div", {}, retryButton()) : null);
-export const solTab = () => sol ? guard(sol.view)
-  : solError ? loadFail(solError, !importFailed)
-  : (solLoad(), el("p", { class: "small" }, "Loading Solana…"));
+const UNSERVED = "This server does not serve the private Solana wallet, so it does not open here.";
+const ACCEPT_INTRO = "Device 1 started a private Solana wallet on mainnet. This browser takes part "
+  + "only after you accept it.";
+// The Solana tab of a private wallet that this browser has not accepted (solMode "accept").
+function acceptCard() {
+  const texts = privateDisclosure();
+  if (!texts) return el("p", { class: "small" }, "Loading Solana…");
+  const accept = act(() => {
+    acceptPrivate(state.gid);
+    refilter();
+  });
+  return el("div", { style: "display:grid;gap:8px" },
+    el("p", { class: "small" }, ACCEPT_INTRO),
+    texts.map((line) => el("p", { class: "small" }, line)),
+    el("div", {}, el("button", { class: "btn primary", type: "button",
+      "data-sol": "accept-private", onclick: accept }, "Accept the private wallet")));
+}
+const MODE_TABS = { accept: acceptCard, unserved: () => el("p", { class: "small" }, UNSERVED) };
+export function solTab() {
+  const modeTab = MODE_TABS[solMode()];
+  if (modeTab) return modeTab();
+  return sol ? guard(sol.view)
+    : solError ? loadFail(solError, !importFailed)
+    : (solLoad(), el("p", { class: "small" }, "Loading Solana…"));
+}
 // The plain controller follows wallet `gid`, which is shown as a plain wallet.
 const plainHere = (gid = state.gid) => !!plainSol && plainShown(gid) && plainSol.ctl.gid === gid;
 function fromPlain(what, read, none) {
@@ -416,12 +573,17 @@ async function plainBackup(i) {
   ui.backup = { words: backupWords(plainSol.ctl, i), made: false, busy: false };
   render();
 }
-const PLAIN_LABEL = "mainnet-plain";
 const NOT_LISTED = "This browser does not know this wallet yet. Wait a moment, then open the file "
   + "again.";
 const PROBE_MS = 10000;
 const NOT_ASKED = "This browser does not know yet whether this server serves the Solana wallet. "
   + "Wait a moment, then open the file again.";
+/** Waits for `promise`, but not longer than PROBE_MS. */
+async function within(promise) {
+  let timer;
+  await Promise.race([promise, new Promise((done) => { timer = setTimeout(done, PROBE_MS); })]);
+  clearTimeout(timer);
+}
 // Does this Solana file go to the plain controller? Only the wallet decides, never the label of the
 // file: a plain label can only make a restore refuse. A mainnet wallet waits up to PROBE_MS for
 // the probe.
@@ -432,13 +594,61 @@ async function plainRoute(b) {
   }
   if (!plainOn(b.group)) return false;
   plainServed();
-  let timer;
-  await Promise.race([plainAnswer, new Promise((done) => { timer = setTimeout(done, PROBE_MS); })]);
-  clearTimeout(timer);
+  await within(plainAnswer);
   if (ui.plainServed === null) throw new Error(NOT_ASKED);
   return ui.plainServed === true;
 }
+const OTHER_MODE = "This Solana backup is for another network or mode. It was not used.";
+const NO_PRIVATE_START = "Device 1 of this wallet did not start a private Solana wallet, so this "
+  + "file was not used.";
+const START_UNKNOWN = "This browser could not check the Solana start of this wallet in time. Wait "
+  + "a moment, then open the file again.";
+const PRIVATE_NOT_ASKED = "This browser does not know yet whether this server serves the private "
+  + "Solana wallet. Wait a moment, then open the file again.";
+const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+// The label of the start that seat 1 signed, read from the store, or null when it has none.
+async function signedStart(gid) {
+  const ref = sdb.doc("groups/" + gid + "/solstart/1");
+  for (const end = Date.now() + PROBE_MS; ;) {
+    const snap = await ref.get();
+    const d = snap.exists ? snap.data() : null;
+    const verdict = d ? checkIn(gid)("solstart/1", d.by, d.sig, docFields(d), 1) : "no";
+    if (verdict !== "wait") return verdict === "yes" ? docFields(d).cluster : null;
+    if (Date.now() > end) throw new Error(START_UNKNOWN);
+    await sleep(150);
+  }
+}
+async function privateUnserved() {
+  privateServed();
+  await within(privateAnswer);
+  if (ui.privateServed === null) return PRIVATE_NOT_ASKED;
+  return ui.privateServed ? null : UNSERVED;
+}
+// Why a mainnet-private file of wallet `gid` is refused, or null. It opens the wallet first.
+async function privateRefusal(gid) {
+  if (!solGroup(gid)) return NOT_LISTED;
+  if (!mainnetOn(gid)) return netConfirmed(gid) ? OTHER_MODE : NET_UNCONFIRMED;
+  if (state.gid !== gid) openGroup(gid);
+  const start = await signedStart(gid);
+  if (start !== PRIVATE_LABEL) return start ? OTHER_MODE : NO_PRIVATE_START;
+  return privateUnserved();
+}
+// A mainnet-private file (design 2.4 Restore) needs a wallet that seat 1 started as a private
+// wallet, on a server that serves the private Worker. Only then this browser pins the private
+// mode, and the pool controller restores the file. Any refusal writes no pin.
+async function privateRestore(b, encrypted) {
+  const why = await privateRefusal(b.group);
+  if (why) throw new Error(why);
+  acceptPrivate(b.group);
+  await solLoad();
+  if (!sol) throw new Error(solError || "Solana did not load.");
+  if (sol.ctl.gid !== b.group) sol.open(b.group, "groups/" + b.group);
+  return sol.restore(b, encrypted);
+}
+// A mainnet-private file goes to the private route, which the wallet must allow. Any other file
+// goes where the wallet decides.
 export async function solRestore(b, encrypted) {
+  if (b.cluster === PRIVATE_LABEL) return privateRestore(b, encrypted);
   if (await plainRoute(b)) return plainRestore(b, encrypted);
   if (solGroup(b.group) && !solOn(b.group)) {
     throw new Error(netConfirmed(b.group) ? "Solana runs on version 3 testnet wallets only."

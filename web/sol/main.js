@@ -1,9 +1,10 @@
 // The Solana part of the page (ZOLANA.md 3). app-sol.js loads this file with a dynamic import when
 // the Solana tab of a version 3 testnet wallet opens, when a seat signed the solstart document, or
 // early for a wallet whose group document asks for Solana (the M3 hint), so the ceremony does not
-// wait for it. This is the pool controller: it opens a confirmed testnet wallet only. The plain
-// wallet of a confirmed mainnet wallet has its own controller, plain/control.js.
-// `attach(host)` asks the server for the Helius URL, loads the Solana wasm and returns the
+// wait for it. This is the pool controller: it opens a confirmed testnet wallet (Devnet) and a
+// private mainnet wallet (host.solMode, slice 8). The plain wallet of a confirmed mainnet wallet
+// has its own controller, plain/control.js.
+// `attach(host)` asks the server for the Devnet Helius URL, loads the Solana wasm and returns the
 // controller that the page calls: open and close follow the open wallet, react advances the
 // ceremony, the stops and the signing sessions, view builds the tab, restore takes a backup.
 import { reactAborts } from "./abort.js";
@@ -22,12 +23,14 @@ import {
   refreshChain,
   showSaved,
   pollBalances,
+  stillOpen,
   syncNow,
 } from "./session.js";
 import { SESSIONS, filterSessions } from "./sessions.js";
 import { reactSessions } from "./signing.js";
 import { solView } from "./view.js";
 
+const J = JSON.parse;
 const LOG_MAX = 200;
 // Any holder of the wallet link can add session documents. The page watches the commits and the
 // shares of the valid sessions that did not end, and at most this many of them (newest first).
@@ -76,6 +79,7 @@ const blank = () => ({
   rentDone: null,
   proveChecked: false,
   genesis: null,
+  wallet: null,
 });
 
 function teardown(c) {
@@ -152,10 +156,43 @@ function watchSessions(c, gid, base) {
   c.unsubs.push(c.host.sdb.collection(base + "/" + SESSIONS).onSnapshot(onDocs, onError));
 }
 
+// The cluster of a wallet that the pool controller opens: Devnet for a confirmed testnet wallet,
+// mainnet for a private wallet. Any other wallet: null.
+function clusterOf(host, gid) {
+  if (host.netConfirmed(gid) === "testnet") return "devnet";
+  return host.solMode(gid) === "private" ? "mainnet" : null;
+}
+
+// The wallet kind of a private wallet. A Devnet wallet has none: labelOf then gives devnet.
+const privateWallet = (W) => ({
+  cluster: "mainnet",
+  mode: "pool",
+  ...J(W.sol_pool_wallet("mainnet")),
+});
+
+/** The mainnet Helius URL of a private wallet, kept only while that wallet stays open. */
+async function mainnetUrl(c) {
+  const { opened } = c;
+  const url = await fetchRpcUrl("mainnet").catch((e) => {
+    if (stillOpen(c, opened)) c.host.log("Solana mainnet URL: " + (e?.message ?? e));
+    return null;
+  });
+  if (!url || !stillOpen(c, opened)) return;
+  c.rpcUrl = url;
+  c.host.refilter();
+}
+
 function openGroup(c, gid, base) {
   teardown(c);
-  if (!gid || c.host.netConfirmed(gid) !== "testnet") return;
+  // The URL of the last wallet never serves this one: set before any await.
+  c.rpcUrl = c.devnetUrl;
+  const cluster = gid ? clusterOf(c.host, gid) : null;
+  if (!cluster) return;
   Object.assign(c, { gid, base });
+  if (cluster === "mainnet") {
+    Object.assign(c, { wallet: privateWallet(c.W), rpcUrl: null });
+    mainnetUrl(c);
+  }
   for (const name of COLLECTIONS) {
     const onDocs = (snap) => {
       if (c.gid !== gid) return;
@@ -171,10 +208,10 @@ function openGroup(c, gid, base) {
 
 /** Loads the wasm and returns the controller of the Solana part. */
 export async function attach(host) {
-  const rpcUrl = await fetchRpcUrl();
+  const devnetUrl = await fetchRpcUrl("devnet");
   const W = await import("./wasm/sol_wasm.js");
   await W.default();
-  const c = { host, W, rpcUrl, worker: null, inited: null, ...blank() };
+  const c = { host, W, devnetUrl, rpcUrl: devnetUrl, worker: null, inited: null, ...blank() };
   c.refresh = () => refresh(c);
   // A hidden tab runs no sync, and the page only redraws when the tab shows again: a pass of the
   // reactor runs the retry or the first sync that came due meanwhile.

@@ -21,8 +21,9 @@ import {
 import { focusAfter, once, react, render } from "./app-loop.js";
 import { activityLog } from "./app-wallet.js";
 import { deviceProtection, offOf } from "./app-shell.js";
-import { newWallet, SOL_DISCLOSURE, sol, solBackup, solError, solLoad, solLoading,
-  solOn, solPlanned, solServed, solSetup } from "./app-sol.js";
+import { acceptPrivate, newWallet, privateDisclosure, privatePlanned, SOL_DISCLOSURE, sol,
+  solBackup, solError, solLoad, solLoading, solOn, solPlanned, solServed, solSetup,
+} from "./app-sol.js";
 import { quickCode, SETUP_STAGES, setupStage } from "./setup-model.js";
 import { setupHeader } from "./setup-wizard.js";
 import { securityExplanation, tutorialDiagram, tutorialProgress } from "./app-tutorial.js";
@@ -598,6 +599,28 @@ const mainnetConsent = () => netName(state.g) !== "mainnet" ? []
   : [netBadge(state.g, true), el("p", { class: "callout bad" }, mainnetRisk()),
     ...ackTick(ui.join, "wallet", "j")];
 
+// A device that joins a private Solana wallet (the hint of seat 1, design 2.4 Join) reads the
+// disclosure and ticks the accept. The join then pins the private mode in this browser, before it
+// takes the seat. A failed pin takes no seat.
+const PRIVATE_FIRST = "Tick that this device accepts the private Solana wallet before you join.";
+function privateConsent() {
+  if (!privatePlanned()) return [];
+  const texts = privateDisclosure();
+  if (!texts) return [el("p", { class: "small muted" }, "Loading the private Solana text…")];
+  const pick = (ev) => { ui.join.private = ev.target.checked; };
+  return [el("h3", {}, "Private Solana on mainnet"),
+    ...texts.map((line) => el("p", { class: "small" }, line)),
+    el("label", { class: "ack" },
+      el("input", { type: "checkbox", id: "j-private", checked: ui.join.private === true,
+        onchange: pick }),
+      el("span", { class: "small" }, "This device accepts the private Solana wallet on mainnet."))];
+}
+function acceptJoin() {
+  if (!privatePlanned()) return;
+  if (ui.join.private !== true) throw new Error(PRIVATE_FIRST);
+  acceptPrivate(state.gid);
+}
+
 function joinCard(seat, compact = false) {
   const off = offOf({ pending: state.pending, newSigner: true }, "why-take");
   if (compact && off.note) off.note.className += " sr-only";
@@ -607,6 +630,7 @@ function joinCard(seat, compact = false) {
       requireAck(ui.join, netName(state.g), "join a mainnet wallet");
       requireSetupProtection();
       if (!(usesV2(groupVersion()) || confirm(NOT_ZIP2005))) return;
+      acceptJoin();
       try { beginGuided(state.gid); } catch (e) { showBanner("bad", e.message); }
       return takeSeat(seat);
     }),
@@ -619,6 +643,7 @@ function joinCard(seat, compact = false) {
       el("p", { class: "small muted" }, compact ? "Use a regular browser. Chat-app browsers and private windows may delete your signing share." : OPEN_HERE),
       solPlanned() ? el("p", { class: "small muted" }, SOL_DISCLOSURE) : null),
     ...mainnetConsent(),
+    ...privateConsent(),
     nameField("seat-name"),
     deviceProtection("join:" + state.gid,
       () => { focusAfter("join-device-" + seat, true); render(); }),

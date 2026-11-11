@@ -6,8 +6,10 @@
 // one round trip to the group server, then answers "hosted" only when the server shows no switch
 // and no seat of this browser holds the pin. The Worker refuses that answer: the SDK of the pool
 // v1 has no hosted prover in the clear, so a proof is made on a device or not at all.
-import { CLUSTER, readDocs } from "./docs.js";
+import { agreement } from "./ceremony.js";
+import { readDocs } from "./docs.js";
 import { holdsShare, putSol, solOf, stopOf } from "./secrets.js";
+import { labelOf } from "./wallet.js";
 
 export const COLLECTION = "solprove";
 const LOCAL = { mode: "local" };
@@ -21,7 +23,9 @@ const CHECK_MS = 250;
 const HOLDER = "gate-" + Math.random().toString(36).slice(2);
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
-const valid = (d) => d?.local === true && d?.cluster === CLUSTER;
+// A switch document turns on the wallet of its label only: a Devnet switch never turns on a
+// private mainnet wallet, and the reverse.
+const valid = (c) => (d) => d?.local === true && d?.cluster === labelOf(c);
 const shareSeats = (c) => c.host.localSeats().filter((i) => holdsShare(solOf(c.host, c.gid, i)));
 
 /** True when a seat of this browser holds the pin: it saw the switch on, or a restore gave it. */
@@ -30,7 +34,7 @@ export const pinned = (c) =>
 
 /** True when the group proves on its devices: the pin, or a valid signed switch document. */
 export const provesLocally = (c) =>
-  pinned(c) || Object.values(c.docs[COLLECTION] ?? {}).some(valid);
+  pinned(c) || Object.values(c.docs[COLLECTION] ?? {}).some(valid(c));
 
 /** Pins the switch in the Solana part of each seat of this browser that holds a key share. */
 // A step that awaits works on the wallet that was open when it started: a wallet switch replaces
@@ -63,7 +67,7 @@ const barrier = (c, seat) =>
 function serverSwitch(c) {
   if (!c.loaded[COLLECTION]) return "wait";
   const found = readDocs(COLLECTION, c.raw[COLLECTION], c.host.checkIn(c.gid), () => {});
-  if (Object.values(found.docs).some(valid)) return "on";
+  if (Object.values(found.docs).some(valid(c))) return "on";
   return found.wait > 0 ? "wait" : "off";
 }
 
@@ -96,7 +100,7 @@ export async function gateAnswer(c) {
 /** The signed switch document of `seat`. */
 async function publishSwitch(c, seat, w = walletOf(c)) {
   const rel = COLLECTION + "/" + seat;
-  const fields = { local: true, cluster: CLUSTER, at: Date.now() };
+  const fields = { local: true, cluster: labelOf(c), at: Date.now() };
   const doc = await c.host.signedDoc(w.gid, rel, seat, fields);
   await c.host.sdb.doc(w.base + "/" + rel).set(doc);
   c.host.log("device " + seat + ": local proving is on for the group");
@@ -157,7 +161,10 @@ async function checkDevice(c, ensure) {
 }
 
 const needsDoc = (c, i) =>
-  c.loaded[COLLECTION] && c.wait === 0 && c.host.canWriteAs(i) && !valid(c.docs[COLLECTION]?.[i]);
+  c.loaded[COLLECTION] &&
+  c.wait === 0 &&
+  c.host.canWriteAs(i) &&
+  !valid(c)(c.docs[COLLECTION]?.[i]);
 
 /**
  * The reactor step: once the switch is on, pin it, write the switch document of each seat of
@@ -180,6 +187,8 @@ export function reactProve(c, ensure) {
 function maybeCheck(c, seats, ensure) {
   const unchecked = seats.some((i) => !solOf(c.host, c.gid, i).proveCheck);
   if (!unchecked || !c.viewed || !c.rpcUrl || c.proveChecked) return;
+  // The Worker starts only for agreed keys: a check before the soldone documents load would fail.
+  if (agreement(c).state !== "agree") return;
   c.proveChecked = true;
   c.host.once("sol:provecheck:" + c.opened, () => checkDevice(c, ensure));
 }
