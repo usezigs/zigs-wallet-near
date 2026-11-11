@@ -31,8 +31,9 @@ const BUSY = "An Add SOL of this tab is still running. Nothing was sent.";
 const NO_CAP =
   "The cap of this private wallet is not known, so Add SOL is refused. Nothing was sent.";
 const UNCONFIRMED =
-  "The last Add SOL of this tab is not confirmed yet, so the cap cannot count it. Try again " +
-  "when it is confirmed, or reload the page if it never arrives. Nothing was sent.";
+  "The last Add SOL of this tab is not confirmed yet. Try again in 3 minutes. Nothing was sent.";
+// Past the 150 s in which an Add SOL with no answer can still land.
+const LATER = 200_000;
 const capText = (room) =>
   "The private balance of this test wallet is capped at 0.5 SOL. " +
   `You can add up to ${room} SOL now. Nothing was sent.`;
@@ -111,6 +112,17 @@ async function added(amount, label) {
   const sends = calls.slice(at.calls).filter((x) => x.cmd === "send");
   assert.equal(sends.length, 1, label + ": one send");
   return { got, held: decodeIntent(seen.intents.at(-1)).held };
+}
+
+/** Runs `fn` with the clock `ms` ahead. */
+async function later(ms, fn) {
+  const now = Date.now;
+  Date.now = () => now() + ms;
+  try {
+    return await fn();
+  } finally {
+    Date.now = now;
+  }
 }
 
 /** The program account that the last Add SOL asked for. */
@@ -247,6 +259,35 @@ step("mainnet: exactly 0.5 SOL passes, and a confirmed Add SOL counts until a sy
   await refused("0.14", capText("0.13"), "and the next sync with that note shows no other one");
 }
 step("mainnet: an Add SOL with no answer blocks the next one until the chain answers");
+
+{
+  // D shows. Nothing of this tab counts beyond the sync: 0.27 + 0.1.
+  world.notes = [...world.notes, note("05", SOL / 100n)];
+  world.pda += SOL / 100n;
+  await refused("0.14", capText("0.13"), "the sync shows D");
+  // F gets no answer, and the RPC forgets its status ("none"). Then the sync shows its note.
+  Object.assign(world, { confirm: "unknown", status: "none" });
+  assert.equal((await added("0.02", "F")).got.status, "unknown");
+  await refused("0.01", UNCONFIRMED, "F: no answer and no note");
+  world.notes = [...world.notes, note("06", 2n * SOL / 100n)];
+  world.pda += 2n * SOL / 100n;
+  await refused("0.12", capText("0.11"), "the sync shows F: it no longer refuses");
+  // G gets no answer, and no note shows. After its window it no longer refuses, and it counts.
+  await added("0.03", "G");
+  await refused("0.01", UNCONFIRMED, "G can still land");
+  await later(LATER, () => refused("0.09", capText("0.08"), "G after its window counts"));
+  await refused("0.09", capText("0.08"), "G still counts, with no refusal");
+  // H: the send throws, but H may still land. It refuses in its window, then it counts.
+  const send = ANSWERS.send;
+  ANSWERS.send = () => {
+    throw new Error("Blockhash not found");
+  };
+  await assert.rejects(() => addSol(c, { amount: "0.01" }), { message: "Blockhash not found" });
+  ANSWERS.send = send;
+  await refused("0.01", UNCONFIRMED, "H can still land");
+  await later(LATER, () => refused("0.08", capText("0.07"), "H after its window counts"));
+}
+step("mainnet: an Add SOL with no answer refuses until a sync shows it or its window ends");
 
 // ── guard.js against the wasm rows (the program and the genesis of each cluster) ──
 {

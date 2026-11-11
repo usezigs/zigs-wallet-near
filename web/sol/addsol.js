@@ -24,8 +24,9 @@ const BUSY = "An Add SOL of this tab is still running. Nothing was sent.";
 const NO_CAP =
   "The cap of this private wallet is not known, so Add SOL is refused. Nothing was sent.";
 const UNCONFIRMED =
-  "The last Add SOL of this tab is not confirmed yet, so the cap cannot count it. Try again " +
-  "when it is confirmed, or reload the page if it never arrives. Nothing was sent.";
+  "The last Add SOL of this tab is not confirmed yet. Try again in 3 minutes. Nothing was sent.";
+// A blockhash lives 150 blocks: an Add SOL with no answer after this time can no longer land.
+const LAND_WINDOW_MS = 150_000;
 
 /** The refusal of the cap, with the most SOL that can still be added (lamports). */
 const capText = (cap, room) =>
@@ -62,7 +63,8 @@ async function requireProgram(c, worker) {
 
 // ponytail: the cap counts what this tab knows. Its ceiling: two devices that add at the same
 // time, deposits by other people and incoming private payments. The upgrade path: count the
-// unconfirmed deposits from a signed log of the group.
+// unconfirmed deposits from a signed log of the group. It fails closed until a reload for an Add
+// SOL with no answer that never landed: that one counts until a sync shows it.
 // Per group PDA, in the memory of this tab only: an Add SOL that runs, each Add SOL that the
 // chain confirmed (or did not answer) and that a sync did not show yet, and the notes that showed
 // one.
@@ -82,22 +84,26 @@ function tabOf(c) {
   return tabs.get(done.pda);
 }
 
-/** Asks the chain again for the last Add SOL with no answer. Refuses while it has none. */
+/**
+ * Asks the chain again for the last Add SOL with no answer. Refuses while it can still land. After
+ * that it no longer refuses, and it counts until a sync shows it: the status of the RPC forgets an
+ * old transaction, so "none" can be an Add SOL that landed.
+ */
 async function settleLast(worker, tab) {
   const last = tab.sent.at(-1);
   if (last?.status !== "unknown") return;
   const { status } = await worker.call("status", { signature: last.txId });
   if (status === "failed") tab.sent.pop();
   else if (CONFIRMED.has(status)) last.status = status;
+  else if (Date.now() - last.sentAt > LAND_WINDOW_MS) last.status = "lapsed";
   else throw new Error(UNCONFIRMED);
 }
 
 /**
  * Drops each Add SOL that the sync shows: a note of its amount that was not there before it.
- * One note shows one Add SOL, once: a later sync that still holds it shows no other one. Returns
- * the lamports of the ones that the sync does not show.
+ * One note shows one Add SOL, once: a later sync that still holds it shows no other one.
  */
-function unseen(tab, utxos) {
+function drop(tab, utxos) {
   const notes = utxos.filter((u) => !tab.shown.has(u.hash));
   tab.sent = tab.sent.filter((d) => {
     const at = notes.findIndex((u) => u.amount === String(d.amount) && !d.before.has(u.hash));
@@ -105,18 +111,20 @@ function unseen(tab, utxos) {
     tab.shown.add(notes.splice(at, 1)[0].hash);
     return false;
   });
-  return tab.sent.reduce((sum, d) => sum + d.amount, 0n);
 }
 
 /**
  * The cap check before any signature: `held` is a fresh sync of the PDA identity, plus the
- * group-key identity, plus the Add SOL of this tab that the sync does not show yet.
+ * group-key identity, plus the Add SOL of this tab that the sync does not show yet. The sync
+ * comes first, so an Add SOL with no answer that the sync shows no longer refuses.
  */
 async function underCap(c, worker, tab, amount) {
-  await settleLast(worker, tab);
   const synced = await worker.call("sync");
   const old = await worker.call("syncOld");
-  const held = BigInt(synced.balance) + BigInt(old.balance) + unseen(tab, synced.utxos);
+  drop(tab, synced.utxos);
+  await settleLast(worker, tab);
+  const unseen = tab.sent.reduce((sum, d) => sum + d.amount, 0n);
+  const held = BigInt(synced.balance) + BigInt(old.balance) + unseen;
   const cap = BigInt(c.wallet.cap);
   if (held + amount > cap) throw new Error(capText(cap, held < cap ? cap - held : 0n));
   return { held, before: new Set(synced.utxos.map((u) => u.hash)) };
@@ -138,7 +146,7 @@ async function deposit(c, { seat, amount, fee, tab }) {
   if (run.err !== null) throw new Error(refusalOf(c, run, seat));
   const txId = base58(signature);
   // Counted from the send on: a send that throws may still land.
-  const sent = { txId, amount, before, status: "unknown" };
+  const sent = { txId, amount, before, status: "unknown", sentAt: Date.now() };
   tab?.sent.push(sent);
   await worker.call("send", { tx });
   const { status, slot } = await worker.call("confirm", { signature: txId });
