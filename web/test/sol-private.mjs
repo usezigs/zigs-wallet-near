@@ -21,6 +21,7 @@ const plainImported = () => loaded.some((url) => url.endsWith("/web/sol/plain/co
 const { loadRig, mainnetConfig, sleep, storage } = await import("./sol-rig.mjs");
 const { MAINNET_DISCLOSURE } = await import("../sol/net.js");
 const { docFields } = await import("../signed.js");
+const { backupText } = await import("../sol/backup.js");
 const { fakePasskey } = await import("./passkey-fixture.mjs");
 const rig = await loadRig();
 const { t, data, waitFor } = rig;
@@ -89,6 +90,11 @@ async function signStart(gid, cluster) {
   rig.notify();
 }
 
+// The rig lists only the open wallet (state.groups stays empty), so a test opens a wallet first.
+const show = async (gid) => {
+  t.openGroup(gid);
+  await waitFor("the wallet", () => t.state.gid === gid && t.state.g);
+};
 const setPart = (gid, i, sol) => t.putSec(gid, i, { sol });
 const dropPart = async (gid, i) => {
   delete t.sec(gid, i).sol;
@@ -381,6 +387,55 @@ step("the choice on pins, writes the hint, then solAuto, and seat 1 never signs 
 }
 step("the join card of a private wallet shows the disclosure, and its tick writes the pin");
 
+// ── Restore: a fresh browser with only the Zcash seat restores a mainnet-private file ──
+const privateFile = JSON.parse(backupText(t.sol.ctl.host, made, 2));
+{
+  assert.equal(privateFile.cluster, PRIVATE, "the Solana file of a private seat names its label");
+  const devnet = await rig.wallet({ name: "Devnet" });
+  const noStart = await rig.wallet({ name: "No start", network: "mainnet" });
+  // This browser keeps only the Zcash part of seat 2: no other seat, no Solana part, no pin.
+  delete t.secrets[made + ":1"];
+  delete t.secrets[made + ":3"];
+  await dropPart(made, 2);
+  delete t.signPins[KEY(made)];
+  const pins = stored();
+  delete pins[KEY(made)];
+  storage.set("zf-signpins", JSON.stringify(pins));
+  const refuses = async (group, why, listed = true) => {
+    if (listed) await show(group);
+    await assert.rejects(t.applyBackup({ ...privateFile, group }, true), why);
+    assert.equal(t.signPins[KEY(group)], undefined, "a refused restore writes no pin");
+  };
+  await refuses(devnet, /for another network or mode/);
+  await refuses(noStart, /did not start a private Solana wallet/);
+  await refuses("b".repeat(20), /does not know this wallet yet/, false);
+  probe.status = 404;
+  delete t.ui.privateServed;
+  await refuses(made, /does not serve the private Solana wallet/);
+  await probeWith(200);
+  assert.deepEqual(t.sec(made, 2).sol ?? {}, {}, "no refusal stored a part");
+  await waitFor("the start of seat 1", () => solMode(made) === "accept");
+  // The file opens from another wallet: the restore opens the listed wallet first.
+  const listed = structuredClone(t.state.g);
+  await show(noStart);
+  t.state.groups = [listed];
+  try {
+    await t.applyBackup(privateFile, true);
+  } finally {
+    t.state.groups = [];
+  }
+  assert.equal(t.state.gid, made, "the restore opened the wallet");
+  const part = t.sec(made, 2).sol;
+  assert.equal(part.cluster, PRIVATE, "the restored share has the private label");
+  assert.deepEqual(part.keyPackage, privateFile.keyPackage);
+  assert.equal(part.restored, true);
+  assert.equal(stored()[KEY(made)], PRIVATE, "the restore pinned the private mode");
+  assert.match(t.banner.text, /Restored the Solana part of device 2/);
+  assert.equal(t.sol.ctl.gid, made, "the pool controller follows the wallet");
+  assert.equal(solMode(made), "private");
+}
+step("a fresh browser restores a mainnet-private file, and a wrong wallet refuses it");
+
 // ── A browser with the pin never imported the plain controller ──
 assert.equal(t.plainLoading, null, "the plain controller never loaded");
 assert.equal(plainImported(), false, "and sol/plain/control.js never loaded");
@@ -395,6 +450,9 @@ step("a browser with the pin never imports sol/plain/control.js");
   t.signPins[KEY(plain)] = PRIVATE;
   assert.equal(solMode(plain), "plain", "a pin does not beat a signed plain start");
   delete t.signPins[KEY(plain)];
+  await assert.rejects(t.applyBackup({ ...privateFile, group: plain }, true),
+    /for another network or mode/, "a plain wallet refuses a mainnet-private file");
+  assert.equal(t.signPins[KEY(plain)], undefined, "and gets no pin");
   await waitFor("a plain part", () => t.sec(plain, 1).sol?.cluster === PLAIN);
   assert.throws(() => acceptPrivate(plain), /holds a Solana part of another network/,
     "and a browser with a plain part does not accept the private mode");

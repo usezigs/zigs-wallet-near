@@ -85,11 +85,13 @@ export function solMode(gid = state.gid) {
 }
 // Does this server serve the private Worker? The same states as solServed. A private wallet and the
 // create dialog of a mainnet wallet ask. The server answers 404 unless SOL and SOL_POOL_MAINNET
-// are "1" (cf/src/index.js).
+// are "1" (cf/src/index.js). privateAnswer is the promise of the probe, for a restore that waits.
+let privateAnswer = null;
 export function privateServed() {
   if (ui.privateServed === undefined) {
     ui.privateServed = null;
-    globalThis.fetch(POOL_WORKER_MAINNET, { method: "HEAD", cache: "no-store" }).then((r) => {
+    const head = { method: "HEAD", cache: "no-store" };
+    privateAnswer = globalThis.fetch(POOL_WORKER_MAINNET, head).then((r) => {
       ui.privateServed = r.status === 200;
     }).catch(() => { if (ui.privateServed === null) ui.privateServed = false; }).finally(refilter);
   }
@@ -557,6 +559,12 @@ const NOT_LISTED = "This browser does not know this wallet yet. Wait a moment, t
 const PROBE_MS = 10000;
 const NOT_ASKED = "This browser does not know yet whether this server serves the Solana wallet. "
   + "Wait a moment, then open the file again.";
+/** Waits for `promise`, but not longer than PROBE_MS. */
+async function within(promise) {
+  let timer;
+  await Promise.race([promise, new Promise((done) => { timer = setTimeout(done, PROBE_MS); })]);
+  clearTimeout(timer);
+}
 // Does this Solana file go to the plain controller? Only the wallet decides, never the label of the
 // file: a plain label can only make a restore refuse. A mainnet wallet waits up to PROBE_MS for
 // the probe.
@@ -567,13 +575,61 @@ async function plainRoute(b) {
   }
   if (!plainOn(b.group)) return false;
   plainServed();
-  let timer;
-  await Promise.race([plainAnswer, new Promise((done) => { timer = setTimeout(done, PROBE_MS); })]);
-  clearTimeout(timer);
+  await within(plainAnswer);
   if (ui.plainServed === null) throw new Error(NOT_ASKED);
   return ui.plainServed === true;
 }
+const OTHER_MODE = "This Solana backup is for another network or mode. It was not used.";
+const NO_PRIVATE_START = "Device 1 of this wallet did not start a private Solana wallet, so this "
+  + "file was not used.";
+const START_UNKNOWN = "This browser could not check the Solana start of this wallet in time. Wait "
+  + "a moment, then open the file again.";
+const PRIVATE_NOT_ASKED = "This browser does not know yet whether this server serves the private "
+  + "Solana wallet. Wait a moment, then open the file again.";
+const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+// The label of the start that seat 1 signed, read from the store, or null when it has none.
+async function signedStart(gid) {
+  const ref = sdb.doc("groups/" + gid + "/solstart/1");
+  for (const end = Date.now() + PROBE_MS; ;) {
+    const snap = await ref.get();
+    const d = snap.exists ? snap.data() : null;
+    const verdict = d ? checkIn(gid)("solstart/1", d.by, d.sig, docFields(d), 1) : "no";
+    if (verdict !== "wait") return verdict === "yes" ? docFields(d).cluster : null;
+    if (Date.now() > end) throw new Error(START_UNKNOWN);
+    await sleep(150);
+  }
+}
+async function privateUnserved() {
+  privateServed();
+  await within(privateAnswer);
+  if (ui.privateServed === null) return PRIVATE_NOT_ASKED;
+  return ui.privateServed ? null : UNSERVED;
+}
+// Why a mainnet-private file of wallet `gid` is refused, or null. It opens the wallet first.
+async function privateRefusal(gid) {
+  if (!solGroup(gid)) return NOT_LISTED;
+  if (!mainnetOn(gid)) return netConfirmed(gid) ? OTHER_MODE : NET_UNCONFIRMED;
+  if (state.gid !== gid) openGroup(gid);
+  const start = await signedStart(gid);
+  if (start !== PRIVATE_LABEL) return start ? OTHER_MODE : NO_PRIVATE_START;
+  return privateUnserved();
+}
+// A mainnet-private file (design 2.4 Restore) needs a wallet that seat 1 started as a private
+// wallet, on a server that serves the private Worker. Only then this browser pins the private
+// mode, and the pool controller restores the file. Any refusal writes no pin.
+async function privateRestore(b, encrypted) {
+  const why = await privateRefusal(b.group);
+  if (why) throw new Error(why);
+  acceptPrivate(b.group);
+  await solLoad();
+  if (!sol) throw new Error(solError || "Solana did not load.");
+  if (sol.ctl.gid !== b.group) sol.open(b.group, "groups/" + b.group);
+  return sol.restore(b, encrypted);
+}
+// A mainnet-private file goes to the private route, which the wallet must allow. Any other file
+// goes where the wallet decides.
 export async function solRestore(b, encrypted) {
+  if (b.cluster === PRIVATE_LABEL) return privateRestore(b, encrypted);
   if (await plainRoute(b)) return plainRestore(b, encrypted);
   if (solGroup(b.group) && !solOn(b.group)) {
     throw new Error(netConfirmed(b.group) ? "Solana runs on version 3 testnet wallets only."
