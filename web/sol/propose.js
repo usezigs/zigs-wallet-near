@@ -41,6 +41,7 @@ import {
   rolesOf,
   signAsFee,
 } from "./approve.js";
+import { netOf } from "./net.js";
 import { ensureWorker } from "./session.js";
 import { openInputs, writePart } from "./sessions.js";
 import { pairsBefore } from "./spend.js";
@@ -94,19 +95,42 @@ async function draftSpend(c, worker, prepared) {
   };
 }
 
-/** The payee and the amount that a person typed, checked. */
-function typedPayment(args) {
-  const payee = String(args.recipient ?? "")
+// A shielded address names no network, so the page writes one before it (view.js). A payee of
+// another network is refused before any proof: SOL paid to it could never move.
+const NETWORK = /^solana-(devnet|mainnet):/;
+// The network that a payee may name on each cluster ("" is no prefix). Mainnet needs its own.
+const PAYEE_NETWORKS = { devnet: ["", "devnet"], mainnet: ["mainnet"] };
+const NO_NETWORK =
+  "This payee names no network, so it can be the address of a Solana Devnet wallet. Copy the " +
+  "payee from the Solana tab of a mainnet wallet: it starts with solana-mainnet:. Nothing was " +
+  "sent.";
+
+/** Refuses a payee that names another network than `cluster`. `named` is "" with no prefix. */
+function sameNetwork(named, cluster) {
+  if (PAYEE_NETWORKS[cluster].includes(named)) return;
+  if (!named) throw new Error(NO_NETWORK);
+  const name = (net) => "Solana " + netOf(net).badge;
+  throw new Error(
+    `This payee is an address of a ${name(named)} wallet, and this wallet pays on ` +
+      `${name(cluster)}. Nothing was sent.`,
+  );
+}
+
+/** The payee (the bare hex, with its network checked) and the amount that a person typed. */
+function typedPayment(c, args) {
+  const typed = String(args.recipient ?? "")
     .trim()
     .toLowerCase();
+  const payee = typed.replace(NETWORK, "");
   const amount = lamportsOf(args.amount);
   if (!isAddress(payee)) throw new Error("Enter the full shielded address of the payee.");
+  sameNetwork(NETWORK.exec(typed)?.[1] ?? "", c.wallet?.cluster ?? "devnet");
   if (amount === null) throw new Error("Enter an amount of SOL, for example 0.005.");
   return { payee, amount };
 }
 
 /** The public recipient (a Solana address) and the amount of a withdrawal, checked. */
-function typedWithdrawal(args) {
+function typedWithdrawal(_c, args) {
   const payee = keyOfBase58(String(args.recipient ?? "").trim());
   const amount = lamportsOf(args.amount);
   if (payee === null) throw new Error("Enter the Solana address of the recipient.");
@@ -188,7 +212,7 @@ async function createdBefore(worker, said, error) {
  */
 async function payDraft(c, worker, seat, fee, { kind, args }) {
   const how = PAYMENTS[kind];
-  const typed = how.typed(args);
+  const typed = how.typed(c, args);
   const { prepared, fields, terms } = await proved(c, worker, kind, typed, fee);
   const named = { ...terms, recipient: typed.payee };
   Object.assign(fields, { intent: intentHex(how.session, named), transact: prepared.data });

@@ -216,6 +216,12 @@ const CUSTODY_TEXT =
   "It can also set the fees of the pool and change its other authorities, but not the upgrade " +
   "key. Read from Devnet on 18 October 2026.";
 
+// A shielded address names no network. A mainnet wallet shows and copies it with its network,
+// and propose.js refuses a mainnet payee without it. Devnet keeps the bare hex, the form that the
+// address book (recipients.js) stores.
+const shieldedShown = (c, hex) =>
+  hex && c.wallet?.cluster === "mainnet" ? "solana-mainnet:" + hex : hex;
+
 /** Copy for an address (the fee address has its own in payview.js). `what` names the value. */
 function copyButton(c, text, mark, what) {
   const copy = async (ev) => {
@@ -262,7 +268,7 @@ function keyBlock(c, done) {
       "aria-label": "Receive SOL and wallet details" },
     copyRow("owner", "Program address of the group (Devnet)", owner, "copy-program", "program"),
     row("group-key", "Group key", done.groupKey),
-    copyRow("shielded", "Shielded SOL address · Devnet", done.pdaAddress,
+    copyRow("shielded", "Shielded SOL address · Devnet", shieldedShown(c, done.pdaAddress),
       "copy-shielded", "shielded"),
     el("dt", {}, "Privacy on Solana Devnet"),
     el("dd", {}, privacyNotice(el, done.pdaAddress ? "partial" : "unknown",
