@@ -1237,9 +1237,9 @@ coordinator ran only reads and prepared the commands). Times are UTC.
 
 - Program `9mE7WUJHK6dQwzK6AP6wf1eyPmePULZrGeRbXqke2ukq`, owned by
   `BPFLoaderUpgradeab1e11111111111111111111111`. Upgrade authority
-  `iFSbwFzpLpaGMKtn5S6gznvzXqAVunoB6rcSpGi956o`, which the owner alone holds; it also paid every
-  transaction. ProgramData `AdVK3obBMyZ4vKXXZHmeDxKj1aRCerSrRQfptrxx7iCp`: 57,752 bytes of data
-  (`--max-len 57752`, as on Devnet), 294,259,000 lamports.
+  `iFSbwFzpLpaGMKtn5S6gznvzXqAVunoB6rcSpGi956o`, which the owner alone holds. ProgramData
+  `AdVK3obBMyZ4vKXXZHmeDxKj1aRCerSrRQfptrxx7iCp`: 57,752 bytes of data (`--max-len 57752`, as on
+  Devnet), 294,259,000 lamports.
 - The ELF is the version 6 source of 6.10, the code that Devnet `5PHZ…` runs since slot
   520862900, built for mainnet (the mainnet genesis): 54,728 bytes, SHA-256
   `00aa216979c9799b151067ff7fdc06e6b64d0b2c769f479979560064a496f1b9`, the
@@ -1257,9 +1257,10 @@ coordinator ran only reads and prepared the commands). Times are UTC.
   lamports) and ProgramData (294,259,000 lamports), and it moved all 278,856,441 lamports of the
   buffer to `iFSb…`. A dump of the program after the deploy hashes to `00aa2169…` over its first
   54,728 bytes, and the 3,024 bytes after the ELF are zero.
-- Cost. `iFSb…` sent 63 transactions, all without error, with 326,037 lamports of fees in total.
-  The deploy cost 295,418,157 lamports: 295,092,120 locked as rent in the program and ProgramData
-  accounts, and the fees. `iFSb…` keeps 187,192,293 lamports.
+- Cost. 63 transactions touch `iFSb…`: the funding, and 62 that it signed and paid, all without
+  error, with 326,037 lamports of fees in total. The deploy cost 295,418,157 lamports: 295,092,120
+  locked as rent in the program and ProgramData accounts, and the fees. `iFSb…` keeps 187,192,293
+  lamports.
 - Lesson. The public RPC `api.mainnet-beta.solana.com` answered HTTP 429 to the buffer write with
   `--use-rpc` (57 sends and their status reads from one IP address). The write finished through
   an unrestricted Helius key of the owner, with the transactions sent to the validators (no
@@ -1725,11 +1726,12 @@ use.
   and prepare commands, and the owner runs each transaction.
 - What the one key can do. It can replace the code of `9mE7…`, and the new code can sign as the
   owner PDA of every private mainnet group. A spend also needs a proof, and a proof needs the
-  witness of the notes (Custody, above): with one seat or with viewing-key material, the key can
-  spend every note of every group. Mainnet proofs are local only, so the hosted prover is no path
-  here. The key can also freeze every group with broken code, take the rent of open proposals and
-  records, and drop the digest rule. A close of `9mE7…` strands the notes of every group PDA for
-  good, so never close it while a PDA holds notes.
+  witness of the notes (Custody, above): with one seat of a group, or with the viewing-key
+  material of a group, the key can spend every note of that group. The disclosure on the page
+  (`MAINNET_DISCLOSURE`) assumes the worst case. Mainnet proofs are local only, so the hosted
+  prover is no path here. The key can also freeze every group with broken code, take the rent of
+  open proposals and records, and drop the digest rule. A close of `9mE7…` strands the notes of
+  every group PDA for good, so never close it while a PDA holds notes.
 - The loss limit and its gaps. The checker refuses a shield that takes the private balance of a
   group above 0.5 SOL (rule `shield-over-cap`), and Add SOL refuses it first in the page. This is
   a check of the Zigs app only, run in the browser of the seat that adds. It does not bound the
@@ -1747,10 +1749,11 @@ use.
   people send to them.
 - Parties outside Zigs. The upgrade authority of the pool ring1G on mainnet is
   `CuZ42BsoBcLaNTUboJpGhekGmrYMZ7sRhwVki4frz1FB` (read on 10 November 2026). Zigs did not verify
-  who controls it. It can replace the pool program, and then every local proof stops with
-  `POOL_CHANGED`. The protocol authority and the fee authority of the pool on mainnet were not
-  read. By the Zolana spec the protocol authority can pause the trees, and the fee authority can
-  claim tree lamports (section 7).
+  who controls it. It can replace the pool program, and new pool code can move the SOL of every
+  note in the pool, the notes of every Zigs group included. After an upgrade, every local proof of
+  a Zigs page stops with `POOL_CHANGED`. The protocol authority and the fee authority of the pool
+  on mainnet were not read. By the Zolana spec the protocol authority can pause the trees, and the
+  fee authority can claim tree lamports (section 7).
 - The exit before production, in this order: move the upgrade authority to a Squads v4 multisig
   with a time lock (members on separate hardware keys, a threshold of at least 2, a time lock
   longer than the 24-hour expiry window, the 1-hour skew and the time to leave), and pin the
