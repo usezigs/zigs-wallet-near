@@ -320,7 +320,7 @@ export function restoreDialog() {
       class: "btn", type: "button", disabled: r.busy, onclick: closeBackup,
     }, "Cancel"),
     el("button", { class: "btn primary", type: "submit", disabled: r.busy || !Z },
-      r.busy ? "Restoring…" : "Restore backup")));
+      r.busy ? "Opening backup…" : "Restore backup")));
 }
 
 function parseBackup(text) {
@@ -426,9 +426,22 @@ export async function applyBackup(b, encrypted) {
 }
 
 function announceRestore(where, encrypted) {
-  const text = "Restored " + where + ". It counts as your device once it matches the wallet.";
-  if (encrypted) showBanner("ok", text);
+  const text = "Backup opened for " + where + ". Checking that this share matches the wallet. Keep the wallet open.";
+  if (encrypted) showBanner("info", text);
   else showBanner("bad", text + " " + NOT_ENCRYPTED);
+}
+
+// Visible after the file dialog closes, including a restored share awaiting data after reload.
+// This reads the existing fit checks; it cannot import keys or declare a restore successful.
+export function restoreProgressNote() {
+  if (!state.gid) return null;
+  const pending = new Set([...restoreWatch.values()].filter((w) => w.gid === state.gid).map((w) => w.seat));
+  for (const [seat, secret] of mySeatSecrets(state.gid)) {
+    if (secret.restored && fitState(seat, secret) === null) pending.add(seat);
+  }
+  return pending.size ? el("div", { class: "callout", role: "status", "data-restore-progress": "checking" },
+    "Backup opened. Checking " + [...pending].map((i) => "device " + i).join(", ")
+      + " against this wallet. Keep it open while the wallet data loads. This is not a completed restore yet.") : null;
 }
 
 // Removes the seat secret that the restore made (undoPlan). Returns false when it leaves the seat

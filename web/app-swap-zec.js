@@ -14,6 +14,8 @@ import { fmtZec, said } from "./app-kit.js";
 import { log, state, ui } from "./app-state.js";
 import { groupTaddress } from "./app-taddress.js";
 import { payeeRows } from "./requests.js";
+import { expiryAt } from "./app-payments.js";
+import { openSession } from "./app-groups.js";
 import { SWAP_ASSETS, swapDecimal } from "./swap-preview-model.js";
 
 /** No device approves or sends a swap payment in this time before the deadline of its deposit. */
@@ -89,7 +91,18 @@ export function zecSwapSource() {
   if (!recipient) return { reason: NO_SOL };
   const t = groupTaddress();
   if (!t.address) return { reason: refundReason(t) };
-  return { recipient, refundTo: t.address, pay: proposeDeposit };
+  return { recipient, refundTo: t.address, pay: proposeDeposit, proposal: depositProposal };
+}
+
+// Locate an existing proposal by its checked swap marker and exact deposit terms. Display
+// only: an entry here does not establish submission or receipt and never makes a new payment.
+function depositProposal(swap) {
+  const ss = state.sessions.find((s) => swapDeadline(s.note) === Date.parse(swap.deadline)
+    && s.payees?.length === 1 && s.payees[0].to === swap.depositAddress
+    && String(s.payees[0].amount) === swap.amountIn);
+  return ss ? { id: ss.id, expiryHeight: expiryAt(ss), open() {
+    ui.tab = "approvals"; openSession(ss.id); render();
+  } } : null;
 }
 
 // Send opens with the deposit address, the exact amount in zatoshi and the note of the swap. The

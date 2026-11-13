@@ -22,7 +22,7 @@ import {
 import { discussion } from "./app-thread.js";
 import { nameOf, zecName } from "./zns.js";
 import { render } from "./app-loop.js";
-import { RESEND_MS, stageHeadline } from "./payment-model.js";
+import { RESEND_MS, stageHeadline, paymentNextStep } from "./payment-model.js";
 import { outcomePanel } from "./outcome-seal.js";
 import { privacyNotice, ZEC_EXPOSURE } from "./privacy-language.js";
 import { icon } from "./app-icons.js";
@@ -213,9 +213,9 @@ export function finishButtons(ss) {
   if (step !== "send" && step !== "resend") return [];
   const why = sendRefusal(ss), note = why ? [el("p", { class: "send-why" }, why)] : [];
   if (step === "resend") {
-    return [bigButton("Send again", act(() => resendTx(ss)), { disabled: !!why }, "send"), ...note];
+    return [bigButton("Resend transaction", act(() => resendTx(ss)), { disabled: !!why }, "send"), ...note];
   }
-  return [bigButton(ss.broadcastError ? "Send again" : "Send to network",
+  return [bigButton(ss.broadcastError ? "Resend transaction" : "Send to network",
     act(() => broadcastTx(ss)), { disabled: !curChain() || !!why }, "send"), ...note];
 }
 
@@ -237,8 +237,8 @@ const canApprove = (ss, rc) => approvers(ss).length > 0 && rc.match === true
   && rc.intoNew !== false && !enoughApprovals();
 const enoughApprovals = () => Object.keys(state.commits).length >= state.g.t;
 
-const CANCEL_ASK = "Cancel this payment? No device can approve it after this. Anyone can propose "
-  + "it again.";
+const CANCEL_ASK = "Cancel this proposal for the wallet? Zigs asks its devices to stop. "
+  + "Cancellation cannot revoke signed data already held elsewhere. Check Activity and any Send hold before proposing a replacement.";
 // Until the signatures are combined, any signer can withdraw a payment, for example one that lost
 // an approval. A signature share alone cannot move funds.
 // A document that lost the signing parts that this browser saw gets no Cancel: one seat reset it.
@@ -248,7 +248,7 @@ export const cancelAction = (ss) => noCancel(ss) || !localSeats().length || !may
   el("button", {
     class: "btn lg danger", type: "button",
     onclick: act(() => confirm(CANCEL_ASK) && cancelPayment(ss)),
-  }, "Cancel payment"),
+  }, "Cancel proposal"),
 ];
 
 // The devices that sign: those that the package names, else the first t approvals by device
@@ -313,7 +313,7 @@ function holdCard(ss) {
   return el("div", { class: "callout", "data-key": "hold-" + ss.id },
     el("p", {}, "This browser approved this payment, and the other devices can still sign and "
       + "send it. Send stays off until block " + fmtInt(end) + holdLeft(end) + ". Release Send "
-      + "only if you are sure that nobody will send it."),
+      + "only if you are sure that nobody will send it. Releasing this hold does not cancel the transaction. A new proposal could pay again."),
     el("div", { class: "dialog-actions" }, actions));
 }
 
@@ -530,7 +530,16 @@ function signatureText(ss, approvals, shared, wait) {
 // `rejected`: this browser refuses the transaction itself (its decode). No live region: the page
 // draws it anew on each redraw.
 function headline(ss, rejected, rc) {
-  return outcomePanel(stageHeadline({ ...endFacts(ss, rejected), ...stepFacts(ss, rc) }));
+  const selected = stageHeadline({ ...endFacts(ss, rejected), ...stepFacts(ss, rc) });
+  const device = (id) => "device " + id + (state.seats[id]?.name ? " (" + state.seats[id].name + ")" : "");
+  const guidance = paymentNextStep(selected.stage, {
+    checking: state.pending || ss.checking,
+    proposer: Number.isInteger(ss.by) ? device(ss.by) : "the proposing device",
+    pendingSigners: signersOf(ss).filter((id) => seatIds().includes(id) && !state.shares[id]).map(device),
+    remaining: displayedApprovalCount() === null ? null
+      : Math.max(0, state.g.t - Object.keys(state.commits).length),
+  });
+  return outcomePanel({ ...selected, next: guidance });
 }
 // The facts that end, stop or block a payment. `stopped`: before a sync, or once signing started
 // here, the page cannot tell that no device sent it.

@@ -29,14 +29,14 @@ import {
 import { SESSIONS, filterSessions } from "./sessions.js";
 import { reactSessions } from "./signing.js";
 import { solDetailsView, solView } from "./view.js";
+import { proposalPage, proposalWatchIds } from "./proposal-history.js";
 
 const J = JSON.parse;
 const LOG_MAX = 200;
 // Any holder of the wallet link can add session documents. The page watches the commits and the
-// shares of the valid sessions that did not end, and at most this many of them (newest first).
+// shares of the valid sessions that did not end, and at most this many of them. The page being
+// browsed has priority, followed by the newest sessions.
 const WATCH_MAX = 50;
-const SESSION_ID = /^[\w-]{1,64}$/;
-const ENDED = new Set(["sent", "failed"]);
 
 // What belongs to the open wallet. The host, the wasm and the Worker session outlive it. Each
 // blank state gets a new number: a step that started before a close writes nothing after it.
@@ -62,6 +62,7 @@ const blank = () => ({
   docs: Object.fromEntries(COLLECTIONS.map((name) => [name, {}])),
   wait: 0,
   sessions: [],
+  sessionPage: 0,
   commits: {},
   shares: {},
   sessWait: 0,
@@ -131,10 +132,7 @@ function watchSession(c, gid, base, id) {
  * that is not a valid session never takes one.
  */
 function syncWatches(c) {
-  const live = c.sessions
-    .filter((ss) => !ENDED.has(ss.status) && SESSION_ID.test(ss.id))
-    .slice(0, WATCH_MAX)
-    .map((ss) => ss.id);
+  const live = proposalWatchIds(c.sessions, c.sessionPage, WATCH_MAX);
   for (const [id, stop] of c.watching) {
     if (live.includes(id)) continue;
     stop();
@@ -217,6 +215,11 @@ export async function attach(host) {
   // reactor runs the retry or the first sync that came due meanwhile.
   globalThis.document?.addEventListener("visibilitychange", () => host.refilter());
   const actions = {
+    historyPage(page) {
+      c.sessionPage = proposalPage(c.sessions, page).page;
+      syncWatches(c);
+      host.refilter();
+    },
     add: () => addSolana(c),
     sync: () => syncNow(c),
     backup: (seat) => host.askBackup(backupWords(c, seat)),

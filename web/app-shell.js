@@ -235,7 +235,7 @@ export function lockView() {
   const text = lockedVault.damaged
     ? "The locked keys in this browser are damaged and cannot be opened."
     : "The key shares in this browser are encrypted with your passkey. "
-      + "Unlock with Face ID, Touch ID or your security key.";
+      + "Your passkey provider may ask for a fingerprint, face, PIN or security key.";
   return el("div", { class: "card empty lock-card" }, sculptedIcon("lock"),
     el("h1", {}, "Zigs is locked"), el("p", { class: "small" }, text),
     lockedVault.damaged ? null : securityExplanation("passkey"),
@@ -634,7 +634,7 @@ function welcome(off, restoreLink) {
           el("span", { class: "welcome-title-accent" }, wallets ? "back." : "Secured together.")),
         el("p", { class: "muted welcome-summary" }, wallets
           ? "Your assets. Your approval rules. One private place to return to."
-          : "Hold your assets privately. Protect them with the people and devices you trust."),
+          : "Share control of Zcash and supported Solana assets across the people and devices you trust."),
         wallets ? null : entryPaths)),
     wallets ? el("div", { class: "home-wallet-launcher" + (wallets === 1 ? " home-launcher-single" : "") },
       walletList,
@@ -667,7 +667,7 @@ function joinWallet(heading = "h3") {
   };
   return el("section", { class: "join" }, el(heading, {}, "Join a shared wallet"),
     el("p", { class: "small muted", id: "join-help" },
-      "Did someone send you an invite link? Paste it here to open the wallet."),
+      "Paste a private invite link to open the wallet. To approve payments, join an open device slot or restore your existing device’s backup."),
     el("form", { class: "join-row", onsubmit: submit },
       el("label", { class: "field" }, el("span", {}, "Invite link"), input),
       el("button", { class: "btn", type: "submit", ...off.attrs }, "Open wallet"),
@@ -990,6 +990,7 @@ const ruleStep = (lines) => step(1,
       ruleCounter("Approvals needed", "g-t", "t", ui.createDraft?.t ?? 2,
         "Devices required to approve each payment.")),
       el("div", { class: "threshold-result" }, lines.rule, lines.margin, lines.ack))),
+  el("p", { class: "small muted" }, "All devices must join and stay open for initial setup. After setup, any required subset can approve a payment."),
   el("details", { class: "setup-threshold-details" }, el("summary", {}, "How the approval threshold works"),
     thresholdExplanation(ui.createDraft?.n ?? 3, ui.createDraft?.t ?? 2)));
 const namesStep = () => step(2,

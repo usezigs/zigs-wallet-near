@@ -1,6 +1,7 @@
 // Reactor, render loop, focus, layers and page listeners.
 import { icon } from "./app-icons.js";
 import { busy, clearBadBanner, log, showBanner, state, ui } from "./app-state.js";
+import { errorFeedback } from "./error-feedback.js";
 import { Z } from "./app-engine.js";
 import { chats, lockedVault } from "./app-keystore.js";
 import { curSession, keysDiffer, localSeats } from "./app-seats.js";
@@ -61,8 +62,9 @@ export async function once(key, fn) {
     if (failedWith.has(key)) { clearBadBanner(failedWith.get(key)); failedWith.delete(key); }
   } catch (e) {
     wait = RETRY_MS;
-    const text = e && e.message ? e.message : String(e);
-    log("✗ " + key + ": " + text); showBanner("bad", text); failedWith.set(key, text);
+    const feedback = errorFeedback(e), text = feedback.message;
+    log("✗ " + key + ": " + (feedback.detail || text));
+    showBanner("bad", text); failedWith.set(key, text);
   }
   finally { busy.delete(key); render(); setTimeout(react, wait); }
 }

@@ -29,8 +29,9 @@ import { holdsShare, solOf } from "./secrets.js";
 import { solText } from "./session.js";
 import { beforeFee, heldLamports, heldNotes, isPayment, spentLamports } from "./sessions.js";
 import { labelOf } from "./wallet.js";
+import { HISTORY_PAGE_SIZE, proposalPage } from "./proposal-history.js";
 
-export const SHOWN = 12;
+export const SHOWN = HISTORY_PAGE_SIZE;
 const clusterOf = (c) => c.wallet?.cluster ?? CLUSTER;
 const netOfWallet = (c) => netOf(clusterOf(c));
 /** "Solana Devnet" or "Solana Mainnet": the network of the wallet, for the labels of the cards. */
@@ -917,19 +918,35 @@ function sessionCard(c, ss, act, actions) {
   );
 }
 
+function historyNavigation(c, act, page, actions) {
+  if (page.pages <= 1 || !actions.historyPage) return null;
+  const turn = (mark, label, delta, disabled) => c.host.el("button", {
+    class: "btn", type: "button", "data-sol": mark, disabled: disabled ? "" : undefined,
+    onclick: act(() => actions.historyPage(page.page + delta)),
+  }, label);
+  return c.host.el("div", { class: "row-actions", role: "group",
+    "aria-label": "Solana proposal history" },
+  turn("history-newer", "Newer proposals", -1, page.page === 0),
+  turn("history-older", "Older proposals", 1, page.page === page.pages - 1));
+}
+
 function sessionList(c, act, actions) {
   const { el } = c.host;
-  const shown = (c.sessions ?? []).slice(0, SHOWN), older = (c.sessions ?? []).length - SHOWN;
+  const page = proposalPage(c.sessions ?? [], c.sessionPage);
+  const shown = page.items, older = page.total - shown.length;
   if (!shown.length) return el("p", { class: "small" }, "No Solana proposals yet.");
-  const olderNote = older > 0 ? el("p", { class: "small", "data-sol": "older" }, "Zigs shows the "
-    + "newest " + SHOWN + " proposals. " + older + " older " + (older === 1 ? "one is" : "ones are")
-    + " not shown.") : null;
+  const olderNote = older > 0 ? el("p", { class: "small", "data-sol": "older", role: "status" },
+    "Showing proposals " + (page.start + 1) +
+      "–" + (page.start + shown.length) + " of " + page.total
+      + ". Page " + (page.page + 1) +
+        " of " + page.pages + ". Browse older pages to find earlier payments.") : null;
+  const navigation = historyNavigation(c, act, page, actions);
   const list = el(
     "div",
     { class: "list" },
     shown.map((ss) => sessionCard(c, ss, act, actions)),
   );
-  return el("div", {}, explorerNote(c), list, olderNote);
+  return el("div", {}, explorerNote(c), olderNote, navigation, list);
 }
 
 const RENT_TEXT =

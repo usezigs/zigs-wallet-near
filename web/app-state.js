@@ -1,4 +1,5 @@
 // Shared state objects (state, ui, raw, inbox, ready, busy), the log and the banner.
+import { errorFeedback } from "./error-feedback.js";
 
 // Payment proposals of every wallet where this browser holds a seat, for the approval counts.
 export const inbox = {}, inboxSubs = new Map();
@@ -28,6 +29,13 @@ export function showBanner(kind, text) {
   document.getElementById("banner-text").textContent = text;
   clearTimeout(bannerTimer);
   if (kind === "ok") bannerTimer = setTimeout(() => { b.hidden = true; }, 4000);
+}
+export function showError(error) {
+  const feedback = errorFeedback(error);
+  showBanner("bad", feedback.message);
+  // Only fixed classification facts are logged. Raw RPC payloads, URLs and exception text
+  // are not copied into diagnostics by this helper.
+  if (feedback.detail) log(feedback.detail);
 }
 // Hides a bad banner. With `text`, only while the banner still shows that text.
 export function clearBadBanner(text) {

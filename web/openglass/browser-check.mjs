@@ -28,7 +28,7 @@ try {
   assert.ok(await page.locator(".ogui-card").count() >= 2, "shared cards use Card");
   assert.ok(await page.locator(".ogui-button").count() >= 8, "navigation uses Button");
   assert.equal(await page.locator(".ogui-stat").count(), 1, "balance uses Stat");
-  assert.equal(await page.locator("#total-balance-title").textContent(), "Wallet balance");
+  assert.equal(await page.locator("#total-balance-title").textContent(), "ZEC balance");
 
   async function layout(name, theme, width) {
     await page.setViewportSize({ width, height: width < 761 ? 844 : 1000 });

@@ -49,7 +49,7 @@ export const flows = [
  {
   id:'private-swaps',label:'Private Swaps',summary:'A look at the planned journey',icon:'swaps',status:'Preview · Unavailable',
   title:'Explore a possible private swap.',
-  description:'A preview of a possible cross-chain journey. The current implementation does not execute swaps.',
+  description:'This illustration does not execute swaps. Check Swap for the routes available on your server.',
   steps:[
    {id:'pair',title:'Choose a pair',copy:'The concept begins by choosing the asset to exchange and the asset to receive. Sharing one interface does not itself exchange Zcash and SOL.',caption:'Illustrative selection. No live swap is created.',art:'swap-route',docs:'solana',link:'Understand the chain boundaries'},
    {id:'route',title:'Review the route',copy:'A future swap would need a supported route, quoted amount, fees and clear expiry conditions before the group commits funds. No live quote, liquidity or route is verified in this preview.',caption:'A planned route, with costs and conditions to review.',art:'swap-review',docs:'trust-limits',link:'Read the trust assumptions'},

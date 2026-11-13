@@ -70,7 +70,7 @@ const noneYet = (reading) => (reading > 0 ? SOL_LOADING : SOL_NONE);
 // Zigs lists the newest Solana proposals only; the line says how many older ones it leaves out.
 const withOlder = (line, older) => (older > 0 ? { ...line, text: line.text + " " + (older === 1
   ? "1 older Solana proposal is" : older + " older Solana proposals are")
-  + " not listed here or in Solana." } : line);
+  + " available in Solana’s proposal history; use Older proposals to review them." } : line);
 const solReview = (n) => ({ kind: "review", text: n === 1
   ? "1 Solana proposal waits for your approval."
   : n + " Solana proposals wait for your approval." });
