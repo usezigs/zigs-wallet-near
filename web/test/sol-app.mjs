@@ -122,7 +122,8 @@ const hashes = [1, 2, 3].map((i) => sha(solOf(gid, i).solSeed));
     assert.equal(text(one(hero, n => n.className?.split(" ").includes("portfolio-value"))),
       "1.23456798 ZEC", "the actual native balance replaces the demo USD value");
     assert.doesNotMatch(text(hero), /Demo|\$0\.00/);
-    assert.equal(one(hero, n => n.attrs?.["data-valuation-state"])?.attrs["data-valuation-state"], "known");
+    assert.equal(one(hero, n => n.attrs?.["data-valuation-state"])
+      ?.attrs["data-valuation-state"], "known");
     assert.equal("disabled" in button(hero, "Swap").attrs, false, "Swap is on");
     t.ui.tab = "overview";
     button(hero, "Swap").on.click();
@@ -159,7 +160,8 @@ const hashes = [1, 2, 3].map((i) => sha(solOf(gid, i).solSeed));
     }
     assert.equal(asset(tree, "usdc"), undefined, "unsupported USDC is omitted");
     for (const action of ["Shield", "Unshield"]) {
-      assert.equal(button(asset(tree, "zec"), action), undefined, "unsupported ZEC actions are omitted");
+      assert.equal(button(asset(tree, "zec"), action), undefined,
+        "unsupported ZEC actions are omitted");
     }
     for (const action of ["Send", "Receive"]) {
       assert.equal(choice(tree, action, "usdc"), undefined);

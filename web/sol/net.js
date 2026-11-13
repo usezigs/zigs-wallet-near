@@ -1,5 +1,6 @@
 // The cluster table of the private Solana wallet (pool pages only: no file of the plain wallet
-// imports this module, cf/test/gate.mjs checks it). Wallet deployment metadata comes from the wasm (sol_pool_wallet).
+// imports this module, cf/test/gate.mjs checks it). Wallet deployment metadata comes from the
+// wasm (sol_pool_wallet).
 export const NET = {
   devnet: {
     worker: "/sol/worker.js",

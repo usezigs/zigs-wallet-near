@@ -26,16 +26,19 @@ try {
   });
   await settleOverview(page);
   assert.match(await page.locator('.overview-hero').innerText(), /0.125 ZEC/);
-  assert.doesNotMatch(await page.locator('#app').innerText(), /Demo|not audited|unaudited|0\.5 SOL/i);
+  assert.doesNotMatch(await page.locator('#app').innerText(),
+    /Demo|not audited|unaudited|0\.5 SOL/i);
   assert.equal(await page.locator('#asset-usdc').count(), 0);
   assert.equal(await page.locator('.privacy-popup:visible').count(), 0);
   for (const [width, theme] of [[1440, 'dark'], [390, 'light']]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
     await settleOverview(page);
-    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
+    assert.equal(await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth + 1), true);
     if (process.env.ZIGS_RELEASE_QA_CAPTURE !== "0")
-      await page.screenshot({ path: resolve(output, `overview-${width}-${theme}.png`), fullPage: true });
+      await page.screenshot({ path: resolve(output, `overview-${width}-${theme}.png`),
+        fullPage: true });
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.evaluate(async () => {
@@ -55,13 +58,15 @@ try {
     document.getElementById('app').replaceChildren(helpView());
   });
   await page.getByText('Guides & frequently asked questions', { exact: true }).click();
-  const faq = page.locator('.preferences-faq > details').filter({ hasText: 'Has Zigs been audited?' });
+  const faq = page.locator('.preferences-faq > details')
+    .filter({ hasText: 'Has Zigs been audited?' });
   assert.equal(await faq.count(), 1);
   assert.equal(await faq.evaluate(node => node.open), false);
   await faq.locator('summary').click();
   assert.match(await faq.innerText(), /not undergone an independent security audit/i);
   assert.deepEqual(errors, []);
-  console.log('release browser: desktop/mobile, real test balance, no prototype rows/popups, collapsed accessible disclosures: passed');
+  console.log('release browser: desktop/mobile, real test balance, no prototype rows/popups, '
+    + 'collapsed accessible disclosures: passed');
   console.log(output);
 } finally {
   await browser.close();

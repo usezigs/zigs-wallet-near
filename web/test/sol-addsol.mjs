@@ -187,7 +187,8 @@ Object.assign(world, { pda: 2n * SOL, old: SOL, notes: [], confirm: "confirmed" 
   assert.equal(first.held, 3n * SOL);
   assert.equal(first.got.amount, 1_250_000_000n);
   const second = await added("2", "a second large deposit");
-  assert.equal(second.held, 4_250_000_000n, "pending confirmed deposits still count in the snapshot");
+  assert.equal(second.held, 4_250_000_000n,
+    "pending confirmed deposits still count in the snapshot");
   const running = addSol(c, { amount: "0.01" });
   await assert.rejects(() => addSol(c, { amount: "0.01" }), { message: BUSY });
   assert.equal((await running).status, "confirmed");
