@@ -178,7 +178,7 @@ function faucetLink(c) {
   return c.host.el("a", attrs, "Get Devnet SOL ↗");
 }
 
-function fundCard(c, act, actions) {
+export function fundCard(c, act, actions) {
   const { el } = c.host,
     { coin, faucet } = netOfWallet(c);
   const seats = c.host.localSeats().filter((i) => holdsShare(solOf(c.host, c.gid, i)));
@@ -983,7 +983,6 @@ function rentCard(c, act) {
 /** The cards of a ready wallet: fund, Add SOL, the move of the beta funds, pay, the sessions. */
 export function payCards(c, act, actions) {
   return [
-    fundCard(c, act, actions),
     addSolCard(c, act, actions),
     moveCard(c, act, actions),
     intentCard(c, act, actions),

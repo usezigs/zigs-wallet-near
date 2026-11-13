@@ -20,7 +20,7 @@ import { feeOf } from "../sol/fee.js";
 import { CLUSTERS } from "../sol/guard.js";
 import { propose } from "../sol/propose.js";
 import { ensureWorker } from "../sol/session.js";
-import { solView } from "../sol/view.js";
+import { solSurfaces as solView } from "./sol-view-rig.mjs";
 import { answersOf } from "./sol-chain.mjs";
 import { W, c, chain, data, path, rig, t, waitFor } from "./sol-setup.mjs";
 
@@ -137,7 +137,7 @@ function networkTexts(sync) {
   const [card] = findAll(tab, (n) => n.attrs["data-session"] === LANDED.id);
   return {
     all: textOf(tab),
-    head: textOf(findAll(tab, (n) => n.attrs.class === "card-head")[0]),
+    head: textOf(findAll(tab, (n) => n.attrs.class === "sol-receive-heading")[0].kids.at(-1)),
     labels: findAll(tab, (n) => n.tag === "dt").map(textOf),
     fee: shown("fee-text", tab),
     faucet: marked("faucet", tab).length + marked("faucet-text", tab).length,

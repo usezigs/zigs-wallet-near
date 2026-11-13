@@ -1,0 +1,24 @@
+/* Everyday tasks lead; optional explanations and tools expand in place. */
+.workflow-details { min-width:0; }
+.workflow-details > summary { min-height:48px; align-content:center; cursor:pointer; color:var(--muted); font-size:13px; }
+.workflow-details[open] { display:grid; gap:16px; }
+.workflow-details[open] > summary { color:var(--text); }
+.workflow-details .addr-full,.workflow-details .hex { overflow-wrap:anywhere; }
+.workflow-details > summary:focus-visible { outline:2px solid var(--focus); outline-offset:4px; }
+.receive-surface { display:grid; gap:20px; justify-items:center; min-width:0; padding:8px 0; text-align:center; }
+.receive-surface .qr { width:232px; max-width:100%; padding:8px; border-radius:12px; }
+.receive-surface .qr svg { width:var(--qr-size,100%); max-width:100%; margin-inline:auto; }
+.receive-surface .receive-address { text-align:left; }
+.receive-surface .dialog-actions { position:static; width:100%; justify-content:center; }
+.receive-surface .dialog-actions .btn { min-height:48px; }
+.receive-dialog > .workflow-details { border-top:1px solid var(--line); padding-top:4px; }
+.send-options > .row-actions { padding-block:4px; }
+.send-options > .field { margin:0; }
+.memo-options { grid-column:1 / -1; }
+.memo-options > summary { min-height:40px; }
+.send-options > .small,.workflow-details .privacy-notice { margin:0; }
+@media(max-width:600px) { .receive-surface .dialog-actions>.btn { flex:1; } }
+
+.swap-experiments { margin-top:16px; }
+.swap-experiments .swap-mode-tabs { margin:8px 0; }
+.setup-labels-layout { grid-template-columns:minmax(0,1fr); }

@@ -24,7 +24,7 @@ import {
 import { propose } from "../sol/propose.js";
 import { refreshChain } from "../sol/session.js";
 import { readSolSession, signPart, writePart } from "../sol/sessions.js";
-import { solView } from "../sol/view.js";
+import { solSurfaces as solView } from "./sol-view-rig.mjs";
 import { verifies } from "./sol-chain.mjs";
 import { sleep } from "./sol-rig.mjs";
 import {

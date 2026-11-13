@@ -28,7 +28,7 @@ import {
 } from "./session.js";
 import { SESSIONS, filterSessions } from "./sessions.js";
 import { reactSessions } from "./signing.js";
-import { solView } from "./view.js";
+import { solDetailsView, solView } from "./view.js";
 
 const J = JSON.parse;
 const LOG_MAX = 200;
@@ -260,6 +260,10 @@ export async function attach(host) {
       c.viewed = true; // the Solana tab shows this wallet: autoSync may call Helius
       refresh(c);
       return solView(c, host.act, actions);
+    },
+    details: (surface) => {
+      refresh(c);
+      return solDetailsView(c, host.act, actions, surface);
     },
     restore: (b, encrypted) => restoreSolana(c, b, encrypted),
     add: actions.add,

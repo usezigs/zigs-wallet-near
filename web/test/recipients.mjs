@@ -31,6 +31,14 @@ for (const value of [
 ]) assert.throws(() => checkedRecipient(value, normalize), /Enter|Choose/);
 assert.deepEqual(checkedRecipient(sol, normalize), sol);
 assert.deepEqual(checkedRecipient(pub, normalize), pub);
+const privateMainnet = { ...sol, network: "mainnet", address: "solana-mainnet:" + sol.address };
+assert.deepEqual(checkedRecipient(privateMainnet, normalize), privateMainnet);
+assert.deepEqual(checkedRecipient({ ...privateMainnet, address: privateMainnet.address.toUpperCase() }, normalize), privateMainnet);
+for (const address of [sol.address, "solana-devnet:" + sol.address, "solana-mainnet:" + "ab".repeat(98),
+  "solana-mainnet:" + "gg".repeat(99), "solana-mainnet:" + pub.address]) {
+  assert.throws(() => checkedRecipient({ ...privateMainnet, address }, normalize), /Enter/);
+}
+assert.throws(() => checkedRecipient({ ...sol, address: privateMainnet.address }, normalize), /Enter/);
 // SOL and USDC on mainnet: the public Solana address that a plain wallet sends to.
 for (const asset of ["SOL", "USDC"]) {
   const plain = { ...pub, name: asset + " plain", asset, network: "mainnet" };
@@ -54,14 +62,16 @@ const saved = first.entries[0];
 assert.throws(() => readRecipients({ ...first, version: 2 }), /cannot be read/);
 assert.throws(() => readRecipients({ ...first, entries: [{ ...saved, memo: "secret" }] }), /cannot be read/);
 assert.throws(() => readRecipients({ ...first, entries: [saved, saved] }), /cannot be read/);
-// SOL and USDC on mainnet read as public destinations only.
+// Mainnet SOL supports both public and private destinations; USDC remains public.
 const mainnet = (asset, extra = {}) => ({ ...pub, id: "03".repeat(16), asset, network: "mainnet",
   ...extra });
 for (const asset of ["SOL", "USDC"]) {
   const book = { version: 1, entries: [mainnet(asset)] };
   assert.deepEqual(readRecipients(book), book, asset + " on mainnet reads");
 }
-for (const entry of [mainnet("USDC", { network: "devnet" }), mainnet("SOL", { type: "shielded" }),
+assert.deepEqual(readRecipients({ version: 1, entries: [{ ...privateMainnet, id: "04".repeat(16) }] }).entries[0].address,
+  privateMainnet.address);
+for (const entry of [mainnet("USDC", { network: "devnet" }),
   mainnet("USDC", { type: "shielded" }), mainnet("BTC"), mainnet("USDC", { network: "testnet" }),
   mainnet("ZEC", { type: "public" })]) {
   assert.throws(() => readRecipients({ version: 1, entries: [entry] }), /cannot be read/,
@@ -199,6 +209,8 @@ assert.equal(t.ui.note, "Note stays");
 assert.equal(t.ui.sendReview, null, "selection opens no review or payment");
 assert.equal(t.state.sid, null, "selection submits no proposal");
 const publicPicker = view.recipientSelect({ asset: "SOL", network: "devnet", type: "public", onSelect() {} });
+assert.equal(view.recipientSelect({ asset: "SOL", network: "mainnet", type: "shielded", onSelect() {} }), null,
+  "an empty matching list adds no disabled picker to Send");
 assert.equal(walk(publicPicker).filter((n) => n?.tagName === "OPTION").length, 2,
   "public withdrawals cannot select shielded destinations");
 const stale = view.recipientSelect({ asset: "SOL", network: "devnet", type: "shielded", onSelect() {

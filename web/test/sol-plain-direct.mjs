@@ -22,7 +22,7 @@ import { BAD_ANSWER, LIMITS, closeDirect } from "../sol/plain/direct.js";
 import { GENESIS, PLAIN_WORKER_POLICY, checkCommand } from "../sol/plain/guard.js";
 import { createNonceIntent, plainPins } from "../sol/plain/intent.js";
 import { usdcAddress } from "../sol/plain/reads.js";
-import { plainView } from "../sol/plain/view.js";
+import { appendPlainDestinations, plainSurfaces as plainView } from "./sol-view-rig.mjs";
 import * as W from "../sol/wasm/sol_wasm.js";
 import { loadRig, mainnetConfig, sleep } from "./sol-rig.mjs";
 
@@ -155,7 +155,7 @@ function built(build) {
 }
 const draw = (tab = "solana") => built(() => {
   t.ui.tab = tab;
-  return t.walletView(null, null);
+  return appendPlainDestinations(t, t.walletView(null, null));
 });
 const click = (node) => node.on.click({ preventDefault() {}, currentTarget: {} });
 const everything = (n) => n.text ?? JSON.stringify(n.attrs) + n.kids.map(everything).join("");
@@ -273,7 +273,7 @@ await read();
     ["sol-direct-createNonce", "sol-direct-enableUsdc"], "each button has its own focus key");
   assert.equal(create.attrs.disabled, undefined);
   for (const button of [create, enable]) assert.equal(button.tag, "button");
-  const others = built(() => t.plainSol.view((fn) => fn, {}));
+  const others = built(() => t.plainSol.details("settings", (fn) => fn, {}));
   assert.ok(mark(others, "create-nonce"), "a view with no actions still draws");
   assert.deepEqual(calls.filter((x) => x.cmd === "simulate" || x.cmd === "send"), []);
 }

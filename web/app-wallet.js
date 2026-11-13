@@ -35,14 +35,14 @@ import { focusAfter, render } from "./app-loop.js";
 import { openSend } from "./app-send.js";
 import { guidedSetupView, setupView, solSetupCard, solUnfinished } from "./app-setup.js";
 import { generalSettings, settingsDisclosure, settingsGroup, settingsLabel, settingsRow } from "./app-settings-ui.js";
-import { networkPrivacySettings } from "./app-network-privacy.js";
+import { labsSettings, networkPrivacySettings } from "./app-network-privacy.js";
 import { helpView } from "./app-help.js";
 import {
   sol, solActivity, solBackup, solBalance, solError, solFile, solLoad, solLoading, solMode,
   solActivityWaits, solLoadingCount, solOlderCount, solOn, solPending, solPendingRows, solSetup,
   solNotAdded, solObserveOverview, solPartError, solPartSetup, solSync, solTab, solTabOn,
   plainAdded, plainLoading, plainNotAdded, plainPick, plainRead, plainSetup, plainShown, plainSol,
-  plainTab,
+  plainTab, solDetails,
 } from "./app-sol.js";
 import {
   createZecPrice, pendingShortcut, plainRow, portfolioView, solRow, zecInProgress,
@@ -54,7 +54,7 @@ import { beginGuided, guidedEnabled, guidedState } from "./app-guided-setup.js";
 import { descriptionOf, setWalletDescription } from "./wallet-description.js";
 import { securityExplanation } from "./app-tutorial.js";
 import {
-  PLAIN_EXPOSURE, privacyBadge, solBalancePrivacy, SOL_EXPOSURE,
+  DEVICE_CHANGE_PRIVACY, PLAIN_EXPOSURE, privacyBadge, solBalancePrivacy, SOL_EXPOSURE,
 } from "./privacy-language.js";
 import { securityDashboard } from "./app-security-dashboard.js";
 import { SharedControlVisual } from "./app-approval-visualization.js";
@@ -274,14 +274,15 @@ function overviewTab() {
       el("section", { class: "asset-section", "aria-labelledby": "assets-title" },
         el("div", { class: "section-heading" },
           el("h2", { id: "assets-title" }, "Your assets")),
-        el("div", { class: "assets-grid asset-rows" }, zecAsset(c), solAsset(), usdcAsset())),
+        el("div", { class: "assets-grid asset-rows" }, zecAsset(c), solAsset(), plainShown() ? usdcAsset() : null)),
       el("aside", { class: "overview-rail", "aria-label": "Wallet status and transactions" },
-        overviewTransactions(), sharedControl({ required: state.g.t, total: state.g.n, context: state.gid,
+        overviewTransactions(), el("details", { class: "workflow-details" },
+          el("summary", {}, "Wallet approval rule"), sharedControl({ required: state.g.t, total: state.g.n, context: state.gid,
         status: state.g.shapeMoved ? "Configuration mismatch" : "Wallet formed",
         attention: !!state.g.shapeMoved,
         participants: seatIds().map((i) => ({ id: i, name: seatLabel(i),
           joined: state.seats[i] ? true : state.seatsLoaded && state.seatsSettled ? false : null })),
-        openSecurity: openWalletSection("recovery") }))));
+        openSecurity: openWalletSection("recovery") })))));
 }
 
 function balanceOverview() {
@@ -1079,10 +1080,10 @@ function approvalsTab() {
     ? el("p", { class: "small muted row-actions" }, sol.text, " ", openSolanaButton()) : null;
   return el("div", { class: "approvals-layout" },
     el("div", { class: "approvals-queue" }, inboxNote(sections.length > 0), ...sections, other),
-    el("aside", { class: "approvals-support", "aria-label": "Wallet shared control" },
+    sections.length ? el("aside", { class: "approvals-support", "aria-label": "Wallet shared control" },
       SharedControlVisual({ required: state.g.t, total: state.g.n, loaded: state.seatsLoaded,
         participants: seatIds().map((i) => ({ id: i, name: state.seats[i] ? named(i) : "Device " + i,
-          joined: !!state.seats[i] })) })),
+          joined: !!state.seats[i] })) })) : null,
     el("div", { class: "approval-history-link" },
       el("div", {}, el("h3", {}, "Previous payments"),
         el("p", { class: "small muted" }, "Review recorded payments and their outcomes in Activity.")),
@@ -1118,9 +1119,14 @@ const lostNote = (ids) => ids.length ? el("p", { class: "row-note" }, ids.length
   : ids.length + " payments that you approved have no record here any more. Send stays held "
     + "until they can no longer go on chain.") : null;
 
-const openSolana = () => { ui.tab = "solana"; render(); };
+const openSolana = () => {
+  ui.tab = "solana";
+  ui.solanaAction = { gid: state.gid, action: "send" };
+  render();
+};
 const openSolanaReceive = () => {
   ui.tab = "solana";
+  ui.solanaAction = { gid: state.gid, action: "receive" };
   if (sol || plainSol) focusAfter("sol-receive", true);
   render();
 };
@@ -1128,6 +1134,7 @@ const openSolanaReceive = () => {
 // Loading and setup screens keep their own focus when no payment form exists yet.
 const openSolanaControl = (id) => {
   ui.tab = "solana";
+  ui.solanaAction = { gid: state.gid, action: "send" };
   if (sol) focusAfter("INPUT:" + id + ":0", true);
   render();
 };
@@ -1135,6 +1142,7 @@ const openSolanaControl = (id) => {
 // "sol-send" is the data-key of the form (web/sol/plain/sendview.js).
 const openSolanaSend = (asset) => {
   ui.tab = "solana";
+  ui.solanaAction = { gid: state.gid, action: "send" };
   plainPick(asset);
   focusAfter("sol-send", true);
   render();
@@ -1335,6 +1343,9 @@ function changeSignersCard() {
     el("p", { class: "small muted" }, "The devices and the approval rule are part of the wallet "
       + "key, so they cannot change in place. To change them, create a new wallet with the devices "
       + "you want, then move the Zcash funds to it." + solStays()),
+    el("p", { class: "small muted" }, "Removed devices retain their old key share and viewing access."),
+    el("details", { class: "workflow-details" }, el("summary", {}, "What removed devices can still access"),
+      el("p", { class: "small muted" }, DEVICE_CHANGE_PRIVACY)),
     el("div", {}, moving
       ? el("button", { class: "btn", type: "button", onclick: () => { ui.tab = "overview"; render(); } }, "See the move")
       : el("button", { class: "btn", type: "button", disabled: !localSeats().length, onclick: () => { ui.move = true; render(); } }, "Change devices")));
@@ -1435,6 +1446,7 @@ function securityRecoveryTab(formed = true) {
       el("div", { class: "row-actions" }, copyBtn(inviteLink(state.gid), "Copy private invite link")),
       secretQr(inviteLink(state.gid), "wallet", true))),
     management: formed ? changeSignersCard() : el("p", {}, "Finish the existing wallet setup before changing devices."),
+    solana: solSecurityDetails(),
     lost: lostText(state.g.t, !!solStays()),
   });
 }
@@ -1448,16 +1460,42 @@ const lostText = (t, sol) => "Keep the devices that still work, and do not delet
 function settingsTab() {
   const host = chain?.url ? new URL(chain.url).host : new URL(curNet().servers[0]).host;
   return el("div", { class: "page settings-page preferences-page" },
-    generalSettings(memoSwitch(host)),
-    networkPrivacySettings(),
-    settingsGroup("Current wallet", descriptionEditor(), walletFacts()),
+    generalSettings(),
+    networkPrivacySettings(memoSwitch(host),
+      settingsDisclosure("Data providers and privacy", "What services and wallet members can see.", privacyText(host))),
+    settingsGroup("Current wallet", descriptionEditor(),
+      settingsDisclosure("Wallet details", "Address, network and wallet configuration.", walletFacts()), solAccountSettings()),
     browserSettings(),
     helpView(settingsRow("Replay setup guide", "Review wallet setup and optional recovery-file checks.",
       el("button", { class: "btn sm", type: "button", onclick: act(() => {
         beginGuided(state.gid, { replay: true }); ui.tab = "overview"; render();
       }) }, "Open guide"))),
-    settingsGroup("Advanced", technicalDetails(),
-      settingsDisclosure("Network & privacy", "Browser storage, data providers and what services can access.", privacyText(host))));
+    settingsGroup("Advanced", technicalDetails()), labsSettings());
+}
+
+function takeSolDetailsTarget(surface) {
+  const target = ui.solDetailsTarget;
+  if (target?.gid !== state.gid || target.surface !== surface) return false;
+  ui.solDetailsTarget = null;
+  return true;
+}
+
+function solAccountSettings() {
+  if (!solWallet()) return null;
+  const body = solDetails("settings");
+  const details = settingsDisclosure("Solana account", "Fee accounts, sending setup and account details.", body);
+  details.setAttribute("data-key", "sol-settings");
+  details.setAttribute("tabindex", "-1");
+  // The receive-page link opens this destination; ordinary Settings visits keep it collapsed.
+  if (takeSolDetailsTarget("settings")) details.open = true;
+  return details;
+}
+
+function solSecurityDetails() {
+  if (!solWallet()) return null;
+  return el("details", { class: "security-explainer sol-security-details", "data-key": "sol-security",
+    tabindex: "-1", open: takeSolDetailsTarget("security") },
+    el("summary", {}, "Solana privacy & custody"), solDetails("security"));
 }
 
 function descriptionEditor() {
@@ -1582,7 +1620,7 @@ function privacyText(host) {
     + "A mainnet wallet asks ChainSafe’s public server directly, and that server sees your IP. "
     + "These requests do not send your signing key."),
   el("p", { class: "small muted" }, "Incoming memo retrieval additionally identifies transactions that pay this wallet. "
-    + "Its consent and caching details are under General. Wallet descriptions are local notes outside the encrypted vault, "
+    + "Its consent and caching details are under Privacy & Network. Wallet descriptions are local notes outside the encrypted vault, "
     + "not shared wallet metadata or recovery-file contents. Full network disclosures, including Solana services, are in Help & Support.")];
 }
 

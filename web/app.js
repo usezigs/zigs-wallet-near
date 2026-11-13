@@ -20,6 +20,7 @@ import "./approvals-model.js";
 import "./outcome-seal.js";
 
 import "./swap-preview-model.js";
+import "./swap-recovery.js";
 import "./near-intents-swap-provider.js";
 import "./setup-model.js";
 import "./setup-wizard.js";

@@ -753,8 +753,11 @@ try {
   const group = settings.networkPrivacySettings();
   assert.match(text(group), /Tor is not available in this version/,
     'Settings says that Tor is not available');
-  assert.match(text(group), /Demo only: your connection is unchanged/,
-    'Settings labels the Tor demo');
+  assert.doesNotMatch(text(group), /Open the Tor demo/,
+    'connection preferences keep demos out of the primary interface');
+  const labs = settings.labsSettings();
+  assert.match(text(labs), /Demo only: your connection is unchanged/,
+    'Labs labels the Tor demo');
   assert.equal(settings.hasNetworkPrivacy(), false, 'no panel is open before the button');
   press(group, 'Privacy & Network');
   assert.equal(settings.hasNetworkPrivacy(), true, 'Settings opens the Privacy & Network panel');
@@ -763,11 +766,10 @@ try {
     'the panel says that Tor is not available');
   assert.doesNotMatch(panel, /\/\?demo=privacy|design preview/i,
     'the panel has no dead preview link');
-  press(settings.networkPrivacyPanel(), 'Open the Tor demo');
-  assert.equal(settings.hasNetworkPrivacy(), false, 'the Tor demo button closes the panel');
-  assert.equal(body.querySelector('dialog').open, true, 'the Tor demo button opens the demo');
-  press(group, 'Open the Tor demo');
-  assert.equal(body.querySelector('dialog').open, true, 'Settings opens the Tor demo');
+  assert.doesNotMatch(panel, /Open the Tor demo/, 'the privacy panel contains no demo step');
+  press(labs, 'Open the Tor demo');
+  assert.equal(settings.hasNetworkPrivacy(), false, 'the Labs button closes the privacy panel');
+  assert.equal(body.querySelector('dialog').open, true, 'Labs opens the Tor demo');
 } finally {
   globalThis.document = realDocument;
 }
@@ -1005,9 +1007,9 @@ try {
   }
   const copy = named(deposit, 'Copy address');
   assert.equal(copy.hidden, false, 'the address can be copied while NEAR Intents waits');
-  // A wallet switch closes the dialogs, but the deposit screen stays with its address.
-  swap.setContext({ ...context, id: 'g2', payout: { reason: 'This wallet uses Zcash testnet.' } });
-  assert.equal(deposit.hidden, false, 'a wallet switch keeps the swap');
+  // Configuration changes preserve tracking but cannot redirect its payout.
+  swap.setContext({ ...context, payout: { reason: 'This wallet uses Zcash testnet.' } });
+  assert.equal(deposit.hidden, false, 'a configuration change keeps the swap');
   assert.ok(text(deposit).includes(DEPOSIT));
   state = stateOf('PROCESSING', { originTxs: ['5wQkS9AAAA'] });
   await clock.tick(SWAP_STATUS_MS);
@@ -1021,8 +1023,8 @@ try {
   await clock.tick(SWAP_STATUS_MS);
   assert.match(text(deposit), /Status: Done\. NEAR Intents sent the ZEC to the wallet\./);
   assert.ok(text(deposit).includes('Zcash transaction' + 'ab'.repeat(32)));
-  press(deposit, 'Close');
-  assert.equal(deposit.hidden, true, 'Close ends the deposit screen');
+  press(deposit, 'Done');
+  assert.equal(deposit.hidden, true, 'Done ends final swap tracking');
   assert.equal(swap.model.value.live, null);
   // The deadline: with no deposit, the address goes and the page says not to pay.
   state = stateOf('PENDING_DEPOSIT');
@@ -1036,7 +1038,9 @@ try {
   await clock.tick(DEADLINE_MS - clock.now());
   assert.ok(text(deposit).includes(SWAP_EXPIRED), 'after the deadline: do not send');
   assert.equal(named(deposit, 'Copy address').hidden, true, 'and no copy button');
-  press(deposit, 'Close');
+  press(deposit, 'Hide details');
+  assert.ok(swap.model.value.live, 'hiding details keeps pending swap tracking');
+  swap.model.closeSwap(); // End this isolated test scenario, without a production discard action.
   // An error of NEAR Intents stays in the review, which stays open.
   const failing = createSwapPreview(context, swapPro({ open: () => {
     throw new NearQuoteError('too-low', '17392641'); } }), fakeClock());
@@ -1125,7 +1129,7 @@ try {
   press(deposit, 'Propose the payment');
   assert.deepEqual(paid, [zecSwap], 'the button opens Send with the deposit of the swap');
   // Another wallet opens while the deposit shows: its addresses are not the ones of the swap.
-  swap.setContext({ ...context, id: 'g2', zec: { ...zecSource, recipient: DEPOSIT } });
+  swap.setContext({ ...context, zec: { ...zecSource, recipient: DEPOSIT } });
   assert.equal(named(deposit, 'Propose the payment').disabled, true,
     'no payment from another wallet');
   press(deposit, 'Propose the payment');
@@ -1137,7 +1141,7 @@ try {
   state = stateOf('SUCCESS');
   await swap.model.readSwap(swap.model.value.live);
   assert.match(text(deposit), /Done\. NEAR Intents sent the SOL to the Solana address/);
-  press(deposit, 'Close');
+  press(deposit, 'Done');
   // A wallet that is not ready: the reason, and no deposit address.
   const waiting = createSwapPreview({ ...context, zec: { reason: 'The refund address of this '
     + 'wallet needs the key of each device: 2 of 3 devices published one.' } }, swapPro(),
@@ -1249,7 +1253,8 @@ try {
   row = null;
   swap.setContext(context);
   assert.match(text(deposit), /Open the wallet that pays this swap to see its send\./);
-  press(deposit, 'Close');
+  press(deposit, 'Hide details');
+  swap.model.closeSwap();
   // A refused proposal says why and can be tried again. Another wallet, and the last 30 minutes,
   // propose nothing.
   let tries = 0;
@@ -1262,7 +1267,7 @@ try {
   const again = walk(body, (n) => n.tag === 'dialog').at(-1);
   fire(again.querySelector('#swap-agree'), 'change', { target: { checked: true } });
   fire(named(again, 'Get deposit address'), 'click'); await settle(); await settle();
-  swap.setContext({ ...context, id: 'g2', solGroup: { ...solGroup, refundTo: DEPOSIT } });
+  swap.setContext({ ...context, solGroup: { ...solGroup, refundTo: DEPOSIT } });
   assert.equal(named(deposit, 'Propose the payment').disabled, true, 'no send of another wallet');
   swap.setContext(context);
   press(deposit, 'Propose the payment'); await settle();
@@ -1272,7 +1277,8 @@ try {
   press(deposit, 'Propose the payment'); await settle();
   assert.equal(tries, 1, 'a click in the last 30 minutes proposes nothing');
   assert.equal(named(deposit, 'Propose the payment').disabled, true, 'and turns the button off');
-  press(deposit, 'Close');
+  press(deposit, 'Hide details');
+  swap.model.closeSwap();
   // The payer can change: a wallet from outside types its refund address on /near/swap.
   await swap.model.update({ amount: '0.0175' });
   press(root, 'Review quote');
@@ -1284,7 +1290,8 @@ try {
   fire(named(choose, 'Get deposit address'), 'click'); await settle(); await settle();
   assert.equal('group' in pro.log.open.at(-1), false, 'a payer from outside asks /near/swap');
   assert.equal(named(deposit, 'Copy address').hidden, false, 'and copies the deposit address');
-  press(deposit, 'Close');
+  press(deposit, 'Hide details');
+  swap.model.closeSwap();
   // A wallet with no Solana address: the choice is off and says why.
   const noKey = 'The Solana address of this wallet shows after its Solana key setup ends.';
   const waiting = createSwapPreview({ ...context, solGroup: { reason: noKey } }, swapPro(),
@@ -1444,6 +1451,55 @@ try {
     /does not send the payment/, 'the Send button of a payment refuses it near the deadline');
   console.log('ok  each approving device checks the swap of the deposit address with NEAR Intents');
 }
+// Recovery uses a fresh provider response before exposing any payment details. It never opens
+// a swap or submits a proposal, and wallet changes cannot display a different wallet's cache.
+globalThis.document = fakeDocument;
+try {
+  const { createSwapPreview } = await import('../app-swap-preview.js');
+  const { swapRecoveryRecord } = await import('../swap-recovery.js');
+  const saved = swapRecoveryRecord({ from: 'sol', group: true, wallet: 'Synthetic wallet',
+    swap: { amountIn: '17500000', amountOut: '133000', minAmountOut: '131670',
+      depositAddress: DEPOSIT, recipient: UA, refundTo: REFUND,
+      deadline: '2030-01-01T00:00:00.000Z' }, proposal: { id: 'already-proposed' } });
+  let stored = structuredClone(saved), calls = 0, opens = 0, release, removeFails = false;
+  const recovery = { load: () => structuredClone(stored), save: value => { stored = structuredClone(value); },
+    remove: () => { if (removeFails) throw Error('storage'); stored = null; } };
+  const provider = { swapStatus: () => new Promise(resolve => { release = resolve; }),
+    openSwap: () => { opens++; throw Error('must not open'); } };
+  const context = { id: 'recovery-wallet', name: 'Synthetic wallet', live: true, recovery,
+    payout: { address: UA, room: '50000000' }, solGroup: { refundTo: REFUND, pay: () => { calls++; } } };
+  const view = createSwapPreview(context, provider, fakeClock());
+  const deposit = view.element.querySelector('#swap-deposit');
+  assert.match(text(deposit), /Checking your saved swap/);
+  assert.ok(!text(deposit).includes(DEPOSIT), 'cached deposit is hidden until verification');
+  release({ status: 'PENDING_DEPOSIT', swap: { from: 'sol', to: 'zec',
+    amountIn: saved.swap.amountIn, amountOut: saved.swap.amountOut, recipient: UA,
+    refundTo: REFUND, deadline: saved.swap.deadline, plain: true } });
+  await settle();
+  assert.ok(text(deposit).includes(DEPOSIT), 'a matching provider route exposes the recovered swap');
+  assert.equal(named(deposit, 'Propose the payment').disabled, true, 'an existing proposal cannot be duplicated');
+  assert.equal(calls, 0); assert.equal(opens, 0);
+  press(deposit, 'Hide details');
+  assert.match(text(deposit), /View swap details/);
+  assert.ok(stored, 'hiding pending details keeps recovery');
+  view.setContext({ ...context, id: 'different-wallet', recovery: { load: () => null } });
+  assert.equal(deposit.hidden, true, 'wallet switch hides another wallet’s swap');
+  assert.ok(!text(view.element).includes(DEPOSIT));
+  view.setContext(context);
+  assert.match(text(deposit), /Checking your saved swap/, 'returning to the wallet restores its own tracking');
+  release({ status: 'SUCCESS', swap: { from: 'sol', to: 'zec',
+    amountIn: saved.swap.amountIn, amountOut: saved.swap.amountOut, recipient: UA,
+    refundTo: REFUND, deadline: saved.swap.deadline, plain: true } });
+  await settle();
+  removeFails = true; press(deposit, 'Done');
+  assert.match(text(deposit), /saved swap could not be removed/, 'a failed cleanup remains visible');
+  assert.ok(view.model.value.live && stored, 'failed cleanup retains final tracking');
+  removeFails = false; press(deposit, 'Done');
+  assert.equal(view.model.value.live, null); assert.equal(stored, null);
+  const broken = createSwapPreview({ ...context, recovery: { load() { throw Error('corrupt'); } } }, provider, fakeClock());
+  assert.ok(!text(broken.element).includes(DEPOSIT), 'corrupt recovery exposes no deposit');
+  console.log('ok  encrypted recovery adapter: verification, no auto-payment, duplicate guard and wallet scope');
+} finally { globalThis.document = realDocument; }
 [globalThis.setTimeout, globalThis.clearTimeout] = realTimers;
 // The page shell: the saved theme applies before the first paint, and the demo entry cannot stop
 // the wallet from loading.
