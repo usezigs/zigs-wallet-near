@@ -82,7 +82,8 @@ export function sendForm(c, act, actions) {
       if (field) field.value = "";
     }
   };
-  return el("div", { style: GRID, role: "group", "aria-labelledby": "sol-send-title",
+  return el("div", { class: "payment-inline-form", style: GRID, role: "group",
+    "aria-labelledby": "sol-send-title",
     "data-sol": "send-form", "data-key": SEND_KEY, tabindex: "-1" },
   el("h4", { id: "sol-send-title" }, "Send"),
   assetChoice(c, actions, asset),
@@ -140,7 +141,8 @@ function lookBody(c, actions, look) {
 
 function lookScreen(c, actions, look) {
   const { el } = c.host;
-  return el("div", { style: GRID, role: "group", "aria-labelledby": "sol-look-title",
+  return el("div", { class: "payment-inline-form", style: GRID, role: "group",
+    "aria-labelledby": "sol-look-title",
     "data-sol": "look-" + look.step, onkeydown: (ev) => ev.key === "Escape" && actions.close() },
   el("h4", { id: "sol-look-title", tabindex: "-1", "data-key": LOOK_TITLE }, "Review"),
   ...lookBody(c, actions, look));
