@@ -69,7 +69,8 @@ async function scene(name, count = 3) {
     setZ({ inspect: () => JSON.stringify({ lines: [
       { kind: "spend", value: 1250010000 },
       { kind: "output", who: address, value: 1250000000, memo_status: "empty" },
-    ], fee: 10000, standard_fee: 10000, txid: "a".repeat(64) }), normalizeAddress: (a) => a });
+    ], fee: 10000, standard_fee: 10000, txid: "a".repeat(64) }),
+    normalizeAddress: (a) => a, payeeAddress: (a) => a });
     const sent = new Set();
     setChain({ gid: g.id, cw: {}, bal: { height: 1 }, sent, balAt: Date.now() });
     const scenes = {

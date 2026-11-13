@@ -256,7 +256,7 @@ function addSolCard(c, act, actions) {
   const run = () => actions.addSol({ amount: amount.value });
   return el(
     "div",
-    { class: "sol-send-fields" },
+    { class: "sol-send-fields payment-inline-form" },
     el("h3", {}, "Add SOL"),
     privacyNotice(el, "public", "Public deposit · " + solanaOf(c),
       (
