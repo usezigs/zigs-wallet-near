@@ -5,7 +5,7 @@ chart; preserve the wallet's identity, navigation, asset records and payment con
 signature interaction is scrubbing actual recorded values without moving the surrounding UI.
 
 The mainnet wallet Overview contains a live portfolio chart. It extends the existing Manrope,
-semantic theme colors, balance panel and action controls; the rest of the dashboard is unchanged.
+semantic theme colors, balance panel and action controls with a compact overview composition.
 The production application is native JavaScript ES modules, not React. The implementation uses
 custom SVG, Pointer Events, ResizeObserver and a single animation-frame clock, with no new
 production dependencies or build step. Its reusable modules are checked with strict TypeScript
@@ -24,6 +24,8 @@ through JSDoc and the public contracts in `web/portfolio-types.d.ts`.
 - `web/portfolio-prices.js`: page-session price cache, request deduplication and retry policy.
 - `web/app-portfolio.js`: existing wallet balances, crypto engine and render lifecycle.
 - `web/portfolio-chart.css`: theme-aware presentation and responsive/reduced-motion behavior.
+- `web/overview-compact.css`: compact assets, wallet context and status summaries.
+- `web/overview-popover.js`: bounded native detail surfaces and asset-disclosure lifecycle.
 - `cf/src/portfolio.js`: fixed server-side market-price request.
 
 `app-wallet.js` places the component in the existing mainnet balance panel. `app-loop.js` retains
@@ -123,7 +125,7 @@ The value, timestamp and value-change label update together, then return to the 
 on leave, release or cancellation. Touch direction is established before capture; vertical
 page scrolling and pinch zoom remain available. A slider alternative supports Left/Right,
 Home/End and Escape, with meaningful value/date text. Range buttons support arrows, Home/End,
-Tab and activation. All range targets are at least 44px and 48px on phones.
+Tab and activation. Range and principal action targets are at least 44px.
 
 Reduced motion keeps interaction immediate. Both themes, forced colors, resize, flat values,
 unknown balances, a single observation, missing prices, stale data, storage failures, negative
@@ -147,11 +149,40 @@ both themes, every range, marker alignment, pointer/keyboard/touch interaction, 
 reduced motion, component retention, and loading/empty/error/partial/flat/gapped states.
 It performs no live transfer or deployment.
 
-Recorded verification on November 13, 2026: 64 browser checks passed, strict TypeScript passed,
-and the repository lint passed for 310 JavaScript files and two Python files. The required fast
+Recorded verification on November 13, 2026: 122 browser checks passed, strict TypeScript passed,
+and the repository lint passed. The required fast
 suite passed 75 of 77 tests. `policy.test` cannot read its historical `cf/src/index.js` at the
 configured baseline commit; `plain-equiv.test` cannot read historical vectors at `69803a1d`.
 Those Git fixtures are absent from this repository. QR testing was skipped because `qrencode`
 is not installed. The independent review scored the four requested fixes resolved: stable large
 balances, uninterrupted background-update interaction, empty-state endpoint visibility and
 understandable retry behavior.
+
+## Compact overview sizing
+
+The user's follow-up requires the overview to fit one viewport. The chart now measures its
+responsive 72–96px plot height as well as its width, keeping the curve, marker and crosshair in
+the same coordinates. The balance retains its prominence and fixed header height; the change
+row reserves consistent space across magnitudes. Six range buttons and Send/Receive/Swap remain
+visible. Full methodology and historical coverage are available through About this chart.
+Missing asset names and failed price updates remain visible in the header; retry stays within
+the plot's visual area as a sibling of the slider, keeping its disabled state independent.
+
+Asset rows retain exact native values, privacy labels and sync/error state. Availability labels
+remain available to assistive technology. A network that differs from the wallet's network
+remains visible beside that asset, including Devnet and unsupported assets; matching network
+metadata is represented by the wallet header. Detailed operations remain in the asset disclosure.
+Device membership is summarized alongside the approval rule and Security action;
+the full device list opens from its own button. All supporting detail surfaces use the browser's
+top layer, stay within the viewport, dismiss with Escape/outside click, and do not add page
+height. The mobile About Zigs link shares the brand bar. The Recent tab previews the latest
+transaction and links directly to the full Activity screen.
+
+The browser suite asserts exact document height at 1440×900, 1366×768, 1280×720, 1024×768,
+768×1024, 390×844, 375×812 and 320×844, in both themes, with all three assets present. It also
+checks expanded details, a populated Recent tab, chart loading/empty/error/partial/flat/gapped
+states, large values, and all original interaction regressions. No page overflow is hidden to
+make these checks pass. Enlarged text and exceptional financial notices retain natural flow
+rather than clipping important information.
+An additional mixed-network case verifies visible Solana Devnet context and its deposit warning
+inside a Mainnet wallet at 1280×720 and 390×844, while preserving the same viewport fit.

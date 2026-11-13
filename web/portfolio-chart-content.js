@@ -10,7 +10,8 @@ const shortTime = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: 
 
 /** @param {Props} props */
 const noChange = (props) => ({ change: "", direction: "neutral", label: props.current.missing.length
-  ? "Some assets are unavailable" : "Portfolio value change appears as history builds" });
+  ? "Unavailable: " + props.current.missing.map((asset) => asset.toUpperCase()).join(", ")
+  : "Portfolio value change appears as history builds" });
 /** @param {Observation|undefined} start @param {Observation|null|undefined} end
  * @param {number|null} value @param {number} count */
 const comparable = (start, end, value, count) => !!start && !!end && value !== null

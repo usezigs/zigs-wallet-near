@@ -1,0 +1,147 @@
+/* One overview: balance and trend first, concise holdings, then actionable status summaries. */
+.overview-page:has(.overview-portfolio),
+.overview-page:has(.overview-portfolio)>.premium-overview-grid { gap:14px; }
+.overview-page:has(.overview-portfolio) .asset-section { gap:6px; }
+.overview-page:has(.overview-portfolio) .section-heading h2 { font-size:15px; line-height:22px; }
+.overview-page:has(.overview-portfolio) .asset-rows>.asset-row { padding:8px 14px; }
+.overview-page:has(.overview-portfolio) .asset-row-main {
+  grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:8px 12px; padding-right:28px; }
+.overview-page:has(.overview-portfolio) .asset-row .asset-position { gap:2px; padding-right:0; }
+.overview-page:has(.overview-portfolio) .asset-title>div>p { display:none; }
+.overview-page:has(.overview-portfolio) .asset-title>div>p.asset-network-other {
+  display:block; font-size:10px; line-height:14px; }
+.overview-page:has(.overview-portfolio) .asset-title h3 { font-size:13px; line-height:20px; }
+.overview-page:has(.overview-portfolio) .coin-mark { width:24px; height:24px; flex-basis:24px; }
+.overview-page:has(.overview-portfolio) .coin-mark .symbol { width:18px; height:18px; }
+.overview-page:has(.overview-portfolio) .asset-row .privacy-badge {
+  padding:1px 3px; font-size:10px; line-height:14px; }
+.overview-page:has(.overview-portfolio) .asset-balance-block { gap:0; }
+.overview-page:has(.overview-portfolio) .asset-balance-block>.label { font-size:10px; line-height:14px; }
+.overview-page:has(.overview-portfolio) .asset-balance-block>.money.xl {
+  font-size:20px; line-height:24px; }
+.overview-page:has(.overview-portfolio) .asset-balance-block>.asset-balance.unknown {
+  font-size:14px; line-height:22px; }
+.overview-page:has(.overview-portfolio) .asset-row .asset-row-status,
+.overview-page:has(.overview-portfolio) .asset-row .asset-incoming { font-size:10px; line-height:14px; }
+.overview-page:has(.overview-portfolio) .asset-row>.asset-note>summary { top:4px; right:0;
+  min-height:44px; width:44px; height:44px; }
+.overview-page .asset-rows .asset-row .asset-note-body.overview-detail-popover {
+  padding:18px; margin:0; border:1px solid var(--line); }
+.overview-page:has(.overview-portfolio) .overview-rail { gap:14px; }
+.overview-page:has(.overview-portfolio) .overview-transactions { gap:6px; }
+.overview-page:has(.overview-portfolio) .transaction-heading { min-height:44px; gap:6px; }
+.overview-page:has(.overview-portfolio) .transaction-views { min-width:128px; padding:2px; }
+.overview-page:has(.overview-portfolio) .transaction-views>.btn { min-height:44px;
+  padding:4px 8px; font-size:11px; }
+.overview-page:has(.overview-portfolio) .overview-all-activity { min-width:44px; min-height:44px;
+  padding:8px; }
+.overview-page:has(.overview-portfolio) .overview-all-activity>.symbol { width:16px; height:16px; }
+.overview-page:has(.overview-portfolio) .recent-transactions .row-item { padding:4px 10px;
+  min-height:52px; grid-template-columns:24px minmax(0,1fr) auto; gap:8px; }
+.overview-page:has(.overview-portfolio) .recent-transactions .ri-main { gap:2px; }
+.overview-page:has(.overview-portfolio) .recent-transactions .row-item .ri-end {
+  grid-column:3; grid-row:1; justify-items:end; align-self:center; gap:2px; }
+.overview-page:has(.overview-portfolio) .recent-transactions .ri-end .money {
+  font-size:14px; line-height:18px; }
+.overview-page:has(.overview-portfolio) .recent-transactions .ri-end .badge {
+  min-height:0; padding:2px 6px; font-size:10px; line-height:14px; }
+.overview-page:has(.overview-portfolio) .recent-transactions .tx-ico { width:24px; height:24px; }
+.overview-page:has(.overview-portfolio) .recent-transactions .ri-title { font-size:11px; line-height:16px; }
+.overview-page:has(.overview-portfolio) .recent-transactions .ri-sub { font-size:10px; line-height:12px; }
+.overview-page:has(.overview-portfolio) .transaction-empty { padding:10px 12px; gap:10px; }
+.overview-page:has(.overview-portfolio) .transaction-empty-mark { width:28px; height:28px; }
+.overview-page:has(.overview-portfolio) .transaction-empty-label { font-size:12px; line-height:18px; }
+.overview-page:has(.overview-portfolio) .transaction-empty-detail { margin-top:2px;
+  font-size:11px; line-height:16px; }
+.premium-overview-grid .shared-control { display:grid; position:relative;
+  grid-template-columns:minmax(0,1fr) auto; gap:4px 10px; padding:12px 14px; }
+.premium-overview-grid .shared-control-heading { grid-column:1/-1; gap:8px; }
+.premium-overview-grid .shared-control-heading h2 { font-size:15px; line-height:22px; }
+.premium-overview-grid .shared-control-status { font-size:10px; line-height:16px; }
+.premium-overview-grid .shared-control-rule { grid-column:1; grid-row:2; gap:6px; }
+.premium-overview-grid .shared-control-rule>strong { font-size:23px; line-height:26px; }
+.premium-overview-grid .shared-control-rule>span { font-size:11px; line-height:16px; }
+.premium-overview-grid .shared-control-participation { grid-column:1; grid-row:3; margin:0;
+  font-size:10px; line-height:16px; }
+.shared-control-actions { display:flex; align-items:center; grid-column:2; grid-row:2/4; gap:2px; }
+.shared-control-actions>.btn { min-height:44px; min-width:44px; padding:6px; gap:4px; font-size:11px; }
+.shared-control-actions>.btn .symbol { width:16px; height:16px; }
+.shared-control-people .custody-devices { margin:16px 0; }
+.shared-control-people .custody-device-name { overflow-wrap:anywhere; }
+@media (min-width:900px) {
+  .overview-page:has(.overview-portfolio)>.premium-overview-grid {
+    grid-template-columns:minmax(0,1.7fr) minmax(280px,1fr);
+    grid-template-areas:"balance status" "assets status";
+    grid-template-rows:auto auto; }
+  .overview-page:has(.overview-portfolio) .overview-hero { grid-area:balance; }
+  .overview-page:has(.overview-portfolio) .asset-section { grid-area:assets; }
+  .overview-page:has(.overview-portfolio) .overview-rail { grid-area:status; }
+}
+@media (max-width:899px) and (min-width:761px) {
+  .overview-page:has(.overview-portfolio)>.premium-overview-grid {
+    grid-template-columns:minmax(0,1fr) minmax(260px,1fr);
+    grid-template-areas:"balance assets" "status status"; }
+  .overview-page:has(.overview-portfolio) .overview-hero { grid-area:balance; }
+  .overview-page:has(.overview-portfolio) .asset-section { grid-area:assets; }
+  .overview-page:has(.overview-portfolio) .overview-rail { grid-area:status;
+    grid-template-columns:1fr 1fr; }
+}
+@media (max-width:760px) {
+  .shell:has(.overview-portfolio)>.side {
+    height:calc(56px + env(safe-area-inset-top,0px));
+    min-height:calc(56px + env(safe-area-inset-top,0px)); padding:6px 12px;
+    padding-top:calc(6px + env(safe-area-inset-top,0px)); }
+  .shell:has(.overview-portfolio) .side .logo { gap:8px; font-size:20px; }
+  .shell:has(.overview-portfolio) .side .nav-zebra { width:32px; height:32px; }
+  .shell:has(.overview-portfolio) .side .nav-zebra img { width:32px; height:32px; }
+  .shell:has(.overview-portfolio) .wallet-menu { min-height:44px; padding:6px 12px; }
+  .main:has(.overview-portfolio) { padding:8px 12px 6px; }
+  .main:has(.overview-portfolio) #app { gap:6px; }
+  .main:has(.overview-portfolio) .wallet-topbar.wallet-context-header {
+    grid-template-columns:minmax(0,1fr) auto auto; gap:4px 6px; padding:0 0 6px; }
+  .main:has(.overview-portfolio) .wallet-context-header>.wallet-identity {
+    grid-column:1; grid-row:1; gap:0; min-width:0; }
+  .main:has(.overview-portfolio) .wallet-context-header .wallet-avatar { display:none; }
+  .main:has(.overview-portfolio) .wallet-context-header .wallet-marble {
+    flex-basis:44px; width:44px; height:44px; }
+  .main:has(.overview-portfolio) .wallet-context-header .wallet-name-block h1 {
+    font-size:15px; line-height:20px; }
+  .main:has(.overview-portfolio) .wallet-context-header>.ph-meta {
+    grid-column:2; grid-row:1; margin:0; }
+  .main:has(.overview-portfolio) .wallet-context-header .badge { font-size:10px; padding:3px 5px; }
+  .main:has(.overview-portfolio) .wallet-context-header>.wallet-home {
+    grid-column:3; grid-row:1; width:44px; min-height:44px; padding:8px; font-size:0; gap:0; }
+  .main:has(.overview-portfolio) .wallet-context-header>.wallet-home .symbol { width:18px; height:18px; }
+  .overview-page:has(.overview-portfolio),
+  .overview-page:has(.overview-portfolio)>.premium-overview-grid,
+  .overview-page:has(.overview-portfolio) .overview-rail { gap:8px; }
+  .overview-page:has(.overview-portfolio) .asset-rows>.asset-row { padding:6px 10px; }
+  .overview-page:has(.overview-portfolio) .asset-row-main { padding-right:26px;
+    grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); }
+  .overview-page:has(.overview-portfolio) .asset-row .asset-title { gap:6px; }
+  .overview-page:has(.overview-portfolio) .asset-row .asset-balance-block { padding-right:0; }
+  .overview-page:has(.overview-portfolio) .asset-balance-block>.label {
+    position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+  .overview-page:has(.overview-portfolio) .transaction-empty-detail {
+    position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+  .overview-page:has(.overview-portfolio) .transaction-empty { padding:6px 10px; align-items:center; }
+  .overview-page:has(.overview-portfolio) .shared-control { padding:8px 10px; gap:2px 6px; }
+  .overview-page:has(.overview-portfolio) .shared-control-actions .btn { min-width:40px; }
+  .main:has(.overview-portfolio) .app-foot { position:absolute;
+    top:calc(6px + env(safe-area-inset-top,0px)); left:108px; z-index:36;
+    margin:0; font-size:11px; }
+  .main:has(.overview-portfolio) .app-foot a { min-height:44px; }
+}
+@media (max-width:760px) and (max-height:820px) {
+  .portfolio-chart-plot { height:72px; }
+  .portfolio-chart-change { min-height:32px; }
+  .portfolio-chart .portfolio-chart-value { height:34px; }
+  .premium-overview-grid>.overview-hero.overview-portfolio { padding-block:8px; gap:4px; }
+}
+@media (max-width:360px) {
+  .premium-overview-grid>.overview-hero.overview-portfolio { padding:10px 12px; }
+}
+@media (min-width:761px) and (max-height:780px) {
+  .main:has(.overview-portfolio) { padding-top:16px; padding-bottom:16px; }
+  .portfolio-chart-plot { height:80px; }
+}

@@ -11,6 +11,7 @@ import { appendObservation, PORTFOLIO_RANGES, valuePortfolio } from "./portfolio
 import { createPortfolioPrices } from "./portfolio-prices.js";
 import { createPortfolioStore } from "./portfolio-store.js";
 import { createPortfolioChart } from "./portfolio-chart.js";
+import { presentOverviewDetails } from "./overview-popover.js";
 
 const prices = createPortfolioPrices({ settled: () => render(),
   fetcher: (url, options) => globalThis.fetch(url, options) });
@@ -119,6 +120,7 @@ export function presentPortfolio(root) {
     active?.chart?.destroy(); active?.store.clearMemory(); active = null;
   }
   if (!config) return;
+  presentOverviewDetails(root.querySelector(".overview-page"));
   if (!active) active = { ...config, store: historyStore(config.gid, config.secret), chart: null };
   refreshPortfolio();
   slot.replaceChildren(active.chart.element);

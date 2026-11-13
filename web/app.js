@@ -13,6 +13,7 @@ import "./zns-setup-preview.js";
 import "./funding-preview.js";
 import "./overview-model.js";
 import "./portfolio-model.js";
+import "./overview-popover.js";
 import "./portfolio-prices.js";
 import "./portfolio-store.js";
 import "./portfolio-geometry.js";

@@ -9,7 +9,7 @@ import { portfolioEndpointContent, portfolioHeaderContent,
 import { bindPortfolioInteraction } from "./portfolio-interaction.js";
 /** @typedef {import('./portfolio-types').PortfolioChartProps} Props */
 /** @typedef {import('./portfolio-types').PortfolioRange} Range */
-const HEIGHT = 192;
+const HEIGHT = 96;
 
 class PortfolioChart {
   /** @param {Props} props @param {boolean} animateEntry */
@@ -17,7 +17,7 @@ class PortfolioChart {
     this.props = props; this.animateEntry = animateEntry; this.hasEntered = false;
     this.dom = portfolioChartDom(PORTFOLIO_RANGES);
     this.media = matchMedia("(prefers-reduced-motion: reduce)");
-    this.width = 600; this.selected = -1; this.signature = "";
+    this.width = 600; this.height = HEIGHT; this.selected = -1; this.signature = "";
     this.retryTimer = 0; this.retryUntil = 0;
     /** @type {Props|null} */
     this.pendingProps = null;
@@ -35,7 +35,8 @@ class PortfolioChart {
     });
     this.observer = new ResizeObserver((entries) => {
       const next = Math.max(160, Math.round(entries[0].contentRect.width));
-      if (next !== this.width) this.resize(next);
+      const height = Math.max(72, Math.round(entries[0].contentRect.height));
+      if (next !== this.width || height !== this.height) this.resize(next, height);
     });
     this.media.addEventListener("change", () => {
       if (this.media.matches) this.motion.finishShape();
@@ -52,10 +53,10 @@ class PortfolioChart {
     void document.fonts.ready.then(() => { if (!this.motion.destroyed) this.fitValue(); });
   }
   /** Keep the selected observation stable while the viewport itself changes.
-   * @param {number} width */
-  resize(width) {
+   * @param {number} width @param {number} height */
+  resize(width, height) {
     const at = this.motion.target.vertices[this.selected]?.point.at;
-    this.width = width; this.rebuildGeometry();
+    this.width = width; this.height = height; this.rebuildGeometry();
     this.selected = this.motion.target.vertices.findIndex((vertex) => vertex.point.at === at);
     this.motion.selected = this.selected; this.updateHeader(); this.fitValue();
   }
@@ -81,6 +82,7 @@ class PortfolioChart {
     dom.root.dataset.direction = content.direction;
     dom.value.setAttribute("aria-label", portfolioMoney(content.value));
     dom.changeValue.textContent = content.change; dom.changeLabel.textContent = content.label;
+    if (this.props.failed) dom.changeLabel.textContent = "Value change · price update failed";
     dom.plot.setAttribute("aria-valuenow", String(this.selected < 0
       ? Math.max(0, motion.target.vertices.length - 1) : this.selected));
     dom.plot.setAttribute("aria-valuetext", content.value === null ? "No observations"
@@ -102,6 +104,7 @@ class PortfolioChart {
   }
   fitValue() {
     if (!this.measure) return;
+    this.dom.root.style.setProperty("--portfolio-plot-y", this.dom.plot.offsetTop + "px");
     const value = this.dom.value, styles = getComputedStyle(value);
     const base = parseFloat(styles.getPropertyValue("--portfolio-balance-base")) || 46;
     const values = this.props.observations.map((p) => p.value);
@@ -110,6 +113,10 @@ class PortfolioChart {
     const measured = this.measure.measureText(portfolioMoney(largest)).width;
     const fitted = Math.min(base, base * (this.width - 4) / Math.max(1, measured));
     value.style.fontSize = Math.max(12, fitted).toFixed(2) + "px";
+    this.measure.font = `600 11px ${styles.fontFamily}`;
+    const changeWidth = this.measure.measureText(this.dom.changeValue.textContent ?? "").width;
+    this.dom.changeValue.style.fontSize = Math.max(9,
+      Math.min(11, 11 * (this.width - 4) / Math.max(1, changeWidth))).toFixed(2) + "px";
   }
   updateRetry() {
     const remaining = Math.max(0, this.retryUntil - performance.now());
@@ -131,14 +138,15 @@ class PortfolioChart {
   rebuildGeometry() {
     const { props, dom } = this;
     const points = samplePortfolio(portfolioPoints(props.observations, props.range, props.now));
-    const key = [props.range, this.width, points.length,
+    const key = [props.range, this.width, this.height, points.length,
       points.map((p) => p.at + ":" + p.value + ":" + p.breakBefore).join(",")].join("|");
     if (key === this.signature) return;
     this.signature = key; this.selected = -1;
-    this.motion.shape(portfolioGeometry(points, this.width, HEIGHT));
-    dom.svg.setAttribute("viewBox", `0 0 ${this.width} ${HEIGHT}`);
+    this.motion.shape(portfolioGeometry(points, this.width, this.height));
+    dom.svg.setAttribute("viewBox", `0 0 ${this.width} ${this.height}`);
     dom.svg.setAttribute("width", String(this.width));
-    dom.svg.setAttribute("height", String(HEIGHT));
+    dom.svg.setAttribute("height", String(this.height));
+    dom.crosshair.setAttribute("y2", String(this.height - 4));
     const dates = portfolioEndpointContent(props, this.motion.target);
     dom.firstDate.textContent = dates.first; dom.lastDate.textContent = dates.last;
     dom.plot.tabIndex = points.length ? 0 : -1;
@@ -154,10 +162,13 @@ class PortfolioChart {
     const content = portfolioStateContent(props, count);
     dom.root.dataset.history = count > 1 ? "ready" : count ? "single" : "empty";
     dom.root.dataset.loading = String(content.loading);
+    dom.root.dataset.failed = String(props.failed);
     dom.empty.hidden = count > 1; dom.emptyTitle.textContent = content.title;
     dom.emptyText.textContent = content.text; dom.retry.hidden = !props.failed;
     dom.title.textContent = content.partial ? "Partial portfolio value" : "Total portfolio value";
     dom.coverage.textContent = content.coverage;
+    dom.coverageDetails.textContent = content.coverage;
+    dom.coverage.hidden = true;
     dom.storage.textContent = props.storageNote; dom.storage.hidden = !props.storageNote;
     clearTimeout(this.retryTimer);
     this.retryUntil = performance.now() + (props.retryAfterMs ?? 0);
@@ -187,7 +198,9 @@ class PortfolioChart {
  * @param {Props} props @param {{animateEntry?:boolean}} [options] */
 export function createPortfolioChart(props, { animateEntry = true } = {}) {
   const chart = new PortfolioChart(props, animateEntry);
-  return { element: chart.dom.root, mount: () => chart.observer.observe(chart.dom.plot),
+  return { element: chart.dom.root, mount: () => {
+    chart.observer.observe(chart.dom.plot); chart.fitValue();
+  },
     update: (/** @type {Props} */ next) => chart.update(next), destroy: () => chart.destroy(),
     interacting: () => chart.selected >= 0 || chart.interaction.active()
       || chart.dom.root.contains(document.activeElement) };

@@ -1,4 +1,5 @@
 // @ts-check
+import { positionOverviewPopover } from "./overview-popover.js";
 let chartIds = 0;
 /** @param {string} tag @param {string} className @param {string} [text] */
 export function chartNode(tag, className, text = "") {
@@ -59,10 +60,10 @@ export function portfolioChartDom(ranges) {
     chartNode("button", "portfolio-retry", "Try again"));
   retry.type = "button";
   empty.append(emptyTitle, emptyText);
-  plot.append(svg, empty);
   const endpoints = chartNode("div", "portfolio-chart-endpoints");
   const firstDate = chartNode("span", ""), lastDate = chartNode("span", "");
   endpoints.append(firstDate, lastDate);
+  plot.append(svg, date, endpoints, empty);
   const controls = chartNode("div", "portfolio-chart-ranges");
   controls.setAttribute("role", "group"); controls.setAttribute("aria-label", "Chart time range");
   const indicator = chartNode("span", "portfolio-range-indicator");
@@ -75,9 +76,20 @@ export function portfolioChartDom(ranges) {
     controls.append(button); return button;
   });
   const coverage = chartNode("p", "portfolio-chart-coverage");
-  const details = document.createElement("details");
+  const details = document.createElement("div");
   details.className = "portfolio-chart-method";
-  const summary = document.createElement("summary"); summary.textContent = "About this chart";
+  const summary = document.createElement("button");
+  summary.type = "button"; summary.setAttribute("aria-label", "About this chart");
+  const infoIcon = chartSvg("svg", { viewBox: "0 0 24 24", width: "16", height: "16",
+    fill: "none", stroke: "currentColor", "stroke-width": "1.5", "aria-hidden": "true" });
+  infoIcon.append(chartSvg("circle", { cx: "12", cy: "12", r: "9" }),
+    chartSvg("path", { d: "M12 11v6M12 7v1" }));
+  summary.append(infoIcon);
+  const methodBody = chartNode("div", "overview-detail-popover portfolio-method-body");
+  methodBody.id = id + "-method";
+  summary.setAttribute("popovertarget", methodBody.id);
+  positionOverviewPopover(summary, methodBody);
+  const coverageDetails = chartNode("p", "");
   const explanation = chartNode("p", "", "Value is the sum of each observed asset balance × its "
     + "USD market price. Value changes include deposits, withdrawals and fees; they are not "
     + "investment returns. Gaps and balance changes break the line. History starts when this "
@@ -94,10 +106,11 @@ export function portfolioChartDom(ranges) {
   const storage = chartNode("p", "portfolio-chart-storage");
   const spoken = chartNode("span", "sr-only");
   spoken.setAttribute("role", "status"); spoken.setAttribute("aria-live", "polite");
-  details.append(summary, explanation, attribution);
-  root.append(heading, value, change, date, plot, endpoints, controls, coverage, retry, storage,
+  methodBody.append(coverageDetails, explanation, attribution);
+  details.append(summary, methodBody);
+  root.append(heading, value, change, plot, controls, coverage, retry, storage,
     details, help, spoken);
   return { root, value, changeValue, changeLabel, date, plot, svg, line, area, marker,
     crosshair, end, dots, empty, emptyTitle, emptyText, retry, firstDate, lastDate,
-    controls, indicator, buttons, coverage, storage, spoken, title };
+    controls, indicator, buttons, coverage, coverageDetails, storage, spoken, title };
 }

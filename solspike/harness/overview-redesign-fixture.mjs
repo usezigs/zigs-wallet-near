@@ -16,6 +16,13 @@ const solFixture = (
   + "text:mode==='stale'?'failed: synthetic "
   + "offline':'',busy:mode==='resync'}},observe(){},close(){"
   + "}};\n}\n"
+  + "export function overviewFixturePlain(enabled=true) {\n"
+  + "if(!enabled){plainSol=null;ui.plainServed=false;return;}\n"
+  + "ui.plainServed=true; plainSol={ctl:{gid:state.gid,loaded:{solstart:true},"
+  + "docs:{solstart:{}}},observe(){},close(){},setup:()=>({status:'ready'}),"
+  + "pending:()=>0,pendingRows:()=>[],read:()=>({at:Date.now(),error:'',rows:{"
+  + "sol:{state:'ready',amount:'0',unit:'SOL',text:'0 SOL'},"
+  + "usdc:{state:'ready',amount:'0',unit:'USDC',text:'0 USDC'}},fees:{},nonces:null})};\n}\n"
 );
 
 function fixtureModule(relative, content, messaging) {

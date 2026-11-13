@@ -353,7 +353,10 @@ function overviewTransactions() {
     el("div", { class: "section-heading transaction-heading" },
       el("h2", { id: "transactions-title" }, "Transactions"),
       el("div", { class: "transaction-views", role: "group", "aria-label": "Transaction view" },
-        choose("pending", "Pending"), choose("recent", "Recent"))),
+        choose("pending", "Pending"), choose("recent", "Recent")),
+      recent ? el("button", { class: "btn ghost sm overview-all-activity", type: "button",
+        "aria-label": "View all activity", onclick: openWalletSection("activity") },
+      icon("external")) : null),
     recent ? recentTransactions() : el("div", { class: "overview-approvals", id: "overview-approvals",
       "data-key": "overview-approvals", tabindex: "-1", "aria-labelledby": "approvals-title" },
     overviewApprovalSummary()));
@@ -382,14 +385,12 @@ function overviewApprovalSummary() {
 }
 
 function recentTransactions() {
-  const list = activity().slice(0, 5);
+  const list = activity().slice(0, 1);
   if (!list.length && state.sessionsLoaded && !state.sessionsFailed && !state.pending
     && historyState() === "ready" && !solReading("all"))
     return el("div", { class: "recent-transactions" },
       transactionEmpty("No recent transactions"), activityNote("all"));
-  return el("section", { class: "card recent-transactions", "aria-labelledby": "recent-title" },
-    el("div", { class: "card-head card-pad" }, el("h3", { id: "recent-title" }, "Recent transactions"),
-      el("button", { class: "btn ghost sm", type: "button", onclick: () => { ui.tab = "activity"; render(); } }, "View all activity")),
+  return el("section", { class: "card recent-transactions", "aria-label": "Latest transaction" },
     activityRows(list), receivedNote(list), list.length ? historyNote("all") : null, activityNote("all"));
 }
 
@@ -566,7 +567,9 @@ function pendingCard() {
 
 const assetHead = (id, symbol, network) => el("div", { class: "asset-title" },
   el("span", { class: "coin-mark" }, icon(id)),
-  el("div", {}, el("h3", { id: "asset-" + id }, symbol), el("p", {}, network)));
+  el("div", {}, el("h3", { id: "asset-" + id }, symbol), el("p", {
+    class: network.toLowerCase().endsWith(netName(state.g)) ? "asset-network" : "asset-network-other",
+  }, network)));
 
 const zecBal = (c) => c && c.bal ? balanceNow(c.bal) : null;
 
@@ -745,9 +748,9 @@ function solAsset() {
     el("div", { class: "asset-position" }, assetHead("sol", "SOL", solNetwork()),
       solBalancePrivacy(el, row)),
     el("div", { class: "asset-balance-block" }, el("span", { class: "label" }, "Wallet balance"), amount,
-      status ? el("p", { class: "asset-row-status small muted", role: "status" }, status) : null),
-    shieldingActions("sol", true)),
+      status ? el("p", { class: "asset-row-status small muted", role: "status" }, status) : null)),
     assetNote("sol", "Balance & privacy details", [
+      shieldingActions("sol", true),
       el("p", {}, row.state === "failed" ? solError : SOL_NOTE[row.state]),
       el("p", {}, solExposure()), shieldingBreakdown("sol"),
       el("p", { id: "sol-shielding-note" }, "Percentages unavailable. Device fee funds are separate from wallet holdings. "
@@ -787,9 +790,9 @@ function plainAsset(id) {
       privacyBadge(el, "public")),
     el("div", { class: "asset-balance-block" }, el("span", { class: "label" }, "Wallet balance"),
       plainAmount(row), status ? el("p", { class: "asset-row-status small"
-        + (bad ? " asset-row-warning" : " muted"), role: "status" }, status) : null),
-    id === "sol" ? plainOpen(row.state) : null),
+        + (bad ? " asset-row-warning" : " muted"), role: "status" }, status) : null)),
   assetNote(id, "Solana details", [el("p", {}, PLAIN_EXPOSURE),
+    id === "sol" ? plainOpen(row.state) : null,
     plainRead()?.error ? el("p", {}, plainRead().error) : null]));
 }
 

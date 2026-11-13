@@ -44,13 +44,15 @@ async function seedHistory() {
     state.g.network = "mainnet"; state.g.name = "Chart QA · synthetic wallet";
     signPins["confirmednet:" + state.gid] = "mainnet";
     gkeys[state.gid] = btoa("x".repeat(32)).replace(/=+$/, ""); ui.plainServed = false;
+    (await import("/app-sol.js")).overviewFixturePlain();
     const key = gkeys[state.gid], aad = "portfolio-v1\nmainnet\n" + state.gid;
     const now = Date.now(), observations = [];
     for (let i = 0; i <= 720; i++) {
       const t = i / 720, at = now - (720 - i) * 60_000;
       const usd = 232.9951 + 12.8342 * t + 1.8 * Math.sin(t * Math.PI * 6)
         + .6 * Math.sin(t * Math.PI * 19) * (1 - t);
-      observations.push(valuePortfolio([{ asset: "zec", amount: 100, at }],
+      observations.push(valuePortfolio([{ asset: "zec", amount: 100, at },
+        { asset: "sol", amount: 0, at }, { asset: "usdc", amount: 0, at }],
         { zec: { usd, at } }, at).observation);
     }
     localStorage.setItem("zf-portfolio-mainnet-" + state.gid,
@@ -76,6 +78,8 @@ const plot = page.getByRole("slider", { name: "Explore portfolio history" });
 check(await page.locator(".portfolio-chart-line").getAttribute("d") !== "",
   "live SVG line renders");
 check(priceRequests === 1, "one fixed market request, cached across range changes");
+check(await page.locator(".asset-rows>.asset-row").count() === 3,
+  "layout fixture includes ZEC, SOL and USDC");
 
 async function interactions() {
   const box = await plot.boundingBox();
@@ -136,7 +140,7 @@ async function touchInteraction() {
   await settleChart();
   const client = await context.newCDPSession(page);
   await client.send("Emulation.setTouchEmulationEnabled", { enabled: true });
-  const box = await plot.boundingBox(), x = box.x + 50, y = box.y + 80;
+  const box = await plot.boundingBox(), x = box.x + 50, y = box.y + box.height / 2;
   const points = (at) => [{ x: at, y, id: 1 }];
   await plot.evaluate((node) => node.addEventListener("gotpointercapture", (ev) => {
     globalThis.__portfolioPointer = ev.pointerId;
@@ -186,22 +190,109 @@ async function touchInteraction() {
 await touchInteraction();
 
 async function captureMatrix() {
-  for (const width of [1440, 1280, 768, 390, 320]) {
-    await page.setViewportSize({ width, height: width < 768 ? 844 : 1000 });
+  const sizes = [[1440, 900], [1366, 768], [1280, 720], [1024, 768],
+    [768, 1024], [390, 844], [375, 812], [320, 844]];
+  for (const [width, height] of sizes) {
+    await page.setViewportSize({ width, height });
     for (const theme of ["light", "dark"]) {
       await page.evaluate((theme) => { document.documentElement.dataset.theme = theme; }, theme);
       await settleChart();
       check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
         width + " " + theme + ": no horizontal overflow");
+      const pageHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+      if (pageHeight > height) await page.screenshot({
+        path: resolve(output, "overflow-" + width + "-" + theme + ".png"), fullPage: true });
+      check(pageHeight <= height, width + "x" + height + " " + theme
+        + ": entire overview fits the viewport (page " + pageHeight + "px)");
       check(await page.locator(".portfolio-chart-ranges button").evaluateAll((buttons) =>
         buttons.every((b) => b.getBoundingClientRect().height >= 44)), "44px range targets");
-      if (width === 1440 || width === 390) await page.screenshot({
-        path: resolve(output, (width === 1440 ? "desktop" : "mobile") + "-" + theme + ".png"),
-        fullPage: true });
+      const name = width === 1440 ? "desktop" : width === 390 ? "mobile" : "viewport-" + width;
+      await page.screenshot({ path: resolve(output, name + "-" + theme + ".png"), fullPage: true });
     }
   }
 }
 await captureMatrix();
+
+async function detailPopovers() {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await settleChart();
+  const controls = [page.getByRole("button", { name: "About this chart", exact: true }),
+    page.locator("#zec-asset-details>summary"),
+    page.getByRole("button", { name: "View wallet participants", exact: true })];
+  for (const [index, control] of controls.entries()) {
+    await control.click();
+    const panel = page.locator(".overview-detail-popover:popover-open");
+    await panel.waitFor();
+    check(await panel.evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      return rect.left >= 0 && rect.right <= innerWidth
+        && rect.top >= 0 && rect.bottom <= innerHeight;
+    }), "detail " + index + ": expanded content stays inside the viewport");
+    check(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight),
+      "detail " + index + ": details do not add page scrolling");
+    await page.screenshot({ path: resolve(output, "detail-" + index + ".png"), fullPage: true });
+    await page.keyboard.press("Escape");
+    check(await page.locator(".overview-detail-popover:popover-open").count() === 0,
+      "detail " + index + ": Escape closes the detail surface");
+  }
+}
+await detailPopovers();
+
+async function populatedOverview() {
+  await page.evaluate(async () => {
+    const { state, ui } = await import("/app-state.js");
+    state.sessions = Array.from({ length: 5 }, (_, i) => ({ id: "synthetic-failure-" + i,
+      status: "failed", error: "Synthetic QA failure", by: 1, createdAt: Date.now() - i * 60_000,
+      payees: [{ to: "synthetic", amount: 1000 }] }));
+    ui.overviewActivity = "recent";
+    (await import("/app-loop.js")).draw();
+  });
+  for (const [width, height] of [[1280, 720], [390, 844]]) {
+    await page.setViewportSize({ width, height }); await settleChart();
+    check(await page.locator(".recent-transactions .row-item").count() === 1,
+      "overview previews the latest transaction with full history one action away");
+    const pageHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+    await page.screenshot({ path: resolve(output, "recent-" + width + ".png"), fullPage: true });
+    check(pageHeight <= height, "populated " + width + ": no page scrolling ("
+      + pageHeight + "px)");
+  }
+  await page.getByRole("button", { name: "View all activity", exact: true }).click();
+  await page.locator("#panel-activity").waitFor();
+  check(await page.locator("#panel-activity").count() === 1, "full activity remains accessible");
+  await page.evaluate(async () => {
+    const { state, ui } = await import("/app-state.js");
+    state.sessions = []; ui.tab = "overview"; ui.overviewActivity = "pending";
+    (await import("/app-loop.js")).draw();
+  });
+  await settleChart();
+}
+await populatedOverview();
+
+async function differentNetworkContext() {
+  await page.evaluate(async () => {
+    (await import("/app-sol.js")).overviewFixturePlain(false);
+    (await import("/app-loop.js")).draw();
+  });
+  for (const [width, height] of [[1280, 720], [390, 844]]) {
+    await page.setViewportSize({ width, height }); await settleChart();
+    check(await page.locator(".asset-network-other")
+      .filter({ hasText: "Solana Devnet" }).isVisible(),
+      width + ": the asset's different network remains visible");
+    check(await page.getByText("Do not send SOL to the Zcash address.", { exact: true })
+      .isVisible(),
+      width + ": the existing unsupported-asset warning remains visible");
+    check(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight),
+      width + ": different network context still fits without scrolling");
+    await page.screenshot({ path: resolve(output, "mixed-network-" + width + ".png"),
+      fullPage: true });
+  }
+  await page.evaluate(async () => {
+    (await import("/app-sol.js")).overviewFixturePlain();
+    (await import("/app-loop.js")).draw();
+  });
+  await settleChart();
+}
+await differentNetworkContext();
 
 async function retryRecovery() {
   await page.evaluate(() => {
@@ -231,7 +322,8 @@ async function componentStates() {
     const { createPortfolioChart } = await import("/portfolio-chart.js");
     const { valuePortfolio } = await import("/portfolio-model.js");
     const now = Date.now(), { observations } = globalThis.__portfolioQA;
-    const current = valuePortfolio([{ asset: "zec", amount: 100, at: now }],
+    const current = valuePortfolio([{ asset: "zec", amount: 100, at: now },
+      { asset: "sol", amount: 0, at: now }, { asset: "usdc", amount: 0, at: now }],
       { zec: { usd: 245.8293, at: now } }, now);
     const props = { observations, current, now, range: "1D", loading: false, failed: false,
       storageNote: "", onRange() {}, onRetry() {} };
@@ -273,6 +365,8 @@ async function componentStates() {
     await settleChart();
     check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
       state + ": no layout overflow");
+    check(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight),
+      state + ": complete overview stays within the viewport");
     if (["empty", "loading", "error"].includes(state)) check(
       await page.locator(".portfolio-chart-end").evaluate((node) =>
         getComputedStyle(node).display === "none"), state + ": no invented endpoint");
