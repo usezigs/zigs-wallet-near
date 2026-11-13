@@ -7182,8 +7182,14 @@ async function runAcctSync() {
 {
   const realWindow = globalThis.window, realDocument = globalThis.document;
   const style = {}, scrolled = [];
+  const layer = {
+    scrollTop: 0,
+    getBoundingClientRect: () => ({ top: 0, bottom: window.visualViewport.height }),
+    querySelector: () => null,
+  };
   const inLayer = (name) => ({
-    closest: (selector) => (selector === ".dialog, .drawer" && name !== "outside" ? {} : null),
+    closest: (selector) => (selector === ".dialog, .drawer" && name !== "outside" ? layer : null),
+    getBoundingClientRect: () => ({ top: 100, bottom: 150 }),
     scrollIntoView: (o) => scrolled.push(name + ":" + o.block),
     getAttribute: (k) => (k === "aria-describedby" ? "other-note field-note" : null),
   });
