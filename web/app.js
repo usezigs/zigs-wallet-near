@@ -27,6 +27,7 @@ import "./wallet-identity.js";
 import "./wallet-avatar-svg.js";
 import "./payment-model.js";
 import "./premium-motion.js";
+import "./homepage-motion.js";
 import "./approvals-model.js";
 import "./outcome-seal.js";
 
