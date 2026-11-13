@@ -113,6 +113,7 @@ try {
   await page.getByRole("dialog").waitFor();
   check(await page.getByRole("dialog").isVisible(),"merged How Zigs works guide opens");
   await page.getByRole("button",{name:"Close How Zigs works",exact:true}).click();
+  await page.getByRole("dialog").waitFor({state:"detached"});
   check(await page.locator(".home-hero-portrait").count()===1,
     "portrait survives closing the guide");
 
@@ -120,6 +121,7 @@ try {
   // instead of Playwright's requirement that their geometry stop animating.
   const join=await page.getByRole("button",{name:"Join a wallet",exact:true}).boundingBox();
   await page.mouse.click(join.x+join.width/2,join.y+join.height/2);
+  await page.screenshot({path:resolve(output,"join.png")});
   await page.waitForSelector(".join");
   check(await page.locator(".home-hero-portrait").count()===1,
     "wallet entry remains interactive after redraw");

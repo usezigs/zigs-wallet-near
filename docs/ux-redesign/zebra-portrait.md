@@ -63,3 +63,7 @@ extract of the live recording before the interaction and fallback checks.
 The head-turn update passed 14 lifecycle checks and 26 browser checks with no
 page errors. Rendered comparisons confirm movement in the head and an unchanged
 base. The recorded live run includes the first glance and ongoing breathing.
+
+Near merge validation passed the build and repository lint checks, the baseline
+gate (97 tests, 22 pinned files, zero problems), and 28 browser checks against
+the local worker, including the retained How Zigs works guide.
