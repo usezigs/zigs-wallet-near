@@ -43,8 +43,10 @@ async function capture(name) {
      screenshots.push(name);
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
      name + ': no horizontal overflow');
-  check(await page.locator('.swap-max,.swap-reverse,.swap-details-open,.swap-settings summary,.swap-privacy-play,.swap-privacy-more')
-    .evaluateAll((nodes) => nodes.filter((node) => !node.disabled && node.checkVisibility()).every((node) => {
+  check(await page.locator((".swap-max,.swap-reverse,.swap-details-open,.swap-settings " +
+  "summary,.swap-privacy-play,.swap-privacy-more"))
+    .evaluateAll((nodes) => nodes.filter((node) => !node.disabled &&
+       node.checkVisibility()).every((node) => {
       const box = node.getBoundingClientRect(), minimum = innerWidth <= 760 ? 48 : 44;
       return box.width >= minimum - 1 && box.height >= minimum - 1;
     })), name + ': utility controls keep generous click targets');
@@ -65,7 +67,8 @@ async function quote() {
 async function deposit(mode = 'basic') {
   await page.getByRole('radio', { name: mode === 'basic'
     ? /Confidential mainnet/ : /Standard mainnet/ }).check();
-  check(await reviewAction().textContent() === (mode === 'basic' ? 'Review confidential swap' : 'Review standard swap'),
+  check(await reviewAction().textContent() === (mode === 'basic' ? 'Review confidential swap' :
+     'Review standard swap'),
     'the review action names the selected ' + mode + ' route');
   await quote();
   await reviewAction().click();
@@ -203,7 +206,8 @@ try {
      check(await page.evaluate(() => !!document.activeElement.closest('dialog')),
         'focus remains in review'); }
   await page.keyboard.press('Escape');
-  check(await reviewAction().evaluate((n) => n === document.activeElement), 'Escape restores focus');
+  check(await reviewAction().evaluate((n) => n === document.activeElement),
+     'Escape restores focus');
   await privacyTour();
   if (livePreview) {
     const start = requests.length;

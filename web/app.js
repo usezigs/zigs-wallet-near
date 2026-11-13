@@ -32,6 +32,9 @@ import "./receive-card.js";
 import "./activity-dates.js";
 import "./sidebar-icons.js";
 import "./premium-motion.js";
+import "./radiant-dither.js";
+import "./homepage-scene.js";
+import "./homepage-motion.js";
 import "./approvals-model.js";
 import "./outcome-seal.js";
 

@@ -198,10 +198,10 @@ function sideTree(dataset = {}) {
     assert.equal(note, null, "the side list omits the recurring release warning");
     const swapItem = (dataset) => textOf(findNode(sideTree(dataset),
       (n) => n.attrs?.["data-key"] === "tab-swap"));
-    assert.equal(swapItem(), "Swap, Quotes",
-      "the Swap item of the side list says Quotes on a server with no live swap");
-    assert.equal(swapItem({ nearLive: "1" }), "Swap, Live",
-      "the Swap item of the side list says Live on a server with the live swap");
+    assert.equal(swapItem(), "Swap",
+      "the Swap item keeps the short label on a server with no live swap");
+    assert.equal(swapItem({ nearLive: "1" }), "Swap",
+      "the Swap item keeps the same label on a server with live swap");
     for (const origin of ["https://wallet.example:8792/", "http://localhost:8794/",
       "http://localhost:8795/", "https://localhost/", "not a URL"]) {
       location.href = origin;
@@ -691,15 +691,15 @@ function addressBeforeSync() {
   assert.doesNotMatch(unknown, /warning level|0\.5 ZEC/);
   t.balCache[gid] = saved;
 }
-function receiveTexts() {
+async function receiveTexts() {
   const real = globalThis.document, { g } = t.state, chain = t.chain, { tab } = t.ui;
   const share = Object.getOwnPropertyDescriptor(globalThis, "navigator");
   const rec = { createElement: () => new Rec(), createElementNS: () => new Rec(),
     createTextNode: (text) => ({ text }) };
   // A click shows its banner on the page of the rig.
-  const click = (button) => {
+  const click = async (button) => {
     globalThis.document = real;
-    try { button.on.click(); } finally { globalThis.document = rec; }
+    try { await button.on.click(); } finally { globalThis.document = rec; }
   };
   globalThis.document = rec;
   try {
@@ -721,19 +721,20 @@ function receiveTexts() {
       "Receive starts at the top with Close, preserving initial QR visibility");
     // Web Share gets the address alone. A closed sheet is no error; a failure says so.
     let shared = null, refusal = null;
-    const answer = { catch: (fn) => (refusal ? fn(refusal) : undefined) };
     Object.defineProperty(globalThis, "navigator", { configurable: true,
-      value: { share: (d) => { shared = d; return answer; } } });
-    const shareButton = () => byText(receiveDialog(), "Share address");
+      value: { share: async (d) => { shared = d; if (refusal) throw refusal; } } });
+    // Mounted cards accept async feedback; detached cards ignore it.
+    const shareButton = () => Object.assign(byText(receiveDialog(), "Share address"),
+      { isConnected: true });
     assert.ok(shareButton(), "Web Share adds a Share button");
-    click(shareButton());
+    await click(shareButton());
     assert.deepEqual(shared, { text: t.state.wallet.address }, "it shares the address alone");
     const before = t.banner;
     refusal = { name: "AbortError" };
-    click(shareButton());
+    await click(shareButton());
     assert.equal(t.banner, before, "a closed share sheet shows nothing");
     refusal = { name: "NotAllowedError" };
-    click(shareButton());
+    await click(shareButton());
     assert.match(t.banner?.text ?? "", /could not share the address\. Use Copy address\./);
     t.state.g = { ...g, movedTo: "elsewhere" };
     const moved = textOf(receiveDialog());
@@ -761,7 +762,8 @@ function receiveTexts() {
     const main = receiveDialog();
     assert.ok(byText(main, "Zcash Mainnet"), "a mainnet wallet reads Mainnet");
     assert.doesNotMatch(textOf(main), /testnet|faucet/i, "and claims no testnet");
-    assert.match(textOf(main), /Only ZEC on Zcash Mainnet\. Funds need 3 confirmations\./);
+    assert.match(textOf(main), /Only ZEC on Zcash Mainnet/);
+    assert.match(textOf(main), /Funds become spendable after 3 confirmations/);
     assert.match(textOf(main), new RegExp("The devices of this wallet and anyone who has the "
       + "invite link can see its balance and history\\. A device that Change devices leaves out "
       + "later can still see them\\."));
@@ -1392,7 +1394,7 @@ async function approvalCount(ctl) {
     Object.assign(ctl, { sessions: [], commits: {} });
     assert.ok(!labelled(sideTree(), "2 to approve"), "no count without a proposal");
     emptyInbox();
-    receiveTexts();
+    await receiveTexts();
     inviteTexts();
     moveWords();
     activityList(ctl);
@@ -3088,8 +3090,8 @@ assert.equal(quickCode(null), null);
     const brand = findNode(card, (n) => n.className === "welcome-brand");
     const mark = findNode(brand, (n) => n.tag === "img");
     assert.equal(brand.attrs["aria-hidden"], "true", "the brand object adds no security claim");
-    assert.equal(mark.attrs.src, "/assets/brand/hero-zebra.png?v=e2a70c42c377",
-      "the original zebra artwork is reused separately from the fingerprint header logo");
+    assert.equal(mark.attrs.src, "/assets/brand/hero-zebra-rest.webp?v=rest-1",
+      "the resting zebra portrait stays separate from the fingerprint header logo");
     assert.equal(mark.attrs.alt, "", "the repeated decorative logo has no spoken label");
     assert.equal(findNode(brand, (n) => n.className === "welcome-object-caption"), null,
       "the zebra stands alone without a repeated shared-wallet caption");

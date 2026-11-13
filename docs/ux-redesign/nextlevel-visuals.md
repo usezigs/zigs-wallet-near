@@ -5,8 +5,8 @@
 Zigs uses graphite surfaces and restrained studio lighting around the portfolio, payment flow,
 recorded device approvals, and address-derived wallet sculpture. The follow-up adds a welcome
 shader, an illustrated payment walkthrough, consistent setup, recovery and activity pages,
-and a redesigned sidebar. The branch now includes the merged `Near` work through `74d1acd`,
-with the existing local visual edits reconciled on top.
+and a redesigned sidebar. The branch includes the merged `Near` work through `af2a122`,
+including its refined wordmark and cinematic zebra portrait, with the visual edits reconciled on top.
 
 ## Implemented
 
@@ -30,7 +30,8 @@ with the existing local visual edits reconciled on top.
 - Verified wallets reuse their existing address-derived sculpture in payment headers. The
   existing verification and fallback rules continue to decide which artwork is available.
 - The welcome zebra has a monochrome Bayer-dither atmosphere adapted from Radiant. It shares
-  the existing WebGL canvas, frame limit and lifecycle; the original portrait and red eye stay.
+  the existing WebGL canvas, frame limit and lifecycle. The latest Near portrait retains its
+  blinking, breathing, ear and mane motion and viewer glances; the atmosphere stays behind it.
 - How Zigs works opens with a four-chapter Zcash payment illustration. Native desktop scrolling
   advances one sticky illustration; phones have explicit, keyboard-accessible step buttons.
   The complete guide and existing journeys remain available. Reading position survives view
@@ -98,7 +99,7 @@ The welcome scene includes actual Bayer-matrix and quantization code from Paul B
 [Radiant Dither Gradient](https://radiant-shaders.com/shader/dither-gradient), adapted to the
 existing Zigs shader. Source: [standalone shader](https://radiant-shaders.com/dither-gradient.html).
 The MIT notice is retained in `web/vendor/radiant-LICENSE.txt`; the adapted shader lives in
-`web/vendor/radiant-dither.js`. It introduces no second render loop or graphics dependency.
+`web/radiant-dither.js`. It introduces no second render loop or graphics dependency.
 
 The walkthrough uses native IntersectionObserver and CSS rather than adding another scroll
 runtime. Only decorative anchors animate across payment views; there are no snapshot clones
@@ -143,9 +144,12 @@ progress. A WebGL pixel check verifies background movement and an unchanged red 
 56 checks use isolated synthetic data and block external requests. This includes all four
 updated Swap guide chapters at 1440, 390 and 320 px in both themes.
 
-The existing homepage renderer browser check also verifies opaque foreground pixels, moving
-atmosphere, offscreen pauses, context-loss cleanup, unavailable WebGL and static fallbacks.
-Its output directory can be redirected with `ZIGS_SCENE_OUTPUT`.
+The merged `solspike/tools/zebra_portrait_browser.mjs` check verifies the actual new portrait's
+blink, ear, mane, breathing and glance pixels, planted base, subdivided mesh, bounded draw rate,
+guide and wallet-entry interactions, hidden-page pauses, context-loss cleanup, responsive layout,
+unavailable WebGL and reduced-motion fallback. All 28 checks pass, with no browser errors.
+Its output directory can be redirected with `ZIGS_ZEBRA_OUTPUT`. It supersedes the older
+lighting-only renderer check for this portrait.
 
 `npm run test:receive --prefix web` exercises the actual Receive renderer with non-payable public
 fixtures and stubbed OS copy/share APIs. It checks both networks and themes at 1440, 390 and
@@ -183,7 +187,7 @@ or payment requests are blocked. No transaction is proposed or sent.
 
 During integration, native dialog-form error handling and the new navigation groups are retained.
 Payment-view continuity is connected directly to the current presentation lifecycle, without
-restoring the old general entrance controller. Build, the 123-module graph, native app and Solana
+restoring the old general entrance controller. Build, the 126-module graph, native app and Solana
 integration checks, and the sidebar, Receive, wallet-page, portfolio and approval regressions pass.
 
 The presentation follows the existing graphite/silver direction: separate device medallions,

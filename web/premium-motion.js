@@ -51,6 +51,12 @@ class SurfaceExperience {
   animate(node, frames, duration, delay = 0) {
     if (!node?.animate || !this.allowed() || node.contains(this.doc.activeElement)) return;
     if (node.closest(SENSITIVE) || node.querySelector(SENSITIVE)) return;
+    const animation = this.playback(node, frames, duration, delay);
+    this.animations.add(animation);
+    animation.finished.catch(() => {}).finally(() => this.animations.delete(animation));
+  }
+
+  playback(node, frames, duration, delay) {
     const motion = this.win.zigsGlass?.animate;
     let animation;
     if (motion) {
@@ -61,8 +67,7 @@ class SurfaceExperience {
       animation = { effect: { target: node }, cancel: () => playback.cancel(),
         finished: Promise.resolve(playback) };
     } else animation = node.animate(frames, { duration, delay, easing: EASE });
-    this.animations.add(animation);
-    animation.finished.catch(() => {}).finally(() => this.animations.delete(animation));
+    return animation;
   }
 
   observeArtwork(root, changed) {

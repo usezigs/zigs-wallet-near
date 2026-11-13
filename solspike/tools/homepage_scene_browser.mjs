@@ -6,13 +6,16 @@ import { entryReady } from "../harness/entry-flow.mjs";
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || "playwright");
 const origin = process.env.ZIGS_HOME_ORIGIN || "http://127.0.0.1:55847";
 assert.ok(["localhost", "127.0.0.1"].includes(new URL(origin).hostname));
-const output = resolve(process.env.ZIGS_SCENE_OUTPUT || "docs/ux-redesign/visuals/cinematic-homepage/motion");
+const output = resolve(process.env.ZIGS_SCENE_OUTPUT ||
+   "docs/ux-redesign/visuals/cinematic-homepage/motion");
 const temporary = resolve(output, ".temporary-video");
 mkdirSync(temporary, { recursive: true });
 const report = { checks: [], facts: [], videos: [], errors: [], notes: [
-  "Live recordings show entrance, ambient lighting and pointer response without playback controls.",
+  ("Live recordings show entrance, ambient lighting and pointer " +
+  "response without playback controls."),
   "Labelled phase stills seek the actual presenter clock for visual comparison.",
-  "Local Chromium observations are not production hardware or network performance claims.",
+  ("Local Chromium observations are not production hardware or network " +
+  "performance claims."),
 ] };
 const check = (pass, name) => report.checks.push({ pass: !!pass, name });
 const browser = await chromium.launch({ headless: true,
@@ -22,7 +25,8 @@ async function fresh(width, options = {}) {
   const context = await browser.newContext({ viewport: { width, height: width < 768 ? 844 : 900 },
     colorScheme: "dark", reducedMotion: "no-preference", ...options });
   // The worker normally injects this script; a bare static server needs it explicitly.
-  if (process.env.ZIGS_SCENE_STATIC_SHIM === "1") await context.addInitScript({ path: resolve("web/shim.js") });
+  if (process.env.ZIGS_SCENE_STATIC_SHIM === "1") await context.addInitScript({ path:
+     resolve("web/shim.js") });
   await context.route("**/*", (r) => new URL(r.request().url()).origin === origin
     ? r.continue() : r.abort());
   await context.addInitScript(() => {
@@ -127,7 +131,8 @@ async function pixelProof() {
       const opaqueAt = (index) => {
         const x = ((index / 4) % 320 + .5) / 320 * source.width - .5;
         const y = (1 - (Math.floor(index / 4 / 320) + .5) / 320) * source.height - .5;
-        return [Math.floor(x), Math.ceil(x)].every((sx) => [Math.floor(y), Math.ceil(y)].every((sy) =>
+        return [Math.floor(x), Math.ceil(x)].every((sx) => [Math.floor(y),
+           Math.ceil(y)].every((sy) =>
           original[(Math.max(0, Math.min(source.height - 1, sy)) * source.width
             + Math.max(0, Math.min(source.width - 1, sx))) * 4 + 3] === 255));
       };
@@ -154,7 +159,8 @@ async function pixelProof() {
         }
       }
       scene.dispose();
-      return { moving, opaquePixels, foregroundAlphaChanges, atmosphereChanges, eyeChanges, eyePixels, maxDifference };
+      return { moving, opaquePixels, foregroundAlphaChanges, atmosphereChanges, eyeChanges,
+         eyePixels, maxDifference };
     });
     report.facts.push({ pixelProof: stats });
     check(stats.moving > 1000 && stats.maxDifference > 25,

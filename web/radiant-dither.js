@@ -1,7 +1,7 @@
 // Adapted from Paul Bakaus' Radiant Dither Gradient (MIT).
 // https://radiant-shaders.com/dither-gradient.html
 // The Bayer matrix and quantizer are upstream; the restrained monochrome field is Zigs-specific.
-// Copyright (c) 2025 Paul Bakaus. Full notice: ./radiant-LICENSE.txt
+// Copyright (c) 2025 Paul Bakaus. Full notice: ./vendor/radiant-LICENSE.txt
 export const radiantDither = `
 float bayer8(vec2 p) {
   vec2 fp = floor(mod(p, 8.0));

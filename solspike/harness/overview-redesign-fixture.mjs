@@ -4,7 +4,8 @@ import { resolve, extname } from "node:path";
 
 export const OVERVIEW_ORIGIN = "http://127.0.0.1:55846";
 const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
-  ".svg": "image/svg+xml", ".png": "image/png", ".woff2": "font/woff2" };
+  ".svg": "image/svg+xml", ".png": "image/png", ".webp": "image/webp",
+  ".wasm": "application/wasm", ".woff2": "font/woff2" };
 const solFixture = (
   "\nexport function overviewFixtureSol(mode = 'synced', rows = []) "
   + "{\n  collections=[]; setupSummary=()=>({status:'ready'})"

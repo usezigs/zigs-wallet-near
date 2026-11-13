@@ -54,7 +54,8 @@ const click = (node) => node.on.click({ preventDefault() {}, currentTarget: {} }
 
 // ── What the Security page says about the Solana files ──
 const SOLANA = "Solana key share";
-const chains = (tree) => all(tree, (n) => n.className === "security-signer-chains").map(text);
+const chains = (tree) => all(tree, (n) => n.className === "security-file-previews")
+  .map((row) => row.kids.map((preview) => text(preview.kids[0])).join(" · "));
 const device = (tree, id) => one(tree, (n) => n.attrs?.id === "security-signer-" + id);
 const fileRow = (tree, id) => all(device(tree, id), (n) => n.className === "security-file-row")
   .find((row) => text(one(row, (n) => n.tag === "strong")) === SOLANA);

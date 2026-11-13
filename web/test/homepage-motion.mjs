@@ -84,6 +84,7 @@ function fixture({ current = hero(), hidden = false, reduced = false,
     frame(time) {
       const pending = [...frames.values()]; frames.clear(); pending.forEach((fn) => fn(time));
     },
+    resize() { resizes.filter((o) => o.connected).forEach((o) => o.fn([])); },
     preference(name, value) {
       const item = [...media].find(([key]) => key.includes(name))[1];
       item.matches = value; item.emit("change");
@@ -116,19 +117,23 @@ test("hidden and offscreen loading does no GPU work, then resumes only when visi
   item.decode(); f.visible(); await flush(); assert.equal(f.created(), 0);
   f.doc.hidden = false; f.doc.emit("visibilitychange"); await flush(); assert.equal(f.created(), 1);
   f.frame(10); f.frame(60); const elapsed = f.controller.elapsed;
+  f.doc.hidden = true; f.doc.emit("visibilitychange");
+  const painted = f.scenes[0].samples.length;
+  f.resize(); assert.equal(f.scenes[0].samples.length, painted, "hidden resize does not paint");
+  f.doc.hidden = false; f.doc.emit("visibilitychange");
   f.visible(false); assert.equal(f.frames.size, 0); f.frame(5000);
   assert.equal(f.controller.elapsed, elapsed);
   f.visible(); f.frame(6000); assert.equal(f.controller.elapsed, elapsed);
   f.controller.destroy(); f.clean(item);
 });
 
-test("the entrance advances into a continuing fourteen-second light cycle", async () => {
+test("the portrait advances into continuing ambient motion", async () => {
   const item = hero(), f = fixture({ current: item }); await ready(f, item);
   for (let t = 16; t < 3600; t += 40) f.frame(t);
   assert.ok(f.controller.elapsed > 1500); assert.equal(f.frames.size, 1);
   const samples = f.scenes[0].samples;
   assert.ok(samples.some((s) => s.seconds < 1.5)); assert.ok(samples.at(-1).seconds > 1.5);
-  assert.notEqual(samples.at(-1).atmosphere, samples[0].atmosphere);
+  assert.notEqual(samples.at(-1).breath, samples[0].breath);
   f.controller.destroy(); f.clean(item);
 });
 
@@ -223,15 +228,34 @@ test("normal image load, failed images and absent browser capabilities stay safe
   assert.equal(startHomepageMotion({ body: {}, defaultView: {} }), null);
 });
 
-test("light samples remain finite, bounded and periodic even in long-running tabs", () => {
+test("portrait samples stay finite and subtle even in long-running tabs", () => {
   for (const time of [-10, 0, 1500, 15500, 1e14, NaN, Infinity]) {
     const s = sceneSample(time, { x: 99, y: -99 });
     assert.ok(Object.values(s).every(Number.isFinite));
-    assert.ok(s.seconds >= 0 && s.seconds < 15.5);
-    assert.equal(s.x, 1); assert.equal(s.y, -1);
-    assert.ok(s.atmosphere >= .46 - 1e-12 && s.atmosphere <= .74 + 1e-12);
+    assert.ok(s.seconds >= 0);
+    assert.equal(s.x, 0); assert.equal(s.y, 0);
+    assert.ok(s.blink >= 0 && s.blink <= 1);
+    assert.ok(Math.abs(s.breath) <= 1);
+    assert.ok(Math.abs(s.leftEar) < .04 && Math.abs(s.rightEar) < .04);
+    assert.ok(Math.abs(s.gust) < 1);
+    assert.ok(s.headTurn >= 0 && s.headTurn < .06);
   }
-  assert.deepEqual(sceneSample(4500), sceneSample(18500));
+  assert.equal(sceneSample(0).blink, 0);
+});
+
+test("head glances stay small, return to rest and leave long quiet intervals", () => {
+  const poses=Array.from({length:1940},(_,i)=>sceneSample(i*100).headTurn);
+  assert.ok(Math.max(...poses)>.02 && Math.max(...poses)<.06);
+  assert.ok(poses.filter(value=>value===0).length/poses.length>.7);
+  let active=0,episodes=0;
+  for (let i=0;i<poses.length;i++) {
+    if (poses[i]>0) {
+      if (!active) episodes++;
+      active++;
+      assert.ok(active<100,"each glance returns within ten seconds");
+    } else active=0;
+  }
+  assert.ok(episodes>=4,"occasional glances continue in a long-running tab");
 });
 
 test("frame guard releases resources even before the media change event arrives", async () => {
