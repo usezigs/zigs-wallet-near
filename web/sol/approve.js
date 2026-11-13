@@ -32,6 +32,7 @@ import { ensureWorker } from "./session.js";
 import { SESSIONS, isPayment } from "./sessions.js";
 import { deviceSpend } from "./spend.js";
 import { labelOf } from "./wallet.js";
+import { checkPoolSwap, poolSwapProblem } from "./swap.js";
 
 const J = JSON.parse,
   S = JSON.stringify;
@@ -133,6 +134,7 @@ const readable = (ss) =>
 // Add SOL (the intent `shield`) is no session: one member signs it alone and sends it at once.
 const SESSION_KINDS = new Set(["createNonce", "transfer", "approve", "withdraw"]);
 const NOT_SHOWN = "This proposal is not one that this app can show.";
+const proposalProblem = (ss) => poolSwapProblem(ss) || (showable(ss) ? null : NOT_SHOWN);
 /** True for a session that this app shows and signs: a payment or the move of the beta funds. */
 export const showable = (ss) => readable(ss) && SESSION_KINDS.has(kindOf(ss));
 
@@ -157,7 +159,8 @@ const waits = (ss, spend, seen) =>
 /** The intent of `ss` and no reason, or the reason why seat `seat` cannot review it yet. */
 function reviewBlock(c, ss, seat, { spend, seen, block = signingBlock(c) }) {
   if (block) return { why: block, waiting: isWait(block) };
-  if (!showable(ss)) return { why: NOT_SHOWN };
+  const why = proposalProblem(ss);
+  if (why) return { why };
   const intent = decodeIntent(ss.intent);
   if (!holdsShare(solOf(c.host, c.gid, seat))) {
     return { why: "Device " + seat + " holds no Solana key share." };
@@ -245,6 +248,8 @@ function approveBlock(c, ss, seat) {
   }
   if (ss.status !== "collecting") return "This proposal is not collecting approvals any more.";
   if (c.commits[ss.id]?.[seat]) return "Device " + seat + " approved this already.";
+  const swapWhy = poolSwapProblem(ss);
+  if (swapWhy) return swapWhy;
   return approvalClosed(ss) ? "This proposal expired. Propose it again." : null;
 }
 
@@ -323,6 +328,7 @@ export async function approve(c, ss, seat) {
   if (isPayment(ss)) await readSeen(c, ss);
   const review = reviewOf(c, ss, seat);
   if (!review.ok) throw new Error(review.why);
+  await checkPoolSwap(c, ss);
   await checkNonce(c, review);
   const make = () => makeEntry(c, ss, seat, review);
   const entry = await approvalOnce(c, seat, ss.id, review.digest, make);

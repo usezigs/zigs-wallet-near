@@ -16,7 +16,7 @@ FAST="optional-passkey demo-check chain-fallback chat backup-check graph persona
   sol-config sol-receive sol-errors sol-sdk sol-addsol sol-pool-mainnet guided-create
   messaging-presentation messaging-cost-review messaging-account-view premium-motion homepage-motion
   outcome-seal passkey-setup wallet-description guided-setup
-  recipients swap-preview swap-recovery
+  recipients swap-preview swap-recovery swapflow near-confidential hackathon-swap
   payees vault lwd zns near-quote
   requests shim shim-status
   signed util account qr
@@ -32,7 +32,7 @@ FAST="optional-passkey demo-check chain-fallback chat backup-check graph persona
   solspike/test/worker.test solspike/test/worker-schema.test solspike/test/mainnet-proof.test"
 SLOW="app sol-fee sol-sessions sol-limits sol-ceremony sol-app sol-pay sol-pay-exec sol-pay-seats
   sol-pay-lease sol-pay-look sol-pay-end unified-setup sol-prove sol-plain-ceremony
-  sol-plain-sign"
+  sol-plain-sign sol-swap-proposal"
 HELPERS="sol-view-rig sol-receive-fixture passkey-fixture sol-rig sol-setup sol-chain sol-vector
   sol-fixture sol-pay-rig page closure"
 # A new test file goes into FAST or SLOW here, and into TESTS of solspike/baseline.sh. A name is

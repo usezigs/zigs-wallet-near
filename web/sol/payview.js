@@ -30,6 +30,7 @@ import { solText } from "./session.js";
 import { beforeFee, heldLamports, heldNotes, isPayment, spentLamports } from "./sessions.js";
 import { labelOf } from "./wallet.js";
 import { HISTORY_PAGE_SIZE, proposalPage } from "./proposal-history.js";
+import { poolSwapOf } from "./swap.js";
 
 export const SHOWN = HISTORY_PAGE_SIZE;
 const clusterOf = (c) => c.wallet?.cluster ?? CLUSTER;
@@ -48,7 +49,8 @@ const TITLES = {
   withdraw: "Public SOL withdrawal",
 };
 /** The title of a proposal, from its intent bytes. */
-export const titleOf = (ss) => TITLES[decodeIntent(ss.intent)?.kind] ?? "Unknown proposal";
+export const titleOf = (ss) => poolSwapOf(ss) ? "Private SOL to shielded ZEC · public withdrawal"
+  : TITLES[decodeIntent(ss.intent)?.kind] ?? "Unknown proposal";
 const WHAT = {
   createNonce:
     "Creates the account that the legacy funds transfer needs. The proposing device pays its " +
@@ -616,6 +618,17 @@ function reviewBlock(c, ss, review) {
     return el("div", { class: "callout bad", role: "alert", "data-sol": "refusal" }, review.why);
   }
   const rows = rowsOf(c, review);
+  const swap = poolSwapOf(ss);
+  if (swap) rows.unshift(
+    ["Swap route", "Private SOL balance → public SOL deposit → NEAR Intents → this " +
+      "wallet's shielded Zcash address."],
+    ["Provider verification", "Each device verifies the destination, refund and amount with NEAR " +
+      "Intents when approving. Shielded payout remains untested."],
+    ["Refund control", "Any refund goes to the proposing device's public fee address. That " +
+      "device alone controls it until it adds the SOL back to the private " +
+      "wallet."],
+    ["Approval deadline", new Date(swap.cutoff).toLocaleString()
+      + ". The on-chain withdrawal expires by this time."]);
   if (PAYMENT_KINDS.has(review.intent.kind)) return paymentReview(c, ss, review, rows);
   return reviewList(c, rows, { "data-sol": "review-" + ss.id });
 }

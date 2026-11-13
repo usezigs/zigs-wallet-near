@@ -47,6 +47,7 @@ import { netOf } from "./net.js";
 import { ensureWorker } from "./session.js";
 import { openInputs, writePart } from "./sessions.js";
 import { pairsBefore } from "./spend.js";
+import { checkPoolSwap, poolSwapOf } from "./swap.js";
 
 /** A proof binds an expiry: 23 hours, inside the 24 hour window of the checker and its skew. */
 const EXPIRY_SECS = 23 * 3600;
@@ -182,8 +183,11 @@ const PAYMENTS = {
 };
 
 /** The Worker proves the spend; the fields of the proposal part that every kind of spend has. */
-async function proved(c, worker, kind, { payee, amount }, fee) {
-  const expiry = BigInt(Math.floor(Date.now() / 1000) + EXPIRY_SECS);
+async function proved(c, worker, kind, { payee, amount, swap }, fee) {
+  const ordinaryExpiry = Math.floor(Date.now() / 1000) + EXPIRY_SECS;
+  const cutoff = swap === undefined ? ordinaryExpiry : Math.floor(poolSwapOf({
+     swap }).cutoff / 1000);
+  const expiry = BigInt(Math.min(ordinaryExpiry, cutoff));
   const request = { kind, recipient: payee, amount: String(amount), expiry: String(expiry) };
   request.payer = base58(fee.key);
   request.avoid = openInputs(c.sessions); // a payment over them could never execute
@@ -254,7 +258,10 @@ async function createdBefore(worker, said, error) {
 async function payDraft(c, worker, seat, fee, { kind, args }) {
   const how = PAYMENTS[kind];
   const typed = how.typed(c, args);
-  const { prepared, fields, terms } = await proved(c, worker, kind, typed, fee);
+  await checkSwapDraft(c, seat, kind, args, typed);
+  const { prepared, fields, terms } = await proved(c, worker, kind, { ...typed,
+     swap: args.swap }, fee);
+  if (args.swap !== undefined) fields.swap = args.swap;
   const named = { ...terms, recipient: typed.payee };
   Object.assign(fields, { intent: intentHex(how.session, named), transact: prepared.data });
   const spend = await draftSpend(c, worker, prepared);
@@ -269,6 +276,7 @@ async function payDraft(c, worker, seat, fee, { kind, args }) {
   const verdict = c.W.check_payment(proposal, inputs.pins, inputs.snapshot, chain, now);
   if (!verdict.startsWith("accepted")) throw new Error(refusalText(c.W, verdict));
   const said = readVerdict(verdict);
+  await checkPoolSwap(c, { ...fields, by: seat });
   const { blockhashHex } = await worker.call("blockhash");
   const lifetime = { commitment: said.commitment, blockhash: blockhashHex };
   const create = intentHex(how.create, { ...named, ...lifetime });
@@ -279,6 +287,20 @@ async function payDraft(c, worker, seat, fee, { kind, args }) {
     createdBefore(worker, said, error),
   );
   return { ...fields, account: said.proposal, body: said.body, createTx };
+}
+
+async function checkSwapDraft(c, seat, kind, args, typed) {
+  if (args.swap !== undefined) {
+    const mark = poolSwapOf({ swap: args.swap });
+    if (kind !== "withdraw" || !mark) throw new Error("Invalid private SOL swap withdrawal.");
+    if (c.sessions.some((ss) => poolSwapOf(ss)?.deposit === mark.deposit)) {
+      throw new Error("This deposit already has a withdrawal proposal. Resume its swap instead.");
+    }
+    const expiry = Math.floor(Math.min(Date.now() + EXPIRY_SECS * 1000, mark.cutoff) / 1000);
+    const intent = intentHex("withdraw", { ...typed, recipient: typed.payee, expiry,
+       inputs: 1, outputs: 1 });
+    await checkPoolSwap(c, { swap: args.swap, intent, expiry: String(expiry), by: seat });
+  }
 }
 
 /** The nonce account of the beta: no plan, a recent blockhash. */

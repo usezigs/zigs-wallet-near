@@ -30,6 +30,8 @@ import { SESSIONS, filterSessions } from "./sessions.js";
 import { reactSessions } from "./signing.js";
 import { solDetailsView, solView } from "./view.js";
 import { proposalPage, proposalWatchIds } from "./proposal-history.js";
+import { poolSwapRow, privateSwapInfo, privateSwapReady, proposePoolSwap } from "./swap-source.js";
+import { poolSwapOf } from "./swap.js";
 
 const J = JSON.parse;
 const LOG_MAX = 200;
@@ -239,6 +241,14 @@ export async function attach(host) {
   };
   return {
     ctl: c, // the state of the controller, for the tests
+    swapInfo: () => privateSwapInfo(c),
+    swapReady: (amount) => privateSwapReady(c, amount),
+    proposeSwap: (swap) => proposePoolSwap(c, swap),
+    swapRow: (id) => poolSwapRow(c, id),
+    swapForDeposit: (address) => {
+      const ss = c.sessions.find((s) => poolSwapOf(s)?.deposit === address);
+      return ss ? poolSwapRow(c, ss.id) : null;
+    },
     open: (gid, base) => openGroup(c, gid, base),
     close: () => teardown(c),
     observe(gid) {
