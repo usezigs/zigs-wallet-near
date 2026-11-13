@@ -14,7 +14,7 @@ import { joinWalletLink, openChat } from "./app-links.js";
 import { balOf, MAINNET_ON, netOf } from "./app-chain.js";
 import { canWrite, closeSession, db, dbReady, openGroup, toApprove } from "./app-groups.js";
 import {
-  act, countBadge, el, guard, mainnetRisk, money, nameField, networkPick, newBadge, requireAck,
+  act, countBadge, el, guard, money, nameField, networkPick, newBadge,
   ruleText, unreadable, unreadChip,
 } from "./app-dom.js";
 import { contactName, contactOf, joinChat, joinLinks, unreadIn } from "./app-messages.js";
@@ -499,7 +499,7 @@ let swapPreview;
 export function swapWorkspace() {
   const context = { id: state.g?.id, name: state.g?.name, live: nearLive(), payout: swapPayout(),
     zec: zecSwapSource(), solGroup: solSwapSource(),
-    networks: state.g && netOf(state.g).cap ? 'Zcash ' + netOf(state.g).label
+    networks: state.g && state.g.network === "mainnet" ? 'Zcash ' + netOf(state.g).label
       : 'Zcash Testnet · Solana Devnet',
     threshold: state.g ? state.g.t + " of " + state.g.n + " device approvals per payment." : "" };
   swapPreview ??= createSwapPreview(context);
@@ -712,7 +712,7 @@ function solChoice() {
 
 // A new mainnet wallet can be a private Solana wallet (slice 8, design 2.4 Create), on a server
 // that serves the private Worker. The choice is off by default and lives in the draft only.
-const PRIVATE_CHOICE = "Private Solana on mainnet (staging test, at most 0.5 SOL).";
+const PRIVATE_CHOICE = "Private Solana on mainnet";
 const PRIVATE_GONE = "This server does not serve the private Solana wallet now. Clear the private "
   + "Solana choice, or try again later.";
 const privateDrafted = () => ui.net === "mainnet" && ui.createDraft?.solPrivate === true;
@@ -873,9 +873,6 @@ async function submitWallet({ name, n, t, sol, solExpected = false, description 
   requireSetupProtection();
   checkRule(n, t);
   const network = from ? from.network || "testnet" : ui.net;
-  // A replacement wallet has no tick: the person ticked when the old wallet was made.
-  if (!from && network === "mainnet" && !ui.ack) throw new Error("Confirm that you understand "
-    + "Zigs is not audited before you create a mainnet wallet.");
   const plan = chainPlan(from, network, sol, solPrivate);
   endCreate();
   const gid = await createGroup(name, n, t, from && from.id, network);
@@ -916,7 +913,6 @@ function takeRule() {
   ui.createDraft = { ...ui.createDraft, n, t };
 }
 function takeNames() {
-  requireAck(ui, ui.net, "create a mainnet wallet");
   // The explicit consent control is on the final review. Naming keeps the current opt-out
   // or the default included intent; an absent review control cannot silently opt out here.
   const sol = ui.net === "testnet" && ui.sol !== false;
@@ -1030,7 +1026,6 @@ function reviewStep() {
           el("div", {}, el("strong", {}, String(d.t) + " of " + d.n), el("span", {}, "approvals per payment")),
           el("div", {}, el("strong", {}, "Zcash " + curNetLabel()),
             el("span", {}, solSummary(includeSol)))),
-        ui.net === "mainnet" ? el("p", { class: "callout bad" }, mainnetRisk()) : null,
         privateChoice(),
         el("p", { class: "small muted" }, "All " + d.n + " devices join and check the wallet before use. Initial formation needs no fee funding or on-chain deployment. Later Deposit and Send operations show their own costs."),
         el("p", { class: "small muted" }, "Recovery files are recommended and optional. Each copies one device’s share and needs its separate passphrase. You can save or check files later."))),

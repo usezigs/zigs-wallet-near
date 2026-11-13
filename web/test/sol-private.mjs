@@ -269,7 +269,7 @@ const planned = (gid) => {
 };
 const NONE = { pin: null, hint: [null, null], auto: null };
 {
-  const CHOICE = "Private Solana on mainnet (staging test, at most 0.5 SOL).";
+  const CHOICE = "Private Solana on mainnet";
   await probeWith(404);
   await review("Not served");
   assert.equal(choice(), null, "no choice without the probe");

@@ -7,7 +7,7 @@ import { clearBadBanner, log, showBanner, state, ui } from "./app-state.js";
 import { initials, short, ZEC_FMT } from "./app-kit.js";
 import { Z } from "./app-engine.js";
 import { isMe, localSeats, seatMine, seatNameOf } from "./app-seats.js";
-import { capText, curNet, MAINNET_ON, netOf, NETWORKS } from "./app-chain.js";
+import { curNet, MAINNET_ON, netOf } from "./app-chain.js";
 import { signedMode } from "./app-filter.js";
 import { closeSession } from "./app-groups.js";
 import {
@@ -16,12 +16,7 @@ import {
 } from "./app-payments.js";
 import { focusAfter, react, render } from "./app-loop.js";
 
-// `full`: a mainnet badge that states the risk in its text (wallet header, join card).
-export const netBadge = (g, full = false) => netOf(g).cap
-  ? el("span", { class: "badge bad", title: "Real ZEC. Not audited. At " + capText(netOf(g).cap)
-    + " the app warns and hides the address. It cannot block deposits." },
-  full ? "Mainnet · Beta · Not audited" : "Mainnet")
-  : el("span", { class: "badge plain" }, "Testnet");
+export const netBadge = (g) => el("span", { class: "badge plain" }, netOf(g).label);
 
 export const el = (tag, attrs = {}, ...kids) => {
   const n = document.createElement(tag);
@@ -223,54 +218,19 @@ export function nameField(id, to = "", initial = undefined) {
 // The choice lives in `sel` (`ui`, or `ui.personal`), so a redraw keeps it. `what` names the thing
 // that holds the funds, and `idp` prefixes the ids.
 // While MAINNET_ON is false, the picker shows Testnet only and no tick (M1). Mainnet needs a tick.
-export function networkPick(sel = ui, what = "wallet", idp = "g") {
+export function networkPick(sel = ui, idp = "g") {
   if (!MAINNET_ON) sel.net = "testnet";
   const on = (value) => (sel.net === value ? " on" : "");
   const opt = (value, title, text) => el("label", { class: "net-opt" + on(value) },
     el("input", { type: "radio", name: idp + "-network", value, id: idp + "-net-" + value,
       checked: sel.net === value,
-      onchange: () => { sel.net = value; sel.ackBad = ""; render(); } }),
+      onchange: () => { sel.net = value; render(); } }),
     el("span", { class: "net-text" }, el("b", {}, title), el("span", { class: "small muted" }, text)));
   return el("fieldset", { class: "net-pick" },
     el("legend", { class: "label" }, "Network"),
     el("div", { class: "two" },
       opt("testnet", "Testnet", "Free test coins, for trying Zigs."),
-      MAINNET_ON ? opt("mainnet", "Mainnet", "Real ZEC. At " + capText(NETWORKS.mainnet.cap)
-        + " the app warns and hides the address. It cannot block deposits.") : null),
-    sel.net === "mainnet" ? ackTick(sel, what, idp) : null);
-}
-
-/** The risk of a mainnet wallet, for the review step and for a device that joins one. */
-export const mainnetRisk = () => "Real ZEC. Beta, not audited: you can lose the funds. At "
-  + capText(NETWORKS.mainnet.cap) + " the app warns and hides the address. It cannot block "
-  + "deposits.";
-
-/**
- * The "I understand" tick of a mainnet choice in `sel`, with its error `sel.ackBad` next to it.
- * `what` names the thing that holds the funds, and `idp` prefixes the ids.
- */
-export function ackTick(sel, what, idp) {
-  const error = idp + "-ack-error", bad = !!sel.ackBad;
-  return [el("label", { class: "ack" },
-    el("input", { type: "checkbox", id: idp + "-ack", checked: sel.ack,
-      "aria-invalid": bad ? "true" : null, "aria-describedby": bad ? error : null,
-      onchange: (ev) => {
-        sel.ack = ev.target.checked;
-        if (sel.ack && sel.ackBad) { sel.ackBad = ""; render(); }
-      } }),
-    el("span", { class: "small" }, "I understand that Zigs is not audited and that I can lose "
-      + "the funds in this " + what + ".")),
-  bad ? el("p", { class: "small bad", id: error, role: "alert" }, sel.ackBad) : null];
-}
-
-/**
- * Throws unless a device that uses `net` ticked the box of `sel`. The error shows next to the tick
- * (`sel.ackBad`), so the thrown error has `shown` set: `act` and the dialog do not show it again.
- */
-export function requireAck(sel, net, doing) {
-  if (net !== "mainnet" || sel.ack) return;
-  sel.ackBad = "Confirm that you understand Zigs is not audited before you " + doing + ".";
-  throw Object.assign(new Error(sel.ackBad), { shown: true });
+      MAINNET_ON ? opt("mainnet", "Mainnet", "Send and receive ZEC on the Zcash network.") : null));
 }
 
 export const countBadge = (n, what, cls) => n

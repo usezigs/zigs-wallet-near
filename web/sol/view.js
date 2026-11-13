@@ -27,8 +27,8 @@ const solanaOf = (c) => "Solana " + netOf(clusterOf(c)).badge;
 const ADD_TEXT =
   "A Solana program owns the funds of the group at a program address, which is public and links " +
   "to the group key. Each device also gets a fee address, which appears on chain next to the " +
-  "group when the device pays. A fee address needs a public SOL funding trail. The program and " +
-  "its upgrade key are outside the group, and the beta has no audit.";
+  "group when the device pays. A fee address needs a public SOL funding trail. " +
+  "Program upgrades are managed separately from your wallet approvals.";
 
 // What is public and what Helius sees (SOL-12). The tab shows it in each state, also while the
 // setup runs: the seats of this browser join the setup with no click.

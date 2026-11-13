@@ -35,7 +35,7 @@ is a bug: please report it.
 - A new mainnet wallet can be a private Solana wallet in the Zolana pool on mainnet (web app only;
   the server turns it on: it is off on production, and off on staging until the owner turns it
   on). It uses real SOL. It is a test with no audit, and one upgrade key that the Zigs owner holds
-  can replace its program. Its cap of 0.5 SOL is a check of this app only. The devices make the
+  can replace its program. There is no app-imposed private balance cap. The devices make the
   proofs. Do not expect anonymity: the mainnet pool is small. Read
   [Solana mainnet private wallet](#solana-mainnet-private-wallet-staging-only).
 - The personal account (web app only) sends and reads messages on chain. A message is the memo of
@@ -411,8 +411,7 @@ How a live swap works:
 - While the screen shows, the page reads `/near/status` every 10 seconds (up to 60 seconds after
   errors and after the deadline) until the state is final. The Worker passes only the state, its
   time, the transaction hashes, the amounts and the refund reason. It drops the explorer links of NEAR Intents.
-- The page refuses a payout that would take the wallet over the warning level of unaudited
-  mainnet wallets (0.5 ZEC).
+- Verified mainnet wallets can receive swap payouts without a trial balance limit.
 
 | Party | What it learns |
 |---|---|
@@ -447,7 +446,7 @@ How it works:
   proposal holds a signed field that marks it as this swap: the deposit address and the deadline.
 - Each device that reviews or approves the send reads `/near/status` for the deposit address. It
   approves only when NEAR Intents waits for a deposit of the exact amount, for a swap from SOL to
-  ZEC that pays the ZEC address of this wallet under the cap, refunds to the plain Solana address
+  ZEC that pays the ZEC address of this wallet, refunds to the plain Solana address
   of this wallet and ends at the deadline of the field, with 30 minutes left. This check trusts the
   Worker and NEAR Intents. It does not check the signature of the quote.
 - No device approves or sends the deposit in the last 30 minutes before the deadline. The signed
@@ -744,9 +743,7 @@ substance; the exact text is `MAINNET_DISCLOSURE` in `web/sol/net.js`.
 - It is a test on staging. No one audited it.
 - One upgrade key can replace the program, and then move the funds of every private wallet. The
   Zigs owner holds that key.
-- The cap is 0.5 SOL. The app checks the private balance at each Add SOL, and only in this app.
-  Private payments from other wallets and deposits by other people can let a group hold more over
-  time.
+- There is no app-imposed private balance cap. Program authority applies to all funds held.
 - Never send public SOL to the PDA address. No code can move it.
 - Each fee address must keep 650,240 lamports, which never leave it. Any SOL above that amount
   leaves only through Add SOL.
@@ -1010,7 +1007,7 @@ the passkey guards the key share instead. The lock is opt-in.
   false server can also show a note of a block that the wallet has not synced yet, or of a branch
   that the chain left. The page shows such a payment only as waiting: the line "Not in a block
   yet", the row, and "A payment to this wallet is on its way" on an empty wallet. It never counts
-  it as Available or Incoming, and it does not change the 0.5 ZEC warning level.
+  it as Available or Incoming, and it does not change receiving-address availability.
 - A payment request names a wallet address, and may name an amount and a memo. Everyone who reads
   the message reads them. In a wallet room, these are the signers and anyone who has the invite
   link. In a direct chat, they are the contact and anyone who has the contact link. A request to
@@ -1050,10 +1047,9 @@ the passkey guards the key share instead. The lock is opt-in.
 - Anyone with an invite link can write many small messages into a wallet room or a chat. The
   iPhone and Mac apps open each message document once and stop reading a conversation with more
   than 10,000 documents. The web app downloads the whole room.
-- The code is not audited. A mainnet wallet holds real ZEC and is limited to 0.5 ZEC: at that
-  balance, or while the app does not know the balance, it stops showing the address and warns.
-  An address that was shared stays valid. The app cannot stop someone from sending more, and
-  payments out always stay possible.
+- The code is not audited. Mainnet wallets hold real ZEC without a trial balance limit.
+  Receiving addresses are shown after device verification, independently of balance sync.
+  Audit status remains available in the expandable FAQ and Security sections.
 
 ## Checks
 

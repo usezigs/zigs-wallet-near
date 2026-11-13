@@ -37,10 +37,12 @@ assert.match(servers, /Helius sees your IP address and the address of this walle
   "the servers answer names the explorer");
 assert.match(servers, /When you send, Helius also sees the signed transaction\.$/,
   "and that Helius sees a send");
+assert.match(HELP.find(([q]) => q === "Has Zigs been audited?")[1],
+  /not undergone an independent security audit/);
 const networks = HELP.find(([question]) => /networks/.test(question))[1];
 assert.ok(networks.startsWith("Zigs uses Zcash testnet or mainnet, and Solana Devnet. "
-  + "Testnet and Devnet use test coins. Mainnet uses real ZEC: it is a beta, it is not audited, "
-  + "and you can lose the funds. "), "the Devnet sentence of the networks answer stays");
+  + "Testnet and Devnet use test coins. Mainnet uses real ZEC. "),
+"the Devnet sentence of the networks answer stays");
 assert.match(networks, /a mainnet wallet also has a Solana part\. It is a plain account with/,
   "the networks answer names the plain part");
 assert.match(networks, /real SOL and USDC, with no privacy and no hosted prover\./,

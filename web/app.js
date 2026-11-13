@@ -25,6 +25,7 @@ import "./setup-model.js";
 import "./setup-wizard.js";
 import "./recovery-model.js";
 import "./security-dashboard-model.js";
+import "./security-disclosures.js";
 import "./help-model.js";
 import "./recipients.js";
 import "./guided-setup-model.js";

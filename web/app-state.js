@@ -40,23 +40,23 @@ export function log(msg) { state.log.unshift(new Date().toLocaleTimeString() + "
 // View state that only this browser cares about.
 export const ui = {
   forget: false, tab: "overview", send: false, pay: null, payKey: 0, listError: "", after: null,
-  create: false, receive: false, move: false, net: "testnet", ack: false, notify: false,
+  create: false, receive: false, move: false, net: "testnet", notify: false,
   createStep: 0, createDraft: null, marginAck: false,
   newChat: false, leave: false, backup: null, restore: null, menu: false,
   request: null, note: "", priority: false, sendFor: null, contactAdd: false,
-  joinBad: "", joinOpen: false, join: { ack: false },
-  personal: { net: "testnet", ack: false, fund: "0.003", drop: false },
+  joinBad: "", joinOpen: false, join: {},
+  personal: { net: "testnet", fund: "0.003", drop: false },
 };
 // A create dialog opens at its first step, with no values kept from an earlier one. A network
-// choice and its tick are values too: a closed dialog does not keep a mainnet tick.
+// choice is reset when the dialog closes.
 export function resetCreate() {
   ui.createStep = 0; ui.createDraft = null; ui.marginAck = false; ui.sol = undefined;
-  ui.createError = null; ui.net = "testnet"; ui.ack = false; ui.ackBad = "";
+  ui.createError = null; ui.net = "testnet";
 }
 export const openCreate = () => { resetCreate(); ui.create = true; };
-// The network choice and the tick of the account card do not outlive the card.
+// The network choice of the account card does not outlive the card.
 export function resetPersonalPick() {
-  Object.assign(ui.personal, { net: "testnet", ack: false, ackBad: "" });
+  Object.assign(ui.personal, { net: "testnet" });
 }
 try { ui.notify = localStorage.getItem("zf-notify") === "1"; } catch { /* no storage */ }
 document.getElementById("banner-close").addEventListener("click", () => {

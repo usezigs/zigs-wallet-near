@@ -15,7 +15,7 @@ use crate::assets::AssetTable;
 use crate::bytes::Reader;
 use crate::consts::{
     Key, APPROVAL_DOMAIN, DEVNET_GENESIS, MAINNET_GENESIS, MULTISIG_DEVNET, MULTISIG_MAINNET,
-    PRIVATE_CAP_MAINNET, SEED_CANCEL, SEED_OWNER, SEED_PROPOSAL,
+    SEED_CANCEL, SEED_OWNER, SEED_PROPOSAL,
 };
 use crate::frost::{CLUSTER, PROGRAM_LABEL};
 use crate::hashes::poseidon;
@@ -74,7 +74,7 @@ pub static MAINNET: Deployment = Deployment {
 regy3WAeRXMYuMYxr5iK3Bf9Arr3PcxGxyzAddbiqDQ:spr-v1:9mE7WUJHK6dQwzK6AP6wf1eyPmePULZrGeRbXqke2ukq",
     genesis: MAINNET_GENESIS,
     program: MULTISIG_MAINNET,
-    cap: Some(PRIVATE_CAP_MAINNET),
+    cap: None,
 };
 
 /// Every deployment of the pool wallet.

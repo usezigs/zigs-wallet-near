@@ -21,7 +21,7 @@ export const chapters = [
         ["The threshold of distinct seats", "Authorize a payment under the wallet's existing rule."],
       ]),
       section("What runs where", "The web app runs a Rust cryptographic engine as WebAssembly in your browser. Devices construct and inspect transactions, sign with their own shares and, for Zcash, generate proofs locally. A group relay stores encrypted coordination documents. A separate light-wallet service supplies blockchain data and relays finished Zcash transactions.", "Encryption of the relay's contents does not conceal the fact that devices connect, or when they act. The privacy chapter separates these network observations from what the blockchain reveals."),
-      section("The networks and the current release", "The web creation flow makes Zcash wallets on Testnet or on Mainnet. A Mainnet wallet holds real ZEC. The web app also includes a Solana Devnet beta, for Testnet wallets only. Testnet and Devnet assets have no intended real-money value. Zigs is beta software and has not been audited. Where the server offers it, a Mainnet wallet also holds real SOL and USDC in a plain Solana account with no privacy.", "In a Mainnet wallet, the documented 0.5 ZEC cap warns and hides the receiving address; it cannot prevent someone sending more to an address they already know. It is not a guarantee of safety. Shared 1-of-1 and 1-of-2 wallets are not supported by the current engines."),
+      section("The networks and the current release", "Create Zcash wallets on Mainnet or Testnet. Mainnet wallets hold ZEC, while Testnet and Solana Devnet use test assets. Where the server offers it, a Mainnet wallet can also hold SOL and USDC in a public Solana account, or use a private Solana wallet.", "Choose between 2 and 7 devices and an approval threshold of at least 2. Shared 1-of-1 and 1-of-2 wallets are not supported by the current engines."),
       section("How to read this guide", "The diagrams use example devices, payments and messages. They never inspect your wallet or collect approvals. Chapters describe the web experience; a design preview, such as a Swap illustration, is not evidence that a live protocol or service is available. The source links at the end of each chapter lead to the implementation's protocol and privacy documentation."),
     ], sources: [["PROTOCOL.md", "1-the-parts"], ["PRIVACY.md", "not-protected"]],
   },
@@ -57,7 +57,7 @@ export const chapters = [
         "Capture secrets while an unlocked session uses them, even when storage is encrypted at rest.",
       ], "An honest, independent approving device still decodes the actual payment before signing. That check is valuable only if enough required shares remain on devices the attacker does not control."),
       section("Nonces are single-use signing secrets", "Threshold signing creates temporary random values called nonces. Reusing a nonce can compromise signing security. Zigs persists the approval data before publishing it and consumes nonces before publishing signature shares. They are not an additional recovery key.", "Key-share backup files exclude nonces, and restored legacy nonce data is discarded. Restoring the same seat onto another browser does not create a new independent device: both copies represent the same seat."),
-      section("What the web app itself is trusted to do", "The browser downloads application code from the app host. That code and the cryptographic engine must faithfully implement the checks. Encryption at the relay does not protect against malicious code running in the unlocked app, an infected operating system or a hostile extension.", "Use the expected site, keep the device and browser secure, and review payment details on independently controlled devices. The current code is unaudited; local encryption and distributed signing reduce particular risks rather than eliminating software trust."),
+      section("What the web app itself is trusted to do", "The browser downloads application code from the app host. That code and the cryptographic engine must faithfully implement the checks. Encryption at the relay does not protect against malicious code running in the unlocked app, an infected operating system or a hostile extension.", "Use the expected site, keep the device and browser secure, and review payment details on independently controlled devices. Local encryption and distributed signing protect different parts of the wallet. Review the Security chapter for the full trust model."),
     ], sources: [["PROTOCOL.md", "9-keys-on-the-device"], ["PRIVACY.md", "your-device"], ["PRIVACY.md", "not-protected"]],
   },
   {
@@ -113,12 +113,12 @@ export const chapters = [
   },
   {
     id: "solana", nav: "Solana", title: "A different chain. Different privacy.",
-    intro: "The Solana Devnet beta uses Zolana and an approvals program. Shared control does not give it the same anonymity as shielded Zcash.",
+    intro: "The Solana Devnet wallet uses Zolana and an approvals program. Shared control does not give it the same anonymity as shielded Zcash.",
     takeaway: "A private Solana transfer hides its amount on chain, but the group, payee owner key and paying device's fee address remain public.",
     diagram: "solana", diagramTitle: "Separate public and shielded funds", diagramNote: "A public device fee address pays network costs. A shielded transfer hides its amount, while its public program and owner identifiers remain linkable.",
     stages: ["Fund a public device fee address", "Coordinate approval for the group PDA", "Execute with public owner identifiers"],
     sections: [
-      section("What the beta adds", "A testnet wallet in the web app can use Zolana's shielded pool on Solana Devnet. A group public key identifies its approvals-program PDA, a program-derived address that holds the group's pool ownership. Each paying device also has a public SOL fee address.", "Device fee funds and shielded group holdings are different balances. Funding a fee address does not itself fund the shielded wallet. 'Add SOL' deposits from the device's fee address into the group's shielded balance. This deposit is signed by that device and does not require a group spending approval."),
+      section("Shared control on Solana", "A testnet wallet in the web app can use Zolana's shielded pool on Solana Devnet. A group public key identifies its approvals-program PDA, a program-derived address that holds the group's pool ownership. Each paying device also has a public SOL fee address.", "Device fee funds and shielded group holdings are different balances. Funding a fee address does not itself fund the shielded wallet. 'Add SOL' deposits from the device's fee address into the group's shielded balance. This deposit is signed by that device and does not require a group spending approval."),
       table("What Solana exposes", ["Operation / observer", "Visibility"], [
         ["Deposit", "Sender and deposited amount are public."],
         ["Private pool payment", "Amount is hidden on chain; the payee's owner key is public."],
@@ -171,10 +171,11 @@ export const chapters = [
   {
     id: "trust-limits", nav: "Trust & terms", title: "Know the boundaries before you rely on them.",
     intro: "The security model is a set of specific guarantees with specific assumptions. This final chapter brings them together.",
-    takeaway: "Independent devices, careful verification and recoverable shares matter as much as encryption. This release remains beta and unaudited.",
+    takeaway: "Independent devices, careful verification and recoverable shares work together to protect a shared wallet.",
     diagram: "trust", diagramTitle: "Several independent checks", diagramNote: "Identity comparison, local transaction inspection and threshold signing protect different boundaries. No single check replaces the others.",
     stages: ["Compare the setup identity", "Check the actual payment locally", "Require the agreed threshold"],
     sections: [
+      section("Audit status", "Zigs has not undergone an independent security audit. Software defects, compromised devices or failures in its dependencies can put funds at risk."),
       table("What a guarantee depends on", ["Property", "Necessary assumption / limit"], [
         ["Fewer than t seats cannot spend", "The signing implementation is correct and an attacker does not control enough distinct shares. Quantum-recovery caveats are separate."],
         ["The relay cannot read sealed content", "Wallet and conversation secrets stay confidential; trusted device code performs encryption."],
@@ -189,7 +190,7 @@ export const chapters = [
         "Protect each browser and preserve enough distinct encrypted backups, with their passphrases separate.",
         "Read recipients, amounts, fees and recipient memos on an honest approving device.",
         "Choose messaging channels and network services according to who may learn their metadata.",
-        "Use test assets for this beta. Do not interpret an illustration, audit absence or cap as a promise of safety.",
+        "Review the security disclosures and the assumptions of each network before choosing where to hold funds.",
       ]),
       { title: "The terms, in plain language", terms: [
         ["Seat", "A numbered participant identity with its own signing share. The app calls a seat a device. A seat is not necessarily one person."],

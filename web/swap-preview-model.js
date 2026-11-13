@@ -37,8 +37,6 @@ export const SWAP_STATUS_MAX_MS = 60_000; // the longest wait: after errors and 
 export const SWAP_GROUP_STATUS_MS = SWAP_STATUS_MAX_MS;
 export const SWAP_FINAL = Object.freeze(['SUCCESS', 'REFUNDED', 'FAILED']);
 const SWAP_WAITING = ['unknown', 'PENDING_DEPOSIT'];
-const OVER_CAP = 'The payout would take the wallet over the warning level for unaudited mainnet '
-  + 'wallets. Choose a smaller amount.';
 const STATUS_DOWN = 'The state of the swap is not available now. Zigs asks again.';
 const BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 // The ask of a live swap. Only a swap from SOL that the plain Solana wallet pays carries `group`,
@@ -259,22 +257,18 @@ export class SwapPreviewModel {
   }
   // The live swap: one at a time, in memory only. It lives apart from the quote: the expiry of
   // the quote, typing and stale() keep it. Only closeSwap() ends it. `where` holds the payout
-  // address (recipient), the name of the wallet, the refund address and, for a payout in ZEC, the
-  // room under the cap in zatoshi. A swap from ZEC pays SOL, so no ZEC cap applies. `group` says
+  // address (recipient), the name of the wallet and the refund address. `group` says
   // that the plain Solana wallet pays a swap from SOL (docs/sol-to-zec-group.md).
   async openSwap(where) {
     const s = this.value;
     if (s.live || s.phase !== 'REVIEW_OPEN') return false;
     const from = swapAsset(s.from).key;
-    const over = (zat) => from === 'sol' && BigInt(zat) > BigInt(where.room);
-    if (over(s.quote.amountOut)) return this.swapFailed(OVER_CAP);
     const asking = { asking: true };
     s.live = asking; s.swapError = ''; this.emit();
     const ask = swapAsk(s, from, where);
     const swap = await this.provider.openSwap(ask).catch((error) => error);
     if (s.live !== asking) return false;
     if (swap instanceof Error) return this.swapFailed(this.failure(swap));
-    if (over(swap.amountOut)) return this.swapFailed(OVER_CAP);
     s.live = liveOf(swap, from, ask.group === true, where.wallet);
     // The page must hide the address at the deadline, also when no read falls on it.
     const left = Math.max(0, Date.parse(swap.deadline) - this.clock.now());

@@ -42,7 +42,7 @@ const FAUCET_TEXT =
   "address that you paste and your IP address.";
 const TITLES = {
   createNonce: "Create the nonce account for the move",
-  transfer: "Move the beta funds to the program address",
+  transfer: "Move legacy funds to the program address",
   approve: "Private SOL payment",
   withdraw: "Public SOL withdrawal",
 };
@@ -50,7 +50,7 @@ const TITLES = {
 export const titleOf = (ss) => TITLES[decodeIntent(ss.intent)?.kind] ?? "Unknown proposal";
 const WHAT = {
   createNonce:
-    "Creates the account that the move of the beta funds needs. The proposing device pays its " +
+    "Creates the account that the legacy funds transfer needs. The proposing device pays its " +
     "rent, and the group key owns the account.",
   transfer:
     "Moves private SOL of the group key to the program address of the group, with a nonce. One " +
@@ -240,22 +240,6 @@ function addedLine(c) {
   return [c.host.el("p", { class: "small", "data-sol": "added" }, said, link), explorerNote(c)];
 }
 
-/**
- * The cap of a wallet that has one (mainnet), and how much SOL still fits by the last sync of both
- * identities. Add SOL checks it again with a fresh sync before any signature (addsol.js).
- */
-function capLine(c) {
-  if (c.wallet?.cap == null) return null;
-  const cap = BigInt(c.wallet.cap),
-    { lamports, oldBalance } = c.sync;
-  let text = "Private balance cap: " + solText(cap) + ".";
-  if (lamports !== undefined) {
-    const held = BigInt(lamports) + BigInt(oldBalance ?? "0");
-    text += " You can add up to " + solText(held < cap ? cap - held : 0n) + " now.";
-  }
-  return c.host.el("p", { class: "small", "data-sol": "cap" }, text);
-}
-
 function addSolCard(c, act, actions) {
   const { el } = c.host;
   const amount = el("input", {
@@ -277,7 +261,6 @@ function addSolCard(c, act, actions) {
         + "this device’s fee address to the group."
       )),
     el("p", { class: "small", "data-sol": "add-sol-text" }, ADD_TEXT),
-    capLine(c),
     seatLine(c, "add-sol-seat", "adds this SOL, from its fee address."),
     el(
       "div",
@@ -468,7 +451,7 @@ function moveCard(c, act, actions) {
   return el(
     "div",
     { class: "callout", style: "display:grid;gap:8px", "data-sol": "move" },
-    el("h3", {}, "Move the beta funds (one time)"),
+    el("h3", {}, "Move legacy funds (one time)"),
     el("p", { class: "small" }, MOVE_TEXT),
     el(
       "p",

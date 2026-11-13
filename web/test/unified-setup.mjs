@@ -682,13 +682,13 @@ function emptyInbox() {
 }
 // Receive names the network of the open wallet (D3); a received row says what and where.
 // Before the first sync, a mainnet wallet knows no balance, so the dialog shows no address.
-function noAddressBeforeSync() {
+function addressBeforeSync() {
   const gid = t.state.gid, saved = t.balCache[gid];
   delete t.balCache[gid];
   t.setChain(null);
   const unknown = textOf(receiveDialog());
-  assert.match(unknown, /Wait for the first sync to finish\./, "no balance: the dialog waits");
-  assert.doesNotMatch(unknown, /Copy address|Send only/, "and shows no address");
+  assert.match(unknown, /Copy address/, "a checked address is available before balance sync");
+  assert.doesNotMatch(unknown, /warning level|0\.5 ZEC/);
   t.balCache[gid] = saved;
 }
 function receiveTexts() {
@@ -755,7 +755,7 @@ function receiveTexts() {
       t.secrets = secretsWere;
     }
     t.state.g = { ...g, network: "mainnet" };
-    noAddressBeforeSync();
+    addressBeforeSync();
     t.setChain({ gid: t.state.gid, cw: {}, bal: { spendable: 1000000, pending: 0,
       height: 4500100 }, sent: new Set(), received: [] });
     const main = receiveDialog();
@@ -769,7 +769,7 @@ function receiveTexts() {
     t.setChain({ gid: t.state.gid, cw: {}, bal: { spendable: 60000000, pending: 0,
       height: 4500100 }, sent: new Set(), received: [] });
     const full = textOf(receiveDialog());
-    assert.doesNotMatch(full, /Copy address|Send only/, "no address at the cap");
+    assert.match(full, /Copy address/, "a large balance does not hide a verified address");
   } finally {
     globalThis.document = real;
     Object.defineProperty(globalThis, "navigator", share);
@@ -929,7 +929,7 @@ function inviteTexts() {
 }
 // The Activity list holds Zcash and Solana rows in one list, newest first. A wallet with a started
 // Solana part gets a "Show activity for" select; any other wallet shows its Zcash rows.
-const TITLES = ["Public SOL withdrawal", "Office rent", "Move the beta funds", "Received ZEC",
+const TITLES = ["Public SOL withdrawal", "Office rent", "Move legacy funds", "Received ZEC",
   "Received SOL"];
 const order = (text, titles) => titles.map((title) => text.indexOf(title));
 const sorted = (list) => list.every((n, i) => n >= 0 && (i === 0 || n > list[i - 1]));
@@ -980,7 +980,7 @@ function activityList(ctl) {
     assert.match(all, /Public SOL withdrawalSolana Devnet · Proposed by .*−0\.002SOL/,
       "a Solana payment row names the coin, the chain and the amount");
     assert.match(all, /Executed/, "a payment that executed says so");
-    assert.match(all, /Move the beta funds.*Failed on chain/, "a transaction that failed on chain");
+    assert.match(all, /Move legacy funds.*Failed on chain/, "a transaction that failed on chain");
     assert.match(all, /Received SOLSolana Devnet · slot\u00a04\D?500\D?123Added by .*\+0\.02SOL/,
       "a received Solana row says what arrived and on which chain");
     assert.match(all, /Office rentZcash Testnet · Proposed by /, "a Zcash row names its chain");
@@ -1021,7 +1021,7 @@ function activityOverview(ctl, at, solRows) {
     "Overview has no Solana history rows");
   t.ui.tab = "activity";
   t.ui.chainFilter = "all";
-  assert.match(pageText(), /Public SOL withdrawal.*Office rent.*Move the beta funds/,
+  assert.match(pageText(), /Public SOL withdrawal.*Office rent.*Move legacy funds/,
     "Activity keeps the former recent-history rows");
   assert.match(pageText(),
     /SOL that other people send to the wallet does not show here/,
@@ -1238,7 +1238,7 @@ function activityBadges(ctl) {
   assert.match(late, /−0\.002SOLExpired$/, "a payment past its expiry reads Expired");
   assert.match(rowText("pn"), /Expired$/, "so does a nonce proposal past its window");
   assert.match(failed, /Failed$/);
-  assert.match(rowText("pv"), /Move the beta funds.*0\.003SOLFailed on chain$/);
+  assert.match(rowText("pv"), /Move legacy funds.*0\.003SOLFailed on chain$/);
   assert.doesNotMatch(rowText("pv") + rowText("pg"), /[−+]/, "the move of the funds has no sign");
   assert.match(rowText("pg"), /Signed, sending$/);
   // An Add SOL is SOL that arrived only when it is confirmed.
@@ -1510,23 +1510,12 @@ assert.equal(solPlanned(null), false);
   assert.match(pageText(), /Step 5 of 5: Back up\./, "the setup has five steps");
   assert.doesNotMatch(pageText(), /Funding|of 6/, "the funding demo is no stage of the setup");
   assert.equal(buttonOf("Continue to funding"), null, "no button of the setup says funding");
-  assert.ok(entry(), "the creator device is offered the funding demo");
-  assert.equal(textOf(entry()), "See the funding demo (no payment)",
-    "the funding demo is a labelled extra");
+  assert.equal(entry(), null, "production setup does not offer a funding demo");
   await press("Open Overview");
   assert.equal(guided.guidedEnabled(one), false, "Open Overview ends the guide");
   assert.equal(demoOpen(), null, "and opens the wallet, not the funding demo");
   assert.match(pageText(), /Your assets/, "Overview shows");
   assert.doesNotMatch(pageText(), /Funding checkout demo/, "and no banner of the funding demo");
-  const two = await finished("Finish two");
-  await press("See the funding demo (no payment)");
-  assert.equal(guided.guidedEnabled(two), false, "the funding demo entry ends the guide too");
-  assert.match(pageText(), /Funding checkout demo\..*Demo, no payment/s, "the funding demo opens");
-  assert.doesNotMatch(pageText(), /Back up your key share|This browser can forget it/,
-    "the funding page omits the automatic backup warning");
-  assert.doesNotMatch(pageText(), /guided-progress|Step \d of/, "and draws no stage of the setup");
-  await press("Finish later");
-  assert.match(pageText(), /Funding checkout demo.*Your assets/s, "Finish later opens Overview");
   const three = await finished("Finish three");
   const held = t.secrets[three + ":1"];
   delete t.secrets[three + ":1"];
@@ -1614,26 +1603,23 @@ assert.match(pageText(), /Private setup invitation2 devices to join/, "two open 
   const real = globalThis.document, nav = Object.getOwnPropertyDescriptor(globalThis, "navigator");
   globalThis.document = { createElement: () => new Rec(), createElementNS: () => new Rec(),
     createTextNode: (text) => ({ text }) };
-  let button;
-  try {
-    button = copyBtn(inviteLink(gid), "Copy link");
-  } finally {
-    globalThis.document = real;
-  }
   const opened = [], disclosure = { setAttribute: (k) => opened.push(k) };
   const section = { querySelector: (q) => (q === "details[data-link]" ? disclosure : null) };
-  const target = { textContent: "Copy link", closest: (q) => (q === "section" ? section : null) };
   Object.defineProperty(globalThis, "navigator", { configurable: true,
     value: { clipboard: { writeText: async () => { throw new Error("denied"); } } } });
   try {
-    await button.on.click({ currentTarget: target });
+    const button = copyBtn(inviteLink(gid), "Copy link");
+    button.closest = (q) => (q === "section" ? section : null);
+    await button.on.click({ currentTarget: button });
+    assert.deepEqual(opened, ["open"], "a failed copy opens the link to select");
+    assert.equal(textOf(button), "Select and copy");
   } finally {
+    globalThis.document = real;
     if (nav) Object.defineProperty(globalThis, "navigator", nav);
     else delete globalThis.navigator;
   }
-  assert.deepEqual(opened, ["open"], "a failed copy opens the link to select");
-  assert.equal(target.textContent, "Select and copy");
 }
+
 {
   const cid = "c0ffee00c0ffee00c0ff";
   chats.list[cid] = { key: "ab".repeat(32), member: "m", at: Date.now() };
@@ -1659,7 +1645,7 @@ assert.match(pageText(), /Private setup invitation2 devices to join/, "two open 
     delete chats.list[cid];
   }
 }
-assert.match(SOL_DISCLOSURE, /public program address.*fee address.*Helius.*no audit/);
+assert.match(SOL_DISCLOSURE, /public program address.*fee address.*Helius.*Program upgrades/);
 assert.ok(SOL_DISCLOSURE.includes(PUBLIC_TEXT), "the choice says what the Solana tab says");
 assert.match(SOL_DISCLOSURE, /Every device sees the whole Solana history/);
 // A browser with no seat of the wallet gets the join card, with the disclosure before the seat.
@@ -2126,7 +2112,7 @@ async function walkSteps(fields, times, fresh = true) {
   t.sol.ctl.docs = null;
   const broken = pageText();
   t.sol.ctl.docs = docsKept;
-  assert.match(broken, /Portfolio balance.*Shielded ZEC/s,
+  assert.match(broken, /Wallet balance.*Shielded ZEC/s,
     "the Overview still shows its Zcash asset");
   assert.doesNotMatch(broken, /cannot read/);
   assert.doesNotMatch(pageText(), /Solana is still setting up/,
