@@ -11,10 +11,13 @@ const out = resolve(process.env.SOL_RECEIVE_QA_DIR || "/tmp/zigs-solana-receive-
 mkdirSync(out, { recursive: true });
 const server = createServer((req, res) => {
   const path = new URL(req.url, "http://localhost").pathname;
+  if (path === "/network-privacy-demo-entry.js") return res.writeHead(200,
+    { "Content-Type": "text/javascript" }).end("// Renderer QA: no wallet boot.");
   const file = join(root, path === "/" ? "index.html" : path);
   if (!file.startsWith(root + "/") || !existsSync(file)) return res.writeHead(404).end();
   let body = readFileSync(file);
-  if (path === "/") body = body.toString().replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "")
+  if (path === "/") body = body.toString().replace(/<script\b[^>]*>[\s\S]*?<\/script>/g,
+    (script) => script.includes("/openglass-dist/app.js") ? script : "")
     .replace(/<link[^>]+rel="(?:modulepreload|preload)"[^>]*>/g, "");
   res.writeHead(200, { "Content-Type": ({ ".js": "text/javascript", ".mjs": "text/javascript",
     ".css": "text/css", ".html": "text/html", ".woff2": "font/woff2", ".svg": "image/svg+xml"
@@ -70,6 +73,7 @@ try {
   page.on("pageerror", (e) => errors.push(e.message));
   for (const mode of ["plain", "private", "devnet"]) {
     await page.goto(origin);
+    await page.locator("#app").waitFor({ state: "attached" });
     await page.evaluate(async (mode) => {
       const { el, qrBox, receiveAddress } = await import("/app-dom.js");
       const { solView, solDetailsView } = await import("/sol/view.js");

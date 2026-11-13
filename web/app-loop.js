@@ -305,6 +305,8 @@ export function draw() {
   if (view !== previousView || top.length || app.querySelector(".scrim"))
     app.replaceChildren(...(header ? [header] : []), view, ...top, appFoot());
   else placeWalletHeader(app, header);
+  // Commit the shared React presentation before measuring, restoring fields, or moving focus.
+  globalThis.zigsGlass?.flush();
   presentPrivacyStatus(document);
   announceApprovalProgress(document);
   keyControls(shell);

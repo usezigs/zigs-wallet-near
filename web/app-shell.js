@@ -106,6 +106,7 @@ const SECTION_ICONS = {
 export function sectionNav(sections, selected) {
   const [now] = selected === undefined ? currentSection(sections) : [selected];
   const item = ([id, label, count]) => el("button", {
+    "data-glass": "button",
     class: "side-item" + (id === now ? " active" : ""), type: "button", id: "tab-" + id,
     "data-key": "tab-" + id, "aria-current": id === now ? "page" : null,
     onclick: () => {
@@ -403,6 +404,7 @@ export function lobby() {
     },
   });
   const restoreBtn = (cls) => el("button", {
+    "data-glass": "button",
     class: cls, type: "button", onclick: () => restoreInput.click(),
   }, "Recover access");
   const listed = state.groups.length > 0;
@@ -592,14 +594,16 @@ function walletRow(g, tab = "overview") {
 
 function welcome(off, restoreLink) {
   const wallets = state.groups.length;
-  const learn = el("button", { class: "btn ghost home-learn", id: "home-how", "data-key": "home-how",
+  const learn = el("button", { "data-glass": "button", class: "btn ghost home-learn", id: "home-how", "data-key": "home-how",
     type: "button", "aria-haspopup": "dialog", onclick: openHowZigsWorks }, "How Zigs works");
   const create = el("button", {
+    "data-glass": "button",
     class: "btn" + (wallets ? "" : " primary") + " lg", type: "button", ...off.attrs,
     onclick: () => { openCreate(); render(); },
   }, wallets ? "Create another" : "Create wallet",
   el("span", { class: "home-action-arrow", "aria-hidden": "true" }));
   const join = el("button", {
+    "data-glass": "button",
     class: "btn lg", type: "button", "aria-expanded": ui.joinOpen ? "true" : "false",
     onclick: toggleJoin,
   }, "Join a wallet", el("span", { class: "home-action-arrow home-arrow-forward", "aria-hidden": "true" }));

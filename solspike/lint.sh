@@ -57,7 +57,8 @@ PY=(solspike/tools/*.py)
 # The page modules first: no unbound name, no assignment of an import, no missing named import.
 # This is the only check for an import that a function body needs and that no test runs. The full
 # rules below do not apply to the page modules yet: they keep the findings of the old app.js.
-"$OX" -c solspike/oxlintrc-page.json --deny-warnings web/app.js web/app-*.js || exit 1
+"$OX" -c solspike/oxlintrc-page.json --deny-warnings web/app.js web/app-*.js \
+  web/openglass/*.jsx web/build.mjs web/openglass/browser-check.mjs || exit 1
 "$OX" -c solspike/oxlintrc.json --deny-warnings "${JS[@]}" || exit 1
 python3 -I solspike/tools/check_py.py "${PY[@]}" || exit 1
 long=$(awk 'length($0)>100 {print FILENAME":"FNR": "length($0)}' "${JS[@]}" "${PY[@]}" \

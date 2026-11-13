@@ -42,7 +42,7 @@ function notificationSetting() {
   return settingsRow("Notifications", description,
     el("div", { class: "preference-notifications" },
       el("span", { class: "preference-state", role: "status" }, status),
-      supported ? el("button", { class: "btn sm", type: "button", onclick: toggle,
+      supported ? el("button", { "data-glass": "button", class: "btn sm", type: "button", onclick: toggle,
         disabled: notificationPending || permission === "denied" && !ui.notify,
         "aria-label": ui.notify ? "Turn off notifications in Zigs" : "Enable notifications",
         "aria-describedby": notificationError ? "settings-notification-error" : null,

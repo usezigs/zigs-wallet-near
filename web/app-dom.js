@@ -19,6 +19,8 @@ import { focusAfter, react, render } from "./app-loop.js";
 export const netBadge = (g) => el("span", { class: "badge plain" }, netOf(g).label);
 
 export const el = (tag, attrs = {}, ...kids) => {
+  const glass = globalThis.zigsGlass?.element(tag, attrs, kids);
+  if (glass) return glass;
   const n = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
     if (v == null || v === false) continue;
@@ -207,6 +209,12 @@ export function nameField(id, to = "", initial = undefined) {
   let saved = ""; try { saved = localStorage.getItem("zf-name") || ""; } catch {}
   const save = (ev) => { try { localStorage.setItem("zf-name", ev.target.value.trim()); } catch {} };
   const hint = to ? "Any nickname · shown to " + to : "For example: Ana's phone";
+  if (globalThis.zigsGlass) return globalThis.zigsGlass.field({
+    id, value: initial ?? saved, maxlength: "40", autocomplete: "nickname",
+    placeholder: hint, oninput: save,
+  }, to ? "Your name" : "This device's label", to
+    ? "Shown to " + to + ". A nickname is fine."
+    : "Use a label you’ll recognize, such as Everyday phone. A label does not verify identity.");
   return el("label", { class: "field" }, el("span", {}, to ? "Your name" : "This device's label"),
     el("input", { class: "input", id, value: initial ?? saved, maxlength: "40", autocomplete: "nickname",
       placeholder: hint, "aria-describedby": id + "-help", oninput: save }),
