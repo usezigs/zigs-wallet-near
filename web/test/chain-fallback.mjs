@@ -45,7 +45,11 @@ class FakeWallet {
     return new FakeWallet(async () => BAL, url);
   }
   constructor(script, url) { Object.assign(this, { script, url, freed: false, calls: 0 }); }
-  sync(progress) { this.calls++; this.progress = progress; return this.script(progress); }
+  sync(progress, pause) {
+    this.calls++;
+    this.progress = progress;
+    return this.script(progress, pause);
+  }
   received() { return "[]"; }
   sent() { return "[]"; }
   memoNeeds() { return "[]"; }
@@ -155,6 +159,27 @@ slow();
 assert.equal(d.error, null, "no stall while batches come");
 assert.equal(d.bal.height, 1000);
 console.log("ok  a long sync that gets blocks goes on");
+
+// ── A batch of heavy blocks that scans longer than 60 s goes on: its pauses prove that the
+// stream still sends blocks, and they let the stall timer run ──
+fast();
+const busy = (ms) => { const end = performance.now() + ms; while (performance.now() < end); };
+const heavy = new FakeWallet(async (progress, pause) => {
+  progress(JSON.stringify({ done: 0 }));
+  const end = realNow() + 1500;   // more than the scaled 60 s, with no batch in between
+  while (realNow() < end) {
+    busy(5);   // the scan of one block
+    await pause();
+  }
+  return BAL;
+});
+const h = { ...c, cw: heavy, url: await pickServer(net), error: null };
+t.setChain(h);
+await runSync(h);
+slow();
+assert.equal(h.error, null, "no stall while the engine scans blocks");
+assert.equal(h.bal.height, 1000);
+console.log("ok  a batch of heavy blocks that scans longer than 60 s goes on");
 
 // ── A tab that comes back syncs when its last sync is older than 15 s ──
 const realDoc = globalThis.document;

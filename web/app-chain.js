@@ -2,7 +2,7 @@
 import { finite } from "./util.js";
 import { log, state } from "./app-state.js";
 import {
-  fmtZec, J, readLocal, release, S, short, track, withTimeout, writeLocal,
+  fmtZec, J, pacer, readLocal, release, S, short, track, withTimeout, writeLocal,
 } from "./app-kit.js";
 import { Z } from "./app-engine.js";
 import { gkeys, idb, loadSnapshot, saveSnapshot, snapId } from "./app-keystore.js";
@@ -199,7 +199,9 @@ function serverFailed(c) {
 }
 
 // A sync that gets no new blocks for SYNC_STALL_MS stopped: the stream of the server stalled
-// (S9). The wait starts again with each batch, so a long first sync goes on.
+// (S9). The wait starts again with each batch, so a long first sync goes on. It also starts again
+// when the engine gives the thread back between two blocks (pacer): a batch of heavy blocks can
+// scan for longer than SYNC_STALL_MS, and the timer now runs in its pauses.
 async function syncOrStall(c, cw) {
   let timer, stop;
   const stalled = new Promise((_, rej) => { stop = rej; });
@@ -213,7 +215,13 @@ async function syncOrStall(c, cw) {
     wait();
     if (c.cw === cw && c.stalled !== cw) { c.prog = J(p); render(); }
   };
-  try { return await Promise.race([track(cw, cw.sync(progress)), stalled]); }
+  const pace = pacer();
+  const pause = () => {
+    const yielded = pace();
+    if (yielded) wait();
+    return yielded;
+  };
+  try { return await Promise.race([track(cw, cw.sync(progress, pause)), stalled]); }
   finally { clearTimeout(timer); }
 }
 // The engine may still use the stalled wallet object, so release frees it only after its call. It

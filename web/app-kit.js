@@ -20,6 +20,24 @@ export function withTimeout(promise, ms, what) {
 
 export const isObj = (x) => !!x && typeof x === "object";
 
+// The pause function of a sync (ChainWallet.sync). The engine scans the blocks that the stream
+// already holds with no wait, and asks after each block. Past SLICE_MS of work the answer waits
+// for the next task, so input and frames run in between. A message, not a timer: a hidden tab
+// runs a timer at most once a minute, and the sync would stall.
+export const SLICE_MS = 30;
+const nextTask = () => new Promise((done) => {
+  const { port1, port2 } = new MessageChannel();
+  port1.onmessage = () => { port1.close(); done(); };
+  port2.postMessage(null);
+});
+export function pacer() {
+  let since = performance.now();
+  return () => {
+    if (performance.now() - since < SLICE_MS) return undefined;
+    return nextTask().then(() => { since = performance.now(); });
+  };
+}
+
 // The engine calls that run on each wallet object (ZEC-16). wasm-bindgen holds the object for the
 // time of an async call, and a free() at that time throws and leaves a dead wrapper.
 const callsOn = new WeakMap(), released = new WeakSet();

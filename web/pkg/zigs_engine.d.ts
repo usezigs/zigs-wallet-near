@@ -77,7 +77,11 @@ export class ChainWallet {
      * The sync state as JSON: notes, scan position and note commitment tree.
      */
     snapshot(): string;
-    sync(on_progress: Function): Promise<string>;
+    /**
+     * Scans to the tip. `on_progress` gets each batch. `pause`, if given, is asked after each
+     * block: a Promise that it returns holds the sync until it settles (pacer in app-kit.js).
+     */
+    sync(on_progress: Function, pause?: Function | null): Promise<string>;
 }
 
 declare class IntoUnderlyingByteSource {
@@ -260,7 +264,7 @@ export interface InitOutput {
     readonly chainwallet_sent: (a: number) => [number, number];
     readonly chainwallet_sessionState: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
     readonly chainwallet_snapshot: (a: number) => [number, number, number, number];
-    readonly chainwallet_sync: (a: number, b: any) => any;
+    readonly chainwallet_sync: (a: number, b: any, c: number) => any;
     readonly dkgEcho: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly dkgPart1: (a: number, b: number, c: number) => [number, number, number, number];
     readonly dkgPart2: (a: number, b: number, c: number, d: number) => [number, number, number, number];

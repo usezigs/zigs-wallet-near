@@ -876,9 +876,30 @@ async fn first_sync(state: &RefCell<Inner>) -> R<()> {
     state.borrow_mut().start(&ts)
 }
 
+/// Asks `pause` after a block, and waits for the Promise that it returns, if any. The stream
+/// hands over the blocks that it already holds with no wait, so without a pause a fast server
+/// held the page for seconds. No borrow of the wallet lasts over the wait.
+/// ponytail: a block is never split, so one block with many actions (about 0.5 ms each) is still
+/// one task. Upgrade path: the sync in the engine worker.
+async fn breathe(pause: Option<&js_sys::Function>) -> R<()> {
+    let Some(pause) = pause else { return Ok(()) };
+    let answer = pause.call0(&JsValue::NULL).map_err(|_| "the pause callback threw".to_string())?;
+    if let Ok(wait) = answer.dyn_into::<js_sys::Promise>() {
+        let failed = |_| "the pause of the sync failed".to_string();
+        wasm_bindgen_futures::JsFuture::from(wait).await.map_err(failed)?;
+    }
+    Ok(())
+}
+
 /// Reads blocks `next` to `end` into the wallet. True if the wallet rewound: the blocks did not
 /// chain onto its tip, so the caller must ask again from the new `synced + 1`.
-async fn apply_range(state: &RefCell<Inner>, endpoint: &str, next: u32, end: u32) -> R<bool> {
+async fn apply_range(
+    state: &RefCell<Inner>,
+    endpoint: &str,
+    next: u32,
+    end: u32,
+    pause: Option<&js_sys::Function>,
+) -> R<bool> {
     let range = BlockRange {
         start: Some(block_id(next)),
         end: Some(block_id(end)),
@@ -889,13 +910,18 @@ async fn apply_range(state: &RefCell<Inner>, endpoint: &str, next: u32, end: u32
         if state.borrow_mut().apply_block(block)? == Step::Rewound {
             return Ok(true);
         }
+        breathe(pause).await?;
     }
     let none = "lightwalletd returned no blocks for the requested range";
     ensure(state.borrow().synced >= next, none)?;
     Ok(false)
 }
 
-async fn sync_to_tip(state: &RefCell<Inner>, on_progress: &js_sys::Function) -> R<()> {
+async fn sync_to_tip(
+    state: &RefCell<Inner>,
+    on_progress: &js_sys::Function,
+    pause: Option<&js_sys::Function>,
+) -> R<()> {
     if state.borrow().synced == 0 {
         first_sync(state).await?;
     }
@@ -908,7 +934,7 @@ async fn sync_to_tip(state: &RefCell<Inner>, on_progress: &js_sys::Function) -> 
         if next > tip {
             return Ok(());
         }
-        if apply_range(state, &endpoint, next, tip.min(next + BATCH - 1)).await? {
+        if apply_range(state, &endpoint, next, tip.min(next + BATCH - 1), pause).await? {
             rewinds += 1;
             let flapping = "lightwalletd keeps changing its chain; try again later";
             ensure(rewinds <= REORG_DEPTH, flapping)?;
@@ -921,10 +947,14 @@ async fn sync_to_tip(state: &RefCell<Inner>, on_progress: &js_sys::Function) -> 
     }
 }
 
-async fn sync(state: &RefCell<Inner>, on_progress: &js_sys::Function) -> R<String> {
+async fn sync(
+    state: &RefCell<Inner>,
+    on_progress: &js_sys::Function,
+    pause: Option<&js_sys::Function>,
+) -> R<String> {
     ensure(!state.borrow().busy, "a sync is already running")?;
     state.borrow_mut().busy = true;
-    let r = sync_to_tip(state, on_progress).await;
+    let r = sync_to_tip(state, on_progress, pause).await;
     state.borrow_mut().busy = false;
     r?;
     Ok(state.borrow().balance())
@@ -1176,8 +1206,14 @@ impl ChainWallet {
         super::js(self.0.borrow().snapshot())
     }
 
-    pub async fn sync(&self, on_progress: js_sys::Function) -> Result<String, JsError> {
-        super::js(sync(&self.0, &on_progress).await)
+    /// Scans to the tip. `on_progress` gets each batch. `pause`, if given, is asked after each
+    /// block: a Promise that it returns holds the sync until it settles (pacer in app-kit.js).
+    pub async fn sync(
+        &self,
+        on_progress: js_sys::Function,
+        pause: Option<js_sys::Function>,
+    ) -> Result<String, JsError> {
+        super::js(sync(&self.0, &on_progress, pause.as_ref()).await)
     }
 
     pub fn balance(&self) -> String {

@@ -104,7 +104,7 @@ TESTS=(messaging-presentation messaging-cost-review messaging-account-view premi
   chain-fallback smoke
   contrast orientation overview setup-stage approvals recovery security-dashboard payment-model
   plain-worker
-  sol-nonce-tabs nonce-locks no-storage)
+  sol-nonce-tabs nonce-locks no-storage sync-pause)
 HELPERS=(passkey-fixture sol-rig sol-setup sol-chain sol-vector sol-fixture sol-pay-rig page
   closure)
 # The tests that take more than 20 s, slowest first, then the server test. Each must be in TESTS.
