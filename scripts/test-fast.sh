@@ -25,7 +25,7 @@ FAST="optional-passkey demo-check chain-fallback chat backup-check graph persona
   sol-plain-view sol-plain-load sol-plain-security sol-plain-review sol-plain-direct
   sol-plain-sessions sol-plain-ui
   smoke help contrast orientation overview portfolio setup-stage approvals recovery security-dashboard
-  payment-model
+  payment-model error-feedback proposal-history
   plain-worker
   cf/test/gate sol-nonce-tabs nonce-locks no-storage sync-pause
   solspike/test/pool-run.test solspike/test/policy.test solspike/test/plain-equiv.test

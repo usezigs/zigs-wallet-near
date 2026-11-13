@@ -1021,7 +1021,7 @@ try {
   assert.equal(copy.hidden, true, 'no copy for a state that Zigs does not know');
   state = stateOf('SUCCESS', { destinationTxs: ['ab'.repeat(32)] });
   await clock.tick(SWAP_STATUS_MS);
-  assert.match(text(deposit), /Status: Done\. NEAR Intents sent the ZEC to the wallet\./);
+  assert.match(text(deposit), /Status: NEAR Intents reports the ZEC payout was sent\./);
   assert.ok(text(deposit).includes('Zcash transaction' + 'ab'.repeat(32)));
   press(deposit, 'Done');
   assert.equal(deposit.hidden, true, 'Done ends final swap tracking');
@@ -1126,21 +1126,31 @@ try {
     assert.ok(text(deposit).includes(row), 'the deposit screen from ZEC shows ' + row.slice(0, 40));
   }
   assert.equal(named(deposit, 'Copy address'), undefined, 'the wallet pays: no copy button');
-  press(deposit, 'Propose the payment');
+  press(deposit, 'Review deposit payment');
   assert.deepEqual(paid, [zecSwap], 'the button opens Send with the deposit of the swap');
   // Another wallet opens while the deposit shows: its addresses are not the ones of the swap.
   swap.setContext({ ...context, zec: { ...zecSource, recipient: DEPOSIT } });
-  assert.equal(named(deposit, 'Propose the payment').disabled, true,
+  assert.equal(named(deposit, 'Review deposit payment').disabled, true,
     'no payment from another wallet');
-  press(deposit, 'Propose the payment');
+  press(deposit, 'Review deposit payment');
   assert.equal(paid.length, 1, 'a click pays nothing');
   swap.setContext(context);
+  let openedProposal = 0;
+  swap.setContext({ ...context, zec: { ...zecSource, proposal: () => ({ id: 'existing-deposit',
+    expiryHeight: 5000100, open: () => { openedProposal++; } }) } });
+  press(deposit, 'Open deposit payment');
+  assert.equal(openedProposal, 1, 'the matching deposit opens its existing proposal');
+  assert.equal(paid.length, 1, 'opening an existing deposit never creates another payment');
+  assert.match(text(deposit), /Zcash transaction expiry: block 5000100/);
+  swap.setContext(context);
+  assert.equal(named(deposit, 'Review deposit payment').disabled, true,
+    'a recorded proposal that has not loaded cannot be recreated');
   state = stateOf('REFUNDED');
   await swap.model.readSwap(swap.model.value.live);
-  assert.match(text(deposit), /Refunded\. NEAR Intents sent the ZEC back to the transparent/);
+  assert.match(text(deposit), /NEAR Intents reports a ZEC refund\. Check the transparent balance/);
   state = stateOf('SUCCESS');
   await swap.model.readSwap(swap.model.value.live);
-  assert.match(text(deposit), /Done\. NEAR Intents sent the SOL to the Solana address/);
+  assert.match(text(deposit), /NEAR Intents reports the SOL payout was sent\./);
   press(deposit, 'Done');
   // A wallet that is not ready: the reason, and no deposit address.
   const waiting = createSwapPreview({ ...context, zec: { reason: 'The refund address of this '
@@ -1492,13 +1502,34 @@ try {
     refundTo: REFUND, deadline: saved.swap.deadline, plain: true } });
   await settle();
   removeFails = true; press(deposit, 'Done');
-  assert.match(text(deposit), /saved swap could not be removed/, 'a failed cleanup remains visible');
+  assert.match(text(deposit), /recovery record could not be archived/, 'a failed archive remains visible');
   assert.ok(view.model.value.live && stored, 'failed cleanup retains final tracking');
   removeFails = false; press(deposit, 'Done');
   assert.equal(view.model.value.live, null); assert.equal(stored, null);
   const broken = createSwapPreview({ ...context, recovery: { load() { throw Error('corrupt'); } } }, provider, fakeClock());
   assert.ok(!text(broken.element).includes(DEPOSIT), 'corrupt recovery exposes no deposit');
   console.log('ok  encrypted recovery adapter: verification, no auto-payment, duplicate guard and wallet scope');
+  // Done retains failed records, and reopening a history item only reads current status.
+  const archived = [];
+  let active = { ...saved, group: false, progress: { status: 'FAILED', originTxs: ['source-tx'], destinationTxs: [] } };
+  const durable = { load: () => active && structuredClone(active), save: r => { active = structuredClone(r); },
+    history: () => structuredClone(archived), remove: () => { archived.unshift(active); active = null; } };
+  let historyReads = 0;
+  const historyProvider = { openSwap() { throw Error('history cannot open a swap'); },
+    swapStatus: async () => { historyReads++; return { status: 'FAILED', originTxs: ['source-tx'], destinationTxs: [],
+      swap: { from: 'sol', to: 'zec', amountIn: saved.swap.amountIn, amountOut: saved.swap.amountOut,
+        recipient: UA, refundTo: REFUND, deadline: saved.swap.deadline, plain: true } }; } };
+  const historyView = createSwapPreview({ ...context, recovery: durable }, historyProvider, fakeClock());
+  await settle();
+  press(historyView.element.querySelector('#swap-deposit'), 'Done');
+  assert.equal(active, null);
+  assert.equal(archived[0].progress.status, 'FAILED', 'failed outcome remains recorded after Done');
+  const history = walk(historyView.element, (n) => Object.hasOwn(n.attrs, 'data-swap-history'))[0];
+  assert.ok(text(history).includes('source-tx'));
+  press(history, 'Check current status'); await settle();
+  assert.equal(historyReads, 2, 'history checks status without opening or paying');
+  assert.equal(historyView.model.value.live.status.status, 'FAILED');
+  historyView.model.closeSwap();
 } finally { globalThis.document = realDocument; }
 [globalThis.setTimeout, globalThis.clearTimeout] = realTimers;
 // The page shell: the saved theme applies before the first paint, and the demo entry cannot stop

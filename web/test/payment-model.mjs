@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import {
   DRAFT_MS, draftLive, draftOf, emptyForm, headlineFacts, RESEND_MS, REVIEW_MS, reviewFresh,
-  stageHeadline,
+  stageHeadline, paymentNextStep,
 } from "../payment-model.js";
 
 const at = 1_800_000_000_000;
@@ -128,4 +128,21 @@ assert.equal(all.filter((h) => /signer|seat|passkey|USD|Swap|USDC/i.test(h.title
   .length, 0, "device wording");
 assert.equal(new Set(all.map((h) => h.detail)).size, all.length, "each fact has its own detail");
 console.log("ok  the headline of a payment");
+assert.match(paymentNextStep("approved", { proposer: "device 2 (Tablet)" }),
+  /Keep device 2 \(Tablet\) open/);
+assert.match(paymentNextStep("signing", { pendingSigners: ["device 1", "device 3"] }),
+  /device 1, device 3 to sign/);
+assert.doesNotMatch(paymentNextStep("signing"), /combined|finished/,
+  "missing participant facts do not imply progress");
+assert.match(paymentNextStep("waiting", { remaining: 2 }), /2 more device approvals/);
+assert.match(paymentNextStep("signed"), /Build proof.*does not send/);
+assert.match(paymentNextStep("resend"), /same transaction.*separate payment/);
+for (const stage of ["held", "sendFailed", "error", "late", "sentUnsynced"])
+  assert.match(paymentNextStep(stage), /Check Activity.*may still reach the chain/,
+    "uncertainty does not invite a new payment");
+for (const stage of ["mine", "approved", "signing", "proved"])
+  assert.match(paymentNextStep(stage, { checking: true }), /^Checking payment data/,
+    "checks win over actionable guidance");
+assert.equal(paymentNextStep("rejected"), "",
+  "security refusals get no competing action instruction");
 console.log("payment-model: ok");

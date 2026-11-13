@@ -1,0 +1,290 @@
+{
+  "date": "2026-11-13",
+  "branch": "codex/near/ux",
+  "baseline": "Near@8c0218b",
+  "phase": "Approved UX implementation after historical copy phase",
+  "tests": [
+    {
+      "test": "app",
+      "exit": 0,
+      "seconds": 66.5
+    },
+    {
+      "test": "approvals",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "backup-check",
+      "exit": 0,
+      "seconds": 1.5
+    },
+    {
+      "test": "error-feedback",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "guided-create",
+      "exit": 0,
+      "seconds": 0.7
+    },
+    {
+      "test": "guided-setup",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "help",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "mainnet-on",
+      "exit": 0,
+      "seconds": 1.7
+    },
+    {
+      "test": "messaging-cost-review",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "near-quote",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "nonce-locks",
+      "exit": 0,
+      "seconds": 6.0
+    },
+    {
+      "test": "optional-passkey",
+      "exit": 0,
+      "seconds": 5.0
+    },
+    {
+      "test": "overview",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "passkey-setup",
+      "exit": 0,
+      "seconds": 0.2
+    },
+    {
+      "test": "payment-model",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "personal",
+      "exit": 0,
+      "seconds": 1.2
+    },
+    {
+      "test": "proposal-history",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "recipients",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "recovery",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "requests",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "security-dashboard",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "sol-app",
+      "exit": 0,
+      "seconds": 45.6
+    },
+    {
+      "test": "sol-config",
+      "exit": 0,
+      "seconds": 0.9
+    },
+    {
+      "test": "sol-docs",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "sol-limits",
+      "exit": 0,
+      "method": "Separate final rerun passed; see evidence sol-limits.log"
+    },
+    {
+      "test": "sol-pay-look",
+      "exit": 0,
+      "seconds": 46.7
+    },
+    {
+      "test": "sol-plain-review",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "sol-plain-ui",
+      "exit": 0,
+      "seconds": 2.7
+    },
+    {
+      "test": "sol-private",
+      "exit": 0,
+      "seconds": 7.0
+    },
+    {
+      "test": "sol-receive",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "sol-sessions",
+      "exit": 0,
+      "seconds": 34.6
+    },
+    {
+      "test": "sol-wallet-page",
+      "exit": 0,
+      "seconds": 3.4
+    },
+    {
+      "test": "swap-preview",
+      "exit": 0,
+      "method": "Separate final rerun passed; see evidence swap-preview.log"
+    },
+    {
+      "test": "swap-recovery",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "unified-setup",
+      "exit": 0,
+      "method": "Separate final rerun passed; see evidence unified-setup.log"
+    },
+    {
+      "test": "wallet-description",
+      "exit": 0,
+      "seconds": 0.0
+    }
+  ],
+  "testScriptsPassed": 36,
+  "build": {
+    "command": "node web/build.mjs",
+    "exit": 0
+  },
+  "diffCheck": {
+    "command": "git diff --check",
+    "exit": 0
+  },
+  "browser": {
+    "newStates": {
+      "command": "node web/openglass/ux-browser.mjs",
+      "exit": 0,
+      "views": 24,
+      "widths": [
+        320,
+        390,
+        1440
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "pageErrors": [],
+      "horizontalOverflow": false,
+      "mobileCapturesVisuallyInspected": 4
+    },
+    "existingShell": {
+      "command": "node web/openglass/browser-check.mjs",
+      "exit": 0
+    },
+    "localEvidence": "/private/tmp/zigs-near-ux-pass2-evidence"
+  },
+  "unchangedSinceCopyPhase": [
+    {
+      "file": "web/app-payments.js",
+      "sha256": "3067f90fec5e52974a6bf1c1f5e45b9fbec46e581edef7798bc1a07b9aa983f3"
+    },
+    {
+      "file": "web/app-filter.js",
+      "sha256": "00d7eba4c20b04c9ddc1e45e5b2b29250023582f53c0b73a3148eaffc5cee93c"
+    },
+    {
+      "file": "web/app-keystore.js",
+      "sha256": "67cfeb3ca9e7b9ed38e91bc2e7743b3380e5d800850addf68a3719b443194c91"
+    },
+    {
+      "file": "web/app-seats.js",
+      "sha256": "89cbf5f3573406520f19147b4f78bc33698faf27726f1e892dc12a5c32faa2a8"
+    },
+    {
+      "file": "web/app-dkg.js",
+      "sha256": "f8f1fd356a9abf0f79043f1a17b08a1482fef17fbe1eeaf6e3ff8db8d8b6df84"
+    },
+    {
+      "file": "web/util.js",
+      "sha256": "38dc2984d52eb1900ef0cc62332e5ae43f7c0e8c9e31134ebf53b5b461665389"
+    },
+    {
+      "file": "web/sol/approve.js",
+      "sha256": "7df1129f554540f720179e5b1fd036411ad472c4884ed257acb834c40d394b02"
+    },
+    {
+      "file": "web/sol/execute.js",
+      "sha256": "e31836ca87c328b9c9df15a7e5784862a321910b1ffaf70086629f04ad8b3ffb"
+    },
+    {
+      "file": "web/sol/sessions.js",
+      "sha256": "41881ae3cd3883354f58481aced7881f57dd27f1a208abc08e9bfb148f362eeb"
+    },
+    {
+      "file": "web/sol/signing.js",
+      "sha256": "934e1810a11ae7bd4dd6829a8e365bdcbc7abf9e977e3ff8dabe047b3ba326e6"
+    },
+    {
+      "file": "web/sol/nonces.js",
+      "sha256": "90e8c88f417e80a41e0a809c14ea3f84daba4818f50fdefbd1bfda1a60c6a2e2"
+    },
+    {
+      "file": "web/sol/gate.js",
+      "sha256": "dffb2b0beaefcb943a9dcbdff4811a387501402d877c9cdfcccebda96d8f487f"
+    },
+    {
+      "file": "web/sol/guard.js",
+      "sha256": "2c7af5f8d837dff64b0eff65061d534ba5cf68289a4fd4356d821ea5a4dceb76"
+    },
+    {
+      "file": "web/sol/propose.js",
+      "sha256": "285081400c44249f3576443d0a48257224b18dca33b30a4e0a288546e585ff02"
+    },
+    {
+      "file": "web/sol/backup.js",
+      "sha256": "e5420c09156724666762542082c7f90bd266ea214a4797e069513a9bb07629a7"
+    }
+  ],
+  "limitations": [
+    "Synthetic unfunded browser state with external requests blocked",
+    "No live-chain or provider refund certification",
+    "No native client or hardware authenticator testing",
+    "Private Solana upgrade authority and production review remain unresolved; no authority changes",
+    "No commit, push or deployment"
+  ]
+}

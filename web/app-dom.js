@@ -3,7 +3,7 @@ import { icon } from "./app-icons.js";
 import { qrSvg } from "./qr.js";
 import { memoShown } from "./payees.js";
 import { chunks, finite } from "./util.js";
-import { clearBadBanner, log, showBanner, state, ui } from "./app-state.js";
+import { clearBadBanner, log, showBanner, showError, state, ui } from "./app-state.js";
 import { initials, short, ZEC_FMT } from "./app-kit.js";
 import { Z } from "./app-engine.js";
 import { isMe, localSeats, seatMine, seatNameOf } from "./app-seats.js";
@@ -70,7 +70,7 @@ export const act = (fn) => async (ev) => {
   try {
     await fn(ev);
     clearBadBanner();
-  } catch (e) { if (!e.shown) showBanner("bad", e.message || String(e)); }
+  } catch (e) { if (!e.shown) showError(e); }
   finally {
     if (b) b.disabled = false;
     focusAfter(key, false);
@@ -238,7 +238,7 @@ export function networkPick(sel = ui, idp = "g") {
     el("legend", { class: "label" }, "Network"),
     el("div", { class: "two" },
       opt("testnet", "Testnet", "Free test coins, for trying Zigs."),
-      MAINNET_ON ? opt("mainnet", "Mainnet", "Send and receive ZEC on the Zcash network.") : null));
+      MAINNET_ON ? opt("mainnet", "Mainnet", "Real ZEC. Transactions use real funds and network fees.") : null));
 }
 
 export const countBadge = (n, what, cls) => n

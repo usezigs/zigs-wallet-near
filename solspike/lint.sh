@@ -51,7 +51,9 @@ JS=(solspike/harness/*.mjs solspike/tools/*.mjs solspike/build.mjs solspike/vend
   web/test/overview.mjs web/setup-model.js web/test/setup-stage.mjs web/approvals-model.js
   web/test/approvals.mjs web/recovery-model.js web/test/recovery.mjs
   web/security-dashboard-model.js web/test/security-dashboard.mjs web/payment-model.js
-  web/test/payment-model.mjs web/wallet-identity.js web/wallet-avatar-svg.js
+  web/test/payment-model.mjs web/error-feedback.js web/test/error-feedback.mjs
+  web/sol/proposal-history.js web/test/proposal-history.mjs
+  web/wallet-identity.js web/wallet-avatar-svg.js
   cf/src/gate.js cf/test/gate.mjs cf/src/near.js web/near-intents-swap-provider.js
   web/swap-preview-model.js web/swap-recovery.js web/test/near-quote.mjs)
 PY=(solspike/tools/*.py)

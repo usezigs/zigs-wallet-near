@@ -154,7 +154,7 @@ export async function sendSweep(keys, digest) {
     sending = false;
     render();
   }
-  showBanner("ok", "Sent. The move confirms with the next block.");
+  showBanner("ok", "The move was submitted to the network. Wait for block confirmation.");
 }
 
 const MOVE = "Move to the shielded address";

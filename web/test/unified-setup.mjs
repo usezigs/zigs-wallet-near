@@ -1137,7 +1137,7 @@ function activityChecks(ctl, draw) {
 function activityOlder(ctl, draw) {
   const { sessions, added } = ctl;
   const solRows = () => findAll(pageTree(), (n) => n.attrs?.["data-key"]?.startsWith("sol-act-m"));
-  const older = / Older Solana proposals are not listed\./;
+  const older = / Older Solana proposals are available in Solana’s proposal history\./;
   try {
     ctl.added = null;
     ctl.sessions = Array.from({ length: SHOWN }, (_, i) => proposal("m" + i));
@@ -2112,7 +2112,7 @@ async function walkSteps(fields, times, fresh = true) {
   t.sol.ctl.docs = null;
   const broken = pageText();
   t.sol.ctl.docs = docsKept;
-  assert.match(broken, /Wallet balance.*Shielded ZEC/s,
+  assert.match(broken, /ZEC balance.*Shielded ZEC/s,
     "the Overview still shows its Zcash asset");
   assert.doesNotMatch(broken, /cannot read/);
   assert.doesNotMatch(pageText(), /Solana is still setting up/,
@@ -3063,7 +3063,7 @@ assert.equal(quickCode(null), null);
       ["Private by design. Secured together."],
       "the empty lobby has one primary heading rather than competing Wallets and welcome titles");
     assert.match(textOf(card),
-      /Hold your assets privately\. Protect them with the people and devices/);
+      /Share control of Zcash and supported Solana assets across the people and devices/);
     assert.doesNotMatch(textOf(card), /Beta ·|Not audited|New wallets use test networks only/i,
       "the welcome card omits the recurring release badge and footer warning");
     assert.equal(findNode(card, (n) => n.className === "welcome-facts"), null,

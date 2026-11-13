@@ -32,4 +32,7 @@ export const MAINNET_DISCLOSURE = [
   "Hold SOL privately and send with your wallet’s approval rule.",
   "Use Add SOL to deposit from a device’s fee address, or share the shielded address for " +
     "private payments. The program address does not receive public SOL deposits.",
+  "The Zigs owner holds the private program’s upgrade key. It can replace the program and " +
+    "could move every private wallet’s funds. Your wallet’s approval rule does not restrict " +
+    "that key.",
 ];

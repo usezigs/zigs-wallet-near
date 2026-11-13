@@ -61,11 +61,11 @@ function verifiedRecovery(live, status) {
     Date.parse(got.deadline) === Date.parse(expected.deadline),
     !live.group || got.plain === true].every(Boolean);
 }
-function applySwapStatus(live, status) {
+function applySwapStatus(live, status, now) {
   if (live.restored) live.verified = verifiedRecovery(live, status);
   const statusError = live.restored && !live.verified
     ? 'NEAR Intents has not confirmed the saved route. Payment details remain hidden.' : '';
-  Object.assign(live, { status, statusError, wait: live.base });
+  Object.assign(live, { status, statusError, wait: live.base, checkedAt: now });
 }
 
 /** True when `text` is base58 of exactly 32 bytes: the form of a Solana address. */
@@ -300,7 +300,7 @@ export class SwapPreviewModel {
     let record;
     try { record = readSwapRecovery(value); } catch { return false; }
     const live = liveOf(record.swap, record.from, record.group, record.wallet);
-    Object.assign(live, { restored: true, verified: false });
+    Object.assign(live, { restored: true, verified: false, savedProgress: record.progress });
     if (record.proposalId) live.proposal = { id: record.proposalId };
     else if (record.proposalPending) live.proposal = { busy: true, recovering: true };
     this.value.live = live;
@@ -326,7 +326,7 @@ export class SwapPreviewModel {
     try {
       const status = await this.provider.swapStatus(live.swap.depositAddress);
       if (this.value.live !== live) return;
-      applySwapStatus(live, status);
+      applySwapStatus(live, status, this.clock.now());
     } catch {
       if (this.value.live !== live) return;
       Object.assign(live, { statusError: STATUS_DOWN,
