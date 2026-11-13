@@ -27,3 +27,18 @@ brand terms, separately from this repository's software license:
 Use identifies the underlying assets only. It does not indicate sponsorship, endorsement or
 affiliation, and does not imply that an unavailable asset is supported. Keep these marks
 separate from the Zigs logo, application icon and favicon.
+
+## Swap provider credits
+
+- `near-sculpted.svg` uses the NEAR logomark from the header of [near.org](https://near.org/),
+  retrieved 13 November 2026. Its original path is preserved; the silver face, depth and lighting
+  are a custom Zigs presentation treatment. The adjacent text reads “Powered by NEAR Confidential
+  Intents” across swap modes. The selected mode's disclosure continues to distinguish a public
+  route, a simulation and requested confidential execution.
+- `helius.svg` is the unchanged orange logomark from the [official Helius Brand Kit](https://www.helius.dev/brand):
+  [Helius Icon SVG](https://www.helius.dev/Helius-Brandkit/Helius/Helius-Icon.svg).
+  It identifies [Helius Privacy Rings](https://www.helius.dev/solana-privacy-rings) for private SOL
+  funding. It is not shown as a privacy credit for a public SOL source or destination.
+
+Both assets are served locally. Provider branding does not establish that a swap is private
+end to end; the public deposit boundary remains visible in the tutorial and review.

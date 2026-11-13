@@ -2,13 +2,35 @@
 .main:has(.swap-page):not(:has(.wallet-context-header)) { padding-block:16px; }
 .main:has(.wallet-context-header):has(.swap-page) { padding-bottom:12px; }
 .swap-page { max-width:1040px; gap:10px; padding:0; }
-.swap-heading { display:grid; grid-template-columns:1fr auto; gap:6px 16px; }
+.swap-heading { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:6px 16px; }
+.swap-titleline { grid-column:1; grid-row:1; display:flex; align-items:center;
+  flex-wrap:wrap; gap:8px 14px; min-width:0; }
+.swap-titleline .swap-preview-tag { padding:4px 9px; font-size:12px; }
+.swap-titleline .swap-preview-tag>.swap-tag-text { font-size:12px; }
+.swap-powered { grid-column:2; grid-row:1; align-self:center; display:flex;
+  align-items:center; gap:8px; padding-inline:8px 0; color:var(--text); }
+.swap-powered-mark { display:block; width:52px; height:52px; flex:none;
+  transition:transform 240ms var(--ease); }
+.swap-powered-copy { display:grid; gap:2px; }
+.swap-powered-copy>span { font-size:12px; line-height:16px; color:var(--muted); }
+.swap-powered-copy>strong { font-size:13px; line-height:20px; font-weight:500;
+  white-space:nowrap; }
+.swap-asset-privacy { display:inline-flex; align-items:center; gap:5px;
+  font-size:12px; line-height:18px; color:var(--text); white-space:nowrap; }
+.swap-asset-privacy .symbol { width:14px; height:14px; color:var(--muted); }
+.swap-helius-credit { display:inline-flex; align-items:center; gap:7px; vertical-align:middle;
+  color:var(--muted); font-size:12px; line-height:18px; }
+.swap-helius-credit>img { display:block; width:22px; height:22px; flex:none; }
+.swap-helius-credit strong { font-size:12px; line-height:18px; font-weight:500; color:var(--text); }
+@media(hover:hover) and (prefers-reduced-motion:no-preference) {
+  .swap-powered:hover .swap-powered-mark { transform:translateY(-2px) rotate(4deg); }
+}
+@media(prefers-reduced-motion:reduce) { .swap-powered-mark { transition:none; } }
 .swap-topline { display:contents; }
 .swap-topline .swap-preview-tag { grid-column:2; grid-row:1/3; align-self:center; }
-.swap-heading h1,.swap-heading>.swap-subtitle { grid-column:1; }
+.swap-heading h1 { grid-column:1; }
 .swap-eyebrow { font:500 13px/1.5 var(--mono); color:var(--accent-text); }
 .swap-heading h1 { font:var(--font-page); letter-spacing:-.045em; }
-.swap-subtitle { color:var(--muted); max-width:590px; font-size:13px; line-height:1.5; }
 .swap-execution { margin:8px 0 16px; padding:0 0 14px; border:0; border-bottom:1px solid var(--line); min-width:0; }
 .swap-execution legend { padding:0; margin-bottom:4px; font-size:13px; font-weight:600; }
 .swap-execution-options { display:flex; flex-wrap:wrap; gap:8px 28px; }
@@ -140,8 +162,15 @@
 .swap-network { margin-block:5px 0; color:var(--muted); font-size:13px; line-height:1.5; }
 .swap-network-row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:5px; }
 .swap-network-row>.swap-network { margin:0; }
-.swap-switch-row { position:relative; height:14px; display:grid; place-items:center; z-index:1; }
-.swap-reverse { position:absolute; width:48px; height:48px; border-radius:50%; border:1px solid var(--control-line); color:var(--text); background:linear-gradient(145deg,var(--control-hover),var(--sunk)); box-shadow:inset 0 1px var(--glass-rim),0 4px 12px #0004; display:grid; place-items:center; cursor:pointer; }
+.swap-switch-row { height:40px; flex:0 0 40px; display:flex; justify-content:flex-end;
+  align-items:center; }
+.swap-reverse { position:static; display:inline-flex; align-items:center; gap:6px;
+  min-height:36px; padding:4px 8px; margin-right:4px; border:0; border-radius:6px;
+  background:transparent; box-shadow:none; color:var(--muted); font:400 12px/18px var(--sans);
+  cursor:pointer; }
+.swap-reverse:hover { color:var(--text); }
+.swap-reverse:focus-visible { outline:2px solid var(--focus); outline-offset:1px; }
+.swap-reverse .symbol { width:15px; height:15px; }
 .swap-reverse .symbol { transform:rotate(var(--swap-rotation,0deg)); transition:transform 220ms var(--ease); }
 .swap-quote { padding:8px 1px 0; }
 .swap-quote-status { font-size:13px; color:var(--accent-text); line-height:1.5; margin-bottom:4px; }
@@ -152,6 +181,12 @@
 .swap-composer-footer { padding-top:8px; }
 .swap-primary { width:100%; min-height:48px; display:flex; align-items:center; justify-content:center; gap:14px; padding:10px 14px; border-radius:13px; border:1px solid var(--accent-border); background:linear-gradient(180deg,var(--accent-hi),var(--accent)); color:var(--on-accent); font:500 14px/1.4 var(--sans); box-shadow:inset 0 1px #ffffff30; cursor:pointer; }
 .swap-primary>span { font-size:20px; line-height:1; }
+.swap-initiate>.symbol { width:24px; height:24px; flex:none; }
+.swap-page .swap-initiate .icon-detail { transform-box:view-box; transform-origin:center;
+  transition:transform 200ms var(--ease); }
+@media(hover:hover) and (prefers-reduced-motion:no-preference) {
+  .swap-page .swap-initiate:hover:not(:disabled) .icon-detail { transform:rotate(12deg); }
+}
 .swap-primary:disabled { opacity:.48; cursor:not-allowed; }
 .swap-error { color:var(--bad); font-size:13px; line-height:1.5; margin-top:16px; }
 .swap-error[hidden] { display:none; }
@@ -251,7 +286,13 @@ body:has(.swap-modal[open]) { overflow:hidden; }
   .swap-heading { gap:5px 10px; }
   .swap-eyebrow { display:none; }
   .swap-heading h1 { grid-column:1; grid-row:1; font:var(--font-page); }
-  .swap-heading>.swap-subtitle { grid-column:1/-1; }
+  .swap-titleline { grid-column:1/-1; justify-content:space-between; }
+  .swap-powered { grid-column:1/-1; grid-row:2; justify-self:start; padding:0;
+    gap:6px; margin-block:0 2px; }
+  .swap-powered-mark { width:40px; height:40px; }
+  .swap-powered-copy { display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 5px; }
+  .swap-powered-copy>strong { font-size:12px; }
+  .swap-helius-credit .swap-helius-prefix { display:block; font-size:11px; line-height:14px; }
   .swap-topline .swap-preview-tag { grid-column:2; grid-row:1; }
   .swap-mode-tabs { gap:4px; padding:4px; border-radius:13px; }
   .swap-mode-tab { display:flex; flex-direction:column; align-items:flex-start; gap:3px; padding:8px 9px; border-radius:9px; }
@@ -301,12 +342,6 @@ body:has(.swap-modal[open]) { overflow:hidden; }
   .swap-pane-label { min-height:20px; margin-bottom:0; font-size:13px; }
   .swap-amount { font-size:29px; }
   .swap-network { margin-top:0; }
-  .swap-switch-row { height:8px; }
-  /* A smaller visible circle keeps labels clear; the button still has a 48px hit area. */
-  .swap-reverse { border:0; background:transparent; box-shadow:none; }
-  .swap-reverse::before { content:""; position:absolute; inset:8px; border-radius:50%;
-    border:1px solid var(--control-line); background:var(--sunk); box-shadow:var(--shadow-control); }
-  .swap-reverse .symbol { position:relative; width:18px; height:18px; }
   .swap-asset-button { gap:6px; padding:6px 8px; font-size:13px; }
   .swap-amount-row { gap:8px; }
   .swap-quote { padding-top:8px; }
@@ -330,13 +365,12 @@ body:has(.swap-modal[open]) { overflow:hidden; }
    from funding choice to receipt. All colors follow the existing light/dark tokens. */
 .swap-funding { margin-block: 12px; }
 .swap-page [hidden], .swap-modal [hidden] { display: none !important; }
-.swap-funding[hidden], .swap-balance[hidden], .swap-funding-note[hidden],
+.swap-funding[hidden], .swap-funding-note[hidden],
 .swap-history[hidden], .swap-max[hidden] { display: none; }
 .swap-payer { margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; }
 .swap-payer .swap-agree { min-height: 48px; align-items: center; }
 .swap-payer .swap-agree input { margin-top: 0; }
 .swap-funding-note { margin-block: 8px; }
-.swap-balance { margin-block: 8px 0; }
 .swap-payout { align-items: start; }
 .swap-payout-address { overflow-wrap: anywhere; }
 .swap-review-details dd, .swap-history-row > div { min-width: 0; overflow-wrap: anywhere; }
@@ -575,8 +609,6 @@ body:has(.swap-modal[open]) { overflow:hidden; }
   .swap-composer .swap-asset-button { min-height:44px; }
   .swap-composer .swap-network-row { margin-top:2px; }
   .swap-composer .swap-network { font-size:12px; line-height:18px; }
-  .swap-composer .swap-balance { margin:6px 0 0; font-size:12px; line-height:18px; }
-  .swap-composer .swap-switch-row { height:12px; }
   .swap-composer .swap-quote-status { font-size:12px; line-height:18px; }
   .swap-composer .swap-quote-details { gap:4px; }
   .swap-composer .swap-quote-details>.swap-detail-row:nth-child(3),

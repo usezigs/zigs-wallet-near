@@ -8,6 +8,7 @@ import { icon, sculptedIcon } from './app-icons.js';
 import { NearIntentsSwapProvider } from './near-intents-swap-provider.js';
 import { createPostQuantumSwapPreview } from './app-postquantum-swap-preview.js';
 import { createSwapPrivacyExplainer } from './app-swap-privacy.js';
+import { heliusSwapCredit, nearSwapCredit } from './app-swap-branding.js';
 import { swapRecordOf } from './swap-records.js';
 import { SWAP_ASSETS, SWAP_DEMO_STEPS, SWAP_FINAL, SWAP_SLIPPAGES, SwapPreviewModel, swapAsset,
   swapDecimal, swapInputError, swapRate, swapSolAddress, swapTime, swapUsd }
@@ -23,10 +24,6 @@ const previewTag = (live = false) => el('span', { class: 'swap-preview-tag' },
   el('span', { 'aria-hidden': 'true' }, '◌'),
   el('span', { class: 'swap-tag-text' }, live ? SWAP_TAG : LIVE_TAG));
 const [ZEC_ID, SOL_ID] = [SWAP_ASSETS[0].id, SWAP_ASSETS[1].id];
-const QUOTE_SUBTITLE = 'Live prices from NEAR Intents on mainnet. Zigs cannot run a swap, so no '
-  + 'funds move.';
-export const LIVE_SUBTITLE = 'Swap SOL into a shielded Zcash receiving address. The SOL deposit '
-  + 'is public and NEAR Intents sees the route.';
 const PRIVATE_ROUTE = 'Private SOL balance → public SOL deposit → NEAR Confidential Intents → shielded ZEC address.';
 const privateRoute = (mode) => mode === 'public'
   ? 'Private SOL balance → public SOL deposit → standard NEAR Intents route → shielded ZEC address.'
@@ -218,6 +215,8 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     inputmode: 'decimal', autocomplete: 'off', spellcheck: 'false', placeholder: '0.00',
     'aria-label': 'Amount you pay', 'aria-describedby': 'swap-error',
     oninput: (ev) => { model.type(ev.target.value); } });
+  const payPrivacy = el('span', { class: 'swap-asset-privacy' });
+  const receivePrivacy = el('span', { class: 'swap-asset-privacy' });
   const receive = el('input', { class: 'swap-amount swap-output', readonly: true,
     'aria-label': 'Amount you receive', value: '—', tabindex: '0' });
   const fromButton = button('', 'swap-asset-button', (ev) => openPicker('from', ev.currentTarget),
@@ -229,12 +228,12 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   const quoteLine = text('swap-quote-status', statusText({}));
   quoteLine.setAttribute('role', 'status');
   const quoteDetails = el('dl', { class: 'swap-quote-details' });
-  const reverse = button(icon('swap'), 'swap-reverse', () => {
+  const reverse = button([icon('swap'), el('span', {}, 'Reverse')], 'swap-reverse', () => {
     rotation += 180; reverse.style.setProperty('--swap-rotation', rotation + 'deg');
     void model.reverse();
   }, { 'aria-label': 'Reverse swap direction', 'data-key': 'swap-reverse' });
-  const review = button(['Review quote', el('span', { 'aria-hidden': 'true' }, icon('external'))],
-    'swap-primary', (ev) => {
+  const review = button([icon('confidentialSwap'), 'Initiate confidential swap'],
+    'swap-primary swap-initiate', (ev) => {
       if (!model.review()) return;
       openModal('Review quote', ev.currentTarget); drawReview();
     }, { disabled: true, 'data-key': 'swap-review', 'aria-haspopup': 'dialog' });
@@ -248,18 +247,16 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   const payoutBox = el('div', { class: 'swap-destination swap-payout', hidden: true });
   const fundingChoice = el('div', { class: 'swap-funding' });
   const fundingNote = text('swap-caption swap-funding-note', '');
-  const sourceBalance = text('swap-caption swap-balance', '');
   const max = button('Max', 'swap-max', () => {
     const amount = source.solGroup?.balanceAtomic;
     if (solPayer === 'group' && /^\d+$/.test(amount || '')) void model.update({ amount: swapDecimal(amount, swapAsset(SOL_ID)) });
   }, { disabled: true, 'aria-label': 'Use available private SOL balance' });
   const headTag = previewTag();
-  const subtitle = el('p', { class: 'swap-subtitle', id: 'swap-subtitle' }, QUOTE_SUBTITLE);
   const executionHelp = text('swap-caption', '');
   executionHelp.id = 'swap-execution-help'; executionHelp.setAttribute('role', 'status');
   const executionChoices = [
-    ['preview', 'Hackathon preview', 'Real quotes · no funds move', 'activity'],
-    ['public', 'Standard mainnet', 'Public route · no partner key', 'swap'],
+    ['preview', 'Hackathon preview', 'Demo - Pending NEAR API key', 'activity'],
+    ['public', 'Standard mainnet', 'NEAR Intents - Not Confidential', 'swap'],
     ['basic', 'Confidential mainnet', 'Provider access required', 'security'],
   ].map(([value, label, caption, art]) => el('label', {
     class: 'swap-execution-option', 'data-mode': value },
@@ -316,8 +313,8 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     },
   }));
   root.append(el('header', { class: 'swap-heading' },
-    el('div', { class: 'swap-topline' }, headTag),
-    el('h1', { id: 'swap-page-title' }, 'Swap'), subtitle),
+    el('div', { class: 'swap-titleline' }, el('h1', { id: 'swap-page-title' }, 'Swap'), headTag),
+    nearSwapCredit()),
 
   el('div', { class: 'swap-panel', id: 'swap-panel-private', role: source.demo === true ? 'tabpanel' : 'region',
     'aria-labelledby': source.demo === true ? 'swap-tab-private' : 'swap-page-title',
@@ -326,14 +323,13 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   el('div', { class: 'swap-grid' },
     el('section', { class: 'swap-composer', 'aria-label': 'Swap composer' },
       el('div', { class: 'swap-pane' },
-        el('div', { class: 'swap-pane-label' }, el('label', { for: 'swap-amount' }, 'You pay')),
+        el('div', { class: 'swap-pane-label' }, el('label', { for: 'swap-amount' }, 'You pay'), payPrivacy),
         el('div', { class: 'swap-amount-row' }, pay, fromButton),
         el('div', { class: 'swap-network-row' }, fromNetwork,
-          max)), sourceBalance, fundingChoice, fundingNote,
+          max)), fundingChoice, fundingNote,
       el('div', { class: 'swap-switch-row' }, reverse),
       el('div', { class: 'swap-pane swap-receive' },
-        el('div', { class: 'swap-pane-label' }, el('span', {}, 'You receive'),
-          text('swap-caption', 'Estimate', 'span')),
+        el('div', { class: 'swap-pane-label' }, el('span', {}, 'You receive · estimate'), receivePrivacy),
         el('div', { class: 'swap-amount-row' }, receive, toButton), toNetwork),
       el('div', { class: 'swap-quote' }, quoteLine, quoteDetails), error,
       demoTarget, payoutBox,
@@ -473,20 +469,6 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
       privateSource: s.from === SOL_ID && source.solGroup?.mode === 'private'
         && solPayer === 'group' });
     headTag.querySelector('.swap-tag-text').textContent = liveRoute() ? SWAP_TAG : LIVE_TAG;
-    const previewRoute = fromZec() ? 'shielded ZEC → public SOL'
-      : (s.from === SOL_ID && solPayer === 'group' && source.solGroup?.mode === 'private'
-        ? 'private SOL' : from.symbol) + ' → '
-        + (to.symbol === 'ZEC' ? 'shielded ZEC' : to.symbol);
-    subtitle.textContent = s.execution === 'preview'
-      ? (source.network === 'testnet' ? 'Test wallet · mainnet price preview. ' : '')
-        + previewRoute[0].toUpperCase() + previewRoute.slice(1)
-        + ' · mainnet quotes and a simulated flow. No funds move.'
-      : source.network === 'testnet'
-      ? 'Test wallet · mainnet price preview. Devnet SOL and testnet ZEC cannot execute this swap.'
-      : liveRoute() ? (fromZec() ? 'Swap ZEC for public SOL. The ZEC deposit and any refund are transparent.'
-        : source.solGroup?.mode === 'private' && solPayer === 'group'
-          ? 'Move private SOL into shielded Zcash. ' + nearRouteLabel(s.execution) + '. The SOL deposit is public. This Zigs route is experimental.'
-          : LIVE_SUBTITLE) : source.live ? 'This pair supports mainnet quotes only. No funds move.' : QUOTE_SUBTITLE;
     const modeStatus = modeTabs[0]?.querySelector('.swap-tab-status');
     if (modeStatus) modeStatus.textContent = liveRoute() ? 'Live route' : 'Quote preview';
     drawFunding(s);
@@ -505,12 +487,13 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
       input.checked = input.value === s.execution;
       input.disabled = !!s.live || (input.value !== 'preview' && !availableLivePair());
     });
-    executionHelp.textContent = s.execution === 'preview'
-      ? 'Sample-address quote · simulated approvals, delivery and recovery · no funds move.'
+    executionHelp.hidden = s.execution === 'preview';
+    executionHelp.textContent = executionHelp.hidden
+      ? ''
       : s.execution === 'public'
         ? 'Real funds. The standard route is public and NEAR Intents can link the swap addresses. No confidential routing is requested.'
         : 'Real funds. Basic confidential routing is required. If provider access is unavailable, the swap stops; it never switches to Standard.';
-    if (!availableLivePair()) executionHelp.textContent += source.simulated
+    if (!executionHelp.hidden && !availableLivePair()) executionHelp.textContent += source.simulated
       ? ' Example wallet · live modes unavailable here.'
       : ' Real execution requires a supported mainnet wallet and a live-enabled server.';
   }
@@ -523,11 +506,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     }
     const balance = source.solGroup?.balanceAtomic;
     const hasBalance = solPayer === 'group' && /^\d+$/.test(balance || '');
-    sourceBalance.hidden = s.from !== SOL_ID || !hasBalance;
     const privateSource = source.solGroup?.mode === 'private';
-    sourceBalance.textContent = hasBalance ? (source.simulated ? 'Example balance · simulated: '
-      : privateSource ? 'Available private balance: ' : 'Public balance: ')
-      + swapDecimal(balance, swapAsset(SOL_ID)) + ' SOL. Network fees are paid separately by a device fee address.' : '';
     max.setAttribute('aria-label', privateSource ? 'Use available private SOL balance' : 'Use public SOL balance');
     max.hidden = !hasBalance || s.from !== SOL_ID;
     max.disabled = !hasBalance || !!s.live;
@@ -574,7 +553,16 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   function drawPair(from, to) {
     fromButton.replaceChildren(token(from), el('span', {}, from.symbol), chevron());
     toButton.replaceChildren(token(to), el('span', {}, to.symbol), chevron());
-    fromNetwork.textContent = from.network + ' · mainnet'; toNetwork.textContent = to.network + ' · mainnet';
+    const privateSol = from.id === SOL_ID && source.solGroup?.mode === 'private' && solPayer === 'group';
+    const confidentialFrom = from.key === 'zec' || privateSol;
+    const confidentialTo = to.key === 'zec';
+    payPrivacy.replaceChildren(icon(confidentialFrom ? 'lock' : 'unshield'),
+      el('span', {}, (confidentialFrom ? 'Confidential ' : 'Public ') + from.symbol));
+    receivePrivacy.replaceChildren(icon(confidentialTo ? 'lock' : 'unshield'),
+      el('span', {}, (confidentialTo ? 'Confidential ' : 'Public ') + to.symbol));
+    if (privateSol) fromNetwork.replaceChildren(heliusSwapCredit());
+    else fromNetwork.textContent = from.key === 'zec' ? 'Shielded Zcash balance' : 'Public ' + from.network + ' balance';
+    toNetwork.textContent = to.key === 'zec' ? 'Shielded Zcash receiving address' : 'Public ' + to.network + ' receiving address';
   }
   function historyState(record) {
     const receipt = record.from === 'sol' && source.receipt?.(record.swap, record.status?.destinationTxs);

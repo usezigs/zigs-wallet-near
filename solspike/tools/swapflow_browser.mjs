@@ -50,7 +50,8 @@ async function quote() {
 async function deposit(mode = 'basic') {
   await page.getByRole('radio', { name: mode === 'basic'
     ? /Confidential mainnet/ : /Standard mainnet/ }).check();
-  await quote(); await page.getByRole('button', { name: 'Review quote', exact: false }).click();
+  await quote();
+  await page.getByRole('button', { name: 'Initiate confidential swap', exact: false }).click();
   check(await page.getByRole('dialog').getByText('Private funds, public deposit', {
      exact: true }).isVisible(), 'review identifies public boundary');
   await page.locator('#swap-agree').check(); await capture('review-private');
@@ -69,14 +70,14 @@ try {
     check(await page.getByRole('heading', { name: 'What stays private?',
        exact: true }).isVisible(), 'privacy explainer visible');
     if (width === 390) {
-      await page.getByRole('button', { name: 'Review quote', exact: false }).click();
+      await page.getByRole('button', { name: 'Initiate confidential swap', exact: false }).click();
       await capture('review-mobile-' + theme);
       await page.keyboard.press('Escape');
     }
   }
   await open('hackathon'); await desktopFit();
   await open(); await quote();
-  await page.getByRole('button', { name: 'Review quote', exact: false }).click();
+  await page.getByRole('button', { name: 'Initiate confidential swap', exact: false }).click();
   check(await page.getByRole('button', { name: 'Get deposit address', exact: true }).count() === 0,
     'preview review offers no live deposit action');
   await page.getByRole('button', { name: 'Simulate swap flow', exact: true }).click();
@@ -149,12 +150,13 @@ try {
      'refund reason shown');
   await capture('refund-private');
   await open('testnet'); await quote();
-  check(await page.getByText(/Test wallet · mainnet price preview/).isVisible(),
+  check(await page.getByText(/Use a mainnet wallet for real swaps/).isVisible(),
      'testnet cannot look like mainnet execution');
   check(await page.getByRole('radio', { name: /Standard mainnet/ }).isDisabled()
     && await page.getByRole('radio', { name: /Confidential mainnet/ }).isDisabled(),
     'test funds cannot select mainnet execution');
-  check(await page.getByRole('button', { name: 'Review quote', exact: false }).isEnabled(),
+  check(await page.getByRole('button', { name: 'Initiate confidential swap',
+    exact: false }).isEnabled(),
     'test wallet can review an unfunded price preview');
   await capture('testnet-preview');
   await open('standard'); await deposit('public');
@@ -174,12 +176,12 @@ try {
      exact: true }).isDisabled(), 'failed receipt save blocks funding');
   await capture('save-failure');
   await open('plain', 390); await quote(); await capture('plain-mobile');
-  await page.getByRole('button', { name: 'Review quote', exact: false }).click();
+  await page.getByRole('button', { name: 'Initiate confidential swap', exact: false }).click();
   for (let i = 0; i < 20; i++) { await page.keyboard.press('Tab');
      check(await page.evaluate(() => !!document.activeElement.closest('dialog')),
         'focus remains in review'); }
   await page.keyboard.press('Escape');
-  check(await page.getByRole('button', { name: 'Review quote',
+  check(await page.getByRole('button', { name: 'Initiate confidential swap',
      exact: false }).evaluate((n) => n === document.activeElement), 'Escape restores focus');
   await privacyTour();
   if (livePreview) {
@@ -194,10 +196,10 @@ try {
       'judge preview needs no compiled wallet or WASM engine');
     check(await page.getByRole('radio', { name: /Standard mainnet/ }).isDisabled(),
       'judge preview cannot select real execution');
-    check(await page.getByText(/Example balance · simulated/).isVisible(),
-      'example balance is labelled simulated');
+    check(await page.getByText('Hackathon preview · no funds', { exact: true }).isVisible(),
+      'simulation remains clearly labelled');
     await capture('hackathon-real-quote');
-    await page.getByRole('button', { name: 'Review quote', exact: false }).click();
+    await page.getByRole('button', { name: 'Initiate confidential swap', exact: false }).click();
     await page.getByRole('button', { name: 'Simulate swap flow', exact: true }).click();
     for (let i = 0; i < 6; i++) await page.getByRole('button', {
       name: 'Next demo step', exact: false }).click();

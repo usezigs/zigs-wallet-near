@@ -109,6 +109,7 @@ import "./app-messaging-workspace.js";
 import "./app-shell.js";
 import "./app-swap-preview.js";
 import "./app-swap-privacy.js";
+import "./app-swap-branding.js";
 import "./app-swap-privacy-art.js";
 import "./app-swap-privacy-motion.js";
 import "./app-postquantum-swap-preview.js";

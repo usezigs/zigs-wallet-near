@@ -803,10 +803,10 @@ try {
     [[root.getAttribute('aria-labelledby'), 'Swap']], 'the h1 Swap names the swap page root');
   assert.equal(LIVE_TAG, 'Hackathon preview · no funds', 'the live tag says Quotes only');
   assert.ok(view().includes(LIVE_TAG), 'the swap page carries the live tag');
-  assert.match(view(), /Shielded ZEC → public SOL · mainnet quotes and a simulated flow\. No funds move\./,
-    'the subtitle says mainnet prices, no swap and no funds');
-  assert.doesNotMatch(view(), /Private Swaps?|Powered by/,
-    'the swap page does not claim a private swap or a provider');
+  assert.doesNotMatch(view(), /Private Swaps?/,
+    'the swap page does not claim that the full route is private');
+  assert.match(view(), /Powered byNEAR Confidential Intents/,
+    'the shared provider attribution remains visible in preview');
   assert.match(view(), /SwapQuote preview/, 'the first tab distinguishes quote preview');
   assert.match(view(), /Post-quantum swapDemo/, 'the second tab is a demo');
   assert.match(view(), /ZEC starts in the shielded pool/,
@@ -839,7 +839,7 @@ try {
     'the page says what the quote request sends');
   assert.equal(NO_RUN, 'Preview only. No deposit address is requested, no funds move and nothing is signed.',
     'the words of the no-run message');
-  assert.ok(!view().includes(NO_RUN), 'the subtitle, not a second note, says that no funds move');
+  assert.ok(!view().includes(NO_RUN), 'the preview status avoids a duplicate no-funds note');
   assert.ok(view().includes('Receive to · Demo'), 'the destination is labelled Demo');
   assert.match(view(), /Choose a pair and enter an amount to get a live quote\./);
   // A key press asks nothing at once; the quote comes after the wait.
@@ -861,7 +861,7 @@ try {
   fire(where, 'change', { target: { value: '' } });
   assert.equal(asked.length, 1, 'a destination asks for no new quote');
   assert.equal(root.querySelector('.swap-primary').disabled, false, 'and it keeps the quote');
-  press(root, 'Review quote');
+  press(root, 'Initiate confidential swap');
   const modal = walk(body, (n) => n.tag === 'dialog').at(-1);
   assert.ok(text(modal).includes(LIVE_TAG), 'the review dialog carries the live tag');
   assert.ok(text(modal).includes(NO_RUN), 'the review dialog says that Zigs cannot run the swap');
@@ -921,7 +921,7 @@ try {
   await demoClock.tick(400);
   assert.match(text(demoRoot), /Demo quote, not a price/, 'a demo quote says Demo');
   assert.doesNotMatch(text(demoRoot), /Mainnet price estimate/);
-  press(demoRoot, 'Review quote');
+  press(demoRoot, 'Initiate confidential swap');
   assert.match(text(walk(body, (n) => n.tag === 'dialog').at(-1)), /QuoteDemo quote, not a price/,
     'the review of a demo quote says Demo');
   press(walk(body, (n) => n.tag === 'dialog').at(-1), 'Back to swap');
@@ -958,7 +958,7 @@ async function livePreview(factory, ...args) {
 // The live swap page: a server with NEAR_LIVE and a mainnet wallet that shows its address.
 globalThis.document = fakeDocument;
 try {
-  const { createSwapPreview, LIVE_SUBTITLE, LIVE_TAG, NO_RUN, SWAP_AGREE, SWAP_EXPIRED,
+  const { createSwapPreview, LIVE_TAG, NO_RUN, SWAP_AGREE, SWAP_EXPIRED,
     SWAP_PRIVACY, SWAP_TAG, UNTESTED } = await import('../app-swap-preview.js');
   assert.match(UNTESTED,
     /^This Zigs route has not been verified with a funded shielded payout/,
@@ -972,7 +972,7 @@ try {
   const swap = await livePreview(createSwapPreview, context, pro, clock);
   const root = swap.element, view = () => text(root);
   const tag = () => text(root.querySelector('.swap-tag-text'));
-  assert.match(view(), /Swap ZEC for public SOL/, 'the subtitle explains the active direction');
+  assert.match(view(), /Confidential ZEC.*Public SOL/, 'the asset labels explain the active direction');
   assert.equal(tag(), 'Live swap · real funds', 'ZEC to SOL is a live route too');
   await swap.model.update({ to: usdcSol.id });
   assert.equal(tag(), 'Hackathon preview · no funds', 'a pair with no live swap says Quotes only');
@@ -990,7 +990,7 @@ try {
     && !text(details).includes('Receive to · Demo') && text(details).includes(SWAP_PRIVACY),
   'the details of the live route show the payout of the wallet');
   press(details, 'Back to swap');
-  press(root, 'Review quote');
+  press(root, 'Initiate confidential swap');
   const modal = walk(body, (n) => n.tag === 'dialog').at(-1);
   const review = text(modal);
   for (const part of [SWAP_TAG, UNTESTED, SWAP_PRIVACY, SWAP_AGREE,
@@ -1050,7 +1050,7 @@ try {
   swap.setContext(context);
   await swap.model.chooseExecution('basic');
   await swap.model.update({ amount: '0.0175' });
-  press(root, 'Review quote');
+  press(root, 'Initiate confidential swap');
   const again = walk(body, (n) => n.tag === 'dialog').at(-1);
   fire(again.querySelector('#swap-refund'), 'input', { target: { value: REFUND } });
   fire(again.querySelector('#swap-agree'), 'change', { target: { checked: true } });
@@ -1065,7 +1065,7 @@ try {
   const failing = await livePreview(createSwapPreview, context, swapPro({ open: () => {
     throw new NearQuoteError('too-low', '17392641'); } }), fakeClock());
   await failing.model.update({ from: sol.id, to: zec.id, amount: '0.0175' });
-  press(failing.element, 'Review quote');
+  press(failing.element, 'Initiate confidential swap');
   const refused = walk(body, (n) => n.tag === 'dialog').at(-1);
   fire(refused.querySelector('#swap-refund'), 'input', { target: { value: REFUND } });
   fire(refused.querySelector('#swap-agree'), 'change', { target: { checked: true } });
@@ -1079,7 +1079,7 @@ try {
     + 'testnet. NEAR Intents pays mainnet ZEC only.' } }, swapPro(), fakeClock());
   await testnet.model.update({ from: sol.id, to: zec.id, amount: '0.0175' });
   assert.match(text(testnet.element.querySelector('.swap-payout')), /pays mainnet ZEC only/);
-  press(testnet.element, 'Review quote');
+  press(testnet.element, 'Initiate confidential swap');
   const none = walk(body, (n) => n.tag === 'dialog').at(-1);
   assert.match(text(none), /Receive toThis wallet uses Zcash testnet/);
   fire(none.querySelector('#swap-refund'), 'input', { target: { value: REFUND } });
@@ -1091,10 +1091,10 @@ try {
   await off.model.update({ from: sol.id, to: zec.id, amount: '0.0175' });
   assert.equal(text(off.element.querySelector('.swap-tag-text')), LIVE_TAG,
     'a server with no live swap says Quotes only');
-  assert.match(text(off.element), /Zigs cannot run a swap, so no funds move\./);
+  assert.match(text(off.element), /Real execution requires a supported mainnet wallet and a live-enabled server\./);
   assert.ok(!text(off.element).includes(SWAP_PRIVACY));
   assert.equal(off.element.querySelector('.swap-payout').hidden, true, 'no payout line');
-  press(off.element, 'Review quote');
+  press(off.element, 'Initiate confidential swap');
   const demo = walk(body, (n) => n.tag === 'dialog').at(-1);
   assert.ok(text(demo).includes(NO_RUN), 'the review says that Zigs cannot run the swap');
   assert.equal(named(demo, 'Get deposit address'), undefined, 'and has no deposit address');
@@ -1126,7 +1126,7 @@ try {
   press(root, 'NEAR');
   assert.match(text(root), /NEAR receives the amount, deposit, payout and refund addresses/,
     'the provider chapter explains the real execution addresses');
-  press(root, 'Review quote');
+  press(root, 'Initiate confidential swap');
   const modal = walk(body, (n) => n.tag === 'dialog').at(-1);
   const review = text(modal);
   for (const part of [ZEC_SWAP_PRIVACY, ZEC_REFUND, ZEC_AGREE, 'Pay fromThis wallet · Any 2 of 3',
@@ -1180,7 +1180,7 @@ try {
   fakeClock());
   await waiting.model.update({ from: zec.id, to: sol.id, amount: '0.175' });
   assert.match(text(waiting.element.querySelector('.swap-payout')), /2 of 3 devices published/);
-  press(waiting.element, 'Review quote');
+  press(waiting.element, 'Initiate confidential swap');
   const none = walk(body, (n) => n.tag === 'dialog').at(-1);
   fire(none.querySelector('#swap-agree'), 'change', { target: { checked: true } });
   assert.equal(named(none, 'Get deposit address').disabled, true, 'not ready: no deposit address');
@@ -1248,7 +1248,7 @@ try {
   press(root, 'Deposit');
   assert.match(text(root), /Anyone can see the deposit address, amount, time/,
     'the deposit chapter explains the public send');
-  press(root, 'Review quote');
+  press(root, 'Initiate confidential swap');
   const modal = walk(body, (n) => n.tag === 'dialog').at(-1);
   for (const part of [UNTESTED, SOL_GROUP_PRIVACY, SOL_GROUP_REFUND, SOL_GROUP_AGREE,
     'Pay from', 'Pay fromPublic SOL balance · Any 2 of 3 devices',
@@ -1297,7 +1297,7 @@ try {
     throw new Error('A send of this wallet already pays this deposit address.');
   };
   await swap.model.update({ amount: '0.0175' });
-  press(root, 'Review quote');
+  press(root, 'Initiate confidential swap');
   const again = walk(body, (n) => n.tag === 'dialog').at(-1);
   fire(again.querySelector('#swap-agree'), 'change', { target: { checked: true } });
   fire(named(again, 'Get deposit address'), 'click'); await settle(); await settle();
@@ -1315,7 +1315,7 @@ try {
   swap.model.closeSwap();
   // The payer can change: a wallet from outside types its refund address on /near/swap.
   await swap.model.update({ amount: '0.0175' });
-  press(root, 'Review quote');
+  press(root, 'Initiate confidential swap');
   const choose = walk(body, (n) => n.tag === 'dialog').at(-1);
   fire(payers(choose)[1], 'change');
   assert.ok(text(choose).includes('Pay fromA Solana wallet outside Zigs'));
@@ -1333,7 +1333,7 @@ try {
   await waiting.model.update({ from: sol.id, to: zec.id, amount: '0.0175' });
   assert.ok(!text(waiting.element).includes(SOL_GROUP_PRIVACY),
     'a wallet that cannot pay gets no text of a send of the wallet');
-  press(waiting.element, 'Review quote');
+  press(waiting.element, 'Initiate confidential swap');
   const off = walk(body, (n) => n.tag === 'dialog').at(-1);
   assert.deepEqual(payers(off).map((n) => [n.attrs.value, 'checked' in n.attrs,
     'disabled' in n.attrs]), [['group', false, true], ['outside', true, false]]);

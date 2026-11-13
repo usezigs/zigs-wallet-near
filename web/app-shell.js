@@ -66,10 +66,9 @@ export function renderSide() {
   const pending = state.groups.reduce((n, g) => n + toApprove(g.id).length + solPending(g.id), 0);
   const sections = [
     ["overview", "Overview"],
+    ["swap", "Swap"],
     ["approvals", "Approvals", countBadge(pending, "to approve across wallets", "attn")],
     ["activity", "Activity"], ["recipients", "Address book"],
-    ["swap", "Swap", el("span", { class: "badge plain" },
-      el("span", { class: "sr-only" }, ", "), nearLive() ? "Live" : "Quotes")],
     ["chats", "Messages", newBadge(state.groups.reduce((n, g) => n + unreadIn(g.id), 0)
       + Object.keys(chats.list).reduce((n, cid) => n + unreadIn(cid), 0))],
     ["recovery", "Security"],
@@ -80,7 +79,7 @@ export function renderSide() {
     : ui.tab === "members" ? "recovery"
     : ui.tab === "solana" ? "overview" : ui.tab;
   nav.replaceChildren(
-    sectionGroup("money", "Money", ["overview", "approvals", "activity", "swap"], sections, selected),
+    sectionGroup("money", "Money", ["overview", "swap", "approvals", "activity"], sections, selected),
     sectionGroup("contacts", "Contacts", ["recipients", "chats"], sections, selected),
     sectionGroup("care", "Wallet care", ["recovery", "settings"], sections, selected),
     el("div", { class: "side-head" }, el("span", { class: "label" }, "Wallets"),
