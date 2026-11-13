@@ -1,99 +1,134 @@
 # Deslopify checkpoint and release rehearsal
 
-Prepared 13 November 2026 on `deslopify`, for a draft PR into `Near`.
-The redesign checkpoint is `b4830f3`. Integration includes `Near` at `fc8d504`;
-the newer portfolio, Solana receiving, icon system and OpenGlass presentation remain available.
-Neither target branch is merged or deployed by this checkpoint.
+Validated 13 November 2026 on `deslopify`, for draft PR #2 into `Near`.
+The branch includes `Near` at `b303173` and retains portfolio tracking, Solana receiving,
+the icon system and the OpenGlass presentation. Work was isolated from the separate
+`nextlevelvisuals` checkout. No target branch was merged or deployed by this rehearsal.
 
-## Integration details
+## Integration and corrections
 
-- Preserve the three navigation groups, direct access to all eight destinations, the prominent
+- Preserve the three navigation groups, direct access to all eight destinations, prominent
   Restore shortcut, and browser-local recovery evidence with separate remote reports.
-- Keep native forms inside semantic dialog hosts, persistent recovery-file selection, messaging
-  draft behavior and phase-appropriate payment instructions.
-- Retain Near's current feature and network gates. Receive uses its current address rendering
-  and supporting disclosures. Copy buttons retain icons and polite announcements.
+- Keep financial cards, balances, dialogs and receipts opaque within the restrained glass shell.
+- Retain native validation inside semantic dialog hosts, recovery-file selection, messaging drafts,
+  current network gates and phase-appropriate payment instructions.
 - Give Swap's main region a valid accessible name when optional demo tabs are absent.
-- Keep financial cards, balances, dialogs and receipts on opaque surfaces within the glass shell.
-- Correct WebKit focus scrolling using measured sticky dialog chrome. At 320px, native focus
-  previously placed the payment field behind a 123.5px heading. Focus now keeps the field and its
-  label clear of the actual heading and actions. Adjustment occurs on field focus or keyboard
-  opening, without overriding reading scroll.
-- Update browser fixtures for the production OpenGlass entry, current welcome heading and stable
-  messaging transport IDs. Wallet boot is suppressed in synthetic renderer fixtures.
+- Keep focused fields and labels clear of measured sticky dialog headings and actions in WebKit,
+  including 320px layouts. Reading scroll remains under the person's control.
+- Show the pending restore notice even before a wallet's group record loads. A real cold restore
+  while the disposable browser was offline exposed this missing notice. The recovery flow now
+  reports pending verification, then reports success only after the original address matches.
+  The OpenGlass browser regression covers this unloaded state in both themes and three sizes.
+- Place the initial-setup device reminder inside the approval-rule controls. This retains Near's
+  exact warning while removing 17px of overflow at 1366 × 768.
 
 ## Automated validation
 
-Final results and logs are retained locally in ignored `solspike/.state/deslopify-near/`.
+Latest ignored evidence directories are `solspike/.state/validation-final-*` and
+`solspike/.state/validation-merged-ux`. Logs are local `/private/tmp/zigs-validation-*.log` files.
 
 | Check | Result |
 |---|---|
 | Production OpenGlass build | Passed; separate wallet modules and worker URLs retained |
-| OpenGlass browser check | Passed; actual shell, theme changes, native input identity, cached content, modal dismissal, real unfunded app boot and strict CSP |
-| Chrome full interface review | 1,152 checks, 168 layouts, 50 composer-focus variants |
+| OpenGlass browser check | Passed: themes, native input identity, cached content, modal dismissal, real unfunded boot and strict CSP |
+| Integrated OpenGlass UX states | 30 views, no browser errors; includes cold restore before group loading |
+| Chrome interface review | 1,152 checks, 168 layouts, 50 composer-focus variants |
 | Chrome journey review | 579 checks, 156 variants |
 | WebKit journey review | 579 checks, 156 variants |
 | Messaging regression | 145 checks, 34 captures, no uncaught browser errors |
-| Node 26 app and unified setup | Passed |
-| Fast regression suite | 79 of 79 passed after follow-up tooling repairs; QR check skipped because `qrencode` is absent |
-| Repository lint | Passed: 314 JavaScript and two Python files |
+| Fast regression suite | 82 of 82 passed, including the reference QR check |
+| Repository lint | Passed: 318 JavaScript and two Python files |
+| Full baseline gate | Passed: 93 tests, 22 hashed files, zero problems |
 
-The two existing fast-suite failures are resolved. The policy test now checks the unchanged
-source SHA-256 and all three expected URL values already pinned in `baseline.json`, without
-depending on an absent historical commit. The differential tool uses decoded filesystem URLs
-and full historical commit IDs present in this repository. Its slice-8 WASM bytes still match the
-original pinned SHA-256; the pre-v1 artifact is independently hash-pinned. All 4,552 calls pass,
-including eight specifically expected old plain-wallet differences and seven expected pool
-differences. The test also passes through a directory containing spaces. No security assertion
-was skipped, no policy value changed and no engine binary was rebuilt.
-Full baseline, live transactions and physical-device checks remain open.
-The copied upstream skill and Stageshow assets include their original whitespace/Windows line
-endings; first-party changes pass `git diff --check` with those vendor directories excluded.
+The full baseline ran afresh on `eec59ad` under Node 26.12.1, including QR; no cached test exits were reused.
 
-Reproduce with Node 26, a Chrome installation, and the pinned project dependencies:
+The two prior tooling failures are fixed without dropping assertions. The policy test checks the
+unchanged source SHA-256 and all three URL policies already pinned in `baseline.json`, avoiding
+an absent historical commit. The differential tool decodes filesystem URLs and uses historical
+full commit IDs present in this repository. Its slice-8 WASM still matches the original hash;
+the pre-v1 artifact has an independent hash pin. All 4,552 calls pass, including eight expected old
+plain-wallet differences and seven expected pool differences. The check also passes through a
+path containing spaces. No engine binary was rebuilt.
+
+The baseline previously referenced a missing commit. Its 22 hash pins were audited against the
+corresponding imported history; five had subsequently changed on existing main. Those five now
+match existing main `eb533917eaee7b70c4348c502e944064513c4c42` byte for byte. The remaining
+hashes, source policy, URL policies and served-header expectations are unchanged. The test list
+includes the existing unlisted tests and helpers, with passing results required. This is an
+explicit repair of historical metadata, rather than a replacement of all expectations with the
+current output.
+
+The QR reference was built from official libqrencode 4.1.1 source in `/private/tmp`, verified
+against archive SHA-256 `5385bc1b8c2f20f3b91d258bf8ccc8cf62023935df2d2676b5b67049f31a049c`.
+All five reference matrices match module for module. Node 26.12.1, the QR tool and browser
+profiles were temporary local tools; no global package installation was needed.
+
+Reproduce with Node 26, `qrencode`, Chrome and the pinned project dependencies:
 
 ```sh
 npm ci --prefix web --no-audit --no-fund
 npm ci --prefix solspike --no-audit --no-fund
+npm ci --prefix cf --no-audit --no-fund
 npm run build --prefix web
 sh scripts/test-fast.sh
 bash solspike/lint.sh
-node web/test/app.mjs
-node web/test/unified-setup.mjs
+bash solspike/baseline.sh check
 node web/openglass/browser-check.mjs
 ```
 
-The browser tools in `solspike/tools/` accept `PLAYWRIGHT_MODULE` and `CHROME_EXECUTABLE`.
-Point `PLAYWRIGHT_MODULE` at the installed `web/node_modules/playwright/index.mjs` when running
-those tools from the repository root. Output environment variables keep captures in ignored
-state directories. The WebKit run uses the same journey source with its browser launcher changed
-to the matching Playwright WebKit engine; it is not a physical iPhone test.
+The baseline needs the documented local `cf/.dev.vars` with `DEV_NO_AUTH=1`.
+Browser tools accept `PLAYWRIGHT_MODULE` and `CHROME_EXECUTABLE`; point the former at
+`web/node_modules/playwright/index.mjs`. The WebKit run uses the same journey source with
+its launcher changed to the matching Playwright WebKit engine. It is not a physical iPhone test.
+Copied upstream skill and Stageshow sources retain their original formatting; first-party
+changes pass `git diff --check` with those vendor directories excluded.
 
-## Live and human checks still to run
+## Real testnet rehearsal
 
-This machine lacks the configured live-test environment, RPC credential and staging password.
-No live rehearsal or funded payment was attempted. A synthetic browser state, an encrypted-file
-fixture, and a real unfunded app boot each establish different evidence; none proves settlement
-or recovery on independent hardware.
+These checks ran against the actual app and committed engine using separate disposable Chrome
+contexts on one Mac, including a 390px context. They did not use synthetic wallet/session records.
+The local development coordinator used `DEV_NO_AUTH=1`; the chain was public Zcash testnet.
+Only newly generated test wallets and test coins were used. Private recovery files, passphrases,
+invites, keys and browser state remain ignored locally and are absent from the PR.
 
-| Journey | Rehearsal and acceptance criteria | Status |
-|---|---|---|
-| Setup | Use a phone and laptop on test networks. Create and join, compare the complete safety number and address, and confirm the chosen approval rule. Include one cancelled protection prompt. | Needs configured test environment and physical devices |
-| Payment approval | Receive test coins, review the exact destination, amount, fee and network, collect required approvals, submit, and verify inclusion separately from submission. Never use mainnet funds. | Needs configured test environment |
-| Interrupted connection | Disconnect during coordination; reconnect and inspect the existing proposal before retrying. Confirm truthful progress, retained drafts and no duplicate action. | Live fault rehearsal pending; synthetic messaging regression passed |
-| Backup and restore | Save distinct encrypted recovery files and separate passphrases. Check each file, try a wrong file/passphrase, then restore into a fresh browser on another device. Confirm share identity and the ability to participate in a subsequent test payment. | Physical restoration pending; encrypted-file and form fixtures passed |
-| Screen reader | Removed from this pass at the user's request. | Stopped; no further Mac settings changes are authorized |
+| Journey | Observed result |
+|---|---|
+| Formation | Real 2-of-3 and 2-of-2 ceremonies completed; all participants derived the same testnet address. Complete safety codes were compared before acknowledgement. |
+| Invalid recovery | Wrong passphrase and corrupted ciphertext each stored zero shares. |
+| Cold recovery | Actual encrypted backup restored in a fresh browser while offline. Pending verification remained visible, no premature success appeared, and reconnection verified the original address. Restored nonces were empty. |
+| Recovery followed by spending | Device 1 of the funded 2-of-2 wallet was closed and restored from its actual UI-exported encrypted backup into a fresh browser. That restored share then approved and signed the payment below. |
+| Interrupted approval | The second browser was offline while the restored first browser approved. Exactly one approval was present; proof and broadcast actions were unavailable. Reconnection retained the same proposal and exact recipient/amount, then the second browser approved. |
+| Submission and inclusion | Two approvals and two signature shares produced a verified combined signature and proof. The actual Send action submitted one transaction. Submission was observed before block inclusion; the wallet later reported it in a block. A separate recipient scan found the exact amount spendable. Only one proposal existed. |
 
-Run a live batch only from a clean checkout of the reviewed `deslopify` commit, using the existing
-coordinator workflow documented in `solspike/README.md`. Keep keys, passphrases and recovery
-files out of the PR and screenshots. Record the commit, network, device/browser versions,
-transaction IDs and outcome for each completed check. Merge review remains separate.
+The app's configured Valar faucet definitively failed both shielded and transparent test-address
+claims with “the wallet cannot pay this address”; neither returned a payout transaction.
+The user explicitly approved a claim through [Fauzec's documented API](https://fauzec.com/).
+It supplied 1 test ZEC; the app waited for spendable funds before preparing the payment.
+
+- Funding transaction: `aa79c87e2b05b92832e06577978e17c8e3ceff63a136484b2e2fa6bbab7e39f2`.
+- Payment transaction: `191701b1aa02e50df8ee519a52fecaa27eafb4d38c9ed2adf05d9ff74e50c31a`.
+- Payment: 100,000 zat (0.001 test ZEC); fee: 10,000 zat (0.0001 test ZEC).
+- Sender's confirmed scan height: 4,617,073. Independent recipient scan at 4,617,074:
+  one note, 100,000 zat spendable, zero pending.
+- Application source: `e4f066a` plus the two-line setup-layout fix subsequently committed as
+  `eec59ad`. The layout fix does not alter transaction handling.
+
+## Remaining release evidence
+
+Physical phone/laptop setup and recovery still need independent hardware. A 390px browser
+context establishes responsive rendering, not mobile operating-system behavior or device
+independence. Usability with an unfamiliar person also remains unperformed.
+Screen-reader testing was removed from this pass at the user's request. No further Mac settings
+changes are authorized. The draft PR remains a review checkpoint; these results do not authorize
+merging into `Near`, merging into `main`, or deployment.
+
+The earlier independent **36/40** assessment predates integration. This validation does not
+invent a new score or establish 40/40. A fresh assessment and the remaining human/device evidence
+are needed for that claim.
 
 ## Review captures
 
-These captures contain synthetic, unfunded renderer state. They show the integrated presentation;
-the earlier independent **36/40** score describes the pre-integration assessment and is not a new
-score for the merged interface.
+These captures contain synthetic, unfunded renderer state:
 
 - [Light desktop overview](visuals/deslopify-checkpoint/overview-light-desktop.png)
 - [Dark desktop overview](visuals/deslopify-checkpoint/overview-dark-desktop.png)
