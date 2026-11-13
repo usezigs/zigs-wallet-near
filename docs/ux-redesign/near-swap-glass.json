@@ -1,0 +1,81 @@
+{
+  "reviewed": "2026-11-13",
+  "sourceBranch": "Near",
+  "sourceRevision": "74d1acd18b60ae98a58b937f0605aa7b0f527846",
+  "targetBranch": "codex/near/glass",
+  "workflow": {
+    "checks": 232,
+    "captures": 28,
+    "runtimeErrors": [],
+    "forbiddenRequests": []
+  },
+  "matrix": {
+    "passed": true,
+    "states": 25,
+    "variants": 200,
+    "stateNames": [
+      "swap-normal",
+      "swap-picker-pay",
+      "swap-picker-receive",
+      "swap-details",
+      "swap-slippage",
+      "swap-review",
+      "swap-simulation",
+      "swap-simulation-step-1",
+      "swap-simulation-step-2",
+      "swap-simulation-step-3",
+      "swap-simulation-step-4",
+      "swap-simulation-step-5",
+      "swap-simulation-step-6",
+      "swap-quantum-introduction",
+      "swap-quantum-configure",
+      "swap-quantum-details",
+      "swap-quantum-review",
+      "swap-quantum-expired",
+      "swap-quantum-approvals",
+      "swap-quantum-approved",
+      "swap-quantum-progress",
+      "swap-quantum-delivery",
+      "swap-quantum-refund",
+      "swap-error",
+      "swap-unsupported"
+    ],
+    "failures": [],
+    "runtimeErrors": [],
+    "issueCases": 0,
+    "unclassifiedPanels": []
+  },
+  "hover": {
+    "passed": true,
+    "checks": 33,
+    "runtimeErrors": [],
+    "performance": {
+      "frames": 89,
+      "p95Ms": 16.700000000000273,
+      "averageMs": 16.665168539325848,
+      "longTasks": [],
+      "childMutations": 0,
+      "method": "90 frame-paced synthetic pointer moves after real mouse input, local headless Chrome"
+    }
+  },
+  "existingInteractions": {
+    "checks": 86,
+    "runtimeErrors": []
+  },
+  "smokeAndBuild": {
+    "passed": true,
+    "strictCsp": true
+  },
+  "fastSuite": {
+    "executed": 83,
+    "passed": 81,
+    "failed": [
+      "solspike/test/policy.test.mjs",
+      "solspike/test/plain-equiv.test.mjs"
+    ],
+    "skipped": [
+      "web/test/qr.mjs"
+    ]
+  },
+  "scope": "Real presentation renderers, disposable synthetic stores, mock transactions and blocked external provider requests. No real funding or transaction submission."
+}

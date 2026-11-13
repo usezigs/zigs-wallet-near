@@ -79,11 +79,14 @@ async function assetDetails() {
 }
 
 async function activityStates() {
-  const recent = page.getByRole("button", { name: "Recent", exact: true });
-  await recent.focus(); await recent.press("Enter");
+  const approvals = page.locator("#overview-approvals");
   await page.getByText("No recent transactions", { exact: true }).waitFor();
-  check(await recent.getAttribute("aria-pressed") === "true", "Recent selects by keyboard");
-  check(await recent.evaluate((n) => n === document.activeElement), "Recent retains focus");
+  check(await approvals.isVisible() && await page.locator(".recent-transactions").isVisible(),
+    "Approvals and recent transactions remain visible together");
+  const viewAll = page.getByRole("button", { name: "View all approvals", exact: true });
+  await viewAll.focus(); await draw();
+  check(await viewAll.evaluate((n) => n === document.activeElement),
+    "the dashboard approval action retains keyboard focus after redraw");
   await capture("recent-320-light");
   await page.evaluate(async () => {
     const { state } = await import("/app-state.js");
@@ -108,10 +111,10 @@ async function activityStates() {
   await receipt.screenshot({ path: resolve(output, "review-context-1440-light.png") });
   await page.evaluate(async () => {
     const { state, ui } = await import("/app-state.js");
-    state.sessions = []; state.sessionsFailed = true; ui.overviewActivity = "pending";
+    state.sessions = []; state.sessionsFailed = true;
   });
   await draw();
-  check(await page.getByText(/could not be read/).isVisible(), "failed reads retain their notice");
+  check(await approvals.getByText(/could not be read/).isVisible(), "failed reads retain their notice");
   check(await page.getByText("No approvals waiting", { exact: true }).count() === 0,
     "failed read never claims an empty queue");
   await page.evaluate(async () => {

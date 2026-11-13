@@ -265,7 +265,7 @@ function overviewTab() {
           el("h2", { id: "assets-title" }, "Your assets")),
         el("div", { class: "assets-grid asset-rows" }, zecAsset(c), solAsset(), plainShown() ? usdcAsset() : null)),
       el("aside", { class: "overview-rail", "aria-label": "Wallet status and transactions" },
-        overviewTransactions(), el("details", { class: "workflow-details" },
+        overviewApprovals(), overviewTransactions(), el("details", { class: "workflow-details" },
           el("summary", {}, "Wallet approval rule"), sharedControl({ required: state.g.t, total: state.g.n, context: state.gid,
         status: state.g.shapeMoved ? "Configuration mismatch" : "Wallet formed",
         attention: !!state.g.shapeMoved,
@@ -348,22 +348,25 @@ function assetActionPicker(action) {
         : null));
 }
 
+function overviewApprovals() {
+  return el("section", { class: "overview-approvals", id: "overview-approvals",
+    "data-key": "overview-approvals", tabindex: "-1", "aria-labelledby": "approvals-title" },
+    el("div", { class: "section-heading approval-heading" },
+      el("h2", { id: "approvals-title" }, "Approvals"),
+      el("button", { class: "btn ghost sm overview-all-approvals", type: "button",
+        "aria-label": "View all approvals", onclick: openWalletSection("approvals") },
+      "View all", icon("external"))),
+    overviewApprovalSummary());
+}
+
 function overviewTransactions() {
-  const recent = ui.overviewActivity === "recent";
-  const choose = (id, label) => el("button", { class: "btn", type: "button",
-    "aria-pressed": String(recent === (id === "recent")),
-    onclick: () => { ui.overviewActivity = id; render(); } }, label);
   return el("section", { class: "overview-transactions", "aria-labelledby": "transactions-title" },
     el("div", { class: "section-heading transaction-heading" },
       el("h2", { id: "transactions-title" }, "Transactions"),
-      el("div", { class: "transaction-views", role: "group", "aria-label": "Transaction view" },
-        choose("pending", "Pending"), choose("recent", "Recent")),
-      recent ? el("button", { class: "btn ghost sm overview-all-activity", type: "button",
+      el("button", { class: "btn ghost sm overview-all-activity", type: "button",
         "aria-label": "View all activity", onclick: openWalletSection("activity") },
-      icon("external")) : null),
-    recent ? recentTransactions() : el("div", { class: "overview-approvals", id: "overview-approvals",
-      "data-key": "overview-approvals", tabindex: "-1", "aria-labelledby": "approvals-title" },
-    overviewApprovalSummary()));
+      "View all", icon("external"))),
+    recentTransactions());
 }
 
 function overviewApprovalSummary() {
@@ -372,10 +375,8 @@ function overviewApprovalSummary() {
   const zecPreview = rows.review.slice(0, 3);
   const solPreview = sol?.kind === "review" ? solPendingRows().slice(0, 3 - zecPreview.length) : [];
   if (!shown.length && !rows.lost.length && emptyApprovalsRead(sol))
-    return transactionEmpty("No approvals waiting", "approvals-title");
+    return transactionEmpty("No approvals waiting");
   return el("section", { class: "card card-pad overview-inbox-summary" },
-    el("div", { class: "card-head" }, el("h3", { id: "approvals-title" }, "Approvals"),
-      el("button", { class: "btn", type: "button", onclick: openWalletSection("approvals") }, "View all approvals")),
     inboxNote(shown.length > 0 || rows.lost.length > 0),
     zecPreview.length || solPreview.length ? el("div", { class: "list stacked approval-preview" },
       zecPreview.map((ss) => guard(approvalRow, ss)),

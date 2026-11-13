@@ -17,8 +17,8 @@ export const ENDED = new Set(["sent", "failed"]);
 export const PROPOSAL = ["intent", "message", "feeSig", "createdAt", "swap"];
 /** No device approves or sends a swap deposit in this time before its deadline. */
 export const SWAP_MARGIN_MS = 30 * 60_000;
-const SWAP_MARK =
-  /^near-sol-zec ([1-9A-HJ-NP-Za-km-z]{32,44}) (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)$/;
+const SWAP_MARK = new RegExp('^near-sol-zec ([1-9A-HJ-NP-Za-km-z]{32,44}) '
+  + '(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z)(?: (public|basic))?$');
 
 /** The signed parts of a session document, as the pool names them (web/sol/sessions.js). */
 export const PARTS = {
@@ -46,7 +46,8 @@ const MARK_CHANGED = "The swap mark of this proposal is not the one that its app
 const num = (n) => (Number.isFinite(n) ? n : 0);
 
 /** The `swap` field of the deposit of a swap from SOL to ZEC (docs/sol-to-zec-group.md). */
-export const swapMark = (deposit, deadline) => `near-sol-zec ${deposit} ${deadline}`;
+export const swapMark = (deposit, deadline, mode = 'basic') =>
+  `near-sol-zec ${deposit} ${deadline} ${mode}`;
 
 /**
  * The swap that the proposal `ss` pays: { deposit, deadline (ms), iso }, or null when it has no
@@ -56,7 +57,7 @@ export function swapOf(ss) {
   const m = typeof ss?.swap === "string" ? SWAP_MARK.exec(ss.swap) : null;
   const at = m ? Date.parse(m[2]) : NaN;
   if (!m || !Number.isFinite(at) || new Date(at).toISOString() !== m[2]) return null;
-  return { deposit: m[1], deadline: at, iso: m[2] };
+  return { deposit: m[1], deadline: at, iso: m[2], confidentiality: m[3] || 'basic' };
 }
 
 // A proposal with no `swap` field, or the deposit of a swap: a SOL send with a field of the form.

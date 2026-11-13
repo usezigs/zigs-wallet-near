@@ -16,7 +16,7 @@ FAST="optional-passkey demo-check chain-fallback chat backup-check graph persona
   sol-config sol-receive sol-errors sol-sdk sol-addsol sol-pool-mainnet guided-create
   messaging-presentation messaging-cost-review messaging-account-view premium-motion homepage-motion
   outcome-seal passkey-setup wallet-description guided-setup
-  recipients swap-preview swap-recovery
+  recipients swap-preview swap-recovery swapflow hackathon-swap near-confidential sol-swap-proposal
   payees vault lwd zns near-quote
   requests shim shim-status
   signed util account qr

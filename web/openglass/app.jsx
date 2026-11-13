@@ -1,13 +1,15 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
-import { Button, Glass, GlassSystemProvider, GlassThemeProvider } from "open-glass-ui";
+import { Button, Glass, GlassSystemProvider, GlassThemeProvider, IconButton } from "open-glass-ui";
 import "open-glass-ui/styles.css";
 import "./theme.css";
-import { collectPortals, installBridge } from "./bridge.jsx";
+import { collectPortals, installBridge, syncOverlayThemes } from "./bridge.jsx";
 import { installMaterialMotion } from "./material-motion.jsx";
+import { useButtonHover } from "./use-button-hover.js";
 
 function AppShell() {
+  useButtonHover();
   return <>
     <a className="skip-link" href="#app">Skip to main content</a>
     <div className="shell">
@@ -34,10 +36,10 @@ function AppShell() {
       </main>
     </div>
     <div id="banner" hidden role="status"><span id="banner-text" />
-      <button className="icon-btn" id="banner-close" type="button" aria-label="Close">
+      <IconButton className="icon-btn" id="banner-close" type="button" aria-label="Close">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           strokeWidth="1.5" strokeLinecap="round" aria-hidden="true" focusable="false"><path d="m6 6 12 12M18 6 6 18" /></svg>
-      </button>
+      </IconButton>
     </div>
   </>;
 }
@@ -51,17 +53,19 @@ function refresh() {
   try {
     const portals = collectPortals();
     const appearance = document.documentElement.dataset.theme || "system";
-    const signature = appearance + ":" + portals.map((entry) => entry.id).join(",");
-    if (signature === last) { syncMaterialMotion(); return; }
+    const signature = appearance + ":" + window.matchMedia("(prefers-color-scheme: dark)").matches
+      + ":" + portals.map((entry) => entry.id).join(",");
+    if (signature === last) { syncOverlayThemes(); syncMaterialMotion(); return; }
     last = signature;
     flushSync(() => root.render(
       <GlassSystemProvider renderer="auto" theme={{ appearance: "system" }}>
-        <GlassThemeProvider appearance={appearance} className="zigs-openglass">
+        <GlassThemeProvider appearance={appearance} theme={{ preset: "neutral", glass: { rim: .65, highlight: .75, lensing: .45, shadow: .7, brightness: 1.25 } }} className="zigs-openglass">
           <AppShell />
           {portals.map((entry) => entry.portal)}
         </GlassThemeProvider>
       </GlassSystemProvider>,
     ));
+    syncOverlayThemes();
     syncMaterialMotion();
   } finally { drawing = false; }
 }
@@ -73,9 +77,15 @@ function schedule() {
 const bridge = installBridge(schedule);
 bridge.flush = refresh;
 refresh();
+// The provider resolves system appearance after hydration. Native top-layer dialogs must
+// follow that resolved palette as well as the document's explicit appearance preference.
+new window.MutationObserver(syncOverlayThemes).observe(document.querySelector(".zigs-openglass"), {
+  attributes: true, attributeFilter: ["data-ogui-appearance", "style"],
+});
 // Also cover cached views and overlays mounted outside the usual wallet draw loop.
-new window.MutationObserver(schedule).observe(document.getElementById("openglass-root"), { childList: true, subtree: true });
+new window.MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
 new window.MutationObserver(schedule).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", schedule);
 
 // Keep the existing module graph and crypto workers separate from the presentation bundle.
 // A variable import is intentionally external to esbuild, preserving the CSP/worker URLs.

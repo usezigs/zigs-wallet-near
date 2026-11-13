@@ -168,6 +168,24 @@ console.log("ok  a chat reads testnet and mainnet requests");
   console.log("ok  a device joins a mainnet wallet without a release-warning gate");
 }
 
+// ── One browser plays every mainnet device ──
+{
+  await t.createGroup("Single browser", 3, 2, null, "mainnet");
+  await waitFor("first mainnet device", () => t.state.seats[1]);
+  const setup = () => drawn(() => t.groupView());
+  assert.ok(button(setup(), "Play device 2"), "mainnet exposes the existing local-device flow");
+  assert.match(textOf(setup()), /real mainnet payments by itself/);
+  assert.doesNotMatch(textOf(setup()), /For a demo or a review only/);
+  await button(setup(), "Play device 2").on.click(EV);
+  await waitFor("second local mainnet device", () => t.state.seats[2]);
+  await button(setup(), "Play device 3").on.click(EV);
+  await waitFor("single-browser mainnet wallet checked", () =>
+    Object.keys(t.state.verify).length === 3 && t.state.wallet);
+  assert.ok(t.state.wallet.address.startsWith("u1"), "the solo wallet has a mainnet address");
+  assert.equal(t.state.g.t, 2, "solo setup preserves the approval threshold");
+  console.log("ok  one browser plays all mainnet devices with the existing threshold");
+}
+
 // ── Change devices of a mainnet wallet ──
 {
   // The new wallet stays on mainnet and needs no tick: the person ticked for the old wallet.

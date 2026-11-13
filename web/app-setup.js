@@ -71,6 +71,7 @@ export function setupQrDialog() {
 /** Compact presentation of the same seat/check facts used by the existing setup cards. */
 function setupDeviceStatus(f, phase = "connect", joining = false) {
   const mine = localSeats(), open = seatIds().find((i) => !state.seats[i]);
+  const sharedBrowser = mine.length > 1;
   const confirmed = confirmedBy(safetyNo()), complete = f.protocolReady && !f.blocked;
   return el("section", { class: "setup-wallet-status surface-quiet" },
     el("div", { class: "setup-status-wallet" }, walletMark(state.g),
@@ -90,13 +91,18 @@ function setupDeviceStatus(f, phase = "connect", joining = false) {
       "data-device-seat": String(i), "data-device-role": i === 1 ? "initiator" : "joiner" },
       el("span", { class: "setup-device-mark", "aria-hidden": "true" }, icon(i === 1 ? "laptop" : "phone")),
       el("div", {}, el("strong", {}, "Device " + i + (here ? " · You" : "")),
-        el("span", { class: "small muted setup-device-label" }, state.seats[i]?.name || "Independent signing share")),
+        el("span", { class: "small muted setup-device-label" }, state.seats[i]?.name
+          || (here && sharedBrowser ? "Signing share in this browser" : "Independent signing share"))),
       el("span", { class: "small setup-device-state" }, status));
     })),
     el("p", { class: "small muted" }, phase === "verify"
       ? "Confirm on each actual device. A device’s reported confirmation does not replace your comparison."
-      : complete ? "Preparation checks are complete. Each device keeps its own share; payments still need your approval rule."
-        : "Device labels show participation, not identity or live connectivity. Use separate physical devices. Every device must keep Zigs open until setup finishes."
+      : complete ? "Preparation checks are complete. " + (sharedBrowser
+        ? "This browser holds " + mine.length + " of " + f.n + " signing shares. Payments still need your approval rule."
+        : "Each device keeps its own share; payments still need your approval rule.")
+        : (sharedBrowser ? "This browser holds " + mine.length + " of " + f.n
+          + " signing shares. Shares in one browser do not provide separate-device protection. Keep Zigs open until setup finishes."
+          : "Device labels show participation, not identity or live connectivity. Use separate physical devices. Every device must keep Zigs open until setup finishes.")
           + (f.solWanted && bothParts() ? " " + BOTH_OPEN : "")));
 }
 
@@ -663,7 +669,7 @@ function inviteCard(openCount, guided = false) {
     onclick: () => navigator.share({ title: "Join " + state.g.name + " on Zigs", text: message })
       .catch(() => {}),
   }, "Share") : null;
-  const qr = guided ? el("button", { class: "btn", type: "button", "data-key": "setup-show-qr",
+  const qr = guided ? el("button", { "data-glass": "button", class: "btn", type: "button", "data-key": "setup-show-qr",
     onclick: () => openSetupQr() }, icon("phone"), "Show QR code")
     : secretQr(link, "wallet", true);
   return el("section", { class: "card card-pad hero-card" + (guided ? " guided-invitation" : "") },
@@ -868,11 +874,12 @@ function progressCard() {
 }
 
 function demoDevices(open) {
-  if (netName(state.g) === "mainnet") return null;
   const off = offOf({ pending: state.pending, newSigner: true }, "why-play");
   return localSeats().length && open.length
     ? el("details", { class: "testing" }, el("summary", {}, "Trying Zigs alone? Play the other devices in this browser"),
-      el("p", { class: "small faint" }, "For a demo or a review only. In real use, each key share sits on its own device."),
+      el("p", { class: "small muted" }, netName(state.g) === "mainnet"
+        ? "Played devices keep their separate signing shares in this browser. With enough shares here, this browser can approve real mainnet payments by itself. These slots do not provide separate-device protection. Keep each share’s recovery file and passphrase safe."
+        : "For a demo or a review only. In real use, each key share sits on its own device."),
       deviceProtection("demo:" + state.gid),
       el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, open.map((i) => el("button", {
         class: "btn sm", type: "button", ...off.attrs,

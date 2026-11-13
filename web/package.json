@@ -4,9 +4,13 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
-    "test:openglass": "node openglass/browser-check.mjs"
+    "test:openglass": "node openglass/browser-check.mjs",
+    "test:button-hover": "node openglass/button-hover-check.mjs",
+    "test:single-browser": "node openglass/single-browser-check.mjs",
+    "audit:openglass": "node openglass/flow-audit.mjs && node openglass/interaction-check.mjs && node openglass/button-hover-check.mjs"
   },
   "dependencies": {
+    "motion": "^14.14.0",
     "open-glass-ui": "^0.5.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"

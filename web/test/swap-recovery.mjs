@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as Z from '../pkg/zigs_engine.js';
 import { newRoom } from '../chat.js';
-import { createSwapRecovery, readSwapRecovery, swapRecoveryRecord } from '../swap-recovery.js';
+import { createSwapRecovery, readSwapRecovery, swapRecoveryRecord, swapRecoveryText } from '../swap-recovery.js';
 import { SwapPreviewModel } from '../swap-preview-model.js';
 
 Z.initSync({ module: readFileSync(new URL('../pkg/zigs_engine_bg.wasm', import.meta.url)) });
@@ -77,4 +77,42 @@ model.closeSwap();
 assert.equal(model.restoreSwap({ ...record, swap: { ...swap, amountIn: 'bad' } }), false);
 assert.ok(reads >= 3);
 cache.remove(); assert.equal(cache.load(), null);
+assert.deepEqual(cache.history(), [record], 'Done archives the active record');
+const withProgress = swapRecoveryRecord({ ...live, checkedAt: 123,
+  status: { status: 'FAILED', originTxs: ['source-tx'], destinationTxs: ['reported-destination-tx'] } });
+cache.save(withProgress); cache.remove();
+assert.deepEqual(cache.history(), [withProgress], 'rechecking the same swap updates rather than duplicates its archive');
+assert.ok(![...values.values()].some((value) => value.includes('source-tx')), 'history is encrypted too');
+const support = swapRecoveryText({ ...live, savedProgress: withProgress.progress });
+for (const part of ['Historical record, not a payment instruction', swap.deadline, swap.refundTo,
+  'source-tx', 'reported-destination-tx', 'FAILED', 'proposal-1']) assert.ok(support.includes(part));
+cache.save(withProgress);
+const historyName = [...values.keys()].find((k) => k.includes(':history:'));
+const historyCiphertext = values.get(historyName);
+const noArchive = createSwapRecovery(Z, key, id, { ...storage,
+  setItem(k, v) { if (k !== historyName) storage.setItem(k, v); } });
+assert.throws(() => noArchive.remove(), /Tracking was kept/);
+assert.deepEqual(cache.load(), withProgress, 'unconfirmed archive writes keep active tracking');
+const noRemove = createSwapRecovery(Z, key, id, { ...storage, removeItem() {} });
+assert.throws(() => noRemove.remove(), /could not be closed/);
+assert.deepEqual(cache.load(), withProgress);
+cache.remove();
+assert.equal(cache.history().length, 1, 'retry after interrupted close remains idempotent');
+cache.save(record);
+values.set(historyName, historyCiphertext.slice(0, -5));
+assert.throws(() => cache.remove(), /history cannot be read/);
+assert.deepEqual(cache.load(), record, 'corrupt history never deletes the active record');
+values.set(historyName, historyCiphertext);
+for (let i = 0; i < 99; i++) {
+  cache.save({ ...record, swap: { ...swap, depositAddress: 'synthetic-deposit-' + i } });
+  cache.remove();
+}
+cache.save({ ...record, swap: { ...swap, depositAddress: 'one-too-many' } });
+assert.throws(() => cache.remove(), /history is full/);
+assert.equal(cache.load().swap.depositAddress, 'one-too-many', 'full history preserves the new active record');
+assert.equal(cache.history().length, 100);
+for (const bad of [{ status: 'SUCCESS', originTxs: [], destinationTxs: [], checkedAt: -1 },
+  { status: 'invented', originTxs: [], destinationTxs: [] },
+  { status: 'SUCCESS', originTxs: Array(21).fill('tx'), destinationTxs: [] }])
+  assert.throws(() => readSwapRecovery({ ...record, progress: bad }), /cannot be read/);
 console.log('swap-recovery: encrypted roundtrip, scope, corruption, failed storage, tracking-only restore, route verification and duplicate guard ok');

@@ -10,11 +10,14 @@ const PATHS = Object.freeze({
   chat: "M21 11a8 8 0 0 1-8 8H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v4Z",
   search: "M10.5 3a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 0 0-15ZM16 16l5 5",
   plus: "M12 5v14M5 12h14",
+  minus: "M5 12h14",
+  info: "M12 11v6M12 7h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z",
   security: "m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Zm-4 9 3 3 5-6",
   unshield: "m9 4 3-1 8 3v6c0 2-1.5 4-3.3 5.6M14 20.1c-1.2.6-2 .9-2 .9s-8-4-8-9V6l2.6-1M3 3l18 18",
   addressBook: "M5 3h15v18H5zM2 7h4M2 12h4M2 17h4M12 7a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z"
     + "m-3 10v-1a3 3 0 0 1 6 0v1",
   swap: "M3 7h17l-4-4m4 4-4 4M21 17H4l4-4m-4 4 4 4",
+  confidentialSwap: "M8.5 10.5h7v7h-7zM10 10.5V8.5a2 2 0 0 1 4 0v2M12 13.5V15",
   settings: "M4 7h16M4 17h16M9 4v6M15 14v6",
   back: "M15 5l-7 7 7 7M8 12h13",
   send: "M7 17 17 7M7 7h10v10",
@@ -61,6 +64,8 @@ const DETAILS = Object.freeze({
   chat: "M8 8h8M8 12h5", search: "M16 16l5 5", plus: "M12 5v14",
   security: "m8 12 3 3 5-6", addressBook: "M2 7h4M2 12h4M2 17h4",
   swap: "M3 7h17l-4-4m4 4-4 4", settings: "M9 4v6M15 14v6",
+  confidentialSwap: "M3.7 8.5a8.8 8.8 0 0 1 14.6-3.2L21 8M21 3.5V8h-4.5"
+    + "M20.3 15.5a8.8 8.8 0 0 1-14.6 3.2L3 16M3 20.5V16h4.5",
   send: "M7 7h10v10", receive: "M7 7v10h10", lock: "M8 11V8a4 4 0 0 1 8 0v3",
   wallet: "M15 11h6v5h-6zM17 13.5h.01", key: "M16 8h.01", browser: "M3 9h18",
   back: "M15 5l-7 7 7 7", forward: "M12 5l7 7-7 7",

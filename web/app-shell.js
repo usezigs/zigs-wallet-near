@@ -38,7 +38,8 @@ import { currentSection, moveWord, solStays, walletShown } from "./app-wallet.js
 import { icon, sculptedIcon } from "./app-icons.js";
 import { createSwapPreview } from "./app-swap-preview.js";
 import { createSwapRecovery } from "./swap-recovery.js";
-import { solSwapSource, swapPayout } from "./app-swap-sol.js";
+import { shieldedSwapReceipt, solSwapSource, swapPayout } from "./app-swap-sol.js";
+import { swapJournal } from "./app-swap-store.js";
 import { zecSwapSource } from "./app-swap-zec.js";
 import { generalSettings, settingsDisclosure, settingsGroup, settingsRow } from "./app-settings-ui.js";
 import { walletMark } from "./app-wallet-art.js";
@@ -64,11 +65,9 @@ export function renderSide() {
   const nav = document.getElementById("side-nav");
   const pending = state.groups.reduce((n, g) => n + toApprove(g.id).length + solPending(g.id), 0);
   const sections = [
-    ["overview", "Overview"],
+    ["overview", "Overview"], ["swap", "Swap"],
     ["approvals", "Approvals", countBadge(pending, "to approve across wallets", "attn")],
     ["activity", "Activity"], ["recipients", "Address book"],
-    ["swap", "Swap", el("span", { class: "badge plain" },
-      el("span", { class: "sr-only" }, ", "), nearLive() ? "Live" : "Quotes")],
     ["chats", "Messages", newBadge(state.groups.reduce((n, g) => n + unreadIn(g.id), 0)
       + Object.keys(chats.list).reduce((n, cid) => n + unreadIn(cid), 0))],
     ["recovery", "Security"],
@@ -236,7 +235,7 @@ export function lockView() {
     ? "The locked keys in this browser are damaged and cannot be opened."
     : "The key shares in this browser are encrypted with your passkey. "
       + "Unlock with Face ID, Touch ID or your security key.";
-  return el("div", { class: "card empty lock-card" }, sculptedIcon("lock"),
+  return el("div", { "data-glass": "card", class: "card empty lock-card" }, sculptedIcon("lock"),
     el("h1", {}, "Zigs is locked"), el("p", { class: "small" }, text),
     lockedVault.damaged ? null : securityExplanation("passkey"),
     lockedVault.damaged ? null
@@ -373,7 +372,7 @@ export function deviceProtection(context = "setup", onReady = null) {
 }
 
 export function loadingView() {
-  return el("div", { class: "card empty launch-card" }, sculptedIcon("wallet"),
+  return el("div", { "data-glass": "card", class: "card empty launch-card" }, sculptedIcon("wallet"),
     el("span", { class: "dot busy" }),
     el("h1", {}, Z ? "Connecting to the group server" : "Loading the crypto engine"),
     el("p", { class: "small" }, "Your wallets appear in a moment."));
@@ -502,6 +501,8 @@ let swapPreview;
 export function swapWorkspace() {
   const context = { id: state.g?.id, name: state.g?.name, live: nearLive(), payout: swapPayout(),
     recovery: createSwapRecovery(Z, gkeys[state.gid], state.gid),
+    network: state.g?.network || 'testnet', preferredFrom: 'sol', journal: swapJournal,
+    receipt: shieldedSwapReceipt,
     zec: zecSwapSource(), solGroup: solSwapSource(),
     networks: state.g && state.g.network === "mainnet" ? 'Zcash ' + netOf(state.g).label
       : 'Zcash Testnet · Solana Devnet',

@@ -428,14 +428,15 @@ const noStore = (res, label) => {
   assert.ok(!(await res.text()).includes(KEY), "the key never reaches the page");
   const [call] = taken();
   const headers = new Headers(call.init.headers);
-  assert.deepEqual([...headers.keys()].sort(), ["accept", "content-type", "x-api-key"],
+  assert.deepEqual([...headers.keys()].sort(),
+    ["accept", "content-type", "x-api-key"],
     "the key header goes upstream");
   assert.equal(headers.get("x-api-key"), KEY, "the key goes as X-API-Key");
   step("the partner key goes upstream as X-API-Key when it is set, and never to the page");
 }
 
 // ── The live swap from SOL to ZEC: /near/swap and /near/status, behind NEAR_LIVE ──
-const LIVE = { ...env, NEAR_LIVE: "1" };
+const LIVE = { ...env, NEAR_LIVE: "1", NEAR_API_KEY: "confidential-test-key" };
 const UA = "u1ddnjsdcpm36r6aq79n3s68shjweksnmwtdltrh046s8m6xcws9ygyawalxx8n6hg6vegk0wh8zjnafxgh6"
   + "mspp" + "jsljvyt0ynece3lvm0";
 const REFUND = "CZ8YUVdk7znjrUmnb5n7kgySk9yRAsQDYmyCxzfSky9t"; // 32 bytes of 0xab
@@ -579,16 +580,25 @@ const status = async (label, address = DEPOSIT, e = LIVE, init = {}) => {
   assert.equal(call.url, UPSTREAM, "the quote URL");
   assert.equal(call.init.method, "POST");
   assert.equal(call.init.redirect, "manual");
-  assert.deepEqual([...new Headers(call.init.headers).keys()].sort(), ["accept", "content-type"],
+  assert.deepEqual([...new Headers(call.init.headers).keys()].sort(),
+    ["accept", "content-type", "x-api-key"],
     "no header of the user and no key of the user goes upstream");
   assert.deepEqual(call.sent, {
-    dry: false, swapType: "EXACT_INPUT", slippageTolerance: 100, originAsset: ID.sol,
+    dry: false, confidentiality: "basic", swapType: "EXACT_INPUT",
+    slippageTolerance: 100, originAsset: ID.sol,
     depositType: "ORIGIN_CHAIN", destinationAsset: ID.zec, amount: "17500000", refundTo: REFUND,
     refundType: "ORIGIN_CHAIN", recipient: UA, recipientType: "DESTINATION_CHAIN",
     deadline: minutes(30),
   }, "the whole live request");
-  assert.deepEqual(await json(res), {
-    amountIn: "17500000", amountOut: "133000", minAmountOut: "131670", amountInUsd: 1.65,
+  const liveBody = await json(res);
+  assert.deepEqual(liveBody.signedQuote.quoteRequest, { ...call.sent, depositMode: "SIMPLE",
+    appFees: [{ recipient: "ab", fee: 20 }] },
+  "the client receives the signed request for independent verification");
+  assert.equal(liveBody.signedQuote.signature, "ed25519:5wQkS9");
+  const { signedQuote: _signed, ...liveFields } = liveBody;
+  assert.deepEqual(liveFields, {
+    confidentiality: "basic", amountIn: "17500000", amountOut: "133000",
+    minAmountOut: "131670", amountInUsd: 1.65,
     amountOutUsd: 1.63, timeEstimate: 135, quotedAt: "2026-10-28T11:59:59.000Z",
     depositAddress: DEPOSIT, deadline: minutes(30), timeWhenInactive: minutes(20),
     recipient: UA, refundTo: REFUND, correlationId: "06c0f7d0-0c4d-4293-9de6-168aa14bd04d",
@@ -707,7 +717,8 @@ const status = async (label, address = DEPOSIT, e = LIVE, init = {}) => {
   noStore(res, "status");
   const [call] = taken();
   assert.deepEqual([call.url, call.init.method, call.init.body], [STATUS_URL, "GET", undefined]);
-  assert.deepEqual([...new Headers(call.init.headers).keys()], ["accept"], "accept only");
+  assert.deepEqual([...new Headers(call.init.headers).keys()], ["accept", "x-api-key"],
+    "only the integration credential accompanies the status read");
   const text = await res.text();
   assert.deepEqual(JSON.parse(text), {
     status: "SUCCESS", updatedAt: "2026-10-28T12:05:00.000Z", originTxs: [SOL_TX],
@@ -780,7 +791,8 @@ const status = async (label, address = DEPOSIT, e = LIVE, init = {}) => {
   const res = await fromZec("live from ZEC", zecAsk);
   assert.equal(res.status, 200);
   assert.deepEqual(taken()[0].sent, {
-    dry: false, swapType: "EXACT_INPUT", slippageTolerance: 100, originAsset: ID.zec,
+    dry: false, confidentiality: "basic", swapType: "EXACT_INPUT",
+    slippageTolerance: 100, originAsset: ID.zec,
     depositType: "ORIGIN_CHAIN", destinationAsset: ID.sol, amount: "200000", refundTo: T3,
     refundType: "ORIGIN_CHAIN", recipient: REFUND, recipientType: "DESTINATION_CHAIN",
     deadline: hours(6),
@@ -826,7 +838,8 @@ const status = async (label, address = DEPOSIT, e = LIVE, init = {}) => {
   // field of another form stays behind.
   const quoted = (ask, quote = {}) => () => Response.json({ status: "PENDING_DEPOSIT",
     quoteResponse: { quote: { depositAddress: T1, amountIn: "200000", amountOut: "133000",
-      deadline: hours(6), ...quote }, quoteRequest: { dry: false, swapType: "EXACT_INPUT",
+      deadline: hours(6), ...quote }, quoteRequest: { dry: false,
+      confidentiality: "basic", swapType: "EXACT_INPUT",
       slippageTolerance: 100, originAsset: ID.zec, depositType: "ORIGIN_CHAIN",
       destinationAsset: ID.sol,
       refundType: "ORIGIN_CHAIN", recipientType: "DESTINATION_CHAIN", recipient: REFUND,
@@ -834,7 +847,7 @@ const status = async (label, address = DEPOSIT, e = LIVE, init = {}) => {
   reply = quoted({});
   assert.deepEqual((await json(await status("the swap of a deposit", T1))).swap, { from: "zec",
     to: "sol", recipient: REFUND, refundTo: T3, amountIn: "200000", amountOut: "133000",
-    deadline: hours(5), plain: true });
+    deadline: hours(5), plain: true, confidentiality: "basic" });
   // The request as NEAR Intents lists it for a call with no partner key (L0, 2026-11-03).
   const KEYLESS = "5880ad2b362620fadf759cbceb1cd5737ce8c6ed7fb8e9942881e6731f9247dd";
   const keyless = (edit) => ({ appFees: [{ limitOrderId: null, recipient: KEYLESS, fee: 20,
@@ -887,7 +900,7 @@ const status = async (label, address = DEPOSIT, e = LIVE, init = {}) => {
   reply = quoted({ originAsset: "nep141:other.near", recipient: "<b>", refundTo: 7,
     deadline: "soon" }, { amountIn: "1.5", amountOut: "lots" });
   assert.deepEqual((await json(await status("odd swap fields", T1))).swap, { to: "sol",
-    plain: true },
+    plain: true, confidentiality: "basic" },
     "only the sound fields; a deadline that cannot be read gives no time to pay before");
   reply = good;
   taken();
@@ -911,7 +924,8 @@ const status = async (label, address = DEPOSIT, e = LIVE, init = {}) => {
   const res = await fromGroup("live from the group", swapAsk);
   assert.equal(res.status, 200);
   assert.deepEqual(taken()[0].sent, {
-    dry: false, swapType: "EXACT_INPUT", slippageTolerance: 100, originAsset: ID.sol,
+    dry: false, confidentiality: "basic", swapType: "EXACT_INPUT",
+    slippageTolerance: 100, originAsset: ID.sol,
     depositType: "ORIGIN_CHAIN", destinationAsset: ID.zec, amount: "17500000", refundTo: REFUND,
     refundType: "ORIGIN_CHAIN", recipient: UA, recipientType: "DESTINATION_CHAIN",
     deadline: hours(6),

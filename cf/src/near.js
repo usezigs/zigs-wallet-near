@@ -7,8 +7,11 @@
 // from SOL to ZEC paid from a wallet outside Zigs, one paid by the plain Solana wallet of the
 // group, one from ZEC to SOL, and the state of a swap. They answer 404 unless the var NEAR_LIVE is
 // "1" (cf/wrangler.jsonc: staging only).
-// The partner key of NEAR Intents is the secret NEAR_API_KEY. Without it every route still works,
-// at the higher fee of NEAR Intents for calls with no key.
+// NEAR_API_KEY is needed for Basic confidential execution. Standard execution explicitly asks
+// for public routing and can work without it, as can public sample-address price estimates.
+import { nearQuoteEnvelope } from "../../web/near-quote-signature.js";
+import { NEAR_REQUIRED_CONFIDENTIALITY, nearConfidentiality,
+  nearExecutionMode } from "../../web/near-swap-policy.js";
 const NEAR_URL = "https://1click.chaindefuser.com/v0/quote";
 const NEAR_STATUS_URL = "https://1click.chaindefuser.com/v0/status";
 const NEAR_MAX_BODY = 512; // bytes
@@ -62,6 +65,8 @@ const nearText = (text, status, headers = {}) => new Response(text, { status, he
 const nearJson = (body, status = 200) =>
   Response.json(body, { status, headers: NEAR_NO_STORE });
 const nearUnavailable = () => nearJson({ error: "unavailable" }, 502);
+const nearConfidentialUnavailable = (mode = 'basic') => nearJson({
+  error: mode === 'public' ? 'routing-unavailable' : 'confidential-unavailable' }, 503);
 const nearOff = () => nearText("Not found\n", 404);
 
 // True when `text` is base58 of exactly 32 bytes: the form of a Solana address. The curve is not
@@ -127,12 +132,16 @@ function nearAsk(bytes) {
 // that gets the payout and the address that gets a refund. Null when a field is missing, extra or
 // not sound.
 function nearSwapAsk(bytes, route) {
-  const ask = nearParse(bytes, NEAR_SWAP_KEYS);
+  const ask = nearParse(bytes, "amount,confidentiality,recipient,refundTo,slippageBps")
+    || nearParse(bytes, NEAR_SWAP_KEYS);
   if (!ask) return null;
+  // Four-field legacy clients retain the strict confidential policy. Public is always explicit.
+  if (!Object.hasOwn(ask, 'confidentiality')) ask.confidentiality = NEAR_REQUIRED_CONFIDENTIALITY;
   const { amount, recipient, refundTo, slippageBps } = ask;
   const sound = [typeof amount === "string" && NEAR_AMOUNT.test(amount),
     NEAR_SLIPPAGE.includes(slippageBps),
-    typeof recipient === "string" && route.recipient(recipient), route.refund(refundTo)];
+    typeof recipient === "string" && route.recipient(recipient), route.refund(refundTo),
+    nearExecutionMode(ask.confidentiality)];
   return sound.every(Boolean) ? ask : null;
 }
 
@@ -147,9 +156,11 @@ function nearRequest({ from, to, amount, slippageBps }, now) {
   };
 }
 
-function nearSwapRequest({ amount, recipient, refundTo, slippageBps }, now, route) {
+function nearSwapRequest(ask, now, route) {
+  const { amount, recipient, refundTo, slippageBps, confidentiality } = ask;
   return {
     dry: false, swapType: "EXACT_INPUT", slippageTolerance: slippageBps,
+    confidentiality,
     originAsset: NEAR_ASSETS.get(route.origin).id, depositType: "ORIGIN_CHAIN",
     destinationAsset: NEAR_ASSETS.get(route.destination).id, amount, refundTo,
     refundType: "ORIGIN_CHAIN", recipient, recipientType: "DESTINATION_CHAIN",
@@ -179,7 +190,7 @@ async function nearCall(env, url, body) {
 const NEAR_ECHO = ["dry", "originAsset", "destinationAsset", "amount"];
 // A live answer must echo every field that decides where the funds go.
 const NEAR_SWAP_ECHO = ["dry", "swapType", "originAsset", "destinationAsset", "amount",
-  "recipient", "refundTo", "depositType", "refundType", "recipientType"];
+  "recipient", "refundTo", "depositType", "refundType", "recipientType", "confidentiality"];
 // The page shows no memo and no virtual chain: a deposit that needs one could be lost.
 const NEAR_SWAP_NONE = ["depositMemo", "customRecipientMsg", "virtualChainRecipient",
   "virtualChainRefundRecipient"];
@@ -248,6 +259,8 @@ const nearToken = (value) => (typeof value === "string" && NEAR_TOKEN.test(value
 // the echo check found in the answer.
 function nearSwapAnswer(json, sent, now) {
   return {
+    confidentiality: sent.confidentiality,
+    signedQuote: nearQuoteEnvelope(json),
     ...nearAnswer(json, now), depositAddress: json.quote.depositAddress,
     deadline: new Date(nearPayBy(json.quote, sent)).toISOString(),
     timeWhenInactive: nearIso(json.quote.timeWhenInactive),
@@ -298,8 +311,25 @@ async function nearLiveSwap(req, env, { key, readBody }, route) {
   if (await nearOverLimit(env, key)) return nearText(NEAR_TOO_MANY, 429);
   const ask = nearSwapAsk(await readBody(req, NEAR_SWAP_MAX_BODY), route);
   if (!ask) return nearText("Send JSON with amount, recipient, refundTo and slippageBps.\n", 400);
+  // Confidential requests need partner authentication. Do not forward wallet addresses while
+  // the integration has no credential, and do not retry without the required privacy mode.
+  if (ask.confidentiality === 'basic' && !env.NEAR_API_KEY) return nearConfidentialUnavailable();
   const now = Date.now(), request = nearSwapRequest(ask, now, route);
-  return nearReply(await nearCall(env, NEAR_URL, request),
+  return nearLiveReply(env, request, now, route);
+}
+
+function nearConfidentialRefused(up, request) {
+  return (request.confidentiality === 'basic' && [401, 403].includes(up?.status))
+    || ([200, 201].includes(up?.status)
+      && up.json?.quoteRequest?.confidentiality !== request.confidentiality);
+}
+
+async function nearLiveReply(env, request, now, route) {
+  const up = await nearCall(env, NEAR_URL, request);
+  if (nearConfidentialRefused(up, request)) {
+    return nearConfidentialUnavailable(request.confidentiality);
+  }
+  return nearReply(up,
     (json) => nearSwapSound(json, request, now, route),
     (json) => nearSwapAnswer(json, request, now));
 }
@@ -369,6 +399,7 @@ function nearStatusSwap(response) {
   const payBy = nearPayBy(quote, ask);
   return {
     from: nearKeyOf(ask.originAsset), to: nearKeyOf(ask.destinationAsset),
+    confidentiality: nearConfidentiality(ask.confidentiality) ?? undefined,
     recipient: address(ask.recipient), refundTo: address(ask.refundTo),
     amountIn: NEAR_INTEGER.test(quote.amountIn) ? quote.amountIn : undefined,
     amountOut: NEAR_INTEGER.test(quote.amountOut) ? quote.amountOut : undefined,
@@ -382,6 +413,7 @@ function nearStatusSwap(response) {
 function nearStatusAnswer(json) {
   const details = json.swapDetails ?? {};
   const out = {
+    signedQuote: nearQuoteEnvelope(json.quoteResponse),
     status: NEAR_STATES.has(json.status) ? json.status : "other",
     updatedAt: nearIso(json.updatedAt),
     originTxs: nearHashes(details.originChainTxHashes),

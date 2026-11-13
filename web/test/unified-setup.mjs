@@ -198,10 +198,10 @@ function sideTree(dataset = {}) {
     assert.equal(note, null, "the side list omits the recurring release warning");
     const swapItem = (dataset) => textOf(findNode(sideTree(dataset),
       (n) => n.attrs?.["data-key"] === "tab-swap"));
-    assert.equal(swapItem(), "Swap, Quotes",
-      "the Swap item of the side list says Quotes on a server with no live swap");
-    assert.equal(swapItem({ nearLive: "1" }), "Swap, Live",
-      "the Swap item of the side list says Live on a server with the live swap");
+    assert.equal(swapItem(), "Swap",
+      "the Swap destination keeps its concise navigation label on a server with no live swap");
+    assert.equal(swapItem({ nearLive: "1" }), "Swap",
+      "the Swap destination keeps its concise navigation label on a server with live swaps");
     for (const origin of ["https://wallet.example:8792/", "http://localhost:8794/",
       "http://localhost:8795/", "https://localhost/", "not a URL"]) {
       location.href = origin;
@@ -795,7 +795,8 @@ const EXPLORER_NOTE = "A received payment in this list opens testnet.zecblock.co
 function explorerTexts(chain) {
   assert.ok(pageText().includes(EXPLORER_NOTE), "the Activity list says what the explorer sees");
   t.ui.tab = "overview";
-  assert.ok(!pageText().includes(EXPLORER_NOTE), "Overview has no received-history list");
+  assert.ok(pageText().includes(EXPLORER_NOTE),
+    "Overview discloses explorer privacy for its received-history preview");
   assert.match(pageText(), /Open the faucet.*That site is not Zigs: it sees the address that you/,
     "the empty ZEC card says what the faucet sees");
   // The dedicated Activity page keeps the explorer disclosure beyond the former six-row preview.
@@ -1014,11 +1015,11 @@ function activityList(ctl) {
     t.setChain(chain);
   }
 }
-// History lives in Activity; Overview contains assets and approvals, with no recent-history list.
+// The full history lives in Activity; Overview previews the latest activity beside approvals.
 function activityOverview(ctl, at, solRows) {
   t.ui.tab = "overview";
-  assert.equal(findAll(pageTree(), (n) => n.attrs?.["data-key"]?.startsWith("sol-act-")).length, 0,
-    "Overview has no Solana history rows");
+  assert.equal(findAll(pageTree(), (n) => n.attrs?.["data-key"]?.startsWith("sol-act-")).length, 1,
+    "Overview previews the latest Solana history row alongside approvals");
   t.ui.tab = "activity";
   t.ui.chainFilter = "all";
   assert.match(pageText(), /Public SOL withdrawal.*Office rent.*Move legacy funds/,
