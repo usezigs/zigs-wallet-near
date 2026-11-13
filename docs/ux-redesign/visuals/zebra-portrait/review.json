@@ -34,6 +34,14 @@
     },
     {
       "pass": true,
+      "name": "breathing visibly expands the chest and neck"
+    },
+    {
+      "pass": true,
+      "name": "breathing keeps the portrait base planted"
+    },
+    {
+      "pass": true,
       "name": "portrait renders a subdivided 3D surface"
     },
     {
@@ -92,7 +100,7 @@
   "errors": [],
   "facts": [
     {
-      "liveDraws": 683,
+      "liveDraws": 687,
       "recordedSeconds": 22.5
     },
     {
@@ -100,6 +108,8 @@
       "mouthChange": 0,
       "earChange": 616723,
       "maneChange": 810259,
+      "chestChange": 5216591,
+      "anchoredBaseChange": 0,
       "indexBytes": 196608
     }
   ]

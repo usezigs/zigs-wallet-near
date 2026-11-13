@@ -3,6 +3,10 @@
 The homepage uses the approved cinematic numerical zebra with its mouth closed.
 Irregular 310 ms blinks, occasional ear pivots of roughly 1–1.5 degrees and small
 waves through the mane tips give the portrait a quiet resting performance.
+Breathing follows a roughly 6.8-second rhythm: a gentle inhale, a longer exhale
+and a short resting pause, with a small variation in timing. The chest and neck
+expand locally while the head lifts and settles by approximately 1–2 desktop
+pixels. The bottom of the portrait stays planted.
 The mouth has no animated state. There is no sound or playback button.
 
 The two 1254 × 1254 transparent textures were prepared with the built-in image
@@ -43,5 +47,10 @@ The browser check supports `PLAYWRIGHT_MODULE`, `CHROME_EXECUTABLE` and
 a live recording and the check report. Observations are from local Chrome;
 physical-device GPU performance has not been measured.
 
-Final local review: 13 lifecycle checks and 22 browser checks passed, with no page
-errors. The recorded live run drew 683 frames over approximately 22.5 seconds.
+The browser review also compares inhaled and resting frames to check visible
+chest movement and an unchanged base. The report records the latest check counts
+and measured draw count.
+
+The breathing update passed 13 lifecycle checks and 24 browser checks with no
+page errors. `breathing.webm` is a 22-second extract of the live recording before
+the interaction and fallback checks.

@@ -36,19 +36,22 @@ void main() {
     + .35*sin(a_uv.y*83. - u_time*2.3)) * .0045;
   uv.y += mane * u_gust * sin(a_uv.y*39. - u_time*1.2) * .0011;
 
+  // The head follows the upper neck, while the base stays planted. This is a
+  // connected resting breath, rather than scaling the entire portrait.
+  float head = 1. - smoothstep(.56,.86,a_uv.y);
+  uv = mix(uv,pivot(uv,vec2(.66,.72),-u_breath*.0018),head);
+  uv.y -= head * u_breath * .0028;
+
   float cheek = field(a_uv,vec2(.48,.44),vec2(.24,.27));
   float muzzle = field(a_uv,vec2(.19,.63),vec2(.20,.18));
   float neck = field(a_uv,vec2(.70,.80),vec2(.29,.49));
   float depth = .24*cheek + .30*muzzle + .17*neck;
   vec3 p = vec3(uv.x*2.-1., 1.-uv.y*2., depth);
-  float chest = smoothstep(.55,.95,a_uv.y) * neck;
-  p.x += chest * u_breath * .0012;
-  // Actual depth and minute rotation, with an anchored neck and fixed camera.
-  float turn = u_breath * .003;
-  float x = cos(turn)*p.x + sin(turn)*p.z;
-  p.z = -sin(turn)*p.x + cos(turn)*p.z;
-  p.x = x;
-  p.y += cheek * u_breath * .0011;
+  float chest = field(a_uv,vec2(.70,.74),vec2(.38,.28))
+    * smoothstep(.48,.70,a_uv.y) * (1.-smoothstep(.90,.98,a_uv.y));
+  p.x += (a_uv.x-.70) * chest * u_breath * .055;
+  p.y += chest * u_breath * .005;
+  p.z += neck * u_breath * .018;
   gl_Position = vec4(p.xy, -p.z*.2, 1.);
 }`;
 
@@ -160,8 +163,13 @@ export function sceneSample(milliseconds) {
   const leftEar=Math.max(earAt(cycle,8.4),earAt(cycle,35.2),earAt(cycle,56.1))*.027;
   const rightEar=-Math.max(earAt(cycle,18.2),earAt(cycle,47.6))*.022;
   const ease=smooth(time/2.5);
+  // A quiet inhale, a longer release, then a short rest. The slight variation
+  // prevents the chest from moving like a perfectly repeating metronome.
+  const phase=((time+.10*Math.sin(time*.17))%6.8)/6.8;
+  const respiration=phase<.34 ? smooth(phase/.34)
+    : phase<.88 ? 1-smooth((phase-.34)/.54) : 0;
   return { seconds:time,blink,leftEar,rightEar,
-    breath:Math.sin(time*Math.PI*2/7.8)*ease,
+    breath:respiration*ease,
     gust:(.32+.25*Math.sin(time*.29)+.16*Math.sin(time*.71))*ease,
     atmosphere:.60,x:0,y:0 };
 }
