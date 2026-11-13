@@ -35,13 +35,18 @@ Final results and logs are retained locally in ignored `solspike/.state/deslopif
 | WebKit journey review | 579 checks, 156 variants |
 | Messaging regression | 145 checks, 34 captures, no uncaught browser errors |
 | Node 26 app and unified setup | Passed |
-| Fast regression suite | 77 of 79 passed; QR check skipped because `qrencode` is absent |
+| Fast regression suite | 79 of 79 passed after follow-up tooling repairs; QR check skipped because `qrencode` is absent |
 | Repository lint | Passed: 314 JavaScript and two Python files |
 
-The two fast-suite failures also occurred before integration: `policy.test.mjs` requests
-`cf/src/index.js` at a historical commit that does not contain that path; `plain-equiv.test.mjs`
-uses the URL-encoded workspace directory as a filesystem path. Their checks are not waived or
-reported as passing. Full baseline, live transactions and physical-device checks remain open.
+The two existing fast-suite failures are resolved. The policy test now checks the unchanged
+source SHA-256 and all three expected URL values already pinned in `baseline.json`, without
+depending on an absent historical commit. The differential tool uses decoded filesystem URLs
+and full historical commit IDs present in this repository. Its slice-8 WASM bytes still match the
+original pinned SHA-256; the pre-v1 artifact is independently hash-pinned. All 4,552 calls pass,
+including eight specifically expected old plain-wallet differences and seven expected pool
+differences. The test also passes through a directory containing spaces. No security assertion
+was skipped, no policy value changed and no engine binary was rebuilt.
+Full baseline, live transactions and physical-device checks remain open.
 The copied upstream skill and Stageshow assets include their original whitespace/Windows line
 endings; first-party changes pass `git diff --check` with those vendor directories excluded.
 
@@ -77,7 +82,7 @@ or recovery on independent hardware.
 | Payment approval | Receive test coins, review the exact destination, amount, fee and network, collect required approvals, submit, and verify inclusion separately from submission. Never use mainnet funds. | Needs configured test environment |
 | Interrupted connection | Disconnect during coordination; reconnect and inspect the existing proposal before retrying. Confirm truthful progress, retained drafts and no duplicate action. | Live fault rehearsal pending; synthetic messaging regression passed |
 | Backup and restore | Save distinct encrypted recovery files and separate passphrases. Check each file, try a wrong file/passphrase, then restore into a fresh browser on another device. Confirm share identity and the ability to participate in a subsequent test payment. | Physical restoration pending; encrypted-file and form fixtures passed |
-| Screen reader | Use VoiceOver or NVDA through navigation, creation, payment review and file selection. Verify announcements, exact values, validation, modal focus and return focus in both appearances. | Human assistive-technology check pending |
+| Screen reader | Removed from this pass at the user's request. | Stopped; no further Mac settings changes are authorized |
 
 Run a live batch only from a clean checkout of the reviewed `deslopify` commit, using the existing
 coordinator workflow documented in `solspike/README.md`. Keep keys, passphrases and recovery

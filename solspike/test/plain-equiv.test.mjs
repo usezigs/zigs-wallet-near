@@ -1,6 +1,6 @@
 // Test of solspike/tools/plain_equiv.mjs. Usage: node solspike/test/plain-equiv.test.mjs
 // 1. The committed wasm against itself gives no difference in any group of calls.
-// 2. In the plain group, the wasm of commit 602127f3 against the committed wasm gives only the
+// 2. In the plain group, the pre-v1 wasm against the committed wasm gives only the
 //    known differences:
 //    a plain send to the new pool or registry id. The old build accepted a send of SOL there,
 //    the new one refuses it with plain-recipient-reserved. A send of USDC was refused by both.
@@ -14,6 +14,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   POOL_REF,
   compareBuilds,
@@ -23,9 +24,12 @@ import {
   smokeAt,
 } from "../tools/plain_equiv.mjs";
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const COMMITTED = path.join(ROOT, "web/sol/wasm");
-const OLD_COMMIT = "602127f3";
+// Parent of the v1 design record in this history (legacy ref 602127f3); keep its bytes pinned.
+const OLD_COMMIT = "b6f9322ee4d00e4985c96de4e111cff80d842a3f";
+assert.equal(createHash("sha256").update(gitShow(OLD_COMMIT, "web/sol/wasm/sol_wasm_bg.wasm"))
+  .digest("hex"), "89281921b1470006c5df63f5377e06441f4b300d3f93b097439a66ba98eb3c73");
 
 const same = await compareBuilds(COMMITTED, COMMITTED);
 assert.ok(same.total > 4500, `only ${same.total} calls`);
