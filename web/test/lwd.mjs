@@ -14,7 +14,9 @@ const source = readFileSync(new URL("../../cf/src/index.js", import.meta.url), "
   'import { DurableObject } from "cloudflare:workers";',
   "const DurableObject = class { constructor(ctx, env) { this.ctx = ctx; this.env = env; } };",
 ).replace('from "./gate.js";', `from "${GATE}";`)
-  .replace('from "./near.js";', `from "${NEAR}";`);
+  .replace('from "./near.js";', `from "${NEAR}";`)
+    .replace('from "./portfolio.js";',
+      `from "${new URL("../../cf/src/portfolio.js", import.meta.url).href}";`);
 assert.ok(!source.includes("cloudflare:workers"), "the Cloudflare import is stubbed");
 const { default: worker, Store } = await import(
   `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`

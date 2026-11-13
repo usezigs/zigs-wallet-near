@@ -45,6 +45,7 @@ JS=(solspike/harness/*.mjs solspike/tools/*.mjs solspike/build.mjs solspike/vend
   web/app-icons.js web/icon-objects.js web/app-theme.js
   web/test/contrast.mjs web/test/orientation.mjs web/theme.js
   web/overview-model.js
+  web/portfolio-*.js web/test/portfolio.mjs cf/src/portfolio.js
   web/app-motion.js web/premium-motion.js web/test/premium-motion.mjs
   web/homepage-motion.js web/homepage-scene.js web/test/homepage-motion.mjs
   web/test/overview.mjs web/setup-model.js web/test/setup-stage.mjs web/approvals-model.js

@@ -42,6 +42,7 @@ import { closeSetupQr, setupQrDialog } from "./app-setup.js";
 import { endSend, receiveDialog, sendDialog } from "./app-send.js";
 import { closeNetworkPrivacy, hasNetworkPrivacy, networkPrivacyPanel } from "./app-network-privacy.js";
 import { presentPrivacyStatus } from "./network-privacy-popup.js";
+import { keepPortfolioView, presentPortfolio } from "./app-portfolio.js";
 
 import { closeHowZigsWorks, hasHowZigsWorks, howZigsWorksDialog } from "./app-how-zigs-works.js";
 
@@ -296,6 +297,9 @@ export function draw() {
   const view = pageView(), top = lockedVault ? [] : layers();
   document.title = pageTitle(view, pending);
   const header = selectedWalletHeader(app, view);
+  if (!top.length && keepPortfolioView(view)) {
+    placeWalletHeader(app, header); presentWalletMarble(document); return;
+  }
   if (typingMessage(app, [view, ...top])) {
     placeWalletHeader(app, header); presentWalletMarble(document); return;
   }
@@ -320,6 +324,7 @@ export function draw() {
     session: state.sid, chat: state.cid, contact: state.contact,
     surface: view.id || view.className } });
   presentWalletReveal(document);
+  presentPortfolio(document);
 }
 
 // Rebuilding a focused text box closes a phone's keyboard. While a message box or a field of the

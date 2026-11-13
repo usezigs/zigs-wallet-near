@@ -341,6 +341,18 @@ export const solOlderCount = () =>
 // and the state of that sync: {text, busy}.
 export const solBalance = (gid = state.gid) =>
   solOpenHere(gid) ? fromSol("balance", (c) => c.sync?.balance ?? null, null) : null;
+// Numeric, timestamped balance for portfolio observations. Saved or failed syncs keep their
+// original time; a redraw never makes an old balance into a fresh observation.
+export const solPortfolioHolding = () => {
+  const none = { asset: "sol", amount: null, at: null };
+  if (!solOpenHere()) return none;
+  return fromSol("portfolio balance", (c) => {
+    const read = c.sync;
+    if (!read || read.busy || read.text?.startsWith("failed")) return none;
+    if (read.lamports === undefined) return none;
+    return { asset: "sol", amount: Number(read.lamports) / 1e9, at: read.at ?? null };
+  }, none);
+};
 export const solSync = (gid = state.gid) => solOpenHere(gid)
   ? fromSol("sync", (c) => ({ text: String(c.sync?.text ?? ""), busy: !!c.sync?.busy }), null)
   : null;

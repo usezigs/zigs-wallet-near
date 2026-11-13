@@ -45,10 +45,9 @@ import {
   plainTab,
 } from "./app-sol.js";
 import {
-  createZecPrice, pendingShortcut, plainRow, portfolioView, solRow, zecInProgress,
+  pendingShortcut, plainRow, solRow, zecInProgress,
   zecTotal,
 } from "./overview-model.js";
-import { NearIntentsSwapProvider } from "./near-intents-swap-provider.js";
 import { icon, sculptedIcon } from "./app-icons.js";
 import { beginGuided, guidedEnabled, guidedState } from "./app-guided-setup.js";
 import { descriptionOf, setWalletDescription } from "./wallet-description.js";
@@ -61,6 +60,7 @@ import { SharedControlVisual } from "./app-approval-visualization.js";
 import { sharedControl } from "./app-shared-control.js";
 import { walletMark } from "./app-wallet-art.js";
 import { walletHeadingMarble } from "./app-wallet-marble.js";
+import { portfolioOverview } from "./app-portfolio.js";
 
 export function groupView({ showHeader = true } = {}) {
   const g = state.g;
@@ -248,21 +248,10 @@ function groupHead(g, ready, why, persistent = false) {
         icon("home"), "Return home"));
 }
 
-// The price of 1 ZEC in USD for the Overview of a mainnet wallet (overview-model.js). One price
-// for the page session, in memory only.
-const zecPrice = createZecPrice({ provider: new NearIntentsSwapProvider(),
-  settled: () => render() });
 const isMainnet = () => netName(state.g) === "mainnet";
-
-// A testnet wallet and a hidden tab ask nothing.
-function observePrice() {
-  if (!isMainnet() || globalThis.document?.visibilityState === "hidden") return;
-  void zecPrice.ask();
-}
 
 function overviewTab() {
   solObserveOverview();
-  observePrice();
   const c = curChain();
   return el("div", { class: "page overview-page" },
     state.g.movedTo ? moveCard(c) : null,
@@ -285,15 +274,13 @@ function overviewTab() {
 }
 
 function balanceOverview() {
-  const view = portfolioView({ mainnet: isMainnet(), total: zecTotal(zecBal(curChain())),
-    price: zecPrice.read(), now: Date.now() });
-  return el("section", { class: "overview-hero", "aria-labelledby": "total-balance-title" },
-    el("div", { class: "overview-wallet-summary" }, walletMark(state.g, 64),
+  return el("section", { class: "overview-hero" + (isMainnet() ? " overview-portfolio" : ""),
+    "aria-label": "Wallet balance and actions" },
+    isMainnet() ? portfolioOverview() : el("div", { class: "overview-wallet-summary" }, walletMark(state.g, 64),
     el("div", { class: "portfolio-summary" }, el("div", { class: "balance-heading" },
       el("h2", { id: "total-balance-title", class: "label" },
-        isMainnet() ? "ZEC value" : "Wallet balance"),
-      el("span", { class: "portfolio-currency" }, isMainnet() ? "USD" : "ZEC")),
-    isMainnet() ? liveTotal(view) : testnetTotal())),
+        "Wallet balance"),
+      el("span", { class: "portfolio-currency" }, "ZEC")), testnetTotal())),
     el("div", { class: "overview-actions" }, assetActionPicker("send"), assetActionPicker("receive"),
       el("button", { class: "btn", type: "button", "data-key": "overview-swap",
         title: "Open Swap", onclick: () => { ui.tab = "swap"; render(); } },
@@ -307,23 +294,6 @@ function testnetTotal() {
     total === null ? "—" : fmtZec(total)),
   el("p", { class: "portfolio-network-note" }, "Zcash Testnet")];
 }
-
-// A mainnet wallet shows no value, and no $0.00, until it knows the balance and the price.
-// ponytail: only ZEC counts. No price source exists for SOL; the note of a served plain wallet says
-// that SOL and USDC are not in the total. Testnet wallets show native test balances.
-const TOTAL_ZEC_ONLY = " SOL and USDC are not in this total.";
-function liveTotal(view) {
-  const { value } = view;
-  return [el("p", { class: "portfolio-value", role: "img", "aria-label": view.label,
-    "data-valuation-state": value ? "known" : "unknown", "aria-describedby": "usd-note" },
-  value ? [el("span", { "aria-hidden": "true" }, value.whole),
-    el("span", { class: "portfolio-decimals", "aria-hidden": "true" }, value.fraction)]
-    : el("span", { "aria-hidden": "true" }, "—")),
-  el("p", { class: "portfolio-network-note", id: "usd-note" }, view.note,
-    view.facts ? ". " + view.facts : null,
-    plainShown() ? (view.facts ? "" : ".") + TOTAL_ZEC_ONLY : null)];
-}
-
 
 // Why a plain wallet cannot send or receive an asset now, in a few words, or "" when it can. USDC
 // is sent only once the last read shows its token account.
