@@ -77,7 +77,7 @@ function relayRows() {
     teams.length ? teams.map((g) => conversationRow({ id: "messages-team-" + g.id,
       title: g.name || "Wallet team", sub: "Wallet team · Encrypted relay",
       selected: ui.tab === "messages" && state.gid === g.id && !state.cid,
-      unread: unreadIn(g.id, "wallet"), open: () => chooseTeam(g.id), avatarText: "↔" }))
+      unread: unreadIn(g.id, "wallet"), open: () => chooseTeam(g.id), avatarText: icon("people") }))
       : el("p", { class: "small muted messages-inbox-note" }, search ? "No matching teams." : "Your wallet teams appear here."),
     el("h2", { class: "messages-section-label" }, "Direct"),
     direct.length ? direct.map((cid) => conversationRow({ id: "messages-direct-" + cid,

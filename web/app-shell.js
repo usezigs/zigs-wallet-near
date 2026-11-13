@@ -35,7 +35,7 @@ import { beginGuided, guidedEnabled, resumeGuided } from "./app-guided-setup.js"
 import { setWalletDescription } from "./wallet-description.js";
 import { focusAfter, once, render } from "./app-loop.js";
 import { currentSection, moveWord, solStays, walletShown } from "./app-wallet.js";
-import { icon } from "./app-icons.js";
+import { icon, sculptedIcon } from "./app-icons.js";
 import { createSwapPreview } from "./app-swap-preview.js";
 import { solSwapSource, swapPayout } from "./app-swap-sol.js";
 import { zecSwapSource } from "./app-swap-zec.js";
@@ -80,7 +80,7 @@ export function renderSide() {
   nav.replaceChildren(
     ...sectionNav(sections, selected),
     el("div", { class: "side-head" }, el("span", { class: "label" }, "Wallets"),
-      el("button", { class: "icon-btn", type: "button", title: "New wallet", "aria-label": "New wallet", onclick: () => { ui.tab = "overview"; newWallet(); } }, "+")),
+      el("button", { class: "icon-btn", type: "button", title: "New wallet", "aria-label": "New wallet", onclick: () => { ui.tab = "overview"; newWallet(); } }, icon("plus"))),
     ...testWalletEntry("sidebar"),
     ...(state.groups.length ? state.groups.map((g) => guard(sideItem, g))
       : [el("p", { class: "side-empty" }, sideEmpty())]));
@@ -234,7 +234,7 @@ export function lockView() {
     ? "The locked keys in this browser are damaged and cannot be opened."
     : "The key shares in this browser are encrypted with your passkey. "
       + "Unlock with Face ID, Touch ID or your security key.";
-  return el("div", { class: "card empty lock-card" }, icon("lock"),
+  return el("div", { class: "card empty lock-card" }, sculptedIcon("lock"),
     el("h1", {}, "Zigs is locked"), el("p", { class: "small" }, text),
     lockedVault.damaged ? null : securityExplanation("passkey"),
     lockedVault.damaged ? null
@@ -371,7 +371,7 @@ export function deviceProtection(context = "setup", onReady = null) {
 }
 
 export function loadingView() {
-  return el("div", { class: "card empty launch-card" }, icon("security"),
+  return el("div", { class: "card empty launch-card" }, sculptedIcon("wallet"),
     el("span", { class: "dot busy" }),
     el("h1", {}, Z ? "Connecting to the group server" : "Loading the crypto engine"),
     el("p", { class: "small" }, "Your wallets appear in a moment."));

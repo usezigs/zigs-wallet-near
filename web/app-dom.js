@@ -85,16 +85,17 @@ export function copyBtn(text, label = "Copy", cls = "btn sm", onFailure = null) 
     const b = ev.currentTarget;
     try {
       await navigator.clipboard.writeText(typeof text === "function" ? text() : text);
-      b.textContent = "Copied";
+      b.replaceChildren(icon("check"), document.createTextNode("Copied"));
     } catch {
       // A caller may open a private overlay; older cards keep their existing disclosure fallback.
-      b.textContent = "Select and copy";
+      b.replaceChildren(icon("copy"), document.createTextNode("Select and copy"));
       if (onFailure) onFailure();
       else b.closest("section")?.querySelector("details[data-link]")?.setAttribute("open", "");
     }
-    setTimeout(() => b.textContent = label, 1500);
+    setTimeout(() => b.replaceChildren(icon("copy"), document.createTextNode(label)), 1500);
   };
-  return el("button", { class: cls, type: "button", onclick: copy }, label);
+  return el("button", { class: cls, type: "button", onclick: copy },
+    icon("copy"), label);
 }
 
 // One bad document from another signer must not break the page: the item it feeds shows as a

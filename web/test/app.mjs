@@ -2232,7 +2232,7 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
     try {
       await copyBtn.on.click({ currentTarget: copyBtn });
       assert.deepEqual(clipboard.text, [wallet.address], "Copy address copies the address");
-      assert.equal(copyBtn.textContent, "Copied");
+      assert.equal(textOf(copyBtn), "Copied");
       clipboard.fail = true;
       t.ui.receive = false;
       await copyBtn.on.click({ currentTarget: copyBtn });
