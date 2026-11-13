@@ -10,6 +10,8 @@ const PATHS = Object.freeze({
   chat: "M21 11a8 8 0 0 1-8 8H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v4Z",
   search: "M10.5 3a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 0 0-15ZM16 16l5 5",
   plus: "M12 5v14M5 12h14",
+  minus: "M5 12h14",
+  info: "M12 11v6M12 7h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z",
   security: "m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Zm-4 9 3 3 5-6",
   unshield: "m9 4 3-1 8 3v6c0 2-1.5 4-3.3 5.6M14 20.1c-1.2.6-2 .9-2 .9s-8-4-8-9V6l2.6-1M3 3l18 18",
   addressBook: "M5 3h15v18H5zM2 7h4M2 12h4M2 17h4M12 7a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z"
