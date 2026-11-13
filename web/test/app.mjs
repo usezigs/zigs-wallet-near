@@ -2905,6 +2905,8 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
         .map(textOf);
       assert.match(headline(landedA), /^Transaction in a blockA block that this browser synced holds/,
         "a synced block holds it: the headline says so");
+      assert.doesNotMatch(textOf(t.sessionLayer(landedA)), /Verify before signing|Only approve/,
+        "an included transaction record has no forward-looking approval instruction");
       // The head of the drawer names the network, as the wallet head does. What the chain sees
       // names the public expiry, and the explorer link says what that site sees.
       const drawerHead = (ss) => all(t.sessionLayer(ss), (x) => x.className === "leaves")[0];
@@ -3237,6 +3239,8 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
         const expiryNotes = (text) => text.split("The expiry height is public too.").length - 1;
         assert.deepEqual([expiryNotes(memoOne.text), expiryNotes(look(lateSent()).text)], [1, 1],
         "the drawer says before the send that the expiry height is public, and once after it");
+        assert.doesNotMatch(look(lateSent()).text, /Verify before signing|Only approve/,
+          "a submitted payment has no forward-looking approval instruction");
         // The steps after the approvals.
         const lateA = lateSent();
         put(lateA);
@@ -4315,8 +4319,8 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
           return form;
         };
         const boxOf = (d, n = 0) => all(d, (x) => /^s-to-/.test(x.attrs?.id ?? ""))[n];
-        const hintOf = (d, n = 0) => all(d, (x) => x.className === "pay-row")[n].kids
-          .find((k) => k.tag === "span" && /^hint/.test(k.className));
+        const hintOf = (d, n = 0) => all(all(d, (x) => x.className === "pay-row")[n],
+          (x) => x.tag === "span" && /^s-hint-/.test(x.attrs.id))[0];
         const typeIn = (d, text, n = 0) => {
           boxOf(d, n).on.input({ target: { value: text } });
           return hintOf(d, n);
@@ -7188,8 +7192,14 @@ async function runAcctSync() {
 {
   const realWindow = globalThis.window, realDocument = globalThis.document;
   const style = {}, scrolled = [];
+  const layer = {
+    scrollTop: 0,
+    getBoundingClientRect: () => ({ top: 0, bottom: window.visualViewport.height }),
+    querySelector: () => null,
+  };
   const inLayer = (name) => ({
-    closest: (selector) => (selector === ".dialog, .drawer" && name !== "outside" ? {} : null),
+    closest: (selector) => (selector === ".dialog, .drawer" && name !== "outside" ? layer : null),
+    getBoundingClientRect: () => ({ top: 100, bottom: 150 }),
     scrollIntoView: (o) => scrolled.push(name + ":" + o.block),
     getAttribute: (k) => (k === "aria-describedby" ? "other-note field-note" : null),
   });

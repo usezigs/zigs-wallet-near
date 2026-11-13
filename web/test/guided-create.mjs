@@ -148,9 +148,9 @@ const form = reviewTree();
 assert.ok(!text(form).includes(SOL_DISCLOSURE), "the review omits the Solana disclosure");
 assert.doesNotMatch(text(form),
   /Create wallet confirms these service disclosures|Network options|Solana setup is waiting/);
-const hiddenChoice = form.kids.flatMap((kid) => kid.kids ?? [])
-  .find((kid) => kid.attrs?.hidden === "" && find(kid, "g-sol"));
-assert.ok(hiddenChoice, "the existing setup control stays hidden in the review");
+const hiddenChoice = (node) => node.attrs?.hidden === "" && find(node, "g-sol")
+  || (node.kids ?? []).map(hiddenChoice).find(Boolean);
+assert.ok(hiddenChoice(form), "the existing setup control stays hidden in the review");
 assert.ok("checked" in find(form, "g-sol").attrs,
   "the hidden control preserves setup intent even while service is unavailable");
 const checkbox = { checked: true };

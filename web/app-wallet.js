@@ -67,7 +67,7 @@ export function groupView({ showHeader = true } = {}) {
   const back = el("button", {
     class: "btn ghost sm", type: "button", onclick: () => openGroup(null),
   }, icon("back"), "Wallets");
-  if (!g) return el("div", { class: "page" }, back, loadingView());
+  if (!g) return el("div", { class: "page" }, back, restoreProgressNote(), loadingView());
   if (g.unreadable) {
     return el("div", { class: "page" }, back, el("div", { class: "card" }, unreadable()));
   }
@@ -201,7 +201,7 @@ const pageHeading = (id, label) => id === "settings"
   : id === "approvals"
   ? el("div", { class: "page-heading approvals-heading" },
     el("div", {}, el("h2", {}, label),
-      el("p", { class: "small muted" }, "Review together. Authorise with confidence.")))
+      el("p", { class: "small muted" }, "Review payments and collect the approvals your wallet requires")))
   : id === "activity"
   ? el("div", { class: "page-heading activity-heading" }, el("h2", {}, label),
     el("p", { class: "muted" }, "Your wallet’s transactions and payment proposals."))

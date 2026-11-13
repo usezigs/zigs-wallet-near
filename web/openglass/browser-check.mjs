@@ -161,7 +161,8 @@ try {
       contentType: mime[extname(file)] || "application/octet-stream", headers: html ? { "Content-Security-Policy": csp } : {} });
   });
   await bootPage.goto(origin);
-  await bootPage.getByRole("heading", { name: "Private by design. Secured together." }).waitFor();
+  await bootPage.locator("#welcome-title").waitFor();
+  assert.match(await bootPage.locator("#welcome-title").innerText(), /Your assets\s*Secured together/);
   await bootPage.waitForFunction(() => document.getElementById("engine-dot").classList.contains("ok"));
   assert.deepEqual(bootErrors, [], "real app boots without JavaScript errors");
   assert.deepEqual(await bootPage.evaluate(() => globalThis.__policyViolations), [], "no CSP violations");

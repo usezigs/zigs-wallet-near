@@ -30,14 +30,15 @@ assert.match(html, /<nav id="side-nav" aria-label="Sections">/, "the side list i
 assert.match(html, /<a class="skip-link" href="#app">Skip to main content<\/a>/,
   "the skip link names its target");
 
-// One page title: --font-page at weight 700, 32/40 px and 26/32 px on a phone. No later rule
-// gives a page h1 another weight or the Messages h1 another size.
-assert.match(refined, /^ --font-page:700 2rem\/2\.5rem var\(--sans\);/m, "the title token");
-assert.match(refined,
-  /@media\(max-width:760px\)\{:root\{--font-page:700 1\.625rem\/2rem var\(--sans\)\}\}/,
+// Page titles share the design-system token: 28/36 px, 26/32 px on phones, medium weight.
+// Large home copy has a separate display treatment; working page titles stay consistent.
+const system = read("design-system.css");
+assert.match(system, /--font-page:500 1\.75rem\/2\.25rem var\(--sans\);/, "the title token");
+assert.match(system, /--font-page:500 1\.625rem\/2rem var\(--sans\);/,
   "the title token of a phone");
-assert.deepEqual(rules(refined).filter((r) => /\bh1\b/.test(r.sel) && /font-weight/.test(r.body))
-  .map((r) => r.sel), [".lobby-home .home-hero h1"], "only the home hero sets an h1 weight");
+assert.ok(rules(refined).filter((r) => /\bh1\b/.test(r.sel))
+  .every((r) => !/font-weight:\s*[6-9]\d\d/.test(r.body)),
+  "page headings use size and colour rather than heavy weights");
 assert.doesNotMatch(bodyOf(rules(read("messaging.css")), ".messages-heading h1"), /font-size/,
   "the Messages title takes its size from the token");
 // Approvals, Activity, Security and the Address book share the width of Settings. The wallet

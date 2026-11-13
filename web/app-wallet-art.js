@@ -29,25 +29,19 @@ export function walletReveal(g, onContinue) {
   const entry = walletArtEntry(facts);
   const dismiss = () => { visit.dismissed = true; onContinue(); };
   const scene = el("div", { class: "wallet-reveal-scene" },
-    el("div", { class: "wallet-reveal-code", "aria-hidden": "true" },
-      ['const chain = "zcash:" + network;', "identity = json([chain, address]);", "seed = sha256(identity);", "surface = sculpt(seed);",
-        "surface.shape = contours(seed);", "surface.light = studio();", "", "finish = cast_in_metal(surface);",
-        "finish.inlay = ember(seed);", "", "wallet.visual = render(finish);", "// one wallet. one signature."].map((text, i) =>
-        el("span", { class: "wallet-code-line", style: "--code-line:" + i }, text))),
-    el("div", { class: "wallet-reveal-orb" }, walletMarble(facts, { size: 192 })),
-    el("span", { class: "wallet-reveal-halo", "aria-hidden": "true" }));
+    el("div", { class: "wallet-reveal-orb" }, walletMarble(facts, { size: 192 })));
   const reveal = el("section", { class: "wallet-reveal surface-quiet", "aria-labelledby": "wallet-reveal-title",
     "data-key": "wallet-reveal", tabindex: "-1" },
     el("p", { class: "label" }, "Your devices prepared this wallet together"), scene,
     el("div", { class: "wallet-reveal-copy" }, el("h2", { id: "wallet-reveal-title" }, "Meet your new wallet"),
       el("p", { class: "wallet-reveal-name" }, g.name),
-      el("p", { class: "small muted" }, "One wallet. One signature. The same on every device.")),
+      el("p", { class: "small muted" }, "The same visual identity on every device")),
     el("p", { class: "small muted wallet-reveal-traits" }, "Your wallet’s visual identity"),
     el("div", { class: "wallet-reveal-actions" },
       el("button", { class: "btn primary", type: "button", "data-key": "wallet-reveal-continue", onclick: dismiss },
         "Continue to backup options")),
     el("details", { class: "wallet-art-explanation" }, el("summary", {}, "How your marble is made"),
-      el("p", { class: "small muted" }, "Your verified public Zcash address and network choose the shape and metal finish using SHA-256. The code above illustrates artwork generation; it does not show secret keys or live signing. Renaming this wallet or adding Solana keeps its image. This visual aid never replaces the full code or address checks."),
+      el("p", { class: "small muted" }, "Your verified public Zcash address and network choose the shape and metal finish using SHA-256. Renaming this wallet or adding Solana keeps its image. This visual aid never replaces the full code or address checks."),
       el("p", { class: "small muted" }, "Approximately one in twenty generated identities has an orange Ember inlay. Artwork is rendered locally; simpler graphics are used when 3D rendering is unavailable.")));
   reveal._walletRevealVisit = visit;
   entry.ready.then(() => {
