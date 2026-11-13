@@ -24,7 +24,9 @@
 .home-hero-art { display:block; width:100%; height:100%; object-fit:contain; max-width:none;
   opacity:1; border:0; background:none; transform:none; translate:none; transition:none; }
 .home-hero-lighting { display:none; }
-.home-scene-live .home-hero-art { opacity:1; }
+.home-scene-live .home-hero-portrait { display:block; position:absolute; inset:0;
+  width:100%; height:100%; object-fit:contain; pointer-events:none; }
+.home-scene-live .home-hero-art { opacity:0; }
 .lobby-home .welcome .welcome-intro { position:relative; z-index:2; display:grid;
   align-content:center; justify-items:start; gap:24px; grid-column:1/-1;
   min-height:520px; width:100%; max-width:720px; padding:56px 48px; pointer-events:none; }
@@ -163,16 +165,6 @@
   .lobby-empty .welcome-new .welcome-intro { padding:32px 20px 16px; }
   .lobby-home .home-hero h1 { font-size:36px; }
   .lobby-home .welcome-actions>.btn { padding-inline:12px; gap:8px; }
-}
-
-/* The original zebra becomes an ink engraving on chalk in light mode. */
-:root[data-theme="light"] .home-hero-art {
-  filter:grayscale(1) invert(1); mix-blend-mode:multiply;
-}
-@media(prefers-color-scheme:light) {
-  :root:not([data-theme="dark"]) .home-hero-art {
-    filter:grayscale(1) invert(1); mix-blend-mode:multiply;
-  }
 }
 
 @media(forced-colors:active) {

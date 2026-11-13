@@ -21,9 +21,6 @@
 .wallet-reveal-orb .wallet-art,.wallet-reveal-orb canvas { filter:none; }
 .wallet-reveal h2 { font-weight:500; }
 .wallet-context-header>.wallet-home { max-width:none; white-space:nowrap; }
-/* Keep the original artwork still. The identity belongs to the product, not a loading effect. */
-.home-hero-lighting { display:none; }
-.home-scene-live .home-hero-art { opacity:1; }
 :is(.btn,.icon-btn,.side-item,.row-item,.asset-choice,.guided-stage-button,summary):active:not(:disabled):not([aria-disabled=true]) {
   transform:none; box-shadow:none;
 }

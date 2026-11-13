@@ -44,10 +44,80 @@ async function live(page) {
   await entryReady(page,origin+"/");
   // The application itself must mount the scene, without a test importing it first.
   await page.waitForSelector(".home-scene-live",{timeout:15000});
+  const portrait=page.locator(".home-hero-portrait");
+  check(await portrait.isVisible(),"live 3D canvas is visible on the page");
+  check(await page.locator(".home-hero-art").evaluate(n=>getComputedStyle(n).opacity==="0"),
+    "live canvas replaces the still image");
   return page.evaluate(async()=>{
     const c=(await import("/homepage-motion.js")).startHomepageMotion(document);
     return await c.current.scene.ready;
   });
+}
+
+async function welcomeAppearance(page, label) {
+  const facts=await page.evaluate(()=>{
+    const rgb=text=>text.match(/[\d.]+/g).map(Number);
+    function background(node) {
+      if (!node) return [255,255,255];
+      const color=rgb(getComputedStyle(node).backgroundColor),alpha=color[3]??1;
+      if (alpha===1) return color;
+      const behind=background(node.parentElement);
+      return color.slice(0,3).map((n,i)=>n*alpha+behind[i]*(1-alpha));
+    }
+    const channel=n=>n<=.04045?n/12.92:((n+.055)/1.055)**2.4;
+    const luminance=color=>color.slice(0,3).map(n=>channel(n/255))
+      .reduce((sum,n,i)=>sum+n*[.2126,.7152,.0722][i],0);
+    const contrast=node=>{
+      const a=luminance(rgb(getComputedStyle(node).color)),b=luminance(background(node));
+      return (Math.max(a,b)+.05)/(Math.min(a,b)+.05);
+    };
+    const image=document.querySelector(".home-hero-art");
+    const canvas=document.querySelector(".home-hero-portrait");
+    const appearance=node=>{
+      const s=getComputedStyle(node),box=node.getBoundingClientRect();
+      return {filter:s.filter,blend:s.mixBlendMode,fit:s.objectFit,position:s.objectPosition,
+        width:box.width,height:box.height};
+    };
+    return {buttons:[...document.querySelectorAll(".welcome-intro button")].map(node=>({
+      label:node.textContent.trim(),ratio:contrast(node)})),
+    image:appearance(image),canvas:appearance(canvas),
+    source:[image.naturalWidth,image.naturalHeight],buffer:[canvas.width,canvas.height]};
+  });
+  report.facts.push({label,...facts});
+  check(facts.buttons.length===4 && facts.buttons.every(button=>button.ratio>=4.5),
+    label+": all four welcome actions have readable contrast");
+  check(facts.canvas.fit==="contain" && facts.image.fit==="contain"
+    && facts.canvas.position===facts.image.position
+    && Math.abs(facts.source[0]/facts.source[1]-facts.buffer[0]/facts.buffer[1])<.001,
+  label+": live portrait preserves source proportions and matches the still fit");
+  check(facts.canvas.filter===facts.image.filter && facts.canvas.blend===facts.image.blend,
+    label+": live portrait and still use the same color treatment");
+  return facts;
+}
+
+async function themeMatrix() {
+  for (const width of [320,390,768,1440]) for (const theme of ["dark","light"]) {
+    const sample=await fresh({viewport:{width,height:width<761?844:900},colorScheme:theme});
+    await live(sample.page);
+    const label=width+"px "+theme;
+    const before=await welcomeAppearance(sample.page,label);
+    await sample.page.screenshot({path:resolve(output,"welcome-"+width+"-"+theme+".png"),
+      fullPage:true});
+    await sample.page.emulateMedia({reducedMotion:"reduce"});
+    await sample.page.waitForSelector(".home-hero-portrait",{state:"detached"});
+    const after=await sample.page.locator(".home-hero-art").evaluate(node=>{
+      const s=getComputedStyle(node),box=node.getBoundingClientRect();
+      return {visible:node.checkVisibility({opacityProperty:true}),filter:s.filter,
+        blend:s.mixBlendMode,width:box.width,height:box.height};
+    });
+    check(after.visible && after.filter===before.canvas.filter && after.blend===before.canvas.blend
+      && Math.abs(after.width-before.canvas.width)<1
+      && Math.abs(after.height-before.canvas.height)<1,
+    label+": reduced motion restores the same portrait appearance and frame");
+    await sample.page.screenshot({path:resolve(output,"still-"+width+"-"+theme+".png"),
+      fullPage:true});
+    await sample.context.close();
+  }
 }
 
 try {
@@ -191,6 +261,7 @@ try {
   check(await blocked.page.locator(".home-hero-portrait").count()===0,
     "unavailable WebGL keeps the still");
   await blocked.context.close();
+  await themeMatrix();
 } finally {
   await browser.close();
   writeFileSync(resolve(output,"review.json"),JSON.stringify(report,null,2)+"\n");

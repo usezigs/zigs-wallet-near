@@ -38,10 +38,6 @@
   box-shadow:inset 0 1px 0 var(--studio-rim);
 }
 .zigs-openglass .ogui-card.welcome { background:transparent; box-shadow:none; }
-.zigs-openglass .home-hero {
-  --text:#f1f4f7; --muted:#b6c0cc; --panel:#1c2026; --raised:#282e37;
-  --sunk:#15191e; --line:#323943; --line-2:#505b69;
-}
 .zigs-openglass .wallet-context-header {
   padding:8px 0 20px; border:0; border-radius:0; background:var(--bg); box-shadow:none;
 }
