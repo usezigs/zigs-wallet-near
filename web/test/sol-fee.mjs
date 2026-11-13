@@ -23,7 +23,7 @@ import {
 } from "../sol/intent.js";
 import { propose } from "../sol/propose.js";
 import { refreshChain } from "../sol/session.js";
-import { readSolSession, writePart } from "../sol/sessions.js";
+import { readSolSession, signPart, writePart } from "../sol/sessions.js";
 import { solView } from "../sol/view.js";
 import { verifies } from "./sol-chain.mjs";
 import { sleep } from "./sol-rig.mjs";
@@ -451,8 +451,14 @@ step("an Add SOL message written as a session gets a refusal and the tab stays r
   const intentOf = (n) => intentHex("createNonce", { blockhash: nonceOf(n) });
   const pins = bytesOf(pinsHex(done, feeOf(c, 1).key, GENESIS));
   const messageOf = (n) => hexOf(W.compile_message(bytesOf(intentOf(n)), pins, new Uint8Array(0)));
-  const part = (id, name, fields) =>
-    writePart(c, id, name, fields, { seat: 1, create: name === "proposal" });
+  // These are records loaded from an earlier release, not proposals being created now.
+  // Publish each complete snapshot at once so the reactor never sees a half-built sent record.
+  const historical = new Map();
+  const part = async (id, name, fields) => {
+    const sig = await signPart(name, fields,
+      signed => c.host.signedDoc(c.gid, "solsessions/" + id, 1, signed));
+    historical.set(id, { ...historical.get(id), ...fields, ...sig });
+  };
   const proposal = (id, n) =>
     part(id, "proposal", { intent: intentOf(n), message: messageOf(n), createdAt: Date.now() });
   const signedBy = async (id, n) => {
@@ -478,6 +484,8 @@ step("an Add SOL message written as a session gets a refusal and the tab stays r
   await part("old-sent", "sent", mark);
   await proposal("old-failed", 6);
   await part("old-failed", "failure", { error: "An older text." });
+  for (const [id, fields] of historical) data.set(path(gid, "solsessions/" + id), fields);
+  notify();
 
   for (const id of ["old-collecting", "old-signing", "old-missed", "old-failed"]) {
     await waitStatus(id, "failed", 8000);
