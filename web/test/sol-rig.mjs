@@ -63,7 +63,7 @@ Object.assign(globalThis, {
   history: { replaceState() {} },
   requestAnimationFrame: () => 0,
   cancelAnimationFrame: () => {},
-  matchMedia: () => ({ matches: false }),
+  matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
   location: { hash: "", href: "http://localhost/", origin: "http://localhost" },
   localStorage: {
     getItem: (k) => (storage.has(k) ? storage.get(k) : null),

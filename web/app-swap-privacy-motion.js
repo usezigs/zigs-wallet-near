@@ -7,9 +7,10 @@ export const SWAP_PRIVACY_DURATION_MS = CHAPTER_MS.reduce((sum, duration) => sum
 
 export function createSwapPrivacyPlayback(element, target, callbacks) {
   const doc = element.ownerDocument, win = doc?.defaultView;
-  const reduced = win?.matchMedia('(prefers-reduced-motion: reduce)');
+  const reduced = win?.matchMedia('(prefers-reduced-motion: reduce),(update: slow),(forced-colors: active)');
+  const prefersStatic = () => !!reduced?.matches || !!win?.navigator.connection?.saveData;
   const state = { index: 0, elapsed: 0, playing: false, finished: false, manual: false,
-    reduced: !!reduced?.matches };
+    reduced: prefersStatic() };
   let held = false, visible = false, ready = false, frame = 0, last = 0;
   const observer = win?.IntersectionObserver ? new win.IntersectionObserver((entries) => {
     visible = entries.some((entry) => entry.isIntersecting && entry.intersectionRatio >= 0.35);
@@ -74,18 +75,20 @@ export function createSwapPrivacyPlayback(element, target, callbacks) {
   }
   const visibility = () => sync();
   const preference = () => {
-    state.reduced = reduced.matches;
+    state.reduced = prefersStatic();
     if (state.reduced) { held = true; state.manual = true; }
     sync();
   };
   doc?.addEventListener?.('visibilitychange', visibility);
   reduced?.addEventListener?.('change', preference);
+  win?.navigator.connection?.addEventListener?.('change', preference);
   win?.addEventListener('pagehide', (event) => {
     stop();
     if (event.persisted) return;
     observer?.disconnect();
     doc.removeEventListener('visibilitychange', visibility);
     reduced?.removeEventListener('change', preference);
+    win?.navigator.connection?.removeEventListener?.('change', preference);
   }, { once: true });
   return { state, reset, seek, toggle, pause() { held = true; stop(); } };
 }

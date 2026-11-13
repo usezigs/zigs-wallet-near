@@ -1,0 +1,105 @@
+/* Zigs navigation: original two-tone glyphs, inset surfaces and short interaction feedback. */
+.zigs-openglass .shell { --sidebar-width:240px; }
+.zigs-openglass .side[data-ogui-glass] { padding:16px 12px; gap:20px; border-right:1px solid var(--line); }
+.zigs-openglass .side>.logo { gap:12px; padding:4px 10px; min-height:48px; }
+.side .logo-word { font-size:23px; font-weight:500; letter-spacing:-.04em; }
+#side-nav { position:relative; gap:4px; padding:2px 0; scrollbar-width:thin; }
+.zigs-openglass #side-nav .side-item[data-sidebar-nav] { display:grid;
+  grid-template-columns:32px minmax(0,1fr) auto; align-items:center; gap:12px;
+  min-height:52px; padding:8px 12px; border:1px solid transparent; border-radius:14px;
+  background:transparent; color:var(--muted); box-shadow:none;
+  transition:background-color 160ms var(--ease),border-color 160ms var(--ease),color 160ms var(--ease); }
+.zigs-openglass #side-nav .side-item[data-sidebar-nav]>.side-name { font:400 14px/22px var(--sans); letter-spacing:0; }
+.zigs-openglass #side-nav .side-item[data-sidebar-nav].active { background:var(--raised); color:var(--text);
+  border-color:var(--line); box-shadow:inset 0 1px 0 var(--studio-rim); }
+.zigs-openglass #side-nav .side-item[data-sidebar-nav].active>.side-name { font-weight:500; }
+.zigs-openglass #side-nav .side-item[data-sidebar-nav]:hover:not(.active):not(:disabled) { background:var(--sunk); color:var(--text); }
+.zigs-openglass #side-nav .side-item[data-sidebar-nav]:focus-visible { outline:2px solid var(--focus); outline-offset:-3px; }
+.zigs-openglass #side-nav .side-item[data-sidebar-nav]::before { display:none; }
+.side .sidebar-symbol { display:grid; place-items:center; width:32px; height:32px; flex:none;
+  border:0; border-radius:9px; background:none; box-shadow:none; color:var(--muted); overflow:visible;
+  transform:none; scale:none; transition:background-color 160ms var(--ease),color 160ms var(--ease),transform 120ms var(--ease); }
+.side .sidebar-symbol svg { display:block; width:24px; height:24px; overflow:visible; stroke-width:1.5; }
+.sidebar-glyph-plane { fill:currentColor; fill-opacity:.075; stroke:none; }
+.sidebar-glyph-body { fill:none; stroke:currentColor; stroke-opacity:.85; }
+.sidebar-glyph-detail { fill:none; stroke:currentColor; transform-box:fill-box; transform-origin:center; }
+.sidebar-glyph-trace { fill:none; stroke:var(--accent-text); stroke-width:1.8;
+  stroke-dasharray:1; stroke-dashoffset:1; opacity:0; pointer-events:none; }
+.sidebar-glyph-open { opacity:0; transform:rotate(-90deg); transform-origin:center; transition:transform 180ms var(--ease),opacity 120ms var(--ease); }
+.zigs-openglass #side-nav .active .sidebar-symbol { color:var(--text); background:var(--panel); box-shadow:inset 0 1px 0 var(--studio-rim); }
+.zigs-openglass #side-nav .active .sidebar-glyph-detail { color:var(--accent-text); stroke:currentColor; }
+.side-item[data-sidebar-nav]:focus-visible .sidebar-symbol { color:var(--text); }
+.side-item[data-sidebar-nav]:active .sidebar-symbol,.side-head .icon-btn:active .sidebar-symbol { transform:scale(.94); }
+.sidebar-active-marker { position:absolute; top:0; width:2px; border-radius:2px; background:var(--accent-text);
+  z-index:2; pointer-events:none; }
+.side-tail .badge { font:400 11px/18px var(--sans); padding:1px 6px; border-radius:6px; }
+.side .side-head { padding:24px 8px 8px; min-height:48px; }
+.side-head .label { font:400 12px/20px var(--sans); color:var(--muted); }
+.side-head .icon-btn { width:36px; min-width:36px; height:36px; min-height:36px; padding:0;
+  border:1px solid var(--line); border-radius:10px; background:var(--panel); color:var(--muted); }
+.side-head .icon-btn .sidebar-symbol { width:28px; height:28px; }
+.sidebar-wallet-symbol { position:relative; display:grid; place-items:center; width:36px; height:36px; flex:none;
+  border:1px solid var(--line); border-radius:12px; background:var(--panel); }
+.sidebar-wallet-symbol>.sidebar-symbol { width:30px; height:30px; }
+.sidebar-wallet-symbol>.wallet-art { position:absolute; width:32px; height:32px; inset:1px; }
+.sidebar-wallet-symbol>.wallet-art:is([data-art-state=loading],[data-art-state=unavailable]) { visibility:hidden; }
+.sidebar-wallet-symbol:has(>.wallet-art:not([data-art-state=loading],[data-art-state=unavailable]))>.sidebar-symbol { visibility:hidden; }
+.side #side-nav .wallet-context { grid-template-columns:36px minmax(0,1fr) auto; gap:12px;
+  padding:12px 10px; border-radius:14px; border:1px solid transparent; }
+.side #side-nav .wallet-context.active { border-color:var(--line); background:var(--sunk); box-shadow:inset 0 1px 0 var(--studio-rim); }
+.side .side-label { display:grid; gap:4px; }
+.side .side-label>.side-name { font:500 13px/20px var(--sans); }
+.side .side-network,.side .side-meta { font:400 12px/18px var(--sans); }
+.side .side-foot { padding:16px 4px 0; gap:16px; }
+.side .browser-status>summary { min-height:44px; gap:8px; padding:8px;
+  border:1px solid var(--line); border-radius:12px; background:var(--panel); font:400 12px/20px var(--sans); }
+.side .browser-status>summary::after { display:none; }
+.side .browser-status:has(.dot.bad)>summary::after { display:inline; }
+.sidebar-status-mark { position:relative; display:grid; place-items:center; width:26px; height:26px; flex:none; }
+.sidebar-status-mark>.sidebar-symbol { width:24px; height:24px; }
+.sidebar-status-mark .dot { position:absolute; right:0; bottom:1px; width:6px; height:6px;
+  box-shadow:0 0 0 2px var(--panel); }
+.side .browser-status>summary>.sidebar-symbol { width:14px; height:14px; margin-left:auto; }
+.side .browser-status>summary>.sidebar-symbol svg { width:14px; height:14px; }
+.browser-status>summary>.sidebar-symbol { transition:transform 160ms var(--ease); }
+.browser-status[open]>summary>.sidebar-symbol { transform:rotate(180deg); }
+.side .browser-status>p { padding:12px 8px 0; font-size:12px; line-height:20px; }
+.side .side-note,.side .side-note a { font:400 12px/20px var(--sans); }
+.side #wallet-menu { align-items:center; gap:8px; padding:10px 14px; border-radius:12px; }
+#wallet-menu .sidebar-symbol { width:20px; height:20px; }
+#wallet-menu .sidebar-symbol svg { width:20px; height:20px; }
+#wallet-menu .sidebar-glyph-body,#wallet-menu .sidebar-glyph-detail { transition:opacity 120ms var(--ease); }
+.side.menu-open #wallet-menu :is(.sidebar-glyph-body,.sidebar-glyph-detail) { opacity:0; }
+.side.menu-open #wallet-menu .sidebar-glyph-open { opacity:1; transform:none; }
+@media(max-width:1100px) and (min-width:761px) {
+  .zigs-openglass .shell { --sidebar-width:216px; }
+  .zigs-openglass #side-nav .side-item[data-sidebar-nav] { gap:8px; padding-inline:8px; }
+}
+@media(max-width:760px) {
+  .zigs-openglass .side[data-ogui-glass] { padding:12px 16px; padding-top:calc(12px + env(safe-area-inset-top,0px));
+    gap:8px; border-right:0; }
+  .zigs-openglass .side>.logo { padding:0; }
+  .side.menu-open #side-nav { background:var(--side); border-radius:18px; padding:12px; gap:4px; }
+  .side.menu-open .side-section-items { grid-template-columns:minmax(0,1fr); }
+  .side .side-head { padding-top:16px; }
+  .side-head .icon-btn { width:44px; min-width:44px; height:44px; min-height:44px; }
+  .side .side-foot { padding:0; border:0; min-width:0; max-width:124px; }
+  .side .browser-status>summary { padding:4px; border:0; background:none; gap:6px; font-size:12px; }
+  .sidebar-status-mark { display:none; }
+}
+@media(prefers-reduced-motion:reduce),(update:slow),(forced-colors:active) {
+  .side .sidebar-symbol,.sidebar-glyph-open,.browser-status>summary>.sidebar-symbol,
+  #wallet-menu .sidebar-glyph-body,#wallet-menu .sidebar-glyph-detail { transition:none!important; }
+  .side-item[data-sidebar-nav]:active .sidebar-symbol,.side-head .icon-btn:active .sidebar-symbol { transform:none; }
+}
+@media(forced-colors:active) {
+  .zigs-openglass #side-nav .side-item[data-sidebar-nav] { color:CanvasText; }
+  .zigs-openglass #side-nav .side-item[data-sidebar-nav].active { forced-color-adjust:none;
+    background:Highlight; color:HighlightText; border-color:Highlight; box-shadow:none; }
+  .zigs-openglass #side-nav .side-item[data-sidebar-nav].active :is(.side-name,.side-tail,.badge,.count) { color:HighlightText; background:none; }
+  .zigs-openglass #side-nav .active .sidebar-symbol,.zigs-openglass #side-nav .active .sidebar-glyph-detail { color:HighlightText; background:none; box-shadow:none; }
+  .sidebar-glyph-plane,.sidebar-glyph-trace,.sidebar-active-marker { display:none; }
+  .sidebar-wallet-symbol,.side .browser-status>summary { background:Canvas; color:CanvasText; box-shadow:none; }
+  .side #side-nav .wallet-context.active { background:Canvas; color:CanvasText; border-color:Highlight; }
+  .side #side-nav .wallet-context.active :is(.side-name,.side-network,.side-meta) { color:CanvasText; }
+}

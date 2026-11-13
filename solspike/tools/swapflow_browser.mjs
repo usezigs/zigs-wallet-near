@@ -26,6 +26,7 @@ await context.route('**/*', (route) => {
   return route.continue();
 });
 const check = (value, label) => { assert.ok(value, label); checks.push(label); };
+const reviewAction = () => page.locator('[data-key="swap-review"]');
 async function open(scenario = 'private', width = 1440, theme = 'dark') {
   await page.setViewportSize({ width, height: width < 600 ? 844 : 1000 });
   await page.goto(origin + '/__swap_preview__?scenario=' + scenario + '&theme=' + theme,
@@ -42,6 +43,22 @@ async function capture(name) {
      screenshots.push(name);
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
      name + ': no horizontal overflow');
+  check(await page.locator((".swap-max,.swap-reverse,.swap-details-open,.swap-settings " +
+  "summary,.swap-privacy-play,.swap-privacy-more"))
+    .evaluateAll((nodes) => nodes.filter((node) => !node.disabled &&
+       node.checkVisibility()).every((node) => {
+      const box = node.getBoundingClientRect(), minimum = innerWidth <= 760 ? 48 : 44;
+      return box.width >= minimum - 1 && box.height >= minimum - 1;
+    })), name + ': utility controls keep generous click targets');
+  check(await page.locator('.swap-primary:not(:disabled)').evaluateAll((nodes) =>
+    nodes.filter((node) => node.checkVisibility()).every((node) => {
+      const style = getComputedStyle(node);
+      const luminance = (value) => value.match(/[\d.]+/g).slice(0, 3).map(Number).map((channel) => {
+        const v = channel / 255; return v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4;
+      }).reduce((sum, v, i) => sum + v * [.2126, .7152, .0722][i], 0);
+      const a = luminance(style.color), b = luminance(style.backgroundColor);
+      return (Math.max(a, b) + .05) / (Math.min(a, b) + .05) >= 4.5;
+    })), name + ': primary action text has readable contrast');
 }
 async function quote() {
   await page.getByRole('textbox', { name: 'Amount you pay', exact: true }).fill('0.1');
@@ -50,8 +67,11 @@ async function quote() {
 async function deposit(mode = 'basic') {
   await page.getByRole('radio', { name: mode === 'basic'
     ? /Confidential mainnet/ : /Standard mainnet/ }).check();
+  check(await reviewAction().textContent() === (mode === 'basic' ? 'Review confidential swap' :
+     'Review standard swap'),
+    'the review action names the selected ' + mode + ' route');
   await quote();
-  await page.getByRole('button', { name: 'Initiate confidential swap', exact: false }).click();
+  await reviewAction().click();
   check(await page.getByRole('dialog').getByText('Private funds, public deposit', {
      exact: true }).isVisible(), 'review identifies public boundary');
   await page.locator('#swap-agree').check(); await capture('review-private');
@@ -64,20 +84,22 @@ try {
     await open('private', width, theme); await quote();
     check(await page.getByRole('radio', { name: /Hackathon preview/ }).isChecked(),
       'fresh visit defaults to unfunded preview');
+    check(await reviewAction().textContent() === 'Preview swap',
+      'the unfunded mode labels its action Preview swap');
        await capture('composer-' + width + '-' + theme);
     check(await page.getByText('Minimum received', { exact: true }).first().isVisible(),
        'minimum visible at ' + width + ' ' + theme);
     check(await page.getByRole('heading', { name: 'What stays private?',
        exact: true }).isVisible(), 'privacy explainer visible');
     if (width === 390) {
-      await page.getByRole('button', { name: 'Initiate confidential swap', exact: false }).click();
+      await reviewAction().click();
       await capture('review-mobile-' + theme);
       await page.keyboard.press('Escape');
     }
   }
   await open('hackathon'); await desktopFit();
   await open(); await quote();
-  await page.getByRole('button', { name: 'Initiate confidential swap', exact: false }).click();
+  await reviewAction().click();
   check(await page.getByRole('button', { name: 'Get deposit address', exact: true }).count() === 0,
     'preview review offers no live deposit action');
   await page.getByRole('button', { name: 'Simulate swap flow', exact: true }).click();
@@ -91,6 +113,10 @@ try {
   check(await page.getByRole('textbox', { name: 'Amount you pay',
      exact: true }).inputValue() === '0.25', 'Max uses private available balance');
   await deposit(); await capture('deposit-private');
+  await page.locator('.swap-recovery-details summary').click();
+  check(await page.getByRole('button', { name: /^Copy recovery (receipt|record)$/ }).isVisible(),
+    'tracking and history do not cover the recovery disclosure or copy action');
+  await page.locator('.swap-recovery-details summary').click();
   check(await page.getByText('Confidential mainnet · Basic · reported by NEAR Intents', {
     exact: true }).isVisible(), 'receipt identifies the provider-reported routing mode');
   await page.evaluate(() => window.swapFixture.routing('public'));
@@ -155,8 +181,7 @@ try {
   check(await page.getByRole('radio', { name: /Standard mainnet/ }).isDisabled()
     && await page.getByRole('radio', { name: /Confidential mainnet/ }).isDisabled(),
     'test funds cannot select mainnet execution');
-  check(await page.getByRole('button', { name: 'Initiate confidential swap',
-    exact: false }).isEnabled(),
+  check(await reviewAction().isEnabled(),
     'test wallet can review an unfunded price preview');
   await capture('testnet-preview');
   await open('standard'); await deposit('public');
@@ -176,13 +201,13 @@ try {
      exact: true }).isDisabled(), 'failed receipt save blocks funding');
   await capture('save-failure');
   await open('plain', 390); await quote(); await capture('plain-mobile');
-  await page.getByRole('button', { name: 'Initiate confidential swap', exact: false }).click();
+  await reviewAction().click();
   for (let i = 0; i < 20; i++) { await page.keyboard.press('Tab');
      check(await page.evaluate(() => !!document.activeElement.closest('dialog')),
         'focus remains in review'); }
   await page.keyboard.press('Escape');
-  check(await page.getByRole('button', { name: 'Initiate confidential swap',
-     exact: false }).evaluate((n) => n === document.activeElement), 'Escape restores focus');
+  check(await reviewAction().evaluate((n) => n === document.activeElement),
+     'Escape restores focus');
   await privacyTour();
   if (livePreview) {
     const start = requests.length;
@@ -199,7 +224,7 @@ try {
     check(await page.getByText('Hackathon preview · no funds', { exact: true }).isVisible(),
       'simulation remains clearly labelled');
     await capture('hackathon-real-quote');
-    await page.getByRole('button', { name: 'Initiate confidential swap', exact: false }).click();
+    await reviewAction().click();
     await page.getByRole('button', { name: 'Simulate swap flow', exact: true }).click();
     for (let i = 0; i < 6; i++) await page.getByRole('button', {
       name: 'Next demo step', exact: false }).click();
@@ -252,14 +277,18 @@ async function privacyTour() {
   await page.clock.runFor(300);
   check(await panel.getAttribute('data-playing') === 'false',
     'the tutorial finishes in twenty seconds');
-  check(!await panel.locator('.swap-privacy-controls').isVisible(),
-    'playback stops without showing a replay option');
+  check(await panel.getByRole('button', { name: 'Replay explainer', exact: true }).isVisible(),
+    'the completed tutorial offers an explicit replay');
   check(await panel.locator('.swap-privacy-count,.swap-privacy-time').count() === 0,
     'the stage and seconds counters are removed');
   await page.clock.runFor(20000);
   check(await chapter.textContent() === 'ZEC is requested to a shielded address',
     'playback does not loop or imply confirmed delivery');
   await capture('privacy-shielded-destination');
+  await panel.getByRole('button', { name: 'Replay explainer', exact: true }).click();
+  check(await panel.getAttribute('data-playing') === 'true'
+    && await chapter.textContent() === 'SOL starts in the private pool',
+    'Replay restarts the finite tutorial at its source chapter');
   await stages.nth(0).click();
   await panel.getByRole('button', { name: 'Resume explainer', exact: true }).click();
   await page.getByRole('radio', { name: /Hackathon preview/ }).focus();
@@ -297,6 +326,12 @@ async function privacyTour() {
     'reduced motion uses manual chapters without timed advancement');
   check(await panel.locator('.swap-privacy-scene').evaluate((n) =>
     getComputedStyle(n).animationName) === 'none', 'reduced motion removes scene animation');
+  await page.emulateMedia({ reducedMotion: 'no-preference', forcedColors: 'active' });
+  await stages.nth(2).focus(); await page.keyboard.press('Enter');
+  await page.clock.runFor(20000);
+  check(await chapter.textContent() === 'NEAR can connect the route'
+    && await panel.getAttribute('data-playing') === 'false',
+    'forced colors retain keyboard-operated static chapters');
   check(await page.evaluate(() => !window.swapFixture.model.value.live),
     'the entire explainer leaves live-swap state empty');
   await page.clock.setSystemTime(new Date()); await page.clock.resume();

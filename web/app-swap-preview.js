@@ -3,8 +3,8 @@ import { swapRecoveryRecord, swapRecoveryText } from './swap-recovery.js';
 // plain send of the Solana wallet of the group that app-swap-sol.js proposes), the live swap from
 // ZEC to SOL (paid by a group payment that app-swap-zec.js opens in Send) and local demo
 // interactions. No signing or payment APIs are imported.
-import { copyBtn, el } from './app-dom.js';
-import { icon, sculptedIcon } from './app-icons.js';
+import { copyBtn as nativeCopyBtn, el } from './app-dom.js';
+import { interfaceIcon } from './sidebar-icons.js';
 import { NearIntentsSwapProvider } from './near-intents-swap-provider.js';
 import { createPostQuantumSwapPreview } from './app-postquantum-swap-preview.js';
 import { createSwapPrivacyExplainer } from './app-swap-privacy.js';
@@ -21,7 +21,7 @@ export const LIVE_TAG = 'Hackathon preview · no funds';
 // real.
 export const SWAP_TAG = 'Live swap · real funds';
 const previewTag = (live = false) => el('span', { class: 'swap-preview-tag' },
-  el('span', { 'aria-hidden': 'true' }, '◌'),
+  interfaceIcon(live ? 'swap' : 'preview'),
   el('span', { class: 'swap-tag-text' }, live ? SWAP_TAG : LIVE_TAG));
 const [ZEC_ID, SOL_ID] = [SWAP_ASSETS[0].id, SWAP_ASSETS[1].id];
 const PRIVATE_ROUTE = 'Private SOL balance → public SOL deposit → NEAR Confidential Intents → shielded ZEC address.';
@@ -112,11 +112,15 @@ const addressText = (value) => el('span', { class: 'swap-deposit-address' }, val
 const token = (asset) => el('img', { class: 'swap-token ' + asset.tone,
   src: asset.icon, alt: '', width: 32, height: 32, 'aria-hidden': 'true' });
 const text = (cls, value, tag = 'p') => el(tag, { class: cls }, value);
+const copyBtn = (value, label, cls) => {
+  const control = nativeCopyBtn(value, label, cls, null, interfaceIcon);
+  control.setAttribute('data-interface-control', ''); return control;
+};
 const button = (label, cls, onclick, attrs = {}) => el('button', {
-  type: 'button', class: cls, onclick, ...attrs,
+  type: 'button', class: cls, 'data-interface-control': '', onclick, ...attrs,
 }, label);
 const detail = (name, value) => el('div', { class: 'swap-detail-row' }, el('dt', {}, name), el('dd', {}, value));
-const chevron = () => el('span', { class: 'swap-chevron', 'aria-hidden': 'true' }, icon('chevronDown'));
+const chevron = () => el('span', { class: 'swap-chevron', 'aria-hidden': 'true' }, interfaceIcon('chevronDown'));
 export const ZEC_PRIVACY = 'A swap from ZEC leaves the shielded pool, because NEAR Intents takes '
   + 'ZEC only at a transparent deposit address, which is public. NEAR Intents accepts a shielded '
   + 'address as the recipient of a swap to ZEC, but this Zigs route has not had a funded payout test.';
@@ -228,11 +232,11 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   const quoteLine = text('swap-quote-status', statusText({}));
   quoteLine.setAttribute('role', 'status');
   const quoteDetails = el('dl', { class: 'swap-quote-details' });
-  const reverse = button([icon('swap'), el('span', {}, 'Reverse')], 'swap-reverse', () => {
+  const reverse = button([interfaceIcon('swap'), el('span', {}, 'Reverse')], 'swap-reverse', () => {
     rotation += 180; reverse.style.setProperty('--swap-rotation', rotation + 'deg');
     void model.reverse();
   }, { 'aria-label': 'Reverse swap direction', 'data-key': 'swap-reverse' });
-  const review = button([icon('confidentialSwap'), 'Initiate confidential swap'],
+  const review = button([interfaceIcon('swap'), text('swap-action-label', 'Preview swap', 'span')],
     'swap-primary swap-initiate', (ev) => {
       if (!model.review()) return;
       openModal('Review quote', ev.currentTarget); drawReview();
@@ -255,19 +259,19 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   const executionHelp = text('swap-caption', '');
   executionHelp.id = 'swap-execution-help'; executionHelp.setAttribute('role', 'status');
   const executionChoices = [
-    ['preview', 'Hackathon preview', 'Demo - Pending NEAR API key', 'activity'],
-    ['public', 'Standard mainnet', 'NEAR Intents - Not Confidential', 'swap'],
-    ['basic', 'Confidential mainnet', 'Provider access required', 'security'],
+    ['preview', 'Hackathon preview', 'Demo - Pending NEAR API key', 'preview'],
+    ['public', 'Standard mainnet', 'NEAR Intents - Not Confidential', 'publicSwap'],
+    ['basic', 'Confidential mainnet', 'Provider access required', 'confidentialSwap'],
   ].map(([value, label, caption, art]) => el('label', {
-    class: 'swap-execution-option', 'data-mode': value },
+    class: 'swap-execution-option', 'data-mode': value, 'data-interface-control': '' },
     el('input', { type: 'radio', name: 'swap-execution', value, checked: value === 'preview',
       'aria-describedby': 'swap-execution-help', onchange: async () => {
         if (model.value.live) return;
         closeModal(); await model.chooseExecution(value);
-      } }), el('span', { class: 'swap-execution-art', 'aria-hidden': 'true' }, sculptedIcon(art)),
+      } }), el('span', { class: 'swap-execution-art', 'aria-hidden': 'true' }, interfaceIcon(art)),
     el('span', { class: 'swap-execution-copy' }, text('', label, 'strong'),
       text('swap-caption', caption, 'span')),
-    el('span', { class: 'swap-execution-indicator', 'aria-hidden': 'true' }, icon('check'))));
+    el('span', { class: 'swap-execution-indicator', 'aria-hidden': 'true' }, interfaceIcon('check'))));
   const executionBox = el('fieldset', { class: 'swap-execution' }, el('legend', {}, 'Swap mode'),
     el('div', { class: 'swap-execution-options' }, executionChoices), executionHelp);
   const deposit = el('section', { class: 'swap-deposit', id: 'swap-deposit', tabindex: '-1',
@@ -278,7 +282,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   const presets = [50, 100, 200].map((bps) => button(bps / 100 + '%', 'swap-preset', () => {
     void model.update({ slippageBps: bps });
   }, { 'aria-pressed': bps === 50 ? 'true' : 'false' }));
-  settings.append(el('summary', {}, icon('settings'), 'Slippage', settingValue),
+  settings.append(el('summary', { 'data-interface-control': '' }, interfaceIcon('sliders'), 'Slippage', settingValue),
     el('div', { class: 'swap-settings-panel' }, text('', 'Maximum slippage', 'strong'),
       text('swap-caption', 'Sets the minimum quoted amount you receive.'), el('div', { class: 'swap-presets' }, presets)));
   const sourceLine = text('swap-source-context', '');
@@ -287,7 +291,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     quantumIntroNodes().forEach(node => { node.hidden = false; });
     quantumContinue.focus();
   });
-  const quantumContinue = button(['Continue', el('span', { 'aria-hidden': 'true' }, icon('forward'))],
+  const quantumContinue = button(['Continue', el('span', { 'aria-hidden': 'true' }, interfaceIcon('forward'))],
     'swap-primary pq-continue', () => {
       quantumIntroNodes().forEach(node => { node.hidden = true; });
       quantumFlow.start();
@@ -334,7 +338,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
       el('div', { class: 'swap-quote' }, quoteLine, quoteDetails), error,
       demoTarget, payoutBox,
       el('div', { class: 'swap-composer-tools' },
-          button(['Quote details', el('span', { 'aria-hidden': 'true' }, icon('external'))], 'swap-details-open',
+          button(['Quote details', el('span', { 'aria-hidden': 'true' }, interfaceIcon('info'))], 'swap-details-open',
             (ev) => { openModal('Swap details', ev.currentTarget); drawDetails(); },
             { 'aria-haspopup': 'dialog', 'data-key': 'swap-details' }), settings),
       el('div', { class: 'swap-composer-footer' }, review)),
@@ -351,7 +355,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
       text('swap-eyebrow', 'Planned Zcash privacy'),
       el('h2', {}, 'Separate swap addresses.', el('br'), 'Same shared wallet.'),
       text('swap-quantum-description', 'A separate viewing key for each ZEC swap, with your existing wallet approvals.'),
-      el('div', { class: 'swap-quantum-status' }, icon('security'),
+      el('div', { class: 'swap-quantum-status' }, interfaceIcon('security'),
         el('div', {}, text('', 'Planned feature · try the demo', 'strong'),
           text('', 'No keys are generated and no assets move.'))),
       quantumContinue),
@@ -468,7 +472,12 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     privacyExplainer.update({ from: from.key, to: to.key, execution: s.execution,
       privateSource: s.from === SOL_ID && source.solGroup?.mode === 'private'
         && solPayer === 'group' });
-    headTag.querySelector('.swap-tag-text').textContent = liveRoute() ? SWAP_TAG : LIVE_TAG;
+    const liveTag = String(liveRoute());
+    if (headTag.dataset.live !== liveTag) {
+      headTag.replaceChildren(interfaceIcon(liveRoute() ? 'swap' : 'preview'),
+        text('swap-tag-text', liveRoute() ? SWAP_TAG : LIVE_TAG, 'span'));
+      headTag.dataset.live = liveTag;
+    }
     const modeStatus = modeTabs[0]?.querySelector('.swap-tab-status');
     if (modeStatus) modeStatus.textContent = liveRoute() ? 'Live route' : 'Quote preview';
     drawFunding(s);
@@ -482,6 +491,12 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     drawHistory();
   }
   function drawExecution(s) {
+    if (review.dataset.execution !== s.execution) {
+      const labels = { preview: 'Preview swap', public: 'Review standard swap', basic: 'Review confidential swap' };
+      review.replaceChildren(interfaceIcon(s.execution === 'basic' ? 'confidentialSwap' : 'swap'),
+        text('swap-action-label', labels[s.execution], 'span'));
+      review.dataset.execution = s.execution;
+    }
     executionChoices.forEach((label) => {
       const input = label.querySelector('input');
       input.checked = input.value === s.execution;
@@ -556,9 +571,9 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     const privateSol = from.id === SOL_ID && source.solGroup?.mode === 'private' && solPayer === 'group';
     const confidentialFrom = from.key === 'zec' || privateSol;
     const confidentialTo = to.key === 'zec';
-    payPrivacy.replaceChildren(icon(confidentialFrom ? 'lock' : 'unshield'),
+    payPrivacy.replaceChildren(interfaceIcon(confidentialFrom ? 'lock' : 'unshield'),
       el('span', {}, (confidentialFrom ? 'Confidential ' : 'Public ') + from.symbol));
-    receivePrivacy.replaceChildren(icon(confidentialTo ? 'lock' : 'unshield'),
+    receivePrivacy.replaceChildren(interfaceIcon(confidentialTo ? 'lock' : 'unshield'),
       el('span', {}, (confidentialTo ? 'Confidential ' : 'Public ') + to.symbol));
     if (privateSol) fromNetwork.replaceChildren(heliusSwapCredit());
     else fromNetwork.textContent = from.key === 'zec' ? 'Shielded Zcash balance' : 'Public ' + from.network + ' balance';
@@ -622,7 +637,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     modal.append(el('div', { class: 'swap-modal-heading' },
       el('div', {}, previewTag(liveRoute()),
         el('h2', { id: 'swap-modal-title', tabindex: '-1' }, title)),
-      button(icon('close'), 'swap-close', () => closeModal(), { 'aria-label': 'Close dialog' })),
+      button(interfaceIcon('close'), 'swap-close', () => closeModal(), { 'aria-label': 'Close dialog' })),
     el('div', { class: 'swap-modal-content' }));
     document.body.append(modal); modal.showModal();
     modal.querySelector('h2').focus();
@@ -643,7 +658,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     const matches = SWAP_ASSETS.filter(a => source.demo === true || a.key !== 'usdc').filter((a) => (a.symbol + ' ' + a.name + ' ' + a.network).toLowerCase().includes(searchText.trim().toLowerCase()));
     modal.querySelector('.swap-asset-list').replaceChildren(...(matches.length ? matches.map((a) => button([
       token(a), el('span', {}, text('', a.symbol + ' · ' + a.network, 'strong'), text('swap-caption', a.name, 'span')),
-      el('span', { class: 'swap-choice-mark', 'aria-hidden': 'true' }, a.id === model.value[pickerSide] ? '✓' : '↗'),
+      el('span', { class: 'swap-choice-mark', 'aria-hidden': 'true' }, interfaceIcon(a.id === model.value[pickerSide] ? 'check' : 'chevronRight')),
     ], 'swap-asset-choice', () => {
       const side = pickerSide; closeModal(false); void model.update({ [side]: a.id });
     }, { 'aria-label': a.symbol + ' on ' + a.network }))
@@ -701,7 +716,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
       el('div', { class: 'swap-review-warning' }, text('', 'Review the route boundary', 'strong'),
         text('', privacy(from.symbol === 'ZEC' || to.symbol === 'ZEC')), text('', NO_RUN)),
       text('swap-simulation-note', 'Demo: the steps below are simulated. No funds move and nothing is signed.'),
-      button(['Simulate swap flow', el('span', { 'aria-hidden': 'true' }, icon('forward'))], 'swap-primary', () => {
+      button(['Simulate swap flow', el('span', { 'aria-hidden': 'true' }, interfaceIcon('forward'))], 'swap-primary', () => {
         modal.querySelector('h2').textContent = 'Swap flow simulation'; model.simulate();
         modal.querySelector('h2').focus();
       }), button('Back to swap', 'swap-secondary', () => closeModal()));
@@ -727,7 +742,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
         : i === s.step ? descriptions[i] : 'Later simulated step'))))),
       el('p', { class: 'swap-demo-result', role: 'status' }, done ? 'Demo complete. The steps were simulated. No funds moved.'
         : 'Advance each example step yourself. Nothing is broadcast or signed.'),
-      button(done ? 'Back to swap' : 'Next demo step →', 'swap-primary', () => {
+      button([done ? 'Back to swap' : 'Next demo step', interfaceIcon(done ? 'back' : 'forward')], 'swap-primary', () => {
         if (done) { closeModal(false); void model.update(); return; }
         model.advance(); modal.querySelector('.swap-primary').focus({ preventScroll: true });
       }));

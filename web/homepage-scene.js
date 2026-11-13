@@ -1,6 +1,7 @@
 // Camera-locked 3D relief portrait. Its baked appearance comes from the approved
 // cinematic artwork; this is deliberately not a replacement 360-degree sculpt.
 // No wallet, network, storage or audio dependencies.
+import { radiantDither } from "./radiant-dither.js";
 const VERTEX = `
 precision highp float;
 attribute vec2 a_uv;
@@ -67,16 +68,21 @@ precision mediump float;
 uniform sampler2D u_art;
 uniform sampler2D u_closed;
 uniform float u_blink;
+uniform float u_atmosphere_time;
 varying vec2 v_uv;
+
+${radiantDither}
+
 void main() {
   vec4 art = texture2D(u_art, v_uv);
-  if (art.a < .002) discard;
+  vec4 atmosphere = radiantAtmosphere(v_uv, u_atmosphere_time);
+  if (art.a < .002) { gl_FragColor = atmosphere; return; }
   // Only the eyelid patch uses the closed-eye texture; everything else stays put.
   float eye = length((v_uv - vec2(.404,.370)) / vec2(.077,.052));
   float mask = 1. - smoothstep(.60,1.,eye);
   vec3 closed = texture2D(u_closed,v_uv).rgb;
   vec3 color = mix(art.rgb,closed,mask*u_blink);
-  gl_FragColor = vec4(color*art.a,art.a);
+  gl_FragColor = vec4(color*art.a,art.a) + atmosphere*(1.-art.a);
 }`;
 
 function compile(gl, type, source) {
@@ -216,7 +222,7 @@ export function createHeroScene(image, doc=image.ownerDocument) {
     if (mesh) { gl.deleteBuffer(mesh.vertices); gl.deleteBuffer(mesh.elements); }
     throw error;
   }
-  const uniforms=Object.fromEntries(["time","breath","ears","gust","blink","look"]
+  const uniforms=Object.fromEntries(["time","breath","ears","gust","blink","look","atmosphere_time"]
     .map(name=>[name,gl.getUniformLocation(program,"u_"+name)]));
   let disposed=false,blinkReady=false,finishBlink;
   const ready=new Promise(resolve=>{ finishBlink=resolve; });
@@ -242,6 +248,7 @@ export function createHeroScene(image, doc=image.ownerDocument) {
     draw(sample) {
       if (disposed || gl.isContextLost()) throw new Error("Homepage portrait unavailable");
       gl.uniform1f(uniforms.time,sample.seconds);
+      gl.uniform1f(uniforms.atmosphere_time,Math.max(0,sample.seconds-1.5)%14+1.5);
       gl.uniform1f(uniforms.breath,sample.breath);
       gl.uniform2f(uniforms.ears,sample.leftEar,sample.rightEar);
       gl.uniform1f(uniforms.gust,sample.gust);

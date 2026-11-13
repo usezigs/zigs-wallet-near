@@ -206,83 +206,16 @@
 .zigs-openglass ::selection { background: var(--accent); color: var(--on-accent); }
 .zigs-openglass { scrollbar-color: var(--line-2) transparent; }
 
-/* A narrow travelling reflection catches the glass rim; the centre stays completely clear. */
-@property --openglass-light-angle {
-  syntax: "<angle>";
-  inherits: false;
-  initial-value: 35deg;
-}
-
-.zigs-openglass .openglass-reflective { position: relative; }
-
+/* A broad, stationary studio highlight keeps materials consistent across the shell. */
+.zigs-openglass .openglass-reflective { position:relative; }
 .openglass-reflective > .ogui-card__body,
-.openglass-reflective > .ogui-button__label { border-radius: inherit; }
-
+.openglass-reflective > .ogui-button__label { border-radius:inherit; }
 .openglass-edge-shine {
-  display: none;
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  padding: 1px;
-  border-radius: inherit;
-  pointer-events: none;
-  opacity: .32;
-  background: conic-gradient(from var(--openglass-light-angle),
-    transparent 0deg 22deg, rgb(255 255 255 / .08) 40deg,
-    rgb(255 255 255 / .95) 64deg, rgb(255 255 255 / .08) 90deg,
-    transparent 116deg 242deg, rgb(255 255 255 / .35) 276deg, transparent 310deg);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask-composite: exclude;
-  animation: openglass-rim-light 23s linear var(--openglass-shine-delay, 0s) infinite paused;
-  transition: opacity 280ms ease-out;
+  position:absolute; inset:0 16px auto; height:1px; z-index:2;
+  border-radius:inherit; pointer-events:none;
+  background:linear-gradient(90deg,transparent,var(--studio-rim,var(--glass-rim)) 30%,transparent 85%);
 }
-
-@supports (mask-composite: exclude) or (-webkit-mask-composite: xor) {
-  .openglass-edge-shine { display: block; }
-}
-
-.zigs-openglass[data-ogui-appearance="light"] .openglass-edge-shine { opacity: .65; }
-
-[data-openglass-motion] .openglass-edge-shine[data-openglass-visible] {
-  animation-play-state: running;
-}
-
-.openglass-reflective:focus-within .openglass-edge-shine { opacity: .5; }
-
-@media (hover: hover) {
-  .openglass-reflective:hover .openglass-edge-shine { opacity: .5; }
-}
-
-@keyframes openglass-rim-light {
-  from { --openglass-light-angle: 35deg; }
-  to { --openglass-light-angle: 395deg; }
-}
-
-/* Independent translate leaves the existing press/hover transforms intact. */
-.zigs-openglass [data-openglass-float] {
-  animation: openglass-button-float 6.4s ease-in-out var(--openglass-float-delay, 0s) infinite paused;
-}
-
-[data-openglass-motion] .zigs-openglass [data-openglass-float][data-openglass-visible] {
-  animation-play-state: running;
-}
-
-[data-openglass-motion] .zigs-openglass [data-openglass-float][data-openglass-visible]:is(:hover, :focus, :active),
-[data-openglass-motion] .zigs-openglass details[open] > [data-openglass-float][data-openglass-visible] {
-  animation-play-state: paused;
-}
-
-.zigs-openglass [data-openglass-float]:is(:disabled, [aria-disabled="true"]) {
-  animation: none;
-  translate: none;
-}
-
-@keyframes openglass-button-float {
-  0%, 100% { translate: 0 0; }
-  50% { translate: 0 -1.5px; }
-}
+.ogui-button>.openglass-edge-shine { display:none; }
 
 @supports not (backdrop-filter: blur(1px)) {
   .zigs-openglass .ogui-card { background: var(--panel); }
@@ -299,13 +232,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .zigs-openglass .ogui-button { transition: none; }
-  .openglass-edge-shine,
-  .zigs-openglass [data-openglass-float] { animation: none; translate: none; }
 }
 
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
   .openglass-edge-shine { display: none; }
-  .zigs-openglass [data-openglass-float] { animation: none; translate: none; }
 }
 
 @media (forced-colors: active) {

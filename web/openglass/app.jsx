@@ -1,28 +1,49 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
+import { animate } from "motion/mini";
 import { Button, Glass, GlassSystemProvider, GlassThemeProvider } from "open-glass-ui";
 import "open-glass-ui/styles.css";
 import "./theme.css";
 import { collectPortals, installBridge } from "./bridge.jsx";
 import { installMaterialMotion } from "./material-motion.jsx";
+import { installSidebarMotion } from "./sidebar-motion.js";
+import { SIDEBAR_GLYPHS } from "../sidebar-icons.js";
+
+function ShellGlyph({ name }) {
+  const glyph = SIDEBAR_GLYPHS[name];
+  return <span className="symbol sidebar-symbol" data-icon={name} data-sidebar-icon="" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
+      strokeLinecap="round" strokeLinejoin="round" focusable="false">
+      <path className="sidebar-glyph-plane" d={glyph.body} />
+      <path className="sidebar-glyph-body" d={glyph.body} />
+      <g className="sidebar-glyph-detail"><path d={glyph.detail} /></g>
+      <path className="sidebar-glyph-trace" d={glyph.detail} pathLength="1" />
+      {glyph.open ? <path className="sidebar-glyph-open" d={glyph.open} /> : null}
+    </svg>
+  </span>;
+}
 
 function AppShell() {
   return <>
     <a className="skip-link" href="#app">Skip to main content</a>
     <div className="shell">
-      <Glass as="aside" material="frosted" className="side" aria-label="Wallets">
+      <Glass as="aside" material="frosted" className="side" aria-label="Wallets"
+        style={{ background: "var(--side)", boxShadow: "none", backdropFilter: "none",
+          WebkitBackdropFilter: "none" }}>
         <a className="logo" href="#" aria-label="Zigs home">
           <span className="nav-zebra" aria-hidden="true" />
           <span className="logo-word">Zigs</span>
         </a>
         <Button className="btn wallet-menu" id="wallet-menu" type="button" data-key="menu"
-          aria-controls="side-nav" aria-expanded="false">Menu</Button>
+          aria-controls="side-nav" aria-expanded="false"><ShellGlyph name="menu" />Menu</Button>
         <nav id="side-nav" aria-label="Sections" />
         <div className="side-privacy" id="privacy-slot" />
         <div className="side-foot">
           <details className="browser-status" id="engine">
-            <summary><span className="dot busy" id="engine-dot" />Browser status</summary>
+            <summary><span className="sidebar-status-mark"><ShellGlyph name="browser" />
+              <span className="dot busy" id="engine-dot" /></span>
+              <span>Browser status</span><ShellGlyph name="chevronDown" /></summary>
             <p id="engine-text">Loading crypto engine…</p>
           </details>
           <p className="side-note">Keys are made and used in this browser. <a href="https://zigs.app" target="_blank" rel="noopener">About Zigs</a></p>
@@ -44,6 +65,7 @@ function AppShell() {
 
 const root = createRoot(document.getElementById("openglass-root"));
 const syncMaterialMotion = installMaterialMotion(document.getElementById("openglass-root"));
+const syncSidebarMotion = installSidebarMotion(document.getElementById("openglass-root"), animate);
 let queued = false, drawing = false, last = "";
 function refresh() {
   if (drawing) return;
@@ -52,17 +74,19 @@ function refresh() {
     const portals = collectPortals();
     const appearance = document.documentElement.dataset.theme || "system";
     const signature = appearance + ":" + portals.map((entry) => entry.id).join(",");
-    if (signature === last) { syncMaterialMotion(); return; }
+    if (signature === last) { syncMaterialMotion(); syncSidebarMotion(); return; }
     last = signature;
     flushSync(() => root.render(
       <GlassSystemProvider renderer="auto" theme={{ appearance: "system" }}>
-        <GlassThemeProvider appearance={appearance} className="zigs-openglass">
+        <GlassThemeProvider appearance={appearance} className="zigs-openglass"
+          style={{ "--ogui-glass-shadow": .15, "--ogui-glass-rim": .35, "--ogui-glass-lensing": .25 }}>
           <AppShell />
           {portals.map((entry) => entry.portal)}
         </GlassThemeProvider>
       </GlassSystemProvider>,
     ));
     syncMaterialMotion();
+    syncSidebarMotion();
   } finally { drawing = false; }
 }
 function schedule() {
@@ -72,6 +96,8 @@ function schedule() {
 }
 const bridge = installBridge(schedule);
 bridge.flush = refresh;
+// Motion is bundled locally. Native presenters retain ownership of their DOM and focus.
+bridge.animate = animate;
 refresh();
 // Also cover cached views and overlays mounted outside the usual wallet draw loop.
 new window.MutationObserver(schedule).observe(document.getElementById("openglass-root"), { childList: true, subtree: true });

@@ -83,22 +83,22 @@ export const act = (fn) => async (ev) => {
     render(); react();
   }
 };
-export function copyBtn(text, label = "Copy", cls = "btn sm", onFailure = null) {
+export function copyBtn(text, label = "Copy", cls = "btn sm", onFailure = null, makeIcon = icon) {
   const copy = async (ev) => {
     const b = ev.currentTarget;
     try {
       await navigator.clipboard.writeText(typeof text === "function" ? text() : text);
-      b.replaceChildren(icon("check"), document.createTextNode("Copied"));
+      b.replaceChildren(makeIcon("check"), document.createTextNode("Copied"));
     } catch {
       // A caller may open a private overlay; older cards keep their existing disclosure fallback.
-      b.replaceChildren(icon("copy"), document.createTextNode("Select and copy"));
+      b.replaceChildren(makeIcon("copy"), document.createTextNode("Select and copy"));
       if (onFailure) onFailure();
       else b.closest("section")?.querySelector("details[data-link]")?.setAttribute("open", "");
     }
-    setTimeout(() => b.replaceChildren(icon("copy"), document.createTextNode(label)), 1500);
+    setTimeout(() => b.replaceChildren(makeIcon("copy"), document.createTextNode(label)), 1500);
   };
   return el("button", { class: cls, type: "button", "aria-live": "polite",
-    "aria-atomic": "true", onclick: copy }, icon("copy"), label);
+    "aria-atomic": "true", onclick: copy }, makeIcon("copy"), label);
 }
 
 // One bad document from another signer must not break the page: the item it feeds shows as a

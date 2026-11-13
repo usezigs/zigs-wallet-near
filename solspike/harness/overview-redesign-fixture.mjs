@@ -4,13 +4,14 @@ import { resolve, extname } from "node:path";
 
 export const OVERVIEW_ORIGIN = "http://127.0.0.1:55846";
 const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
-  ".svg": "image/svg+xml", ".png": "image/png", ".woff2": "font/woff2" };
+  ".svg": "image/svg+xml", ".png": "image/png", ".webp": "image/webp",
+  ".wasm": "application/wasm", ".woff2": "font/woff2" };
 const solFixture = (
-  "\nexport function overviewFixtureSol(mode = 'synced') "
+  "\nexport function overviewFixtureSol(mode = 'synced', rows = []) "
   + "{\n  collections=[]; setupSummary=()=>({status:'ready'})"
   + "; pendingCount=()=>0;\n  pendingRows=()=>[]; "
   + "loadingCount=()=>0; olderCount=()=>0; "
-  + "activityRows=()=>[];\n  activityWaits=()=>false;\n  "
+  + "activityRows=()=>rows;\n  activityWaits=()=>false;\n  "
   + "sol={ctl:{gid:state.gid,loaded:{},wait:0,sync:{\n    "
   + "balance:mode==='unsynced'?null:'0 SOL',\n    "
   + "text:mode==='stale'?'failed: synthetic "
