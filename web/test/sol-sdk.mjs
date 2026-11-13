@@ -317,7 +317,7 @@ step("the wasm Add SOL deposit equals the SDK deposit for the PDA owner (5 seeds
 // guard.js keeps its own table for the Worker: its programs and genesis hashes must be the ones
 // of the wasm rows. The program of mainnet is the last field of the signed program label.
 const pool = J(W.sol_pool_wallet("mainnet"));
-assert.deepEqual([pool.label, pool.cap], ["mainnet-private", "500000000"]);
+assert.deepEqual([pool.label, pool.cap], ["mainnet-private", null]);
 assert.equal(pool.program.split(":").at(-1), CLUSTERS.mainnet.program, "the program label");
 assert.equal(J(W.sol_pool_wallet("devnet")).cap, null, "Devnet has no cap");
 for (const row of [DEVNET, MAINNET]) {
@@ -336,7 +336,7 @@ assert.notEqual(rolesOf(seeds[0], MAINNET).pda.pda, rolesOf(seeds[0]).pda.pda, "
 step("guard.js names the programs and genesis hashes of the wasm rows; each row has its own PDA");
 
 for (const seed of seeds) {
-  for (const amount of [1n, 500_000_000n]) await sameShield(seed, amount, MAINNET);
+  for (const amount of [1n, 500_000_001n, 5_000_000_000n]) await sameShield(seed, amount, MAINNET);
 }
 step("the mainnet Add SOL deposit equals the SDK deposit for the PDA under 9mE7 (5 seeds)");
 

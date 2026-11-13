@@ -951,7 +951,7 @@ step("the reactor of the controller says a proposal of another device once");
     assert.ok(book.includes(`"${kind}"`), "the Address book offers " + kind);
   }
   const html = src("index.html").replace(/\s+/g, " ");
-  assert.match(html, /Where the server offers it, a mainnet wallet can also send SOL and USDC/);
+  assert.match(html, /Shared wallets for Zcash and Solana/);
   const other = await rig.wallet({ name: "No Solana", network: "mainnet" });
   await waitFor("the part is not added", () => t.plainSol.ctl.gid === other
     && t.plainSol.setup()?.status === "not started");

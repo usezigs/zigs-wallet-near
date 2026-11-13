@@ -2,6 +2,7 @@
 import { el } from "./app-dom.js";
 import { icon, sculptedIcon } from "./app-icons.js";
 import { deriveSecurityDashboard, recoveryFileStatus, signerRecoveryStatus } from "./security-dashboard-model.js";
+import { SECURITY_DISCLOSURES } from "./security-disclosures.js";
 
 const CHAIN = { zec: "Zcash", sol: "Solana" };
 const badge = (text, tone = "neutral", attrs = {}) =>
@@ -47,6 +48,10 @@ export function securityDashboard(f, actions, advanced) {
           : "The Zcash wallet can tolerate losing " + (f.n - f.t) + " distinct shares while the remaining " + f.t + " can still approve.") : "Check the wallet’s configuration before relying on its recovery arrangement."),
         paragraph("Viewing access is separate from spending authority. Devices with viewing access can see this wallet’s balances and history."))),
     recoveryAccess(f, m, actions, advanced),
+    el("details", { class: "security-explainer", id: "security-disclosures" },
+      el("summary", {}, "Security model and disclosures"),
+      SECURITY_DISCLOSURES.map(([title, copy]) => el("div", {},
+        el("h4", {}, title), paragraph(copy)))),
     el("div", { class: "security-browser-link" }, icon("lock"),
       paragraph("Browser protection is managed in Settings. A passkey unlocks local data; it does not replace a recovery file."),
       button("Browser access", actions.settings, { class: "btn ghost sm" })));

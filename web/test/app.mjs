@@ -1526,11 +1526,11 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
 
     // A mainnet wallet is offered only when its balance is known and under the cap.
     delete t.balCache[M];
-    assert.deepEqual(ids(), [gid, W2], "an unknown balance on mainnet: no address");
+    assert.deepEqual(ids(), [gid, W2, M], "a checked address needs no balance reading");
     t.balCache[M] = null;
-    assert.deepEqual(ids(), [gid, W2], "an unreadable balance counts as unknown");
+    assert.deepEqual(ids(), [gid, W2, M], "an unreadable balance does not hide a checked address");
     t.balCache[M] = { total: 50000000, at: 0 };
-    assert.deepEqual(ids(), [gid, W2], "at the cap");
+    assert.deepEqual(ids(), [gid, W2, M], "no trial limit on requests");
     t.balCache[M] = { total: 49999999, at: 0 };
     assert.deepEqual(ids(), [gid, W2, M], "under the cap");
 
@@ -1543,10 +1543,10 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
     t.setChain(chainOf(null));
     assert.equal(t.roomRequest().why(), "", "a testnet wallet has no cap");
     t.state.g = { ...live, network: "mainnet" };
-    assert.match(t.roomRequest().why(), /Wait for the first sync to finish\./);
-    assert.deepEqual(t.roomRequest().choices(), []);
+    assert.equal(t.roomRequest().why(), "");
+    assert.equal(t.roomRequest().choices().length, 1);
     t.setChain(chainOf({ spendable: 5e7, pending: 0 }));
-    assert.match(t.roomRequest().why(), /This wallet holds 0\.5 ZEC/);
+    assert.equal(t.roomRequest().why(), "");
     t.setChain(chainOf({ spendable: 1e7, pending: 0 }));
     assert.equal(t.roomRequest().why(), "");
     t.state.g = live;
@@ -5633,8 +5633,7 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
   const downloaded = [];
   t.setDownloads({ save: async (file) => { downloaded.push(file); } });
 
-  // Create. A mainnet account needs the confirmation, and a failed save leaves nothing.
-  await assert.rejects(t.createPersonal("mainnet"), /Confirm that you understand/);
+  // A failed account save leaves no account or recoverable record.
   idbFail.put = true;
   await assert.rejects(t.createPersonal("testnet"), /could not save the account/);
   assert.deepEqual([t.personal, t.acct, [...idbMap.keys()].includes("personal:rec")],
@@ -6522,12 +6521,12 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
     const testnetAccount = t.personal;
     t.personal = { ...testnetAccount, network: "mainnet" };
     t.acct.bal = null;
-    assert.match(t.addressBlock(t.acct).kids.map(textOf).join(), /only when it knows the balance/);
+    assert.match(t.addressBlock(t.acct).kids.map(textOf).join(), /Public address/);
     t.acct.bal = { ...net.bal, spendable: 50000000, pending: 0 };
-    assert.match(textOf(t.addressBlock(t.acct)), /holds 0\.5 ZEC/);
-    assert.equal(t.fundBlock(), null, "no funding request at the cap");
-    assert.match(textOf(t.contactView()), /holds 0\.5 ZEC/);
-    assert.equal(textOf(t.contactView()).includes(t.addressFor(1)), false, "no address at the cap");
+    assert.match(textOf(t.addressBlock(t.acct)), /Public address/);
+    assert.ok(t.fundBlock(), "funding remains available above the former trial limit");
+    assert.doesNotMatch(textOf(t.contactView()), /warning level/);
+    assert.equal(textOf(t.contactView()).includes(t.addressFor(1)), true, "a large balance does not hide the address");
     t.acct.bal = { ...net.bal, spendable: 49999999, pending: 0 };
     assert.match(textOf(t.addressBlock(t.acct)), /Public address/);
     t.personal = testnetAccount;

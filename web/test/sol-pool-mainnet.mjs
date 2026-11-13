@@ -387,8 +387,7 @@ step("mainnet: the program address has no Copy and a warning, and no move card s
   assert.match(got.all, /Solana Mainnet hides a private payment’s amount on chain/);
   assert.match(got.fee, /Send SOL to it\./);
   assert.equal(got.faucet, 0, "no faucet");
-  const cap = "Private balance cap: 0.5 SOL. You can add up to 0.15 SOL now.";
-  assert.deepEqual(got.cap, [cap], "the cap line counts both identities of the last sync");
+  assert.deepEqual(got.cap, [], "mainnet has no trial balance cap");
   assert.deepEqual(got.links, [EXPLORER, EXPLORER], "no ?cluster");
   assert.match(got.card, /Solana Mainnet/, "the card of a proposal names the network");
   assert.deepEqual(got.networks, ["mainnet", "mainnet"], "the saved recipients of mainnet");
@@ -404,9 +403,9 @@ step("mainnet: the program address has no Copy and a warning, and no move card s
     "mainnet on 10 November 2026.");
   assert.doesNotMatch(got.all, /Devnet|devnet|faucet\.solana|2kgbLow|263Kgjft/, "no Devnet text");
   const over = networkTexts({ lamports: "450000000", oldBalance: "100000000" }).cap;
-  assert.deepEqual(over, ["Private balance cap: 0.5 SOL. You can add up to 0 SOL now."]);
+  assert.deepEqual(over, []);
   const unsynced = networkTexts({ lamports: undefined }).cap;
-  assert.deepEqual(unsynced, ["Private balance cap: 0.5 SOL."], "no amount before a sync");
+  assert.deepEqual(unsynced, [], "no balance cap before a sync");
 }
 step("mainnet: the tab names mainnet, has no faucet and no ?cluster, and shows the cap line");
 

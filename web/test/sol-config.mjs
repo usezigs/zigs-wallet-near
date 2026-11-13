@@ -130,11 +130,10 @@ function pageText(t) {
     () => requireWorkerPolicy("mainnet")), /did not send the policy/, "no header");
 
   const text = MAINNET_DISCLOSURE.join("\n");
-  for (const part of [/real SOL/, /test on staging/, /audited/, /upgrade key/, /Zigs owner/,
-    /every private wallet/, /0\.5 SOL/, /only in this app/, /deposits by other people/,
-    /Never send public SOL to the PDA/, /650,240 lamports/, /Add SOL/, /anonymity/]) {
-    assert.match(text, part);
-  }
+  assert.match(text, /Add SOL/);
+  assert.match(text, /shielded address/);
+  assert.match(text, /does not receive public SOL deposits/);
+  assert.doesNotMatch(text, /not audited|staging|0\.5 SOL/);
 }
 
 // ── The page, with a server that gives no URL ──

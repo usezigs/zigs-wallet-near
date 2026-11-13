@@ -7,7 +7,7 @@
 // to its Solana address. This check trusts the Worker and NEAR Intents: it does not check the
 // signature of the quote.
 import { NearIntentsSwapProvider } from "./near-intents-swap-provider.js";
-import { addrHidden, atCap, knownTotal, netName, netOf } from "./app-chain.js";
+import { addrHidden, netName } from "./app-chain.js";
 import { plainSol } from "./app-sol.js";
 import { state } from "./app-state.js";
 import { plainSolAddress } from "./app-swap-zec.js";
@@ -18,13 +18,11 @@ const NO_SOL = "The Solana address of this wallet shows after its Solana key set
 const OTHER_WALLET = "This swap refunds to another wallet. Open the wallet that pays it.";
 const NOT_OPEN = "This browser shows another wallet now. Open the wallet of this send and try "
   + "again.";
-const OVER_CAP = "The payout would take the wallet over the warning level for unaudited mainnet "
-  + "wallets (0.5 ZEC).";
 const [ZEC, SOL] = ["zec", "sol"].map((key) => SWAP_ASSETS.find((a) => a.key === key));
 
 /**
  * The ZEC address that a live swap pays to: the one of the open mainnet wallet, under the rules of
- * its Receive card, with the room under the cap in zatoshi. Else the reason why there is none.
+ * its Receive card. Else the reason why there is none.
  */
 export function swapPayout() {
   const g = state.g;
@@ -33,14 +31,10 @@ export function swapPayout() {
     return { reason: "This wallet uses Zcash testnet. NEAR Intents pays mainnet ZEC only." };
   }
   if (g.movedTo) return { reason: "This wallet was replaced. Open the new wallet to receive." };
-  if (atCap()) {
-    return { reason: "This wallet is at the warning level for unaudited mainnet wallets." };
-  }
   if (addrHidden() || !state.wallet?.address) {
-    return { reason: "This wallet shows its address after its first sync and after this device "
-      + "checks the address." };
+    return { reason: "This wallet shows its address after this device checks the address." };
   }
-  return { address: state.wallet.address, room: String(netOf(g).cap - knownTotal()) };
+  return { address: state.wallet.address };
 }
 
 // The plain controller of the open wallet, or null.
@@ -96,7 +90,7 @@ function mismatch(status, ask, own) {
     [s.amountIn !== ask.lamports, "The swap takes another amount than this send."],
     [Date.parse(s.deadline) !== Date.parse(ask.deadline),
       "The deadline of the swap is not the one of the proposal."],
-    [out === null || out > BigInt(own.room), OVER_CAP],
+    [out === null || out <= 0n, "The swap has no valid ZEC payout amount."],
   ].find(([bad]) => bad);
   return wrong ? wrong[1] : null;
 }
@@ -105,8 +99,8 @@ function mismatch(status, ask, own) {
  * The check of a swap deposit of the plain wallet (approve.js of web/sol/plain): `ask` holds the
  * deposit address, the lamports of the checker, the deadline of the proposal and the plain Solana
  * address of this wallet (refundTo). Gives { lines } for the review when NEAR Intents waits for
- * exactly this deposit of a swap from SOL to ZEC that pays the ZEC address of this wallet under
- * the cap, refunds to `refundTo` and ends at the deadline. Else { why }. `own` is swapPayout() with
+ * exactly this deposit of a swap from SOL to ZEC that pays this wallet’s ZEC address,
+ * refunds to `refundTo` and ends at the deadline. Else { why }. `own` is swapPayout() with
  * the plain Solana address of the open wallet (refundTo), which must be the one of `ask`: the ZEC
  * address comes from the open wallet. The tests give `own`.
  */

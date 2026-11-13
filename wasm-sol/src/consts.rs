@@ -163,9 +163,6 @@ pub const MULTISIG_MAINNET: Key = [
     0x3e, 0x46, 0x8b, 0x10, 0x3b, 0x8f, 0xb9, 0x9f, 0x4d, 0x64, 0x9b, 0xad, 0xdc, 0x97, 0x09, 0x96,
 ];
 
-/// The private balance cap of a mainnet group: 0.5 SOL (owner decision 2026-11-10).
-pub const PRIVATE_CAP_MAINNET: u64 = 500_000_000;
-
 /// `EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG`, the genesis hash of Devnet: the deployment id
 /// of the approval digest, so an approval for one cluster never verifies on another.
 pub const DEVNET_GENESIS: Key = [

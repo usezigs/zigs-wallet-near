@@ -408,10 +408,6 @@ async function reviewed(pro, clock = fakeClock()) {
   await m.update({ from: sol.id, to: zec.id, amount: '0.0175' });
   assert.equal(await m.openSwap(where), false, 'no live swap without an open review');
   m.review();
-  assert.equal(await m.openSwap({ ...where, room: '132999' }), false);
-  assert.match(m.value.swapError, /over the warning level for unaudited mainnet wallets/,
-    'a payout over the room is refused before the ask');
-  assert.equal(pro.log.open.length, 0, 'and NEAR Intents is not asked');
   assert.equal(await m.openSwap(where), true);
   assert.deepEqual(pro.log.open, [{ from: 'sol', amountAtomic: '17500000', slippageBps: 50,
     recipient: UA, refundTo: REFUND }], 'the amount, the slippage and the two addresses');
@@ -499,10 +495,9 @@ async function reviewed(pro, clock = fakeClock()) {
       [null, message, 'REVIEW_OPEN'], what + ': the review stays open with the message');
   }
   const big = await reviewed(swapPro({ open: () => ({ ...opened, amountOut: '50000001' }) }));
-  assert.equal(await big.openSwap(where), false,
-    'a live payout over the room shows no deposit address');
-  assert.deepEqual([big.value.live, /warning level/.test(big.value.swapError)], [null, true],
-    'a live payout over the room shows no deposit address');
+  assert.equal(await big.openSwap(where), true, 'a payout above the former trial limit is accepted');
+  assert.equal(big.value.live.swap.amountOut, '50000001');
+  big.closeSwap();
   // A swap closed while it is asked for, or while its state is read, ends there.
   let release;
   const slow = await reviewed(swapPro({ open: () => new Promise((r) => { release = r; }) }));
@@ -776,7 +771,7 @@ try {
   // The swap pages: live quotes on the first page, demos on the second.
   const { createSwapPreview, LIVE_TAG, NO_RUN, QUOTE_PRIVACY, ZEC_PRIVACY } = await import(
     '../app-swap-preview.js');
-  const context = { name: 'Savings', threshold: 'Any 2 of 3 devices' };
+  const context = { name: 'Savings', threshold: 'Any 2 of 3 devices', demo: true };
   assert.ok(createSwapPreview(context).model.provider instanceof NearIntentsSwapProvider,
     'the product page asks NEAR Intents');
   assert.deepEqual(fetched, [], 'building the page asks for nothing');
@@ -1335,7 +1330,6 @@ try {
     ['another origin', { from: 'zec' }], ['another asset out', { to: 'usdc' }],
     ['another deadline', { deadline: '2030-01-01T00:00:00.000Z' }],
     ['an app fee or another slippage', { plain: false }],
-    ['a payout over the room', { amountOut: '50000001' }],
     ['no payout amount', { amountOut: undefined }]]) {
     await refused(what, near({ ...swapOk, ...edit }), NOT);
   }
@@ -1451,10 +1445,8 @@ assert.ok(theme > 0 && theme < html.indexOf('<link rel="stylesheet"'),
   'the theme script is a classic script in the head, before the styles');
 assert.equal(html.split('theme.js').length, 2, 'index.html loads the theme script once');
 const entry = readFileSync(new URL('../network-privacy-demo-entry.js', import.meta.url), 'utf8');
-assert.match(entry, /try \{\s*installPrivacyPopup\(\);\s*\} catch/,
-  'a Tor demo that fails to start is caught');
-assert.ok(entry.indexOf('catch') < entry.indexOf('import("./app.js")'),
-  'the wallet loads after the Tor demo is installed or has failed');
+assert.doesNotMatch(entry, /installPrivacyPopup/, "the product does not install the Tor demo");
+assert.match(entry, /import\("\.\/app\.js"\)/, "the wallet starts directly");
 assert.doesNotMatch(entry, /theme\.js/, 'the entry does not load the theme after the first paint');
 // The README names the brand marks as identifiers owned by others, and claims no licence for them.
 const readme = readFileSync(new URL('../../README.md', import.meta.url), 'utf8');

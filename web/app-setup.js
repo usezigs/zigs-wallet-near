@@ -9,7 +9,7 @@ import {
 import { BROWSER_NOTE, inviteLink, senderNote } from "./app-links.js";
 import { signedMode } from "./app-filter.js";
 import {
-  ackTick, act, avatar, copyBtn, el, guard, mainnetRisk, nameField, netBadge, qrBox, requireAck,
+  act, avatar, copyBtn, el, guard, nameField, netBadge, qrBox,
   seatLabel, secretQr,
 } from "./app-dom.js";
 import { netName } from "./app-chain.js";
@@ -33,7 +33,6 @@ import { openGroup } from "./app-groups.js";
 import { outcomeSeal } from "./outcome-seal.js";
 import { openBackup, openBackupCheck } from "./app-backups.js";
 import { icon } from "./app-icons.js";
-import { openFundingPreview } from "./app-funding-preview.js";
 import { walletMark, walletReveal } from "./app-wallet-art.js";
 
 // Only an open overlay's wallet id is kept in memory; never persist an invitation capability.
@@ -365,16 +364,10 @@ function finishSetupPresentation(zcashOnly = false) {
   ui.tab = "overview";
 }
 
-// The funding demo is no step of the setup: only the creator device is offered it, as a labelled
-// extra, and no protocol gate reads it.
 function overviewAfterSetup(f) {
   return el("div", { class: "row-actions" },
     el("button", { class: "btn primary", type: "button", disabled: !f.protocolReady,
-      onclick: guideAct(finishSetupPresentation) }, "Open Overview"),
-    localSeats().includes(1) ? el("button", { class: "btn ghost", type: "button",
-      disabled: !f.protocolReady, "data-key": "funding-demo-entry",
-      onclick: guideAct(() => { finishSetupPresentation(); openFundingPreview(state.gid); }) },
-    "See the funding demo (no payment)") : null);
+      onclick: guideAct(finishSetupPresentation) }, "Open Overview"));
 }
 
 function guidedReady(f) {
@@ -423,7 +416,7 @@ export function setupView() {
     el("details", { class: "card card-pad setup-education" }, el("summary", {}, "Why these setup steps matter"),
       walletDiagram("shares"),
       el("p", { class: "small muted" }, "First the devices join, then you compare their safety number. They create the wallet key together and each checks the shared address. Save a separate encrypted backup for every device when setup finishes."),
-      bothParts() ? el("p", { class: "small muted" }, "Solana follows the Zcash address check automatically for this wallet. It uses a separate key share and backup file, plus public fee addresses. The existing funding and privacy warnings still apply.") : null),
+      bothParts() ? el("p", { class: "small muted" }, "Solana follows the Zcash address check automatically for this wallet. It uses a separate key share and backup file, plus public fee addresses. Funding and network details are available in the Solana section.") : null),
     safetyCard(),
     el("div", { class: "setup" }, progressCard(), seatsCard(open)),
     localSeats().length ? el("div", { class: "row-actions" },
@@ -594,10 +587,9 @@ export const joinText = () => solPlanned()
     + "key share. It never leaves this browser unless you save a backup. Keep this page open until "
     + "the wallet is ready.";
 
-// A device that joins a mainnet wallet sees the network and the risk, and ticks before it joins.
+// Keep the network explicit when joining a mainnet wallet.
 const mainnetConsent = () => netName(state.g) !== "mainnet" ? []
-  : [netBadge(state.g, true), el("p", { class: "callout bad" }, mainnetRisk()),
-    ...ackTick(ui.join, "wallet", "j")];
+  : [netBadge(state.g)];
 
 // A device that joins a private Solana wallet (the hint of seat 1, design 2.4 Join) reads the
 // disclosure and ticks the accept. The join then pins the private mode in this browser, before it
@@ -627,7 +619,6 @@ function joinCard(seat, compact = false) {
   const take = el("button", {
     class: "btn primary lg", type: "button", "data-key": "join-device-" + seat, ...off.attrs,
     onclick: act(() => {
-      requireAck(ui.join, netName(state.g), "join a mainnet wallet");
       requireSetupProtection();
       if (!(usesV2(groupVersion()) || confirm(NOT_ZIP2005))) return;
       acceptJoin();
@@ -877,6 +868,7 @@ function progressCard() {
 }
 
 function demoDevices(open) {
+  if (netName(state.g) === "mainnet") return null;
   const off = offOf({ pending: state.pending, newSigner: true }, "why-play");
   return localSeats().length && open.length
     ? el("details", { class: "testing" }, el("summary", {}, "Trying Zigs alone? Play the other devices in this browser"),

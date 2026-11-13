@@ -81,7 +81,7 @@ export function helpView(setupRow = null) {
     settingsDisclosure("Guides & frequently asked questions", "Payments, backups, privacy and troubleshooting. Available offline.",
       securityExplanation("help"),
       el("div", { class: "preferences-faq" }, HELP.map(([question, answer]) =>
-        el("section", {}, el("h4", {}, question), el("p", { class: "small" }, answer))))),
+        settingsDisclosure(question, null, el("p", { class: "small" }, answer))))),
     settingsDisclosure("Diagnostics", "Inspect and copy a fixed set of app facts. Nothing is uploaded.",
       state.g ? [
         el("p", { class: "small muted" }, DIAGNOSTICS_NOTE),

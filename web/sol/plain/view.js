@@ -19,7 +19,7 @@ import { sendForm, sendList } from "./sendview.js";
 import { freeNonces } from "./sends.js";
 
 const NETWORK = "Solana Mainnet";
-const FACTS = "Real money, public on chain. Not audited.";
+const FACTS = "SOL and USDC. Public on chain.";
 const START_NOTE = "Helius sees your IP and wallet address. "
   + "Funding fee addresses links each device to this wallet.";
 const ONLY_DEVICE_1 = "Device 1 adds Solana.";

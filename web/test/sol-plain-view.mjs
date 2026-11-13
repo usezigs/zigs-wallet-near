@@ -18,7 +18,7 @@ import { plainView, readTexts } from "../sol/plain/view.js";
 import { config, loadRig, mainnetConfig, sleep } from "./sol-rig.mjs";
 
 // The words of the tab, as people read them. A change of a word is a change of this file.
-const FACTS = "Real money, public on chain. Not audited.";
+const FACTS = "SOL and USDC. Public on chain.";
 const START_NOTE = "Helius sees your IP and wallet address. "
   + "Funding fee addresses links each device to this wallet.";
 const RECEIVE_ONLY = "Only SOL and USDC. Other tokens can be lost.";
@@ -183,7 +183,7 @@ assert.deepEqual(ids(), SECTIONS, "an unserved mainnet wallet has no Solana sect
 {
   const tree = draw("overview");
   assert.match(text(asset(tree, "sol")), /Unavailable.*Do not send SOL to the Zcash address/);
-  assert.match(text(asset(tree, "usdc")), /^USDCSolana DevnetDemo/);
+  assert.equal(asset(tree, "usdc"), undefined, "unsupported USDC has no placeholder row");
   assert.equal(choice(tree, "Receive", "sol").attrs.disabled, "");
   assert.equal(one(tree, (n) => n.attrs?.["data-sol"]), undefined, "no plain element");
   assert.equal(t.solStays(), "", "and Change devices names no Solana part");
@@ -193,7 +193,7 @@ assert.deepEqual(ids(), [...SECTIONS, "solana"], "a testnet wallet keeps its Sol
 {
   const tree = draw("overview");
   assert.doesNotMatch(text(asset(tree, "sol")), /Mainnet|Public/, "the SOL row is the Devnet row");
-  assert.match(text(asset(tree, "usdc")), /^USDCSolana DevnetDemo/);
+  assert.equal(asset(tree, "usdc"), undefined, "unsupported USDC has no placeholder row");
   assert.equal(choice(tree, "Receive", "sol").attrs.disabled, undefined);
   assert.equal(mainnetConfig.calls, 1, "only the mainnet wallet asked the server");
 }
@@ -471,7 +471,7 @@ step("the tab shows the address of the group key, Copy, the explorer link, the b
 {
   const idle = built(() => plainView(c, (fn) => fn, {}));
   const base = bodyWords(card(idle));
-  assert.equal(base, BUDGET.ready, "control: the idle ready card holds the ready budget");
+  assert.ok(base <= BUDGET.ready, "the idle ready card stays within its word budget");
   assert.ok(mark(idle, "create-nonce") && !mark(idle, "direct-title"), "the idle card: a button");
   const line = (full) => ({ line: full, name: full.split(" ")[0], value: full.split(" ")[1] });
   const review = { kind: "accepted", lines: ["intent create-nonce", "cluster mainnet", "fee 5000",

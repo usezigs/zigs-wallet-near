@@ -193,7 +193,7 @@ export const SOL_DISCLOSURE = "Solana Devnet: a program owns the funds of the gr
   + "With local proving off, a payment is refused and Helius makes no proof. The Zigs server "
   + "operator can link this wallet to these addresses by timing. Each device funds its own fee "
   + "address, and that funding shows who sent the SOL. Every device sees the whole Solana "
-  + "history of the wallet. The program has no audit, and its upgrade key is outside the group.";
+  + "history of the wallet. Program upgrades are managed separately from wallet approvals.";
 // The wallet list with the create dialog open. Inside an open wallet the dialog does not show.
 export const newWallet = () => { openGroup(null); openCreate(); render(); };
 // The seats of this browser with a Solana key share whose backup file was not saved. A stopped

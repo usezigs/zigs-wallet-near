@@ -7,7 +7,7 @@ import { gkeys, mySeatSecrets, sec } from "./app-keystore.js";
 import { keysDiffer, localSeats, seatIds, seatMine, seatStage, STAGE_LABEL } from "./app-seats.js";
 import { inviteLink, senderNote } from "./app-links.js";
 import {
-  addrHidden, atCap, balanceNow, balOf, capText, capUnknown, chain, curChain, curNet, explorerText,
+  addrHidden, balanceNow, balOf, chain, curChain, curNet, explorerText,
   inFlight,
   mempoolNow, mempoolTotal, netName, readsMemos, runSync, setMemoReading, spanMs,
 } from "./app-chain.js";
@@ -45,7 +45,7 @@ import {
   plainTab,
 } from "./app-sol.js";
 import {
-  createZecPrice, formatUsdBalance, pendingShortcut, plainRow, portfolioView, solRow, zecInProgress,
+  createZecPrice, pendingShortcut, plainRow, portfolioView, solRow, zecInProgress,
   zecTotal,
 } from "./overview-model.js";
 import { NearIntentsSwapProvider } from "./near-intents-swap-provider.js";
@@ -61,7 +61,6 @@ import { SharedControlVisual } from "./app-approval-visualization.js";
 import { sharedControl } from "./app-shared-control.js";
 import { walletMark } from "./app-wallet-art.js";
 import { walletHeadingMarble } from "./app-wallet-marble.js";
-import { fundingOverviewCard, fundingSetupView } from "./app-funding-preview.js";
 
 export function groupView({ showHeader = true } = {}) {
   const g = state.g;
@@ -92,10 +91,6 @@ export function groupView({ showHeader = true } = {}) {
     || !ready && !state.g.movedFrom && groupVersion() >= 2)) {
     return guidedSetupView([staleRestoreNote(), signedNotes(), networkNote()]);
   }
-  const funding = ready && ui.tab === "overview" && localSeats().includes(1)
-    ? fundingSetupView(state.gid, g.name) : null;
-  if (funding) return el("div", { class: "page guided-setup funding-setup-page" },
-    staleRestoreNote(), signedNotes(), networkNote(), funding);
   const why = ready ? sendBlocker() : null;
   const head = [showHeader ? groupHead(g, ready, why) : null,
     staleRestoreNote(), signedNotes(), networkNote()];
@@ -272,8 +267,6 @@ function overviewTab() {
   return el("div", { class: "page overview-page" },
     state.g.movedTo ? moveCard(c) : null,
     fundCard(c),
-    localSeats().includes(1) && !state.g.movedTo
-      ? fundingOverviewCard(state.gid, state.g.name) : null,
     pendingCard(),
     solUnfinished() ? solSetupCard() : null,
     el("div", { class: "overview-layout premium-overview-grid" },
@@ -298,35 +291,26 @@ function balanceOverview() {
     el("div", { class: "overview-wallet-summary" }, walletMark(state.g, 64),
     el("div", { class: "portfolio-summary" }, el("div", { class: "balance-heading" },
       el("h2", { id: "total-balance-title", class: "label" },
-        plainShown() ? "ZEC value" : "Portfolio balance"),
-      el("span", { class: "portfolio-currency" }, "USD"), view.demo ? demoBadge() : null),
-    view.demo ? demoTotal() : liveTotal(view))),
+        isMainnet() ? "ZEC value" : "Wallet balance"),
+      el("span", { class: "portfolio-currency" }, isMainnet() ? "USD" : "ZEC")),
+    isMainnet() ? liveTotal(view) : testnetTotal())),
     el("div", { class: "overview-actions" }, assetActionPicker("send"), assetActionPicker("receive"),
       el("button", { class: "btn", type: "button", "data-key": "overview-swap",
         title: "Open Swap", onclick: () => { ui.tab = "swap"; render(); } },
       icon("swap"), "Swap")));
 }
 
-// A testnet wallet has no price source and no cash value. The fallback never enters wallet or
-// pricing state.
-function demoTotal() {
-  const value = formatUsdBalance(null);
-  return [el("p", { class: "portfolio-value", role: "img", "aria-label": value.text,
-    "data-valuation-state": value.known ? "known" : "unknown",
-    "aria-describedby": value.known ? null : "usd-placeholder" },
-  el("span", { "aria-hidden": "true" }, value.whole),
-  el("span", { class: "portfolio-decimals", "aria-hidden": "true" }, value.fraction)),
-  !value.known ? el("p", { class: "portfolio-placeholder", id: "usd-placeholder" },
-    el("span", { class: "placeholder-indicator" }, "Demo prices"),
-    el("span", { class: "sr-only" },
-      "The USD total is a demo. The displayed $0.00 is not a confirmed balance.")) : null,
-  state.g.network === "testnet"
-    ? el("p", { class: "portfolio-network-note" }, "Test funds have no cash value.") : null];
+// Testnet uses its actual native balance; test assets have no USD valuation.
+function testnetTotal() {
+  const total = zecTotal(zecBal(curChain()));
+  return [el("p", { class: "portfolio-value", "data-valuation-state": total === null ? "unknown" : "known" },
+    total === null ? "—" : fmtZec(total)),
+  el("p", { class: "portfolio-network-note" }, "Zcash Testnet")];
 }
 
 // A mainnet wallet shows no value, and no $0.00, until it knows the balance and the price.
 // ponytail: only ZEC counts. No price source exists for SOL; the note of a served plain wallet says
-// that SOL and USDC are not in the total. The rows of a testnet wallet are Devnet or Demo.
+// that SOL and USDC are not in the total. Testnet wallets show native test balances.
 const TOTAL_ZEC_ONLY = " SOL and USDC are not in this total.";
 function liveTotal(view) {
   const { value } = view;
@@ -340,7 +324,6 @@ function liveTotal(view) {
     plainShown() ? (view.facts ? "" : ".") + TOTAL_ZEC_ONLY : null)];
 }
 
-const demoBadge = () => el("span", { class: "badge plain demo-badge" }, "Demo");
 
 // Why a plain wallet cannot send or receive an asset now, in a few words, or "" when it can. USDC
 // is sent only once the last read shows its token account.
@@ -388,7 +371,7 @@ function assetActionPicker(action) {
         ? solNetwork() + " · opens this wallet’s Solana tools" : "Unavailable for this wallet",
       !solOn(), () => sending ? openSolanaControl("sol-send-to") : openSolanaReceive()),
       plainShown() ? plainChoice("usdc", "USDC")
-        : choose("usdc", "USDC", "Demo row · unavailable; do not deposit", true, null)));
+        : null));
 }
 
 function overviewTransactions() {
@@ -634,7 +617,7 @@ function zecAsset(c) {
       b?.pending ? el("p", { class: "asset-incoming small muted" }, "Incoming ", amount(b.pending)) : null,
       notInBlockLine(c)),
     shieldingActions("zec", false)),
-    b?.sending ? sendingLine(b.sending) : null, atCap() ? capNote() : null,
+    b?.sending ? sendingLine(b.sending) : null,
     assetNote("zec", "Balance details", [
       emptyNote(b, c), syncLine(c), shieldingBreakdown("zec"),
       el("p", { class: "asset-total" }, "Total shielded balance ", amount(zecTotal(b))),
@@ -664,6 +647,7 @@ const assetNote = (id, title, content) => el("details", { class: "asset-note", i
   el("div", { class: "asset-note-body small muted" }, content));
 
 function shieldingActions(id, available) {
+  if (!available) return null;
   const note = id + "-shielding-note";
   return el("div", { class: "row-actions shielding-actions" },
     el("button", { class: "btn", type: "button", disabled: !available, "aria-describedby": note,
@@ -706,7 +690,8 @@ function fundCard(c) {
         icon("external"))),
     el("p", { class: "small muted" }, "Coins show as Incoming, then as Available after 3 "
       + "confirmations (about 75 seconds)."),
-    el("p", { class: "small muted" }, FAUCET_TEXT));
+    el("details", {}, el("summary", {}, "About the faucet"),
+      el("p", { class: "small muted" }, FAUCET_TEXT)));
 }
 
 function emptyNote(b, c) {
@@ -716,8 +701,7 @@ function emptyNote(b, c) {
     ? el("span", {}, first + " Share its address to receive ZEC, or get free "
       + "testnet ZEC from a ", el("a", { href: curNet().faucet, target: "_blank",
       rel: "noopener" }, "faucet", icon("external")), ". " + FAUCET_TEXT)
-    : el("span", {}, first + " Share its address to receive ZEC. Keep it under "
-      + capText(curNet().cap) + ": the app warns at that level. It cannot block deposits."));
+    : el("span", {}, first + " Share its address to receive ZEC."));
 }
 const SOL_NOTE = {
   synced: "The private balance of the group at the last sync. Open Solana for payments, deposits "
@@ -803,20 +787,7 @@ function solAsset() {
 }
 
 function usdcAsset() {
-  if (plainShown()) return plainAsset("usdc");
-  return el("section", { class: "card card-pad asset-card asset-row asset-unavailable", "aria-labelledby": "asset-usdc" },
-    el("div", { class: "asset-row-main" },
-    el("div", { class: "asset-position" }, assetHead("usdc", "USDC", solNetwork()),
-      demoBadge(), privacyBadge(el, "unsupported")),
-    el("div", { class: "asset-balance-block" }, el("span", { class: "label" }, "Wallet balance"),
-      el("p", { class: "asset-balance unknown" }, "Unavailable"),
-      el("p", { class: "asset-row-status small asset-row-warning" }, "Do not deposit USDC to this wallet.")),
-    shieldingActions("usdc", false)),
-    assetNote("usdc", "USDC details", [
-      shieldingBreakdown("usdc"),
-      el("p", { id: "usdc-unavailable" }, "This USDC row is a demo. Shielded USDC is unavailable in this version. No balance is available. Do not deposit USDC to this wallet."),
-      el("p", { id: "usdc-shielding-note" }, "No shielded or unshielded USDC balance is available. Shield and Unshield are unavailable."),
-    ]));
+  return plainShown() ? plainAsset("usdc") : null;
 }
 
 // The SOL or USDC row of a served plain wallet: the balance of the last read, or the state of its
@@ -865,20 +836,7 @@ function solAmount(text, size = "xl", sign = "") {
     "aria-label": shown + " SOL" }, shown, el("span", { class: "cur" }, "SOL"));
 }
 
-export const capNote = () => el("div", { class: "callout bad" },
-  "This wallet holds " + capText(curNet().cap) + ", the warning level for unaudited mainnet "
-  + "wallets. Do not send more to it. The address stays valid after it is shared, and the app "
-  + "cannot block deposits. Payments out still work.");
-
-/** The note of a wallet whose balance the app does not know yet: its address stays hidden. */
-export const capUnknownNote = () => el("div", { class: "callout" },
-  "Wait for the first sync to finish. The app shows the address of a mainnet wallet only when it "
-  + "knows the balance. The address stays valid after it is shared.");
-
-export const receiveWhat = () => curNet().cap ? "ZEC" : "testnet ZEC";
-export const receiveLimit = () => curNet().cap ? " Keep the total under " + capText(curNet().cap)
-  + ". The app warns at that level and cannot block deposits. The address stays valid after you "
-  + "share it." : "";
+export const receiveWhat = () => isMainnet() ? "ZEC" : "testnet ZEC";
 
 /** The note of a wallet that a new wallet replaces: its senders must use the new address. */
 export const movedNote = () => el("div", { class: "callout" }, "Change devices replaces this "
@@ -890,10 +848,8 @@ function receiveCard() {
     el("div", { class: "card-head" }, el("h3", {}, "Receive"),
       privacyBadge(el, addrHidden() ? "unknown" : "shielded")),
     state.g.movedTo ? movedNote()
-      : atCap() ? capNote()
-      : capUnknown() ? capUnknownNote()
       : el("p", { class: "small muted" }, "Share this address to receive " + receiveWhat()
-        + ". Payments to it are shielded." + receiveLimit()),
+        + ". Payments to it are shielded."),
     addrHidden() ? null : el("div", { class: "addr-box" }, el("span", { class: "hex" }, short(w.address, 18)), copyBtn(w.address)),
     el("p", { class: "small faint" }, verifiedCount() + " of " + state.g.n + " devices checked "
       + "this address against their own key."));
@@ -1550,13 +1506,11 @@ function checkedBadge() {
 function walletFacts() {
   const w = state.wallet, net = curNet();
   const address = addrHidden()
-    ? settingsRow("Wallet address", atCap() ? "Hidden at the unaudited mainnet warning level. Deposits cannot be blocked."
-      : capUnknown() ? "Hidden until the first sync shows the balance."
-      : "Shown after this device checks it against its key share.", el("span", { class: "preference-state" }, "Hidden"))
+    ? settingsRow("Wallet address", "Shown after this device checks it against its key share.", el("span", { class: "preference-state" }, "Hidden"))
     : el("div", { class: "preference-address" }, settingsRow("Wallet address", short(w.address, 12), copyBtn(w.address, "Copy address")),
       settingsDisclosure("View full address", null, el("div", { class: "addr-full" }, addrGroups(w.address))));
   return [address,
-    settingsRow("Network", net.cap ? "Unaudited · warning at " + capText(net.cap) + ". Deposits cannot be blocked." : "Test coins have no monetary value.",
+    settingsRow("Network", isMainnet() ? "Send and receive ZEC on the Zcash network." : "Test coins have no monetary value.",
       el("span", { class: "preference-value" }, "Zcash " + net.label)),
     settingsRow("Required approvals", state.g.t === state.g.n ? "Every device must approve a payment." : "Any " + state.g.t + " devices must approve each payment.",
       el("span", { class: "preference-value" }, state.g.t + " of " + state.g.n + " devices")),

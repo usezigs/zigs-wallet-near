@@ -9,7 +9,7 @@ import { fmtZec } from "./app-kit.js";
 import { Z } from "./app-engine.js";
 import { gkeys } from "./app-keystore.js";
 import { DRAFT_MS, draftLive, draftOf, emptyForm, reviewFresh } from "./payment-model.js";
-import { addrHidden, atCap, capUnknown, curChain, curNet, netName } from "./app-chain.js";
+import { addrHidden, curChain, curNet, netName } from "./app-chain.js";
 import {
   act, addrGroups, copyBtn, el, groupName, memoRow, money, normalized, noteFor, onNetwork,
   payeeOnNetwork, qrBox, setNote, transparentOnNetwork,
@@ -22,7 +22,7 @@ import { requestOf } from "./app-payreq.js";
 import { nameOf, recentNote, registry, resolveRecipient, zecName } from "./zns.js";
 import { focusAfter, render } from "./app-loop.js";
 import {
-  capNote, capUnknownNote, FAUCET_TEXT, movedNote, plainStays, receiveLimit, receiveWhat,
+  FAUCET_TEXT, movedNote, plainStays, receiveWhat,
   SOL_STAYS,
 } from "./app-wallet.js";
 import { solOn } from "./app-sol.js";
@@ -73,8 +73,6 @@ export function receiveDialog() {
 // or what the address does.
 function receiveLead(hidden, moved) {
   if (moved) return movedNote();
-  if (atCap()) return capNote();
-  if (capUnknown()) return capUnknownNote();
   if (hidden) {
     return el("p", { class: "small muted" }, "The address shows here after your device checks it "
       + "against its own key.");
@@ -82,8 +80,7 @@ function receiveLead(hidden, moved) {
   return el("p", { class: "small muted" }, "Use this shielded address to receive "
     + receiveWhat() + ". Senders and the network cannot see the balance or who controls it. "
     + "The devices of this wallet and anyone who has the invite link can see its balance and "
-    + "history. A device that Change devices leaves out later can still see them."
-    + receiveLimit());
+    + "history. A device that Change devices leaves out later can still see them.");
 }
 
 function sendOnly(net) {

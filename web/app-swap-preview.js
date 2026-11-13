@@ -260,7 +260,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   let activeTab = 'private';
   const modes = [
     { id: 'private', label: 'Swap', status: 'Live quotes' },
-    { id: 'quantum', label: 'Post-quantum swap', status: 'Demo' },
+    ...(source.demo === true ? [{ id: 'quantum', label: 'Post-quantum swap', status: 'Demo' }] : []),
   ];
   const modeTabs = modes.map((mode) => button([
     el('span', { class: 'swap-tab-label' }, mode.label),
@@ -272,7 +272,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     onkeydown: (ev) => {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(ev.key)) return;
       ev.preventDefault();
-      const index = ev.key === 'Home' ? 0 : ev.key === 'End' ? 1
+      const index = ev.key === 'Home' ? 0 : ev.key === 'End' ? modes.length - 1
         : (modes.findIndex((m) => m.id === activeTab) + (ev.key === 'ArrowRight' ? 1 : -1) + modes.length) % modes.length;
       selectTab(modes[index].id, true);
     },
@@ -380,7 +380,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     error.hidden = !s.error;
     const ready = !!s.quote && ['QUOTE_READY', 'REVIEW_CANCELLED'].includes(s.phase);
     if (s.phase === 'REVIEW_CANCELLED') model.resume();
-    review.disabled = !ready;
+    review.disabled = !ready || (source.demo !== true && !liveRoute());
     quoteLine.textContent = statusText(s);
     quoteDetails.replaceChildren(...quoteRows(s.quote, from, to));
     detailBlock?.replaceChildren(...quoteBlock(s));
@@ -470,11 +470,11 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
       'aria-label': 'Search assets', oninput: (ev) => { searchText = ev.target.value; drawAssets(); } });
     modal.querySelector('.swap-modal-content').append(search,
       el('div', { class: 'swap-asset-list' }),
-      text('swap-caption', 'Only ZEC, SOL and USDC are available for quotes.'));
+      text('swap-caption', source.demo === true ? 'ZEC, SOL and USDC' : 'ZEC on Zcash · SOL on Solana'));
     drawAssets(); search.focus();
   }
   function drawAssets() {
-    const matches = SWAP_ASSETS.filter((a) => (a.symbol + ' ' + a.name + ' ' + a.network).toLowerCase().includes(searchText.trim().toLowerCase()));
+    const matches = SWAP_ASSETS.filter(a => source.demo === true || a.key !== 'usdc').filter((a) => (a.symbol + ' ' + a.name + ' ' + a.network).toLowerCase().includes(searchText.trim().toLowerCase()));
     modal.querySelector('.swap-asset-list').replaceChildren(...(matches.length ? matches.map((a) => button([
       token(a), el('span', {}, text('', a.symbol + ' · ' + a.network, 'strong'), text('swap-caption', a.name, 'span')),
       el('span', { class: 'swap-choice-mark', 'aria-hidden': 'true' }, a.id === model.value[pickerSide] ? '✓' : '↗'),
@@ -563,7 +563,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   }
   function drawPayout() {
     const payout = routePayout();
-    payoutBox.hidden = !liveRoute(); demoTarget.hidden = liveRoute();
+    payoutBox.hidden = !liveRoute(); demoTarget.hidden = source.demo !== true || liveRoute();
     payoutBox.replaceChildren(text('', 'Receive to', 'span'),
       text(payout.address ? 'swap-payout-address' : 'swap-caption', payoutText(payout), 'strong'));
   }

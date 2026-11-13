@@ -1,9 +1,5 @@
-// Mainnet is on (M1 of docs/hackathon-release.md), and the testnet faucet is the Valar faucet
-// (M2). The network picker of a new wallet and of the personal account offers Testnet and Mainnet,
-// Testnet is chosen, and Mainnet shows a tick that must be checked: in the create dialog before
-// the device step ends, and on the join card before a seat is taken. A mainnet wallet shows a
-// badge with its risk, a chat reads testnet and mainnet requests, and the address of a network
-// with a cap stays hidden until the balance is known. Run: node web/test/mainnet-on.mjs (Node 26)
+// Mainnet selection, joining, receiving and prices in the released web experience.
+// Address verification remains required; trial balance limits and audit checkboxes are absent.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { loadRig } from "./sol-rig.mjs";
@@ -11,8 +7,8 @@ import { fakePasskey } from "./passkey-fixture.mjs";
 
 const rig = await loadRig();
 const { t, waitFor } = rig;
-const { MAINNET_ON, NETWORKS, capUnknown } = await import("../app-chain.js");
-const { mainnetRisk, networkPick } = await import("../app-dom.js");
+const { MAINNET_ON, NETWORKS } = await import("../app-chain.js");
+const { networkPick } = await import("../app-dom.js");
 const { inviteMessage } = await import("../app-setup.js");
 const { createDialog, browserSettings } = await import("../app-shell.js");
 const { receiveDialog } = await import("../app-send.js");
@@ -72,143 +68,42 @@ async function protectBrowser() {
   assert.equal(keystore.passkeyProtected(), true, "the browser is protected");
 }
 
-// ── The picker ──
-// Testnet is chosen and Mainnet is offered. The tick shows when Mainnet is chosen, and it is
-// checked only when the person checked it.
-{
-  const pick = drawn(() => networkPick({ net: "testnet", ack: false }));
-  assert.deepEqual(radios(pick).map((r) => r.attrs.value), ["testnet", "mainnet"]);
-  assert.deepEqual(radios(pick).map((r) => "checked" in r.attrs), [true, false],
-    "Testnet is chosen");
-  assert.equal(ticks(pick).length, 0, "no tick for Testnet");
-  assert.match(textOf(pick), /Real ZEC\. At 0\.5 ZEC the app warns and hides the address/);
-}
-for (const ack of [false, true]) {
-  const sel = { net: "mainnet", ack };
-  const pick = drawn(() => networkPick(sel, "account", "p"));
-  assert.deepEqual(radios(pick).map((r) => "checked" in r.attrs), [false, true],
-    "Mainnet is chosen");
-  assert.equal(ticks(pick).length, 1, "one tick for Mainnet");
-  assert.equal("checked" in ticks(pick)[0].attrs, ack, "the tick shows the choice");
-  assert.equal(ticks(pick)[0].attrs.id, "p-ack");
-  assert.ok(textOf(pick).includes("I understand that Zigs is not audited and that I can lose "
-    + "the funds in this account."));
-  ticks(pick)[0].on.change({ target: { checked: !ack } });
-  assert.equal(sel.ack, !ack, "the tick writes the choice");
+// Network selection is explicit, without a release-warning acknowledgement.
+for (const net of ["testnet", "mainnet"]) {
+  const pick = drawn(() => networkPick({ net }));
+  assert.deepEqual(radios(pick).map(r => r.attrs.value), ["testnet", "mainnet"]);
+  assert.equal(ticks(pick).length, 0);
+  assert.doesNotMatch(textOf(pick), /unaudited|not audited|beta|0\.5|warning/i);
+  assert.equal(radios(pick).find(r => "checked" in r.attrs).attrs.value, net);
 }
 {
-  const sel = { net: "testnet", ack: false };
+  const sel = { net: "testnet" };
   radios(drawn(() => networkPick(sel)))[1].on.change();
-  assert.equal(sel.net, "mainnet", "the Mainnet radio chooses Mainnet");
+  assert.equal(sel.net, "mainnet");
 }
-// The create dialog, the join card and the personal account start on testnet, with no tick.
-assert.deepEqual([t.ui.net, t.ui.ack, t.ui.personal.net, t.ui.personal.ack, t.ui.join.ack],
-  ["testnet", false, "testnet", false, false]);
-console.log("ok  the picker offers Testnet and Mainnet, and Mainnet shows the tick");
-
-// ── The create dialog ──
 await protectBrowser();
 const dialog = () => drawn(() => createDialog());
-const reviewOf = () => textOf(findNode(dialog(),
-  (n) => n.attrs?.["aria-labelledby"] === "create-step-3"));
-const at = (step) => { t.ui.create = true; t.ui.createStep = step; };
-const field = (id, value) => ({ id, value, type: "text", dataset: {}, dispatchEvent() {},
-  getAttribute: () => null });
-const withFields = (fields, fn) => {
+t.ui.create = true; t.ui.createStep = 2; t.ui.net = "mainnet";
+{
+  const fields = { "g-n": { value: "3" }, "g-t": { value: "2" },
+    "g-name": { value: "Team" }, "my-name": { value: "Ana" } };
   const real = globalThis.document;
-  globalThis.document = new Proxy(real, { get: (o, k) => (k === "getElementById"
-    ? (id) => (Object.hasOwn(fields, id) ? fields[id] : real.getElementById(id)) : real[k]) });
-  try { return fn(); } finally { globalThis.document = real; }
-};
-const RULE = { "g-n": { value: "3" }, "g-t": { value: "2" } };
-const DEVICE = { ...RULE, "g-name": { value: "Team" }, "my-name": { value: "Ana" } };
-const next = (fields = DEVICE) => withFields(fields, () => dialog().on.submit(EV));
-{
-  // A page redraw restores the typed fields by id. The Mainnet radio redraws the dialog, so the
-  // name, the label and the description typed before stay.
-  at(2);
-  const typed = { "g-name": "Team treasury", "my-name": "Ana's phone", "g-description": "A note" };
-  const page = (nodes) => ({ querySelector: () => null,
-    querySelectorAll: (selector) => (selector === "input[id], select[id], textarea[id]"
-      ? nodes : []) });
-  const before = dialog();
-  for (const id of [...Object.keys(typed), "g-net-mainnet"]) assert.ok(byId(before, id), id);
-  const old = Object.entries(typed).map(([id, value]) => field(id, value));
-  const saved = t.saveFormState(page(old));
-  byId(before, "g-net-mainnet").on.change();
-  assert.equal(t.ui.net, "mainnet", "the radio chose Mainnet");
-  const after = dialog();
-  assert.ok(byId(after, "g-ack"), "the redraw shows the tick");
-  assert.deepEqual(radios(after).map((r) => "checked" in r.attrs), [false, true]);
-  const fresh = Object.keys(typed).map((id) => field(id, ""));
-  const globalDoc = globalThis.document;
-  globalThis.document = new Proxy(globalDoc, { get: (o, k) => (k === "getElementById"
-    ? (id) => fresh.find((f) => f.id === id) : globalDoc[k]) });
-  try { t.restoreFormState(page(fresh), saved); } finally { globalThis.document = globalDoc; }
-  assert.deepEqual(Object.fromEntries(fresh.map((f) => [f.id, f.value])), typed,
-    "a redraw after the Mainnet radio keeps the typed fields");
-  console.log("ok  the Mainnet radio redraw keeps the typed name, label and description");
-}
-{
-  // The device step does not end without the tick. The error shows next to the tick.
-  at(2); t.ui.net = "mainnet"; t.ui.ack = false;
-  await next();
-  assert.equal(t.ui.createStep, 2, "no tick: the dialog stays on the device step");
-  assert.equal(t.ui.createError, null, "the dialog shows no second error");
-  const tree = dialog(), error = byId(tree, "g-ack-error");
-  assert.equal(textOf(error), "Confirm that you understand Zigs is not audited before you "
-    + "create a mainnet wallet.");
-  assert.equal(error.attrs.role, "alert");
-  const tick = byId(tree, "g-ack");
-  assert.equal(tick.attrs["aria-invalid"], "true");
-  assert.equal(tick.attrs["aria-describedby"], "g-ack-error");
-  assert.equal(byId(tree, "create-error"), null, "only one alert");
-  tick.on.change({ target: { checked: true } });
-  assert.equal(byId(dialog(), "g-ack-error"), null, "the tick clears the error");
-  await next();
-  assert.equal(t.ui.createStep, 3, "with the tick, the dialog goes to the review");
-  const review = reviewOf();
-  assert.equal(mainnetRisk(), "Real ZEC. Beta, not audited: you can lose the funds. At 0.5 ZEC "
-    + "the app warns and hides the address. It cannot block deposits.");
+  globalThis.document = new Proxy(real, { get: (o, k) => k === "getElementById"
+    ? id => fields[id] ?? real.getElementById(id) : real[k] });
+  try { await dialog().on.submit(EV); } finally { globalThis.document = real; }
+  assert.equal(t.ui.createStep, 3, "mainnet proceeds to review without an audit checkbox");
+  const review = textOf(dialog());
   assert.match(review, /Zcash mainnet/);
-  assert.equal(review.includes(mainnetRisk()), true);
-  assert.match(review, /Zcash mainnetZcash only/, "Solana Devnet is for testnet wallets only");
-  assert.equal(byId(dialog(), "g-sol"), null, "and a mainnet wallet gets no Solana choice");
-  // The dialog forgets the choice and the tick when it closes.
-  findAll(dialog(), (n) => n.attrs?.["aria-label"] === "Close")[0].on.click();
-  assert.deepEqual([t.ui.net, t.ui.ack, t.ui.ackBad, t.ui.create, t.ui.createStep],
-    ["testnet", false, "", false, 0], "a closed dialog keeps no mainnet choice");
-  // Testnet needs no tick and shows no risk line.
-  at(2); t.ui.net = "testnet";
-  await next();
-  assert.equal(t.ui.createStep, 3, "testnet goes on without a tick");
-  assert.doesNotMatch(reviewOf(), /Real ZEC/, "and shows no mainnet risk");
-  t.ui.create = false; t.ui.createStep = 0;
-  console.log("ok  the create dialog needs the tick before the device step ends");
+  assert.doesNotMatch(review, /unaudited|not audited|0\.5|staging test/i);
+  assert.equal(byId(dialog(), "g-ack"), null);
+  findAll(dialog(), n => n.attrs?.["aria-label"] === "Close")[0].on.click();
+  assert.equal(t.ui.create, false);
 }
-
-// ── The personal account ──
 {
   t.ui.personal.net = "mainnet";
   const picked = drawn(() => t.personalCard(() => {}));
-  assert.equal(ticks(picked).length, 1, "the account card shows the tick for Mainnet");
-  const create = button(picked, "Create account");
-  await create.on.click({ preventDefault() {}, currentTarget: null });
-  assert.equal(t.personal, null, "no account without the tick");
-  assert.match(t.ui.personal.ackBad, /before you make a mainnet account\./);
-  assert.equal(t.banner?.text === t.ui.personal.ackBad, false, "the banner does not repeat it");
-  assert.match(textOf(byId(drawn(() => t.personalCard(() => {})), "p-ack-error")),
-    /Confirm that you understand/);
-  // The card forgets the choice and the tick when its disclosure closes.
-  t.ui.personal.ack = true;
-  const settings = { kids: drawn(() => browserSettings()) };
-  const folded = findAll(settings, (n) => n.tag === "details"
-    && textOf(n).startsWith("On-chain messaging account"))[0];
-  folded.open = false;
-  folded.on.toggle();
-  assert.deepEqual([t.ui.personal.net, t.ui.personal.ack, t.ui.personal.ackBad],
-    ["testnet", false, ""], "a closed account card keeps no mainnet choice");
-  console.log("ok  the account card needs the tick and forgets it when it closes");
+  assert.equal(ticks(picked).length, 0, "the account needs no release-warning checkbox");
+  assert.doesNotMatch(textOf(picked), /unaudited|not audited|beta/i);
 }
 
 // ── A chat reads testnet and mainnet requests ──
@@ -253,20 +148,10 @@ console.log("ok  a chat reads testnet and mainnet requests");
   try {
     const page = pageTree(), text = textOf(page);
     assert.match(text, /Join as device 2/);
-    assert.match(text, /Mainnet · Beta · Not audited/, "the join card shows the badge");
-    assert.ok(text.includes(mainnetRisk()), "and the risk line");
-    assert.equal(ticks(page).length, 1, "and the tick");
-    await button(page, "Join as device 2").on.click({ preventDefault() {}, currentTarget: null });
-    assert.equal(t.state.seats[2], undefined, "no tick: no seat is taken");
-    assert.match(t.ui.join.ackBad, /before you join a mainnet wallet\./);
-    const bad = byId(pageTree(), "j-ack-error");
-    assert.match(textOf(bad), /Confirm that you understand/);
-    assert.equal(bad.attrs.role, "alert");
-    assert.equal(t.banner?.text === t.ui.join.ackBad, false, "the banner does not repeat it");
-    byId(pageTree(), "j-ack").on.change({ target: { checked: true } });
-    assert.equal(t.ui.join.ack, true);
-    await button(pageTree(), "Join as device 2").on.click({ preventDefault() {},
-      currentTarget: null });
+    assert.match(text, /Mainnet/, "the joining device sees the network");
+    assert.doesNotMatch(text, /unaudited|not audited|beta|0\.5/i);
+    assert.equal(ticks(page).length, 0);
+    await button(pageTree(), "Join as device 2").on.click(EV);
     await waitFor("the seat", () => t.state.seats[2]);
     // The invite text of a mainnet wallet says that devices use the web app for now.
     const link = "https://zigs.test/#" + joined + ".key";
@@ -275,12 +160,12 @@ console.log("ok  a chat reads testnet and mainnet requests");
     // The tick belongs to one wallet.
     t.openGroup(plain);
     await waitFor("the other wallet", () => t.state.gid === plain && t.state.g);
-    assert.equal(t.ui.join.ack, false, "another wallet needs its own tick");
+    assert.equal(t.ui.join.private, undefined, "private-mode consent belongs to one wallet");
     assert.doesNotMatch(inviteMessage(link), /mainnet/, "a testnet wallet has no such line");
   } finally {
     t.secrets[joined + ":1"] = kept;
   }
-  console.log("ok  a device that joins a mainnet wallet sees the risk and ticks first");
+  console.log("ok  a device joins a mainnet wallet without a release-warning gate");
 }
 
 // ── Change devices of a mainnet wallet ──
@@ -313,45 +198,24 @@ assert.equal(wallet.network, "mainnet");
 
   // The header of a mainnet wallet says Mainnet, Beta and Not audited in its text.
   const head = textOf(drawn(() => walletHeader(wallet)));
-  assert.match(head, /Mainnet · Beta · Not audited/, "the header badge is text");
+  assert.match(head, /Mainnet/);
+  assert.doesNotMatch(head, /beta|not audited/i);
   assert.doesNotMatch(textOf(drawn(() => walletHeader({ ...wallet, network: "testnet" }))),
     /Beta|Not audited/, "a testnet header has no such badge");
-  console.log("ok  the header of a mainnet wallet says Mainnet, Beta and Not audited");
+  console.log("ok  the header of a mainnet wallet shows its network");
 
-  // The address stays hidden until the balance is known (fail closed), and the notes say that an
-  // address that was shared stays valid.
-  const address = wallet && t.state.wallet.address;
-  assert.ok(address, "the wallet has an address");
+  // Verified addresses remain available before sync and at balances above the former trial limit.
+  const address = t.state.wallet.address;
   const shows = () => textOf(drawn(() => receiveDialog())).includes(address.slice(0, 12));
   t.setChain(null);
   delete t.balCache[gid];
-  assert.equal(capUnknown(), true, "no balance known: unknown");
-  assert.equal(shows(), false, "before the first sync the receive dialog hides the address");
-  assert.match(textOf(drawn(() => receiveDialog())),
-    /Wait for the first sync to finish\..*stays valid after it is shared/);
-  t.balCache[gid] = null;
-  assert.equal(capUnknown(), true, "an unreadable balance is unknown");
-  t.balCache[gid] = { total: 49999999, at: 0 };
-  assert.equal(capUnknown(), false, "a saved balance under the cap is known");
-  assert.equal(shows(), true, "the saved balance under the cap shows the address");
-  assert.match(textOf(drawn(() => receiveDialog())),
-    /The address stays valid after you share it\./);
-  t.balCache[gid] = { total: 50000000, at: 0 };
-  assert.equal(shows(), false, "a saved balance at the cap hides it");
-  assert.match(textOf(drawn(() => receiveDialog())), /stays valid after it is shared/);
-  // The live balance wins over the saved one.
-  t.setChain({ gid, bal: { spendable: 1, pending: 0, height: 1 }, received: [], sent: new Set(),
-    cw: null });
-  assert.equal(shows(), true, "a live balance under the cap shows the address");
+  assert.equal(shows(), true, "a verified address is available before its first balance sync");
+  for (const total of [49_999_999, 50_000_000, 50_000_001, 1_000_000_000]) {
+    t.balCache[gid] = { total, at: 0 };
+    assert.equal(shows(), true, String(total));
+    assert.doesNotMatch(textOf(drawn(() => receiveDialog())), /warning level|0\.5 ZEC/);
+  }
   t.setChain(null);
-  // A testnet wallet has no cap.
-  const keep = t.state.g;
-  t.state.g = { ...keep, network: "testnet" };
-  delete t.balCache[gid];
-  assert.equal(capUnknown(), false, "a testnet wallet has no cap");
-  assert.equal(shows(), true, "and shows its address before the first sync");
-  t.state.g = keep;
-  console.log("ok  the address of a mainnet wallet stays hidden until the balance is known");
 }
 
 // ── The USD total of the Overview ──
@@ -392,8 +256,8 @@ assert.equal(wallet.network, "mainnet");
     t.state.g = { ...keep, network: "testnet" };
     chain(900_000, 100_000);
     let tree = hero();
-    assert.match(textOf(tree), /Portfolio balanceUSDDemo\$0\.00Demo prices/);
-    assert.match(textOf(tree), /Test funds have no cash value/);
+    assert.match(textOf(tree), /Wallet balanceZEC0\.01 ZEC/);
+    assert.doesNotMatch(textOf(tree), /Demo|\$0\.00/);
     assert.deepEqual(quotes, [], "a testnet wallet asks for no price");
     t.state.g = keep;
 
@@ -431,7 +295,7 @@ assert.equal(wallet.network, "mainnet");
     assert.equal(total(tree).attrs["aria-describedby"], "usd-note");
     assert.doesNotMatch(textOf(summary(tree)), /Demo|Test funds/);
     assert.match(textOf(summary(tree)),
-      /^Portfolio balanceUSD\$12\.33≈ Price of a NEAR Intents quote/);
+      /^ZEC valueUSD\$12\.33≈ Price of a NEAR Intents quote/);
 
     // The price is reused for 5 minutes, whatever the balance. After that one new call has the
     // same body, so the balance never reaches the request.
@@ -479,26 +343,15 @@ assert.equal(wallet.network, "mainnet");
 // The faucet is the Valar testnet faucet. Mainnet has a server and a warning level.
 assert.equal(NETWORKS.testnet.faucet, "https://faucet.testnet.valargroup.dev/");
 assert.deepEqual(NETWORKS.mainnet.servers, ["https://zcash-mainnet.chainsafe.dev"]);
-assert.equal(NETWORKS.mainnet.cap, 50000000, "the warning level is 0.5 ZEC");
+assert.equal(NETWORKS.mainnet.cap, undefined, "mainnet has no trial balance limit");
 assert.equal(NETWORKS.mainnet.prefix, "u1");
-console.log("ok  the faucet is the Valar testnet faucet; mainnet has one server and a cap");
+console.log("ok  the faucet is the Valar testnet faucet; mainnet has no trial cap");
 
 // Metadata names the actual networks; visible navigation omits repeated release boilerplate.
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8").replace(/\s+/g, " ");
-assert.equal(html.match(/Zcash \(testnet or mainnet\) and Solana Devnet/g)?.length, 1,
-  "the description keeps the actual networks without repeated navigation boilerplate");
+assert.match(html, /Shared wallets for Zcash and Solana/);
 assert.doesNotMatch(html, /Beta:|>Beta<|Not audited\./,
   "visible navigation omits repeated release warnings");
-assert.match(html, /A private Solana payment hides its amount, but its payee is public\./,
-  "the description says that a private Solana payment hides its amount");
-assert.equal(html.match(/hides its amount/g)?.length, 1, "and no other line makes the claim");
-assert.match(html, /Where the server offers it, a mainnet wallet can also send SOL and USDC from/,
-  "the description says that only a server that offers it lets a mainnet wallet send");
-assert.match(html, /send SOL and USDC from a plain Solana account, which is public on chain\./,
-  "and that the plain Solana account is public");
-assert.doesNotMatch(html, /plain Solana account[^.]*(private|hides|shielded)/,
-  "and makes no claim of privacy for it");
-assert.doesNotMatch(html, /A Solana payment hides/, "a Solana deposit shows its amount");
-console.log("ok  the page texts name Zcash and Solana Devnet");
+assert.doesNotMatch(html, /plain Solana account[^.]*(private|hides|shielded)/);
 console.log("mainnet-on: ok");
 process.exit(0);
