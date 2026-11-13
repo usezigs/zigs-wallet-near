@@ -43,7 +43,7 @@ export function howZigsWorks(el) {
   const tabs = [];
   const panel = el("div", { class: "hw-panel", id: "hw-chapter", role: "tabpanel", tabindex: "0" });
   const position = el("span", { class: "hw-position", "aria-live": "polite", "aria-atomic": "true" });
-  const experience = el("div", { class: "hw-experience", "data-visible": "true", "data-paused": "false" });
+  const experience = el("div", { class: "hw-experience", "data-view": "journeys", "data-visible": "true", "data-paused": "false" });
   const root = el("section", { class: "hw-guide", id: "hw-reference", hidden: true, "aria-label": "How Zigs works: complete guide" });
   const nav = el("div", { class: "hw-tabs", role: "tablist", "aria-orientation": "vertical", "aria-label": "Guide chapters" });
   const chapterName = el("span", { class: "hw-menu-current" });
@@ -152,6 +152,7 @@ export function howZigsWorks(el) {
   const modeButtons = [];
   const modes = el("div", { class: "hw-view-choices", role: "group", "aria-label": "Guide view" });
   function switchView(mode) {
+    experience.dataset.view = mode;
     root.hidden = mode !== "reference";
     journeys.hidden = mode !== "journeys";
     modeButtons.forEach(button => button.setAttribute("aria-pressed", String(button.dataset.view === mode)));
