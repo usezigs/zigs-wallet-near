@@ -58,6 +58,7 @@ import "./app-shared-control.js";
 import "./app-wallet-art.js";
 import "./app-wallet-marble.js";
 import "./app-icons.js";
+import "./icon-objects.js";
 import "./app-theme.js";
 import "./app-settings-ui.js";
 import "./network-privacy-camouflage.js";

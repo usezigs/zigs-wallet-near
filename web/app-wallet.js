@@ -928,7 +928,7 @@ function activityRows(list, pick = "all", line = "border-top:1px solid var(--lin
   if (!list.length) {
     const [head, text] = emptyText(pick);
     return el("div", { class: "empty workflow-empty", style: line },
-      el("span", { class: "empty-illustration", "aria-hidden": "true" }, icon("activity")), el("h3", {}, head),
+      el("span", { class: "empty-illustration", "aria-hidden": "true" }, sculptedIcon("activity")), el("h3", {}, head),
       el("p", { class: "small" }, text));
   }
   // One list of sent payments for the whole draw: a row does not walk all sessions again.
@@ -1236,7 +1236,7 @@ function inboxNote(rows) {
   if (rows) return el("p", { class: "small muted", role: "status" }, INBOX_EMPTY[why]);
   const empty = why === "empty" || why === "zec";
   return el("section", { class: "approval-empty", role: "status" },
-    el("span", { class: "approval-empty-mark", "aria-hidden": "true" }, sculptedIcon("devices")),
+    el("span", { class: "approval-empty-mark", "aria-hidden": "true" }, sculptedIcon("approvals")),
     el("div", {}, el("h3", {}, empty ? (why === "zec" ? "No Zcash approvals waiting" : "No approvals waiting")
       : why === "loading" ? "Checking payments" : why === "syncing" ? "Syncing this wallet" : "Some records could not be verified"),
     el("p", {}, empty ? "Payment requests and transactions in progress will appear here." : INBOX_EMPTY[why]),

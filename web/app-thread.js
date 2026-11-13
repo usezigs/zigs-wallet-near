@@ -254,7 +254,7 @@ function requestToggle(o) {
     onclick: () => { ui.request = open ? null : o.kind; render(); },
   }, "Request a payment");
   return el("details", { class: "messages-actions", "data-disclosure-key": "actions:" + o.kind },
-    el("summary", { "aria-label": "Conversation actions", title: "Conversation actions" }, "+"), button);
+    el("summary", { "aria-label": "Conversation actions", title: "Conversation actions" }, icon("plus")), button);
 }
 
 export function seatPicker(o, id) {
