@@ -8,6 +8,7 @@ uniform float u_time;
 uniform float u_breath;
 uniform vec2 u_ears;
 uniform float u_gust;
+uniform float u_look;
 varying vec2 v_uv;
 
 float field(vec2 p, vec2 center, vec2 radius) {
@@ -52,6 +53,12 @@ void main() {
   p.x += (a_uv.x-.70) * chest * u_breath * .055;
   p.y += chest * u_breath * .005;
   p.z += neck * u_breath * .018;
+  // A small yaw around the upper neck brings the muzzle toward the viewer.
+  // Depth supplies the foreshortening; the chest and base keep their own pose.
+  float turn = u_look * (1.-smoothstep(.66,.93,a_uv.y));
+  vec3 relative = p-vec3(.32,-.44,.08);
+  p.x = .32 + cos(turn)*relative.x + sin(turn)*relative.z;
+  p.z = .08 - sin(turn)*relative.x + cos(turn)*relative.z;
   gl_Position = vec4(p.xy, -p.z*.2, 1.);
 }`;
 
@@ -156,6 +163,14 @@ function earAt(time,start) {
     : (1-smooth((age-.35)/1.45)) * (1+.10*Math.sin((age-.35)*9.));
 }
 
+function lookAt(time,start,pace=1) {
+  const age=(time-start)/pace;
+  if (age<0 || age>6.6) return 0;
+  if (age<1.8) return smooth(age/1.8);
+  if (age<3.) return 1;
+  return 1-smooth((age-3.)/3.6);
+}
+
 export function sceneSample(milliseconds) {
   const time=Math.max(0,Number.isFinite(milliseconds)?milliseconds:0)/1000;
   const cycle=time%61;
@@ -168,7 +183,11 @@ export function sceneSample(milliseconds) {
   const phase=((time+.10*Math.sin(time*.17))%6.8)/6.8;
   const respiration=phase<.34 ? smooth(phase/.34)
     : phase<.88 ? 1-smooth((phase-.34)/.54) : 0;
+  const attention=time%97;
+  const headTurn=Math.max(lookAt(attention,6.5),lookAt(attention,31.,1.16)*.78,
+    lookAt(attention,66.5,.94)*.92)*.045;
   return { seconds:time,blink,leftEar,rightEar,
+    headTurn,
     breath:respiration*ease,
     gust:(.32+.25*Math.sin(time*.29)+.16*Math.sin(time*.71))*ease,
     atmosphere:.60,x:0,y:0 };
@@ -198,7 +217,7 @@ export function createHeroScene(image, doc=image.ownerDocument) {
     if (mesh) { gl.deleteBuffer(mesh.vertices); gl.deleteBuffer(mesh.elements); }
     throw error;
   }
-  const uniforms=Object.fromEntries(["time","breath","ears","gust","blink"]
+  const uniforms=Object.fromEntries(["time","breath","ears","gust","blink","look"]
     .map(name=>[name,gl.getUniformLocation(program,"u_"+name)]));
   let disposed=false,blinkReady=false,finishBlink;
   const ready=new Promise(resolve=>{ finishBlink=resolve; });
@@ -227,6 +246,7 @@ export function createHeroScene(image, doc=image.ownerDocument) {
       gl.uniform1f(uniforms.breath,sample.breath);
       gl.uniform2f(uniforms.ears,sample.leftEar,sample.rightEar);
       gl.uniform1f(uniforms.gust,sample.gust);
+      gl.uniform1f(uniforms.look,sample.headTurn??0);
       gl.uniform1f(uniforms.blink,blinkReady?sample.blink:0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawElements(gl.TRIANGLES,mesh.count,gl.UNSIGNED_SHORT,0);

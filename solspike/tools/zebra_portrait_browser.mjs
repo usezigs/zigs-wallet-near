@@ -75,6 +75,7 @@ try {
     const ear=read({...still,leftEar:.027});
     const mane=read({...still,seconds:6,gust:.7});
     const inhale=read({...still,breath:1});
+    const glance=read({...still,headTurn:.045});
     const difference=(a,b,box)=>{
       let sum=0;
       for(let y=box[1];y<box[3];y++)for(let x=box[0];x<box[2];x++) {
@@ -89,6 +90,8 @@ try {
       maneChange:difference(open,mane,[345,10,510,400]),
       chestChange:difference(open,inhale,[170,300,500,490]),
       anchoredBaseChange:difference(open,inhale,[0,507,512,512]),
+      headTurnChange:difference(open,glance,[0,0,380,370]),
+      headTurnBaseChange:difference(open,glance,[0,507,512,512]),
       indexBytes:gl.getBufferParameter(gl.ELEMENT_ARRAY_BUFFER,gl.BUFFER_SIZE)};
     scene.dispose(); return facts;
   });
@@ -99,6 +102,8 @@ try {
   check(pixels.maneChange>1000,"mane motion changes the mane tips");
   check(pixels.chestChange>1000,"breathing visibly expands the chest and neck");
   check(pixels.anchoredBaseChange===0,"breathing keeps the portrait base planted");
+  check(pixels.headTurnChange>1000,"viewer glance changes the rendered head pose");
+  check(pixels.headTurnBaseChange===0,"head turn keeps the portrait base planted");
   check(pixels.indexBytes>100000,"portrait renders a subdivided 3D surface");
 
   // Existing glass controls have ambient transforms, so use a real pointer hit
@@ -108,6 +113,11 @@ try {
   await page.waitForSelector(".join");
   check(await page.locator(".home-hero-portrait").count()===1,"wallet entry remains interactive after redraw");
   await page.reload(); await live(page);
+  await page.evaluate(async()=>{
+    const c=(await import("/homepage-motion.js")).startHomepageMotion(document);
+    c.stop(); c.elapsed=8600; c.draw(c.current);
+  });
+  await page.screenshot({path:resolve(output,"viewer-glance.png")});
   await page.evaluate(async()=>{
     const c=(await import("/homepage-motion.js")).startHomepageMotion(document);
     c.stop(); c.elapsed=4910; c.draw(c.current);

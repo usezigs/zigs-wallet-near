@@ -238,8 +238,24 @@ test("portrait samples stay finite and subtle even in long-running tabs", () => 
     assert.ok(Math.abs(s.breath) <= 1);
     assert.ok(Math.abs(s.leftEar) < .04 && Math.abs(s.rightEar) < .04);
     assert.ok(Math.abs(s.gust) < 1);
+    assert.ok(s.headTurn >= 0 && s.headTurn < .06);
   }
   assert.equal(sceneSample(0).blink, 0);
+});
+
+test("head glances stay small, return to rest and leave long quiet intervals", () => {
+  const poses=Array.from({length:1940},(_,i)=>sceneSample(i*100).headTurn);
+  assert.ok(Math.max(...poses)>.02 && Math.max(...poses)<.06);
+  assert.ok(poses.filter(value=>value===0).length/poses.length>.7);
+  let active=0,episodes=0;
+  for (let i=0;i<poses.length;i++) {
+    if (poses[i]>0) {
+      if (!active) episodes++;
+      active++;
+      assert.ok(active<100,"each glance returns within ten seconds");
+    } else active=0;
+  }
+  assert.ok(episodes>=4,"occasional glances continue in a long-running tab");
 });
 
 test("frame guard releases resources even before the media change event arrives", async () => {
