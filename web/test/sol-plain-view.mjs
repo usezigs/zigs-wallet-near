@@ -584,8 +584,8 @@ step("a bad USDC account and a failed update stay on their own rows");
   assert.match(text(asset(tree, "sol")), /^SOLSolana Mainnet.*Public.*1\.5SOL/, "the SOL row");
   assert.match(text(asset(tree, "usdc")), /^USDCSolana Mainnet.*Public.*12\.345678USDC/,
     "the USDC row is real");
-  assert.equal(text(one(tree, (n) => n.attrs?.id === "total-balance-title")), "ZEC value",
-    "the USD total counts only ZEC, so its title names ZEC");
+  assert.ok(one(tree, (n) => n.className === "portfolio-slot"),
+    "mainnet mounts the portfolio chart alongside its actual asset rows");
   assert.doesNotMatch(text(asset(tree, "sol")), /Unavailable|Demo/);
   for (const id of ["sol", "usdc"]) {
     assert.ok(text(asset(tree, id)).includes(EXPOSURE), id + " row says what Solana mainnet shows");
@@ -604,14 +604,8 @@ step("a bad USDC account and a failed update stay on their own rows");
   }
   choice(tree, "Receive", "usdc").on.click();
   assert.deepEqual([t.ui.tab, t.wantFocus?.key], ["solana", "sol-receive"]);
-  assert.match(text(tree), /SOL and USDC are not in this total\./, "the total says what it lacks");
-  t.setChain({ gid, bal: { spendable: 100_000_000, pending: 0, height: 1 }, received: [],
-    sent: new Set(), cw: null });
-  const note = () => text(one(draw("overview"), (n) => n.attrs?.id === "usd-note"));
-  await waitFor("the price", () => /spread/.test(note()));
-  assert.ok(note().endsWith("a swap can give another amount. SOL and USDC are not in this total."),
-    "the note with a price has one full stop between its sentences");
-  t.setChain(null);
+  assert.doesNotMatch(text(tree), /SOL and USDC are not in this total\./,
+    "the historical ZEC-only swap estimate has been replaced by the portfolio component");
   assert.equal(t.solFile(1)?.saved, false, "solFile reads a plain seat");
   assert.ok(t.solStays().includes(STAYS), "Change devices warns");
   {

@@ -14,7 +14,9 @@ let copies = 0; // a copy of the Worker has its own snapshot: the comment makes 
 const loadWorker = async () => {
   const code = workerSource.replace('import { DurableObject } from "cloudflare:workers";',
     "const DurableObject = class {};").replace('from "./gate.js";', `from "${GATE}";`)
-    .replace('from "./near.js";', `from "${NEAR}";`) +
+    .replace('from "./near.js";', `from "${NEAR}";`)
+    .replace('from "./portfolio.js";',
+      `from "${new URL("../../cf/src/portfolio.js", import.meta.url).href}";`) +
     `\n// copy ${copies++}`;
   return (await import("data:text/javascript," + encodeURIComponent(code))).default;
 };

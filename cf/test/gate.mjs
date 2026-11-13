@@ -16,7 +16,9 @@ import { COOKIE, MAX_AGE_S, gate, sessionCookie, withCookie } from "../src/gate.
 const index = readFileSync(new URL("../src/index.js", import.meta.url), "utf8")
   .replace('import { DurableObject } from "cloudflare:workers";', "const DurableObject = class {};")
   .replace('from "./gate.js";', `from "${new URL("../src/gate.js", import.meta.url).href}";`)
-  .replace('from "./near.js";', `from "${new URL("../src/near.js", import.meta.url).href}";`);
+  .replace('from "./near.js";', `from "${new URL("../src/near.js", import.meta.url).href}";`)
+  .replace('from "./portfolio.js";',
+    `from "${new URL("../src/portfolio.js", import.meta.url).href}";`);
 const { default: worker } = await import(
   `data:text/javascript;base64,${Buffer.from(index).toString("base64")}`);
 

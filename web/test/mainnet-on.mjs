@@ -218,123 +218,51 @@ assert.equal(wallet.network, "mainnet");
   t.setChain(null);
 }
 
-// ── The USD total of the Overview ──
-// A mainnet wallet asks /near/quote for the price of a fixed 1 ZEC while its Overview shows; a
-// testnet wallet and a hidden tab ask nothing. A stub replaces fetch, and `skew` moves Date.now.
+// ── The observed portfolio value of the Overview ──
+// The real chart hydrates its retained slot in app-loop. Browser tests cover its DOM and actual
+// encrypted history; portfolio.mjs covers freshness, valuation and price-request caching.
 {
-  const realFetch = globalThis.fetch, realNow = Date.now, realDocument = globalThis.document;
-  const realFrame = globalThis.requestAnimationFrame;
-  const quotes = [], BODY = '{"from":"zec","to":"usdc","amount":"100000000","slippageBps":50}';
-  const quote = (out) => () => Response.json({ amountIn: "100000000", amountOut: out,
-    minAmountOut: "1" });
-  let skew = 0, reply = quote("1232971711"), visibility = "visible";
+  const realFetch = globalThis.fetch, realDocument = globalThis.document;
+  const requests = [];
+  let visibility = "hidden";
   globalThis.fetch = async (url, init) => {
-    if (String(url) !== "/near/quote") return realFetch(url, init);
-    quotes.push(init.body);
-    return reply();
+    if (String(url) !== "/portfolio/prices") return realFetch(url, init);
+    requests.push({ url, body: init.body, method: init.method });
+    return Response.json({ source: "coingecko", prices: {
+      zec: { usd: 123.45, at: Date.now() } } });
   };
-  Date.now = () => realNow() + skew;
   const draw = (tab) => {
     globalThis.document = new Proxy(realDocument, { get: (o, k) => ({
       createElement: (tag) => new Rec(tag), createElementNS: (_ns, tag) => new Rec(tag),
       createTextNode: (text) => ({ text }), visibilityState: visibility })[k] ?? o[k] });
-    try {
-      t.ui.tab = tab;
-      return t.walletView(null, null);
-    } finally { globalThis.document = realDocument; }
+    try { t.ui.tab = tab; return t.walletView(null, null); }
+    finally { globalThis.document = realDocument; }
   };
-  const hero = () => findNode(draw("overview"), (n) => n.className === "overview-hero");
-  const total = (tree) =>
-    findNode(tree, (n) => n.className?.split(" ").includes("portfolio-value"));
-  const note = (tree) => textOf(byId(tree, "usd-note"));
-  const summary = (tree) => findNode(tree, (n) => n.className === "portfolio-summary");
-  const chain = (spendable, pending = 0) => t.setChain({ gid,
-    bal: { spendable, pending, height: 1 }, received: [], sent: new Set(), cw: null });
   const keep = t.state.g;
   try {
-    // A testnet wallet: the demo total, and no call.
     t.state.g = { ...keep, network: "testnet" };
-    chain(900_000, 100_000);
-    let tree = hero();
-    assert.match(textOf(tree), /Wallet balanceZEC0\.01 ZEC/);
-    assert.doesNotMatch(textOf(tree), /Demo|\$0\.00/);
-    assert.deepEqual(quotes, [], "a testnet wallet asks for no price");
+    t.setChain({ gid, bal: { spendable: 900_000, pending: 100_000, height: 1 },
+      received: [], sent: new Set(), cw: null });
+    const testnet = draw("overview");
+    assert.match(textOf(testnet), /Wallet balanceZEC0\.01 ZEC/);
+    assert.equal(findNode(testnet, (n) => n.className === "portfolio-slot"), null);
+    assert.deepEqual(requests, [], "testnet funds have no USD price request");
     t.state.g = keep;
-
-    // A mainnet wallet: one call at a time. The call fails, so there is no price and no $0.00.
-    reply = () => Response.json({ error: "unavailable" }, { status: 502 });
-    visibility = "hidden";
-    hero();
-    assert.deepEqual(quotes, [], "a hidden tab asks for no price");
+    draw("overview");
+    assert.deepEqual(requests, [], "a hidden mainnet tab makes no market request");
     visibility = "visible";
     for (const tab of ["activity", "settings"]) draw(tab);
-    assert.deepEqual(quotes, [], "a section other than the Overview asks for no price");
-    tree = hero(); hero();
-    assert.deepEqual(quotes, [BODY], "one call for two draws");
-    assert.equal(note(tree), "Price not available yet", "while the call runs");
-    await waitFor("the failed call", () => note(hero()) === "Price not available");
-    tree = hero();
-    assert.equal(total(tree).attrs["aria-label"], "USD value not available");
-    assert.equal(total(tree).attrs["data-valuation-state"], "unknown");
-    assert.equal(textOf(total(tree)), "—", "no $0.00 without a price");
-    assert.doesNotMatch(textOf(summary(tree)), /Demo|\$0\.00/);
-    skew += 59_000; hero();
-    assert.equal(quotes.length, 1, "no retry before 60 s");
-    reply = quote("1232971711");
-    skew += 2_000; hero();
-    assert.equal(quotes.length, 2, "a retry after 60 s");
-
-    // The price arrives. The value is the total of the asset row (spendable and incoming) times
-    // the price. The label says what the price is, and nothing says Demo.
-    await waitFor("the price", () => total(hero()).attrs["data-valuation-state"] === "known");
-    tree = hero();
-    assert.equal(textOf(total(tree)), "$12.33");
-    assert.equal(total(tree).attrs["aria-label"], "About $12.33");
-    assert.ok(note(tree).startsWith("≈ Price of a NEAR Intents quote for 1 ZEC, just now. "
-      + "1 USDC counts as 1 USD. The quote includes fees and spread. It is not a market rate"));
-    assert.equal(total(tree).attrs["aria-describedby"], "usd-note");
-    assert.doesNotMatch(textOf(summary(tree)), /Demo|Test funds/);
-    assert.match(textOf(summary(tree)),
-      /^ZEC valueUSD\$12\.33≈ Price of a NEAR Intents quote/);
-
-    // The price is reused for 5 minutes, whatever the balance. After that one new call has the
-    // same body, so the balance never reaches the request.
-    chain(5_000_000_250);
-    tree = hero();
-    assert.equal(textOf(total(tree)), "$61,648.59", "the new balance, the same price");
-    skew += 4 * 60_000; tree = hero();
-    assert.equal(quotes.length, 2, "a price of about 4 minutes is reused");
-    assert.match(note(tree), /for 1 ZEC, 4 minutes ago/);
-    chain(250_000_000);
-    skew += 61_000; hero();
-    assert.deepEqual(quotes, [BODY, BODY, BODY], "the third call has the same fixed body");
-    await waitFor("the third price", () => note(hero()).includes("1 ZEC, just now"));
-    let release, frames = 0;
-    reply = () => new Promise((done) => { release = () => done(quote("1250500000")()); });
-    visibility = "hidden";
-    skew += 6 * 60_000; hero();
-    assert.equal(quotes.length, 3, "a hidden tab asks no new price");
-    visibility = "visible";
-    hero();
-    assert.equal(quotes.length, 4, "a visible Overview with an old price asks");
-    // The page redraws by itself when the call ends: no draw by hand until the new price shows.
-    await new Promise((done) => setTimeout(done, 200));
-    globalThis.requestAnimationFrame = () => { frames += 1; return 0; };
-    release();
-    await waitFor("a redraw after the call", () => frames > 0);
-    await waitFor("the new price", () => textOf(total(hero())) === "$3,126.25");
-
-    // Before the first sync the total has no value, and the price call goes on.
-    t.setChain(null);
-    tree = hero();
-    assert.equal(textOf(total(tree)), "—");
-    assert.equal(total(tree).attrs["aria-label"], "USD value not available until the first sync");
-    assert.equal(note(tree), "Balance not synced yet");
-    assert.equal(quotes.length, 4, "a price younger than 5 minutes is reused");
-    console.log("ok  the USD total of a mainnet wallet comes from a fixed quote of 1 ZEC");
+    assert.deepEqual(requests, [], "other sections make no chart request");
+    const mainnet = draw("overview"); draw("overview");
+    assert.ok(findNode(mainnet, (n) => n.className === "portfolio-slot"),
+      "mainnet mounts its live portfolio component");
+    assert.doesNotMatch(textOf(mainnet), /Price of a NEAR Intents quote|ZEC valueUSD/);
+    assert.equal(requests.length, 1, "one fixed market request for repeated draws");
+    assert.equal(requests[0].url, "/portfolio/prices");
+    assert.equal(requests[0].body, undefined, "no wallet balances or addresses in the request");
+    console.log("ok  the mainnet portfolio uses a fixed market endpoint; testnet stays native");
   } finally {
-    globalThis.fetch = realFetch; Date.now = realNow; globalThis.document = realDocument;
-    globalThis.requestAnimationFrame = realFrame;
+    globalThis.fetch = realFetch; globalThis.document = realDocument;
     t.state.g = keep; t.setChain(null);
   }
 }

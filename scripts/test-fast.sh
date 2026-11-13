@@ -24,7 +24,7 @@ FAST="optional-passkey demo-check chain-fallback chat backup-check graph persona
   sol-start-watch sol-wallet-page sol-plain-reads
   sol-plain-view sol-plain-load sol-plain-security sol-plain-review sol-plain-direct
   sol-plain-sessions sol-plain-ui
-  smoke help contrast orientation overview setup-stage approvals recovery security-dashboard
+  smoke help contrast orientation overview portfolio setup-stage approvals recovery security-dashboard
   payment-model
   plain-worker
   cf/test/gate sol-nonce-tabs nonce-locks no-storage sync-pause

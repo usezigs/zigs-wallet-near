@@ -45,10 +45,9 @@ import {
   plainTab, solDetails,
 } from "./app-sol.js";
 import {
-  createZecPrice, pendingShortcut, plainRow, portfolioView, solRow, zecInProgress,
+  pendingShortcut, plainRow, solRow, zecInProgress,
   zecTotal,
 } from "./overview-model.js";
-import { NearIntentsSwapProvider } from "./near-intents-swap-provider.js";
 import { icon, sculptedIcon } from "./app-icons.js";
 import { beginGuided, guidedEnabled, guidedState } from "./app-guided-setup.js";
 import { descriptionOf, setWalletDescription } from "./wallet-description.js";
@@ -61,6 +60,7 @@ import { SharedControlVisual } from "./app-approval-visualization.js";
 import { sharedControl } from "./app-shared-control.js";
 import { walletMark } from "./app-wallet-art.js";
 import { walletHeadingMarble } from "./app-wallet-marble.js";
+import { portfolioOverview } from "./app-portfolio.js";
 
 export function groupView({ showHeader = true } = {}) {
   const g = state.g;
@@ -248,21 +248,10 @@ function groupHead(g, ready, why, persistent = false) {
         icon("home"), "Return home"));
 }
 
-// The price of 1 ZEC in USD for the Overview of a mainnet wallet (overview-model.js). One price
-// for the page session, in memory only.
-const zecPrice = createZecPrice({ provider: new NearIntentsSwapProvider(),
-  settled: () => render() });
 const isMainnet = () => netName(state.g) === "mainnet";
-
-// A testnet wallet and a hidden tab ask nothing.
-function observePrice() {
-  if (!isMainnet() || globalThis.document?.visibilityState === "hidden") return;
-  void zecPrice.ask();
-}
 
 function overviewTab() {
   solObserveOverview();
-  observePrice();
   const c = curChain();
   return el("div", { class: "page overview-page" },
     state.g.movedTo ? moveCard(c) : null,
@@ -286,15 +275,13 @@ function overviewTab() {
 }
 
 function balanceOverview() {
-  const view = portfolioView({ mainnet: isMainnet(), total: zecTotal(zecBal(curChain())),
-    price: zecPrice.read(), now: Date.now() });
-  return el("section", { class: "overview-hero", "aria-labelledby": "total-balance-title" },
-    el("div", { class: "overview-wallet-summary" }, walletMark(state.g, 64),
+  return el("section", { class: "overview-hero" + (isMainnet() ? " overview-portfolio" : ""),
+    "aria-label": "Wallet balance and actions" },
+    isMainnet() ? portfolioOverview() : el("div", { class: "overview-wallet-summary" }, walletMark(state.g, 64),
     el("div", { class: "portfolio-summary" }, el("div", { class: "balance-heading" },
       el("h2", { id: "total-balance-title", class: "label" },
-        isMainnet() ? "ZEC value" : "Wallet balance"),
-      el("span", { class: "portfolio-currency" }, isMainnet() ? "USD" : "ZEC")),
-    isMainnet() ? liveTotal(view) : testnetTotal())),
+        "Wallet balance"),
+      el("span", { class: "portfolio-currency" }, "ZEC")), testnetTotal())),
     el("div", { class: "overview-actions" }, assetActionPicker("send"), assetActionPicker("receive"),
       el("button", { "data-glass": "button", class: "btn", type: "button", "data-key": "overview-swap",
         title: "Open Swap", onclick: () => { ui.tab = "swap"; render(); } },
@@ -311,28 +298,6 @@ function testnetTotal() {
     total === null ? "—" : fmtZec(total)),
   el("p", { class: "portfolio-network-note" }, "Zcash Testnet")];
 }
-
-// A mainnet wallet shows no value, and no $0.00, until it knows the balance and the price.
-// ponytail: only ZEC counts. No price source exists for SOL; the note of a served plain wallet says
-// that SOL and USDC are not in the total. Testnet wallets show native test balances.
-const TOTAL_ZEC_ONLY = " SOL and USDC are not in this total.";
-function liveTotal(view) {
-  const { value } = view;
-  if (globalThis.zigsGlass) return globalThis.zigsGlass.stat({
-    "data-valuation-state": value ? "known" : "unknown", "aria-label": view.label,
-  }, { label: "ZEC value in USD", value: value ? value.whole + value.fraction : "—",
-    change: view.note + (view.facts ? ". " + view.facts : "")
-      + (plainShown() ? (view.facts ? "" : ".") + TOTAL_ZEC_ONLY : "") });
-  return [el("p", { class: "portfolio-value", role: "img", "aria-label": view.label,
-    "data-valuation-state": value ? "known" : "unknown", "aria-describedby": "usd-note" },
-  value ? [el("span", { "aria-hidden": "true" }, value.whole),
-    el("span", { class: "portfolio-decimals", "aria-hidden": "true" }, value.fraction)]
-    : el("span", { "aria-hidden": "true" }, "—")),
-  el("p", { class: "portfolio-network-note", id: "usd-note" }, view.note,
-    view.facts ? ". " + view.facts : null,
-    plainShown() ? (view.facts ? "" : ".") + TOTAL_ZEC_ONLY : null)];
-}
-
 
 // Why a plain wallet cannot send or receive an asset now, in a few words, or "" when it can. USDC
 // is sent only once the last read shows its token account.
@@ -392,7 +357,10 @@ function overviewTransactions() {
     el("div", { class: "section-heading transaction-heading" },
       el("h2", { id: "transactions-title" }, "Transactions"),
       el("div", { class: "transaction-views", role: "group", "aria-label": "Transaction view" },
-        choose("pending", "Pending"), choose("recent", "Recent"))),
+        choose("pending", "Pending"), choose("recent", "Recent")),
+      recent ? el("button", { class: "btn ghost sm overview-all-activity", type: "button",
+        "aria-label": "View all activity", onclick: openWalletSection("activity") },
+      icon("external")) : null),
     recent ? recentTransactions() : el("div", { class: "overview-approvals", id: "overview-approvals",
       "data-key": "overview-approvals", tabindex: "-1", "aria-labelledby": "approvals-title" },
     overviewApprovalSummary()));
@@ -421,14 +389,12 @@ function overviewApprovalSummary() {
 }
 
 function recentTransactions() {
-  const list = activity().slice(0, 5);
+  const list = activity().slice(0, 1);
   if (!list.length && state.sessionsLoaded && !state.sessionsFailed && !state.pending
     && historyState() === "ready" && !solReading("all"))
     return el("div", { class: "recent-transactions" },
       transactionEmpty("No recent transactions"), activityNote("all"));
-  return el("section", { class: "card recent-transactions", "aria-labelledby": "recent-title" },
-    el("div", { class: "card-head card-pad" }, el("h3", { id: "recent-title" }, "Recent transactions"),
-      el("button", { class: "btn ghost sm", type: "button", onclick: () => { ui.tab = "activity"; render(); } }, "View all activity")),
+  return el("section", { class: "card recent-transactions", "aria-label": "Latest transaction" },
     activityRows(list), receivedNote(list), list.length ? historyNote("all") : null, activityNote("all"));
 }
 
@@ -605,7 +571,9 @@ function pendingCard() {
 
 const assetHead = (id, symbol, network) => el("div", { class: "asset-title" },
   el("span", { class: "coin-mark" }, icon(id)),
-  el("div", {}, el("h3", { id: "asset-" + id }, symbol), el("p", {}, network)));
+  el("div", {}, el("h3", { id: "asset-" + id }, symbol), el("p", {
+    class: network.toLowerCase().endsWith(netName(state.g)) ? "asset-network" : "asset-network-other",
+  }, network)));
 
 const zecBal = (c) => c && c.bal ? balanceNow(c.bal) : null;
 
@@ -784,9 +752,9 @@ function solAsset() {
     el("div", { class: "asset-position" }, assetHead("sol", "SOL", solNetwork()),
       solBalancePrivacy(el, row)),
     el("div", { class: "asset-balance-block" }, el("span", { class: "label" }, "Wallet balance"), amount,
-      status ? el("p", { class: "asset-row-status small muted", role: "status" }, status) : null),
-    shieldingActions("sol", true)),
+      status ? el("p", { class: "asset-row-status small muted", role: "status" }, status) : null)),
     assetNote("sol", "Balance & privacy details", [
+      shieldingActions("sol", true),
       el("p", {}, row.state === "failed" ? solError : SOL_NOTE[row.state]),
       el("p", {}, solExposure()), shieldingBreakdown("sol"),
       el("p", { id: "sol-shielding-note" }, "Percentages unavailable. Device fee funds are separate from wallet holdings. "
@@ -826,9 +794,9 @@ function plainAsset(id) {
       privacyBadge(el, "public")),
     el("div", { class: "asset-balance-block" }, el("span", { class: "label" }, "Wallet balance"),
       plainAmount(row), status ? el("p", { class: "asset-row-status small"
-        + (bad ? " asset-row-warning" : " muted"), role: "status" }, status) : null),
-    id === "sol" ? plainOpen(row.state) : null),
+        + (bad ? " asset-row-warning" : " muted"), role: "status" }, status) : null)),
   assetNote(id, "Solana details", [el("p", {}, PLAIN_EXPOSURE),
+    id === "sol" ? plainOpen(row.state) : null,
     plainRead()?.error ? el("p", {}, plainRead().error) : null]));
 }
 

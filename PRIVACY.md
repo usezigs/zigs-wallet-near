@@ -343,19 +343,11 @@ How a quote works:
   stores nothing and writes no log.
 - The Worker limits `/near/quote`, the three swap routes and `/near/status` together to 60 calls
   a minute for each IPv4 address or IPv6 /64 (`NEAR_PER_IP`, counted per Cloudflare location). It uses the IP address in memory only.
-- The Overview of a mainnet wallet asks for the price of 1 ZEC through the same route. It posts
-  exactly 1 ZEC (100,000,000 zatoshi) to USDC with the slippage 50. The amount is fixed: it never
-  depends on your balance. The page multiplies the price by the ZEC total of the wallet, on the
-  device, and counts 1 USDC as 1 USD. It asks when the Overview shows and no price on the page is
-  younger than 5 minutes. It runs one call at a time and waits at least 60 seconds after a failed
-  call. A call with no answer in 15 seconds counts as failed. A hidden tab asks nothing, and a
-  testnet wallet asks nothing. The price stays in memory only, for at most 1 hour: the page stores
-  it nowhere.
 
 | Party | What it learns |
 |---|---|
-| NEAR Intents (`1click.chaindefuser.com`) | The pair, the amount, the slippage and the time of each quote, and the sample addresses. It sees the Worker, not your IP address. It cannot link a quote to a wallet or to you. For the Overview, the pair and the amount are always 1 ZEC to USDC: it learns only the time |
-| App Worker | Your IP address, and the pair, the amount and the slippage of each quote. It keeps no log. For the Overview, it learns your IP address and the time, and the fixed 1 ZEC to USDC ask |
+| NEAR Intents (`1click.chaindefuser.com`) | The pair, the amount, the slippage and the time of each quote, and the sample addresses. It sees the Worker, not your IP address. It cannot link a quote to a wallet or to you. |
+| App Worker | Your IP address, and the pair, the amount and the slippage of each quote. It keeps no log. |
 | Cloudflare | Connection data, as for every request to the app |
 | Group server, light-wallet server | Nothing |
 | Chain observers | Nothing: no transaction exists |
@@ -375,15 +367,39 @@ What stays visible:
   address, so no payout was made. The chain-support page of NEAR Intents still lists Zcash as
   "Partially supported - Transparent addresses only". Treat the shielded claim as unproven until
   a real swap pays to such an address.
-- An open Overview of a mainnet wallet asks about once every 5 minutes, and at most once a minute
-  while calls fail. It asks with no action of yours. So the Worker and NEAR Intents see the times
-  at which someone has a mainnet wallet open in the web app. They do not see the balance, the
-  wallet or the address.
-- The USD total of the Overview is the price of a NEAR Intents quote for 1 ZEC, times your ZEC
-  total. The quote includes the fees and the spread of NEAR Intents. It is not a market rate, and a
-  swap can give another amount. The page shows the age of the price. Only ZEC counts in the total.
 - NEAR Intents is a third party with its own terms. The prices are mainnet prices, and they can
   change within seconds.
+
+## Portfolio observations and market prices
+
+The mainnet Overview uses `GET /portfolio/prices` of the app Worker for a fixed set of market
+prices: ZEC, SOL and USDC. It no longer requests a NEAR Intents swap quote for its USD total.
+The Worker contacts CoinGecko with a server-side API key, uses a one-minute shared in-memory
+cache and sends no browser cookie, wallet identifier, address, balance or user header upstream.
+Without a configured market-data key the endpoint reports unavailable, and the chart preserves
+its observed history. Testnet wallets make no market-price request and keep their native balance.
+
+The app Worker and Cloudflare can see your connection and the time of this fixed price request.
+CoinGecko sees the Worker's request for the same three assets, its API key and timing; it does not
+receive your wallet data. The chart makes no additional blockchain queries. The existing balance
+syncs still have the privacy properties described in the Zcash and Solana sections below.
+
+The device multiplies each freshly observed supported balance by its observed USD market price.
+It records complete valuations while the wallet Overview is visible, at most once a minute except
+when holdings change. Balance reads older than two minutes and prices older than five minutes do
+not become new observations. USDC uses its observed market price, without a fixed dollar peg.
+
+Historical balances, prices and totals are encrypted with the wallet's existing authenticated
+sealing function and a separate wallet/network context, then stored locally on this device.
+They are never uploaded by this feature. The store retains up to 10,000 observations for at most
+400 days, and may retain less if browser storage fills. Locking or leaving the wallet clears this
+chart's decrypted history from its active controller. Encrypted observations remain on the device;
+this is device history, not a shared history or a recovery backup.
+
+Earlier shielded holdings and offline activity cannot be reconstructed. The chart shows only
+recorded observations and breaks the line for missing intervals or holdings changes. The
+percentage is explicitly **portfolio value change**, including deposits and withdrawals, rather
+than investment return. [Implementation and deployment details](docs/portfolio-tracker.md).
 
 ## Live swap from SOL to ZEC (staging only)
 
