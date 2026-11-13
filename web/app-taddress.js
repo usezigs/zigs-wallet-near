@@ -205,6 +205,9 @@ export function taddressSection() {
         el("div", { class: "dialog-actions" },
           copyBtn(t.address, "Copy transparent address", "btn")),
         sweepPart(t.keys, taddressBalance(), () => readTaddressBalance(t.address))];
-  return el("section", { class: "callout", "data-taddress": "section",
-    style: "display:grid;gap:8px" }, head, ...body);
+  const funded = (taddressBalance()?.zat ?? 0) > 0;
+  return el("details", { class: "workflow-details public-refunds", "data-taddress": "section", open: funded,
+    "data-disclosure-key": "public-refunds:" + state.gid },
+    el("summary", {}, funded ? "Public refund funds need attention" : "Public address and swap refunds"),
+    head, ...body);
 }

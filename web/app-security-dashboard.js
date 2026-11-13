@@ -52,6 +52,7 @@ export function securityDashboard(f, actions, advanced) {
       el("summary", {}, "Security model and disclosures"),
       SECURITY_DISCLOSURES.map(([title, copy]) => el("div", {},
         el("h4", {}, title), paragraph(copy)))),
+    advanced.solana,
     el("div", { class: "security-browser-link" }, icon("lock"),
       paragraph("Browser protection is managed in Settings. A passkey unlocks local data; it does not replace a recovery file."),
       button("Browser access", actions.settings, { class: "btn ghost sm" })));

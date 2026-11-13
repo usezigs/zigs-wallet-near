@@ -261,10 +261,29 @@ export const addrGroups = (addr) =>
   el("span", {}, chunks(addr).map((c) => el("span", { class: "addr-g" }, c)));
 
 // The SVG comes from our own encoder and holds only path data, so innerHTML is safe here.
-export function qrBox(text, label) {
+export function qrBox(text, label, maxPixels = null) {
   const box = el("div", { class: "qr" });
-  box.innerHTML = qrSvg(text, label);
+  const svg = qrSvg(text, label);
+  box.innerHTML = svg;
+  if (maxPixels !== null) {
+    const modules = Number(svg.match(/viewBox="0 0 (\d+) /)?.[1]);
+    if (modules) box.style.cssText = "--qr-size:"
+      + modules * Math.max(1, Math.floor(maxPixels / modules)) + "px";
+  }
   return box;
+}
+
+// A long receive address stays inspectable without overwhelming the QR card.
+// Scope the disclosure to the full address so a redraw cannot reveal another wallet's value.
+export function receiveAddress(text, attrs = {}, make = el) {
+  const value = make("span", attrs, text);
+  if (!text || text.length <= 64) return value;
+  return make("details", { class: "receive-address", "data-disclosure-key": "receive:" + text },
+    make("summary", {},
+      make("span", { class: "receive-address-preview mono", "aria-hidden": "true" },
+        text.slice(0, 22) + "…" + text.slice(-10)),
+      make("span", { class: "receive-address-show" }, "View full address"),
+      make("span", { class: "receive-address-hide" }, "Hide full address")), value);
 }
 // A link with the wallet secret stays hidden until asked for: cameras and people can read screens.
 // `text`: the disclosure holds the link as text too, and the page shows only its Copy button.

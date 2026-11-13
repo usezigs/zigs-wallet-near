@@ -13,7 +13,7 @@ import {
   canWriteAs, checkIn, netConfirmed, refilter, signedDoc, signedMode, signPins,
 } from "./app-filter.js";
 import { openGroup, sdb, unsubGroup } from "./app-groups.js";
-import { act, announce, el, guard } from "./app-dom.js";
+import { act, announce, el, guard, qrBox, receiveAddress } from "./app-dom.js";
 import { confirmedNo, groupVersion, safetyNo, seatCheck } from "./app-dkg.js";
 import { openBackupCheck, restore, sealAndSave } from "./app-backups.js";
 import { focusAfter, once, react, render } from "./app-loop.js";
@@ -253,7 +253,14 @@ export function resetSolStart() {
 // host.putSec is the save of a step that holds the lock of the secrets (putSol, shareOnce).
 export const solHost = () => ({
   Z, sdb, state, el, act, log, once, render, refilter, showBanner, sec, putSec: putSecHeld,
-  focusAfter, announce,
+  focusAfter, announce, qrBox, receiveAddress,
+  solanaAction: () => ui.solanaAction?.gid === state.gid ? ui.solanaAction.action : "receive",
+  openSolDetails: (surface) => {
+    ui.tab = surface === "security" ? "recovery" : "settings";
+    ui.solDetailsTarget = { gid: state.gid, surface };
+    focusAfter("sol-" + surface, true);
+    render();
+  },
   signedDoc,
   recipientSelect,
   exclusive, takeStored,
@@ -559,6 +566,13 @@ export function plainTab() {
   if (!plainSetup()) return loading;
   plainSol.observe(state.gid);
   return guard(plainSol.view, act, plainActions);
+}
+/** Render already loaded Solana details without starting setup or asking the chain. */
+export function solDetails(surface) {
+  if (plainShown() && plainHere()) return guard(plainSol.details, surface, act, plainActions);
+  if (solOn() && solOpenHere()) return guard(sol.details, surface);
+  if (!plainShown() && !solOn()) return null;
+  return el("p", { class: "small" }, "Open Solana to load the details for this wallet.");
 }
 const NET_UNCONFIRMED = "This browser does not know yet which network the people of this wallet "
   + "confirmed. Open the wallet, wait until your device shows Address checked, then try again.";

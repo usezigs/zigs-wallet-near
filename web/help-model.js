@@ -35,7 +35,7 @@ export const HELP = [
     + "When you send, Helius also sees the signed transaction."],
   ["How do I read the memos of payments to this wallet?",
     (
-      "Open Incoming payment memos under General in Settings, "
+      "Open Incoming payment memos under Privacy & Network in Settings, "
       + "review the privacy disclosure and enable it. A memo is "
       + "only in "
     )

@@ -29,7 +29,7 @@ import { SESSIONS, SUPERSEDED, writeProposal } from "../sol/plain/sessions.js";
 import {
   announceChanges, approveLooked, formError, freeNonces, pendingList, reviewKey,
 } from "../sol/plain/sends.js";
-import { plainView } from "../sol/plain/view.js";
+import { appendPlainDestinations, plainSurfaces as plainView } from "./sol-view-rig.mjs";
 import * as W from "../sol/wasm/sol_wasm.js";
 import { loadRig, mainnetConfig } from "./sol-rig.mjs";
 
@@ -121,7 +121,7 @@ function built(build) {
 }
 const draw = (tab) => built(() => {
   t.ui.tab = tab;
-  return t.walletView(null, null);
+  return appendPlainDestinations(t, t.walletView(null, null));
 });
 const click = (node) => node.on.click({ preventDefault() {}, currentTarget: {} });
 // document.getElementById finds the nodes of `tree`, as it finds those of the page just drawn.
@@ -271,7 +271,7 @@ const READ = "Zigs has not read the balance yet.";
   assert.equal(mark(usdc, "asset-usdc").attrs["aria-pressed"], "true");
   plain.pick("sol");
   assert.deepEqual(live(mark(draw("solana"), "send-form")).map((n) => n.attrs.id),
-    ["sol-plain-saved-hint"], "the only live node of the form is the picker of the Address book");
+    [], "an empty Address book adds no unnecessary picker or live hint");
 }
 step("USDC is offered only when the read shows the token account");
 
@@ -776,7 +776,7 @@ step("Create nonce and Enable USDC are disabled with a one-line reason");
   assert.equal(mark(tab, "error-t0"), undefined);
   const open = all(tab, (n) => n.tag === "li").length;
   assert.equal(open, list.length, "every send has its row");
-  const finished = one(tab, (n) => n.tag === "details");
+  const finished = one(tab, (n) => n.tag === "details" && text(n.kids[0]).startsWith("Finished"));
   assert.match(text(finished.kids[0]), /^Finished \(4\)$/,
     "the ended sends are in a details element");
   assert.equal(finished.attrs.open, undefined);

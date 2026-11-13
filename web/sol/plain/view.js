@@ -8,7 +8,7 @@ import { base58 } from "../docs.js";
 import { feeMismatch, mismatchText, publishedFee } from "../fee.js";
 import { holdsShare, solOf, stopOf } from "../secrets.js";
 import { labelOf } from "../wallet.js";
-import { privacyBadge } from "../../privacy-language.js";
+import { PLAIN_EXPOSURE, privacyBadge } from "../../privacy-language.js";
 import {
   BUSY, NOTHING_SIGNED, STEP_TEXT, TITLE_KEY, focusKey, payerSeat, resultText,
 } from "./direct.js";
@@ -118,12 +118,14 @@ function copyButton(c, text, what, mark) {
     }
     setTimeout(() => say("Copy", "Copy " + what, ""), COPIED_MS);
   };
-  const attrs = { class: "btn sm", type: "button", "data-sol": mark, "aria-label": "Copy " + what };
+  const attrs = { class: mark === "copy-address" ? "btn primary" : "btn sm", type: "button",
+    "data-sol": mark, "aria-label": "Copy " + what };
   return [el("button", { ...attrs, onclick: copy }, "Copy"), status];
 }
 
 function head(c, status) {
   const { el } = c.host;
+  if (status === "ready") return el("span", { "data-sol": "status", hidden: true }, status);
   return el(
     "div",
     { class: "card-head" },
@@ -191,12 +193,20 @@ function receive(c, address) {
   const link = el("a", { class: "btn sm", href: EXPLORER + address, target: "_blank",
     rel: "noopener noreferrer", "data-sol": "explorer" }, "Open in explorer",
   el("span", { class: "sr-only" }, " (opens in a new tab)"));
-  return el("div", { style: GRID, role: "group", "aria-label": "Receive SOL and USDC",
-    "data-key": "sol-receive", tabindex: "-1" }, ...addressLines(el, address),
+  return el("section", { class: "sol-receive-card", role: "group",
+    "aria-label": "Receive SOL and USDC",
+    "data-key": "sol-receive", tabindex: "-1" },
+  el("div", { class: "sol-receive-heading" }, el("h3", {}, "Receive SOL or USDC"),
+    el("span", { class: "small muted" }, NETWORK)),
+  el("div", { class: "sol-receive-body" },
+    c.host.qrBox ? el("div", { class: "sol-receive-code", "data-sol": "receive-qr" },
+      c.host.qrBox(address, NETWORK + " receive address QR code", 208)) : null,
+    el("div", { class: "sol-receive-destination" }, ...addressLines(el, address),
+      el("div", { class: "row-actions" },
+        copyButton(c, address, "the Solana address", "copy-address"),
+        c.host.openSolDetails ? null : link))),
   el("p", { class: "small" }, RECEIVE_ONLY),
-  el("div", { class: "row-actions" }, copyButton(c, address, "the Solana address", "copy-address"),
-    link),
-  el("p", { class: "small muted" }, EXPLORER_NOTE));
+  el("p", { class: "small muted", "data-sol": "facts" }, FACTS));
 }
 
 // A published fee key that the key share of this browser does not give is not shown as an address:
@@ -382,10 +392,38 @@ function sendSetup(c, actions) {
 }
 
 function ready(c, act, actions, done) {
-  const read = readTexts(c);
-  return [facts(c), balances(c, read), receive(c, base58(done.groupKey)),
-    sendForm(c, act, actions), sendList(c, actions), sendSetup(c, actions),
-    fees(c, read), backup(c, act, actions)];
+  const { el } = c.host;
+  const target = (surface, title) => c.host.openSolDetails
+    ? el("button", { class: "btn ghost sm", type: "button", "data-sol": "open-" + surface,
+      onclick: () => c.host.openSolDetails(surface) }, title)
+    : el("details", {}, el("summary", {}, title), plainDetailsView(c, act, actions, surface));
+  return [receive(c, base58(done.groupKey)),
+    el("details", { class: "sol-payment-tools", "data-key":
+      "sol-tools-" + (c.host.solanaAction?.() ?? "receive"),
+      open: c.host.solanaAction?.() === "send" },
+      el("summary", {}, "Send SOL or USDC"), el("div", { class: "sol-detail-body" },
+        sendForm(c, act, actions), sendList(c, actions))),
+    el("div", { class: "row-actions sol-detail-links" },
+      target("settings", "Solana settings"), target("security", "Security & privacy"))];
+}
+
+/** Account maintenance belongs in Settings; custody and provider disclosures in Security. */
+export function plainDetailsView(c, act, actions, surface) {
+  const { el } = c.host;
+  if (surface === "security") return el("div", { class: "sol-detail-body" }, facts(c),
+    el("p", { class: "small" }, PLAIN_EXPOSURE),
+    el("p", { class: "small" }, START_NOTE));
+  const ag = agreement(c);
+  if (ag.state !== "agree" || stopOf(c)) return el("p", { class: "small" },
+    "Finish Solana setup to manage this account.");
+  const address = base58(ag.done.groupKey), read = readTexts(c);
+  return el("div", { class: "sol-detail-body" }, balances(c, read),
+    sendSetup(c, actions), fees(c, read),
+    el("details", {}, el("summary", {}, "Solana recovery files"), backup(c, act, actions)),
+    el("details", {}, el("summary", {}, "View on Solana Explorer"),
+      el("p", { class: "small muted" }, EXPLORER_NOTE),
+      el("a", { class: "btn sm", href: EXPLORER + address, target: "_blank",
+        rel: "noopener noreferrer", "data-sol": "explorer" }, "Open in explorer")));
 }
 
 /**

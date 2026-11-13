@@ -25,7 +25,8 @@ const PUBLIC_TEXT = { mainnet: "Enter a Solana address.",
 export const recipientKind = (v) => v.asset === "ZEC"
   ? v.type === "shielded" && ["testnet", "mainnet"].includes(v.network)
   : mainnetPublic(v)
-    || (v.asset === "SOL" && v.network === "devnet" && ["shielded", "public"].includes(v.type));
+    || (v.asset === "SOL" && ((v.network === "devnet" && ["shielded", "public"].includes(v.type))
+      || (v.network === "mainnet" && v.type === "shielded")));
 
 /** A strict versioned record. Unknown/damaged records must be kept, never replaced by empty. */
 export function readRecipients(value) {
@@ -64,7 +65,11 @@ export function checkedRecipient(value, normalizeZec) {
     if (!publicSolAddress(address)) throw new Error(PUBLIC_TEXT[network]);
   } else {
     address = address.toLowerCase();
-    if (!shieldedSolAddress(address)) throw new Error("Enter the full shielded Solana address (99 bytes).");
+    if (network === "mainnet") {
+      if (!address.startsWith("solana-mainnet:") || !shieldedSolAddress(address.slice("solana-mainnet:".length))) {
+        throw new Error("Enter the full solana-mainnet: shielded address from the recipient wallet.");
+      }
+    } else if (!shieldedSolAddress(address)) throw new Error("Enter the full shielded Solana address (99 bytes).");
   }
   return { name, address, asset, network, type };
 }

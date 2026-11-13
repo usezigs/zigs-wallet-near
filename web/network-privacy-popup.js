@@ -137,7 +137,7 @@ function wireDialog(dialog, close) {
   });
 }
 
-export function installPrivacyPopup() {
+export function installPrivacyPopup({ showStatus = true } = {}) {
   if (controller) return controller;
   let screen = "offer", step = 0, timer = null, epoch = 0, origin = null;
   const status = button("", () => open(status), false, {
@@ -156,6 +156,7 @@ export function installPrivacyPopup() {
   // One place: the slot of the side panel (between the logo and Menu on a phone). Wallet setup
   // hides the side panel (app.css), so the setup header takes the chip there.
   function mount(root) {
+    if (!showStatus) return;
     const app = root.querySelector("#app"), slot = root.querySelector("#privacy-slot");
     if (!app || !slot) return;
     const guided = app.querySelector(".guided-setup, .guided-plan");

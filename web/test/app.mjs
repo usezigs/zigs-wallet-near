@@ -1868,14 +1868,12 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
           + "amounts, the memos and the note, in the shared history of the wallet\\. So can "
           + "anyone who has its invite link\\. A memo goes on chain with the payment, and its "
           + "recipient can read it too\\."), "the review says who can read the payment now");
-        assert.match(textOf(shown), new RegExp("A device that a later Change devices leaves out "
-          + "keeps the viewing key and the messages of this wallet\\. It can still read this "
-          + "history and each later payment of this wallet\\. It cannot read the new wallet\\. "
-          + "The move payment gives it the address, the amount and the note of that payment, and "
-          + "the id of the new wallet\\. With the id, the device can get the sealed documents of "
-          + "the new wallet and each later write from the group server\\. The server also accepts "
-          + "writes from it, so the device can stop the new wallet with false documents\\."),
-        "the review says what a device left out later keeps");
+        const privacyDetails = all(shown, (x) => x.tag === "details"
+          && textOf(x).startsWith("Payment privacy details"))[0];
+        assert.ok(privacyDetails, "payment explanations remain available on demand");
+        assert.equal(privacyDetails.attrs.open, undefined, "generic privacy theory starts collapsed");
+        assert.doesNotMatch(textOf(shown), /A device that a later Change devices leaves out/,
+          "device-removal guidance belongs with Change devices");
         assert.ok(named(shown, "button", "Request approvals"), "a match can be proposed");
         const headOf = (d) => textOf(all(d, (x) => x.className === "card-head")[0].kids[0]);
         const testnetG = t.state.g, testnetShown = [headOf(shown), textOf(shown)];

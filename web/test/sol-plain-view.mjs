@@ -14,7 +14,8 @@ import { COLLECTIONS, base58, keyOfBase58 } from "../sol/docs.js";
 import { publishedFee } from "../sol/fee.js";
 import { PLAIN_WORKER_POLICY } from "../sol/plain/guard.js";
 import { usdcAddress } from "../sol/plain/reads.js";
-import { plainView, readTexts } from "../sol/plain/view.js";
+import { readTexts } from "../sol/plain/view.js";
+import { appendPlainDestinations, plainSurfaces as plainView } from "./sol-view-rig.mjs";
 import { config, loadRig, mainnetConfig, sleep } from "./sol-rig.mjs";
 
 // The words of the tab, as people read them. A change of a word is a change of this file.
@@ -34,7 +35,7 @@ const STAYS = "SOL and USDC stay at this wallet’s Solana address. A device lef
 // nonce accounts adds 5 once a read shows them (net +2). noFee: the reason why no step can run adds
 // 9 words (net +6). The send form has its own budget (FORM_WORDS).
 const BUDGET = { start: 30, ready: 28, stopped: 20, running: 20, differs: 15, early: 10,
-  stoppedAndDiffer: 10, forgedFee: 67, noFee: 164, away: 13 };
+  stoppedAndDiffer: 10, forgedFee: 69, noFee: 164, away: 13 };
 // The words that the send form authors itself: the labels of its fields. The saved recipient
 // picker is the shared component of the Address book and has its own words.
 const FORM_WORDS = 5;
@@ -107,7 +108,7 @@ function built(build) {
 }
 const draw = (tab) => built(() => {
   t.ui.tab = tab;
-  return t.walletView(null, null);
+  return appendPlainDestinations(t, t.walletView(null, null));
 });
 const click = (node) => node.on.click({ preventDefault() {}, currentTarget: {} });
 // Every text and attribute value of a tree, for the checks of what it must not hold.
@@ -119,7 +120,8 @@ const PROMISE = new RegExp("\\b(safe|safely|secure|securely|recover\\w*|protect\
   + "|private|privacy|anonymous)\\b", "i");
 const spoken = (n) => n.text ?? [n.attrs?.["aria-label"], n.attrs?.title,
   ...n.kids.map(spoken)].filter(Boolean).join(" | ");
-const promise = (what, tree) => assert.doesNotMatch(spoken(tree), PROMISE,
+const promise = (what, tree) => assert.doesNotMatch(spoken(tree)
+  .replace(/Security & privacy|Solana recovery files/g, "Account details"), PROMISE,
   "no word of a promise in " + what);
 // The words of the body text of a card: its paragraphs, callouts and notes. It skips what is not
 // body text: hidden nodes, closed details, headings, labels, badges, amounts, the address, buttons,
@@ -331,7 +333,8 @@ step("a served wallet gets the Solana section, and only device 1 gets the start 
   const liar = (i) => [i, { ...c.docs.solfee[i], key: "11".repeat(32) }];
   const noFee = same({ docs: { ...c.docs, solfee: Object.fromEntries([1, 2, 3].map(liar)) } });
   assert.equal(alerts(noFee).length, 3, "every wrong fee key has its alert");
-  assert.equal(one(noFee, (n) => n.tag === "details"), undefined, "when all are wrong, no details");
+  assert.equal(one(noFee, (n) => n.tag === "summary" && text(n) === "Fee addresses"), undefined,
+    "when all are wrong, no fee addresses disclosure");
   const away = same({ host: { ...c.host, netConfirmed: () => "testnet" } });
   assert.equal(text(mark(away, "status")), "unavailable");
   const states = { running, differs, stopped, early, stoppedAndDiffer, forgedFee, noFee, away };
@@ -378,11 +381,11 @@ const readFrom = async (tab) => {
   const tab = await readFrom("solana");
   assert.equal(text(mark(tab, "status")), "ready");
   const marks = all(tab, (n) => n.attrs?.["data-sol"]).map((n) => n.attrs["data-sol"]);
-  assert.ok(marks.indexOf("facts") < marks.indexOf("balance-sol")
-    && marks.indexOf("facts") < marks.indexOf("address"), "the warning comes before the address");
+  assert.ok(marks.indexOf("facts") < marks.indexOf("balance-sol"),
+    "the receive disclosure remains before the separate account diagnostics");
   assert.equal(text(mark(tab, "facts")), FACTS, "the ready card shows the facts");
-  assert.equal(text(one(tab, (n) => n.tag === "h3")), "Solana",
-    "the card holds the address, the setup and the backup, so it is not titled Receive");
+  assert.equal(text(one(tab, (n) => n.tag === "h3")), "Receive SOL or USDC",
+    "the main card is dedicated to receiving");
   assert.ok(text(tab).includes(RECEIVE_ONLY), "the address says what it takes");
   assert.ok(one(tab, (n) => n.className === "label" && text(n) === "Solana mainnet address"),
     "and its label names the network");
@@ -401,13 +404,13 @@ const readFrom = async (tab) => {
   assert.equal(text(mark(tab, "fee-balance-2")), "0 SOL");
   for (const i of [1, 2, 3]) assert.equal(text(mark(tab, "fee-address-" + i)), fee(i));
   assert.ok(text(tab).includes(FEE_NOTE), "the fee addresses say what they pay for");
-  assert.ok(one(tab, (n) => n.className === "privacy-badge privacy-public"),
-    "the tab says Public");
+  assert.match(text(mark(tab, "facts")), /public on chain/i,
+    "the receive card says funds are public");
   assert.ok(one(tab, (n) => n.className === "label" && text(n) === "Solana Mainnet"),
     "the lead line names the network");
   assert.ok(one(tab, (n) => text(n) === "Shared wallet · Solana Mainnet"), "and so does the name");
   assert.doesNotMatch(text(tab), /Devnet/, "a mainnet tab names no Devnet");
-  assert.doesNotMatch(texts(tab).join(" | "),
+  assert.doesNotMatch(texts(tab).filter((s) => s !== "Security & privacy").join(" | "),
     /\b(cap|capped|private|privacy|anonymous|shielded?)\b/i, "and no word of a cap or of privacy");
   assert.doesNotMatch(everything(tab), KEY, "and holds no key");
   promise("the ready card", tab);

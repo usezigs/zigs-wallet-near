@@ -1,3 +1,4 @@
+import { swapRecoveryRecord } from './swap-recovery.js';
 // Live NEAR Intents quotes, the live swap from SOL to ZEC (paid from a wallet outside Zigs, or by a
 // plain send of the Solana wallet of the group that app-swap-sol.js proposes), the live swap from
 // ZEC to SOL (paid by a group payment that app-swap-zec.js opens in Send) and local demo
@@ -65,8 +66,7 @@ const ZEC_PROPOSE = 'The payment needs the approvals of this wallet. Each device
   + 'Intents for this swap before it approves, and approves only a swap that pays this wallet. '
   + 'Keep the note of the payment as it is: it marks the payment as this swap. No device sends '
   + 'it in the last 30 minutes before the deadline.';
-const SWAP_KEEP = 'The swap goes on without this page. Keep a copy of the deposit address, the '
-  + 'quote ID and the quote signature: after a reload, this page cannot show this swap again.';
+const SWAP_KEEP = 'This swap continues independently of this page.';
 // The words of the deposit screen of each origin.
 const DEPOSIT_TEXT = Object.freeze({
   sol: { title: 'Live swap: SOL to ZEC', head: 'Untested payout', warn: UNTESTED,
@@ -161,7 +161,8 @@ const sameGroup = (source, w) => source.solGroup?.refundTo === w.refundTo
 function groupPay(source, live, now) {
   const p = live.proposal ?? {};
   const left = Date.parse(live.swap.deadline) - now;
-  return !!source.solGroup?.pay && sameGroup(source, live.swap) && !p.id && !p.busy
+  return !!source.live && (!live.restored || live.verified)
+    && !!source.solGroup?.pay && sameGroup(source, live.swap) && !p.id && !p.busy
     && left >= GROUP_MARGIN_MS;
 }
 // The words of the send `id` in the list of sends of the plain wallet.
@@ -183,9 +184,11 @@ function proposalState(group, live) {
 export function createSwapPreview(context = {}, provider = new NearIntentsSwapProvider(), clock) {
   let source = context, modal = null, observer = null, trigger = null, detailBlock = null;
   let pickerSide = null, searchText = '', rotation = 0;
-  let liveReview = null, shown = null, depositCopy = null, depositState = null;
+  let liveReview = null, shown = null, depositCopy = null, depositState = null, depositClose = null;
   // Who pays a live swap from SOL: 'group' (the plain Solana wallet) or 'outside'.
   let solPayer = 'outside';
+  let recoveryError = '', savedRecovery = '', recoverySaved = false, recoveryScope = source.id;
+  let recoveryBlocked = false;
   const model = new SwapPreviewModel(provider, update, clock);
   const pair = () => model.value.from + '>' + model.value.to;
   const liveRoute = () => !!source.live
@@ -280,7 +283,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   root.append(el('header', { class: 'swap-heading' },
     el('div', { class: 'swap-topline' }, headTag),
     el('h1', { id: 'swap-page-title' }, 'Swap'), subtitle),
-  el('div', { class: 'swap-mode-tabs', role: 'tablist', 'aria-label': 'Swap pages' }, modeTabs),
+
   el('div', { class: 'swap-panel', id: 'swap-panel-private', role: 'tabpanel',
     'aria-labelledby': 'swap-tab-private', tabindex: '0' },
   deposit,
@@ -315,6 +318,11 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
       el('section', { class: 'swap-privacy', 'aria-label': 'Route privacy' },
         icon('security'), el('div', {}, privacyHead, privacyLine,
           el('details', {}, el('summary', {}, 'What NEAR Intents sees'), privacyText)))))),
+  ...(source.demo === true ? [el('details', { class: 'workflow-details swap-experiments', ontoggle: (ev) => {
+    if (!ev.currentTarget.open && activeTab !== 'private') selectTab('private', false);
+  } }, el('summary', {}, 'Labs and interface demos'),
+    el('p', { class: 'swap-caption' }, 'Optional interface previews. No assets move.'),
+    el('div', { class: 'swap-mode-tabs', role: 'tablist', 'aria-label': 'Swap pages' }, modeTabs))] : []),
   el('section', { class: 'swap-panel swap-quantum-panel', id: 'swap-panel-quantum', role: 'tabpanel',
     'aria-labelledby': 'swap-tab-quantum', tabindex: '0', hidden: true },
     el('div', { class: 'swap-quantum-intro' },
@@ -338,8 +346,24 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
       text('', 'The full swap is not quantum-secure. Provider and public-chain visibility remain. '
         + ZEC_PRIVACY)),
     quantumFlow.element));
+  restoreRecovery();
   update();
 
+  function restoreRecovery() {
+    if (!source.recovery) return;
+    try {
+      const record = source.recovery.load();
+      if (record) { savedRecovery = JSON.stringify(record); recoverySaved = true; model.restoreSwap(record); }
+    } catch { recoveryBlocked = true; recoveryError = 'The saved swap cannot be read. Its encrypted copy has been kept. Check browser storage before starting another swap.'; }
+  }
+  function persistRecovery(live) {
+    if (!live?.swap || !source.recovery || recoveryBlocked) return;
+    try {
+      const record = swapRecoveryRecord(live), stamp = JSON.stringify(record);
+      if (stamp !== savedRecovery) source.recovery.save(record);
+      savedRecovery = stamp; recoverySaved = true; recoveryError = '';
+    } catch { recoverySaved = false; recoveryError = 'Swap recovery could not be saved. Keep this page open and keep the quote details.'; }
+  }
   function selectTab(id, focus = true) {
     if (id !== activeTab) { closeModal(); resetQuantumFlow(); }
     activeTab = id;
@@ -376,8 +400,8 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     destination.value = s.destination;
     receive.value = s.quote ? swapDecimal(s.quote.amountOut, to) : '—';
     receive.setAttribute('aria-label', 'Amount you receive: ' + receive.value + ' ' + to.symbol);
-    error.textContent = s.error;
-    error.hidden = !s.error;
+    error.textContent = recoveryBlocked ? recoveryError : s.error;
+    error.hidden = !error.textContent;
     const ready = !!s.quote && ['QUOTE_READY', 'REVIEW_CANCELLED'].includes(s.phase);
     if (s.phase === 'REVIEW_CANCELLED') model.resume();
     review.disabled = !ready || (source.demo !== true && !liveRoute());
@@ -597,9 +621,9 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     } });
     const review = { update(now) {
       const block = why() || '';
-      go.disabled = !!now.live || !ready() || !!block || !agreed;
-      errorLine.textContent = now.live?.swap ? 'Close the open live swap first.'
-        : now.swapError || block;
+      go.disabled = !!now.live || !ready() || !!block || !agreed || recoveryBlocked;
+      errorLine.textContent = now.live?.swap ? 'Finish tracking the current swap before starting another.'
+        : recoveryError || now.swapError || block;
       errorLine.hidden = !errorLine.textContent;
     } };
     liveReview = review;
@@ -701,15 +725,35 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   // the person closes it: a wallet switch or an old quote does not remove an address in use.
   function drawDeposit(s) {
     const live = s.live?.swap ? s.live : null;
+    persistRecovery(live);
     deposit.hidden = !live;
     if (!live) { shown = null; deposit.replaceChildren(); return; }
+    if (live.restored && !live.verified) {
+      shown = null;
+      deposit.replaceChildren(el('h2', { id: 'swap-deposit-title' }, 'Checking your saved swap'),
+        text('swap-caption', live.statusError || 'Verifying the saved route with NEAR Intents before showing payment details.'));
+      return;
+    }
+    if (live.collapsed) {
+      shown = null;
+      deposit.replaceChildren(el('h2', { id: 'swap-deposit-title' }, 'Swap in progress'),
+        text('swap-caption', swapState(live)),
+        button('View swap details', 'swap-secondary', () => { live.collapsed = false; update(); }));
+      return;
+    }
     if (shown !== live) { shown = live; buildDeposit(live); }
+    depositClose.textContent =
+      SWAP_FINAL.includes(live.status?.status) ? 'Done' : 'Hide details';
     const waiting = !live.status || ['unknown', 'PENDING_DEPOSIT'].includes(live.status.status);
     const expired = model.swapExpired(), words = DEPOSIT_TEXT[depositKind(live)];
     depositCopy.hidden = expired || !waiting;
     depositCopy.disabled = !payOn(live);
     const tx = (name, list) => (list?.length ? [detail(name, list.map(addressText))] : []);
     depositState.replaceChildren(...proposalState(source.solGroup, live),
+      ...(live.proposal?.recovering ? [text('swap-caption', 'A previous payment proposal may exist. Review Approvals before proposing another.')] : []),
+      ...(recoveryError || live.recoveryRemovalError ? [text('swap-error', recoveryError || live.recoveryRemovalError)] : recoverySaved
+        ? [text('swap-caption', 'Swap progress is saved encrypted in this browser.')]
+        : [text('swap-caption', 'Keep this page open and keep the quote details. Swap progress is not saved in this browser.')]),
       el('p', { class: 'swap-deposit-status', role: 'status' }, 'Status: ' + swapState(live)),
       ...(expired ? [text('swap-error', words.expired)] : []),
       ...(live.statusError && !SWAP_FINAL.includes(live.status?.status)
@@ -728,12 +772,13 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   // The button of a deposit that this wallet pays is on only while the open wallet can pay it.
   // The copy button of a payment from outside is always on.
   function payOn(live) {
+    if (!source.live || live.restored && !live.verified) return false;
     if (live.group) return groupOk(live);
     return live.from === 'zec' ? !!zecPay(live.swap) : true;
   }
   // A click can come after the margin and before the next redraw: it redraws the button as off.
   async function proposeGroup(live) {
-    if (!groupOk(live)) { update(); return; }
+    if (!source.live || !groupOk(live)) { update(); return; }
     live.proposal = { busy: true }; update();
     try {
       live.proposal = { id: await source.solGroup.pay(live.swap) };
@@ -750,7 +795,9 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
         { disabled: !groupOk(live), 'data-key': 'swap-propose' });
     }
     if (live.from !== 'zec') return copyBtn(w.depositAddress, 'Copy address', 'swap-secondary');
-    return button('Propose the payment', 'swap-primary', () => zecPay(w)?.(w),
+    return button('Propose the payment', 'swap-primary', () => {
+      if (payOn(live) && !model.swapExpired()) zecPay(w)?.(w);
+    },
       { disabled: !zecPay(w), 'data-key': 'swap-propose' });
   }
   function buildDeposit(live) {
@@ -760,6 +807,12 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     const amount = (value, asset) => swapDecimal(value, asset) + ' ' + asset.symbol;
     depositCopy = depositAction(live);
     depositState = el('div', { class: 'swap-deposit-state' });
+    depositClose = button('Hide details', 'swap-secondary', () => {
+      if (!SWAP_FINAL.includes(live.status?.status)) { live.collapsed = true; update(); return; }
+      try { source.recovery?.remove(); }
+      catch { live.recoveryRemovalError = 'The saved swap could not be removed. Check browser storage and try Done again.'; update(); return; }
+      savedRecovery = ''; recoverySaved = false; model.closeSwap();
+    }, { 'data-key': 'swap-close-deposit' });
     deposit.replaceChildren(
       el('div', { class: 'swap-deposit-heading' },
         el('h2', { id: 'swap-deposit-title' }, words.title), previewTag(true)),
@@ -773,21 +826,28 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
         detail('Refund address', addressText(w.refundTo)),
         detail('Payout', 'About ' + amount(w.amountOut, got) + ', at least '
           + amount(w.minAmountOut, got)),
-        detail('Paid to', [live.wallet + ' · ', addressText(w.recipient)]),
-        detail('Quote ID', w.correlationId || '—'),
-        detail('Quote signature', w.signature ? addressText(w.signature) : '—')),
-      depositCopy, depositState, text('swap-caption', SWAP_KEEP),
-      button('Close', 'swap-secondary', () => model.closeSwap(),
-        { 'data-key': 'swap-close-deposit' }));
+        detail('Paid to', [live.wallet + ' · ', addressText(w.recipient)])),
+      depositCopy, depositState,
+      el('details', { class: 'workflow-details' }, el('summary', {}, 'Quote and recovery details'),
+        el('dl', { class: 'swap-review-details' }, detail('Quote ID', w.correlationId || '—'),
+          detail('Quote signature', w.signature ? addressText(w.signature) : '—')),
+        text('swap-caption', SWAP_KEEP)),
+      depositClose);
   }
   // A change of any of these closes the dialogs and drops the quote. The addresses of a swap from
   // ZEC count only on that route.
   const where = (c) => [c.id, c.threshold, c.networks, c.payout?.address,
     ...(fromZec() ? [c.zec?.recipient, c.zec?.refundTo] : [])].join('\n');
   return { element: root, model, setContext(next) {
+    const changedWallet = recoveryScope !== next.id;
+    if (changedWallet) {
+      model.closeSwap(); savedRecovery = ''; recoverySaved = false; recoveryError = ''; recoveryBlocked = false;
+    }
     if (where(source) !== where(next)) {
       closeModal(); resetQuantumFlow(); model.stale();
     }
-    source = next; update();
+    source = next;
+    if (changedWallet) { recoveryScope = next.id; restoreRecovery(); }
+    update();
   } };
 }

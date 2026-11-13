@@ -6,7 +6,7 @@ import { initials } from "./app-kit.js";
 import { offReason } from "./util.js";
 import { engineSettled, Z } from "./app-engine.js";
 import {
-  acknowledgeUnprotectedSetup, canSkipPasskeyProtection, chats, forgetVault, lockedVault,
+  acknowledgeUnprotectedSetup, canSkipPasskeyProtection, chats, forgetVault, gkeys, lockedVault,
   lockWithPasskey, mySeatSecrets, passkeyProtected, protectionUnverified, requireSetupProtection,
   setupProtectionReady, storageOk, unlockVault, vault,
 } from "./app-keystore.js";
@@ -28,7 +28,7 @@ import { personalCard } from "./app-account-view.js";
 import { messagingWorkspace } from "./app-messaging-workspace.js";
 import { helpView } from "./app-help.js";
 import {
-  browserProtectionExplanation, passkeyIllustration, securityExplanation, setupArrangement, thresholdExplanation, tutorialDiagram,
+  browserProtectionExplanation, passkeyIllustration, securityExplanation, setupArrangement, thresholdExplanation,
   updateSetupIllustrations,
 } from "./app-tutorial.js";
 import { beginGuided, guidedEnabled, resumeGuided } from "./app-guided-setup.js";
@@ -37,11 +37,12 @@ import { focusAfter, once, render } from "./app-loop.js";
 import { currentSection, moveWord, solStays, walletShown } from "./app-wallet.js";
 import { icon, sculptedIcon } from "./app-icons.js";
 import { createSwapPreview } from "./app-swap-preview.js";
+import { createSwapRecovery } from "./swap-recovery.js";
 import { solSwapSource, swapPayout } from "./app-swap-sol.js";
 import { zecSwapSource } from "./app-swap-zec.js";
 import { generalSettings, settingsDisclosure, settingsGroup, settingsRow } from "./app-settings-ui.js";
 import { walletMark } from "./app-wallet-art.js";
-import { networkPrivacySettings } from "./app-network-privacy.js";
+import { labsSettings, networkPrivacySettings } from "./app-network-privacy.js";
 import { openHowZigsWorks } from "./app-how-zigs-works.js";
 
 /**
@@ -498,6 +499,7 @@ const nearLive = () => document.documentElement?.dataset?.nearLive === "1";
 let swapPreview;
 export function swapWorkspace() {
   const context = { id: state.g?.id, name: state.g?.name, live: nearLive(), payout: swapPayout(),
+    recovery: createSwapRecovery(Z, gkeys[state.gid], state.gid),
     zec: zecSwapSource(), solGroup: solSwapSource(),
     networks: state.g && state.g.network === "mainnet" ? 'Zcash ' + netOf(state.g).label
       : 'Zcash Testnet · Solana Devnet',
@@ -548,7 +550,7 @@ export function settingsWorkspace() {
         : "Open a wallet to see its description, address and approval requirements.",
       el("button", { class: "btn sm", type: "button", onclick: () => { ui.tab = "overview"; render(); } },
         state.g ? "Return to wallet" : "Choose wallet"))),
-    browserSettings(), helpView());
+    browserSettings(), helpView(), labsSettings());
 }
 
 function walletRow(g, tab = "overview") {
@@ -987,16 +989,9 @@ const ruleStep = (lines) => step(1,
   el("details", { class: "setup-threshold-details" }, el("summary", {}, "How the approval threshold works"),
     thresholdExplanation(ui.createDraft?.n ?? 3, ui.createDraft?.t ?? 2)));
 const namesStep = () => step(2,
-  el("div", { class: "setup-device-layout" },
-    el("div", { class: "setup-device-visual" },
-      setupArrangement(ui.createDraft?.n ?? 3, ui.createDraft?.t ?? 2, "names", ui.createDraft ?? {}),
-      el("p", { class: "small muted" }, "This device creates and keeps its own signing share. Give it a label you’ll recognize; a label is not proof of identity or physical independence.")),
+  el("div", { class: "setup-device-layout setup-labels-layout" },
     el("div", { class: "setup-device-fields" },
   ...names(null),
-  el("label", { class: "field" }, el("span", {}, "Description (optional, private to this browser)"),
-    el("textarea", { class: "input", id: "g-description", name: "description", rows: "2", maxlength: "280",
-      autocomplete: "off", "aria-describedby": "g-description-help" }, ui.createDraft?.description || ""),
-    el("span", { class: "small muted", id: "g-description-help" }, "Stored only in this browser, outside the passkey vault and recovery files. Do not put secrets here.")),
   el("div", { class: "setup-network-choice" }, networkPick(), !MAINNET_ON
     ? el("div", { class: "net-opt setup-network-unavailable", "aria-disabled": "true" },
       el("strong", {}, "Mainnet"), el("span", { class: "small muted" }, "Unavailable in this release")) : null),

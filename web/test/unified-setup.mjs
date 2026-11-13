@@ -761,7 +761,7 @@ function receiveTexts() {
     const main = receiveDialog();
     assert.ok(byText(main, "Zcash Mainnet"), "a mainnet wallet reads Mainnet");
     assert.doesNotMatch(textOf(main), /testnet|faucet/i, "and claims no testnet");
-    assert.match(textOf(main), /Send only ZEC on Zcash Mainnet to this address\./);
+    assert.match(textOf(main), /Only ZEC on Zcash Mainnet\. Funds need 3 confirmations\./);
     assert.match(textOf(main), new RegExp("The devices of this wallet and anyone who has the "
       + "invite link can see its balance and history\\. A device that Change devices leaves out "
       + "later can still see them\\."));
@@ -2208,9 +2208,11 @@ async function walkSteps(fields, times, fresh = true) {
   await t.sol.add();
   const done = (i) => data.has(`groups/${gidS}/soldone/${i}`);
   await waitFor("every soldone", () => [1, 2, 3].every(done), 30000);
-  // S15: the tab says the status in a sentence.
+  // Receive leads with the address; account setup status remains in Settings.
   ui.tab = "solana";
-  await waitFor("the ready tab", () => /The Solana part is ready\./.test(pageText()));
+  await waitFor("the ready receive screen", () => /Receive SOL/.test(pageText()));
+  ui.tab = "settings";
+  assert.match(pageText(), /Device setupDevice 1: key ready/);
   ui.tab = "overview";
   // The side item and the inbox read the live documents: their checks end first.
   await waitFor("the documents are checked", () => !t.sol.ctl.wait && !t.sol.ctl.sessWait);
@@ -2463,6 +2465,13 @@ async function walkSteps(fields, times, fresh = true) {
     titles.forEach((_label, i) => {
       const section = findNode(tree, (n) => n.attrs?.["aria-labelledby"] === "create-step-" + i);
       assert.equal(section.attrs.hidden === "", i !== at, "other step bodies stay hidden");
+      if (i === 2) {
+        assert.equal(findNode(section, (n) => n.tag === "figure"), null,
+          "the label step does not repeat the device diagram");
+        assert.ok(byId(section, "g-name") && byId(section, "my-name"),
+          "the label step keeps the wallet and device fields");
+        return;
+      }
       const explanation = i === 3
         ? findNode(section, (n) => n.attrs?.["data-security-explanation"] === "review")
         : findNode(section, (n) => n.tag === "figure");
@@ -2507,8 +2516,7 @@ assert.match(marginText(3, 3), /Each payment needs every device/);
       assert.equal(byId(tree, "g-n-less").attrs.disabled === "", n === 2);
       assert.equal(byId(tree, "g-t-more").attrs.disabled === "", approvals === n);
       const names = findNode(tree, (node) => node.attrs?.["data-preview"] === "names");
-      assert.equal(findNode(names, (node) => node.attrs?.["data-education"] === "approval"), null,
-        "the orange examples are limited to the threshold illustration");
+      assert.equal(names, null, "the diagram is limited to the threshold step");
     }
   } finally { ui.createDraft = draft; }
 }

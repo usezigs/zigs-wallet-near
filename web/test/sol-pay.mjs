@@ -36,7 +36,7 @@ import {
   approveSeats,
 } from "../sol/payview.js";
 import { writePart } from "../sol/sessions.js";
-import { solView } from "../sol/view.js";
+import { solSurfaces as solView } from "./sol-view-rig.mjs";
 import { POOL_SLOT, verifies } from "./sol-chain.mjs";
 import { G, preparedOf, transactOf, utxoOf } from "./sol-fixture.mjs";
 import {
