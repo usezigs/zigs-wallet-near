@@ -711,8 +711,9 @@ async function revisionLayout(scene, width, theme) {
     const hero = document.querySelector('.home-hero').getBoundingClientRect();
     const art = document.querySelector('.home-hero-art');
     const image = art.getBoundingClientRect();
-    const logo = document.querySelector('.side .logo'), style = getComputedStyle(logo);
-    const brand = document.querySelector('.side .logo img'), mark = brand.getBoundingClientRect();
+    const logo = document.querySelector('.side .logo');
+    const style = getComputedStyle(logo.querySelector('.logo-word'));
+    const brand = logo.querySelector('.nav-zebra'), mark = brand.getBoundingClientRect();
     const figure = document.querySelector('.home-threshold');
     const artStyle = getComputedStyle(art);
     return {
@@ -725,7 +726,7 @@ async function revisionLayout(scene, width, theme) {
           const px=image.left+image.width*x,py=image.top+image.height*y;
           return px>=hero.left && px<=hero.right && py>=hero.top && py<=hero.bottom;
         }) },
-      header:{fontSize:parseFloat(style.fontSize),gap:parseFloat(style.columnGap),
+      header:{fontSize:parseFloat(style.fontSize),gap:parseFloat(getComputedStyle(logo).columnGap),
         imageWidth:mark.width,imageHeight:mark.height,wordmark:logo.textContent.trim()},
       diagramInside: !!figure?.closest('.home-hero') && figure.checkVisibility()
         && !figure.closest('[aria-hidden="true"]'),
@@ -739,10 +740,10 @@ async function revisionLayout(scene, width, theme) {
   check(result.artwork.identityClear,label+' eye, ears and muzzle remain in the scene');
   check(result.artwork.objectFit==='contain',label+
     ' source artwork retains its aspect and contain fit');
-  check(result.header.fontSize===(mobile?22:24),label+' approved wordmark font size');
-  check(result.header.imageWidth===(mobile?36:40) && result.header.imageHeight===(mobile?36:40),
+  check(result.header.fontSize===(mobile?28:32),label+' approved wordmark font size');
+  check(result.header.imageWidth===(mobile?36:44) && result.header.imageHeight===(mobile?36:44),
     label+' approved header image dimensions');
-  check(result.header.gap===12,label+' header gap is 12px');
+  check(result.header.gap===(mobile?8:10),label+' mark and wordmark stay optically grouped');
   check(result.diagramInside && result.heroDiagram===1 && result.diagramCount===1,
     label+' single labelled policy example is visible in the hero');
   check(result.diagramClosed,label+' education starts collapsed');

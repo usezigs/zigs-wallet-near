@@ -13,7 +13,7 @@ function AppShell() {
     <div className="shell">
       <Glass as="aside" material="frosted" className="side" aria-label="Wallets">
         <a className="logo" href="#" aria-label="Zigs home">
-          <span className="nav-zebra"><img src="/logo.png?v=fingerprint-17dbdecb64d0" alt="" width="44" height="44" /></span>
+          <span className="nav-zebra" aria-hidden="true" />
           <span className="logo-word">Zigs</span>
         </a>
         <Button className="btn wallet-menu" id="wallet-menu" type="button" data-key="menu"

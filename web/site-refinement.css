@@ -10,6 +10,13 @@
   font-style:normal; font-weight:200 800; font-display:swap;
   unicode-range:U+0100-02FF,U+0304,U+0308,U+0329,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
 }
+/* Bricolage Grotesque, optical size 32 / weight 650. Only the Zigs wordmark glyphs.
+   Source: Google Fonts (ateliertriay/bricolage), SIL OFL; served locally. */
+@font-face {
+  font-family:"Zigs Wordmark"; src:url('/fonts/zigs-wordmark.woff2') format('woff2');
+  font-style:normal; font-weight:650; font-display:swap;
+  unicode-range:U+005A,U+0067,U+0069,U+0073;
+}
 body { -webkit-font-smoothing:antialiased; }
 ::selection { background:var(--accent); color:var(--on-accent); }
 h1,h2,h3,h4 { font-weight:500; letter-spacing:0; }
@@ -21,10 +28,20 @@ h1 { letter-spacing:-.035em; }
 
 /* A quiet, compact rail. Wallet context remains distinct from the selected page. */
 .side { padding:24px 16px 16px; gap:24px; background:var(--side); border-right:1px solid var(--line); box-shadow:none; }
-.side .logo { gap:12px; padding:0 8px; min-height:40px; font-size:24px; line-height:1; font-weight:500; letter-spacing:-.04em; }
-.logo .nav-zebra { display:grid; place-items:center; width:36px; height:36px; padding:4px;
-  background:#080909; border:1px solid #333737; border-radius:8px; }
-.logo .nav-zebra img { display:block; width:26px; height:28px; object-fit:contain; border:0; border-radius:0; box-shadow:none; filter:none; }
+/* The original zebra is the mark, rather than a badge around it. Its alpha mask
+   follows the same theme ink as the wordmark without changing the source artwork. */
+.side .logo { gap:10px; padding:0 4px; min-height:48px; flex-wrap:nowrap;
+  width:fit-content; max-width:100%; color:var(--text); }
+.logo .nav-zebra { display:block; flex:none; width:44px; height:44px; padding:0;
+  border:0; border-radius:0; box-shadow:none; background:currentColor;
+  -webkit-mask:url('/logo.png?v=fingerprint-17dbdecb64d0') center/contain no-repeat;
+  mask:url('/logo.png?v=fingerprint-17dbdecb64d0') center/contain no-repeat; }
+.side .logo .logo-word { display:block; flex:none; font-family:"Zigs Wordmark",var(--sans);
+  font-size:32px; font-weight:650; line-height:1.1; letter-spacing:-.025em; }
+.side .logo:focus-visible { outline:2px solid var(--focus); outline-offset:4px; border-radius:4px; }
+@media(forced-colors:active) {
+  .logo .nav-zebra { forced-color-adjust:none; color:LinkText; }
+}
 #side-nav { gap:4px; }
 .side-item,.side-item[id^=tab-] { grid-template-columns:20px minmax(0,1fr) auto; gap:12px;
   min-height:36px; padding:8px 12px; border:0; border-radius:8px;
@@ -256,9 +273,9 @@ h1 { letter-spacing:-.035em; }
 }
 @media(max-width:760px) {
   .side { padding:12px 20px; gap:12px; }
-  .side .logo { min-height:40px; font-size:22px; padding:0; }
-  .side .nav-zebra { width:32px; height:32px; }
-  .logo .nav-zebra img { width:24px; height:26px; }
+  .side .logo { min-height:48px; padding:0; gap:8px; }
+  .side .nav-zebra { width:36px; height:36px; }
+  .side .logo .logo-word { font-size:28px; }
   .side-item,.side-item[id^=tab-] { min-height:48px; padding:12px; font-size:14px; }
   .side-head>.icon-btn { width:48px; min-width:48px; height:48px; }
   .main { padding:24px var(--layout-gutter) 40px; }
