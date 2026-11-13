@@ -9,17 +9,24 @@ const localSaved = (p) => p.local && p.has && p.saved === true;
 const reportedChecked = (p) => !p.local && p.reported && p.checked === true;
 const needsSave = (p) => p.local && p.has && !p.saved && !p.checked;
 const needsCheck = (p) => p.local && p.has && !p.checked && p.checkable;
+const localFilesComplete = (total, checked, storageIssue, files) => total > 0
+  && checked === total && !storageIssue && files.every((p) => !p.unknown && !p.missing);
 
 function recoveryCounts(f, valid, files, chains) {
   const total = valid && knownScope(f) ? f.n * chains.length : null;
   const checked = files.filter(localChecked).length;
+  const local = files.filter((p) => p.local);
+  const localTotal = total === null ? null : local.length;
+  const localComplete = localFilesComplete(localTotal, checked, f.storageIssue, local);
   const allChecked = total !== null && checked === total && !f.storageIssue;
-  return { total, checked, allChecked, saved: files.filter(localSaved).length,
+  return { total, localTotal, localComplete, checked, allChecked,
+    saved: files.filter(localSaved).length,
     reported: files.filter(reportedChecked).length,
     unavailable: total === null || !!f.storageIssue,
     readiness: allChecked ? "Files checked" : "Not established",
     chainCounts: chains.map((chain) => ({ chain,
       checked: files.filter((p) => p.chain === chain && localChecked(p)).length,
+      localTotal: total === null ? null : local.filter((p) => p.chain === chain).length,
       total: valid && f.formed ? f.n : null })),
   };
 }
@@ -30,21 +37,27 @@ const missingText = (s) => s ? "Device " + s.id
   + " has signing material missing from this browser. Restore its matching recovery file; "
   + "joining alone does not make a device available." : "";
 
-function securityStatus(critical, unavailable, allChecked, concentrated) {
+function securityStatus(critical, counts, concentrated) {
   if (critical) return { label: "Action needed", tone: "bad" };
-  if (unavailable) return { label: "Status unavailable", tone: "neutral" };
-  if (allChecked && !concentrated) return { label: "Recovery checked", tone: "ok" };
+  if (counts.unavailable) return { label: "Status unavailable", tone: "neutral" };
+  if (!concentrated && counts.localComplete)
+    return { label: "Local files checked", tone: "neutral" };
+  if (counts.localTotal === 0) return { label: "No files held here", tone: "neutral" };
   return { label: "Attention recommended", tone: "warn" };
 }
 
-function nextAction(critical, missing, files, allChecked) {
+const fileAction = (file, kind, verb) => ({ ...file, kind,
+  label: verb + " device " + file.id + (kind === "check" ? " file" : " share")
+    + " · " + (file.chain === "zec" ? "Zcash" : "Solana") });
+function nextAction(critical, missing, files, localComplete) {
   if (critical) return missing ? { kind: "restore", label: "Restore a device" }
     : { kind: "setup", label: "Review wallet setup" };
   const save = files.find(needsSave);
-  if (save) return { ...save, kind: "backup", label: "Back up wallet" };
+  if (save) return fileAction(save, "backup", "Back up");
   const check = files.find(needsCheck);
-  if (check) return { ...check, kind: "check", label: "Verify a recovery file" };
-  return { kind: "files", label: allChecked ? "Review recovery files" : "Review backup progress" };
+  if (check) return fileAction(check, "check", "Check");
+  return { kind: "files", label: localComplete
+    ? "Review recovery files" : "Review backup progress" };
 }
 
 function concentrationText(f, held, valid) {
@@ -70,9 +83,9 @@ export function deriveSecurityDashboard(f) {
   const concentrated = held > 1, missing = missingMaterial(f);
   const critical = f.blocked || missingText(missing);
   return { valid, ...counts, held, concentrated, critical,
-    ...securityStatus(critical, counts.unavailable, counts.allChecked, concentrated),
+    ...securityStatus(critical, counts, concentrated),
     concentration: concentrationText(f, held, valid),
-    next: nextAction(critical, missing, files, counts.allChecked),
+    next: nextAction(critical, missing, files, counts.localComplete),
     rule: valid ? f.t + " of " + f.n + " required" : "Rule unavailable" };
 }
 

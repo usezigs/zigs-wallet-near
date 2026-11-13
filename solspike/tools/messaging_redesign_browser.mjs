@@ -10,7 +10,8 @@ import { installMessagingFixture } from "../harness/messaging-redesign.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const phase = process.argv[2] || "after";
 assert.ok(["before", "after"].includes(phase));
-const output = resolve(root, "docs/ux-redesign/visuals/messaging-redesign", phase);
+const output = resolve(process.env.ZIGS_MESSAGING_OUTPUT
+  || resolve(root, "docs/ux-redesign/visuals/messaging-redesign", phase));
 await mkdir(output, { recursive: true });
 const mime = { ".js": "text/javascript", ".css": "text/css", ".html": "text/html",
   ".png": "image/png", ".svg": "image/svg+xml", ".woff2": "font/woff2" };
@@ -196,7 +197,7 @@ async function verifyRelayStates() {
   await scene("invite");
   check(await page.getByRole("heading", { name: "Invite your contact", exact: true }).count() === 1,
     "existing waiting direct chat retains its invitation controls");
-  await page.getByRole("button", { name: "Copy link", exact: true }).click();
+  await page.getByRole("button", { name: "Copy chat link", exact: true }).click();
   await settled();
   check(await page.evaluate(() => navigator.clipboard.readText()).then(
     (s) => /#c\.[a-f0-9]{20}\.[\w-]{43}$/.test(s)),

@@ -1,0 +1,70 @@
+/* Zigs tokens and framing adapted from the copied hero-demo gold. */
+.zs {
+  .ss-stage {
+    --ss-font:var(--sans); --ss-mono:var(--mono);
+    --ss-canvas:var(--bg); --ss-surface:var(--panel); --ss-well:var(--sunk);
+    --ss-chrome:var(--panel); --ss-raised:var(--raised);
+    --ss-text-strong:var(--text); --ss-text:var(--muted); --ss-text-faint:var(--muted);
+    --ss-icon:var(--text); --ss-icon-faint:var(--muted);
+    --ss-line:var(--line); --ss-line-faint:var(--line);
+    --ss-accent:var(--primary); --ss-accent-text:var(--on-primary);
+    --ss-accent-soft:var(--sunk); --ss-success:var(--ok); --ss-success-text:var(--ok);
+    --ss-radius-md:8px; --ss-radius-lg:12px; --ss-radius-window:16px;
+    --ss-shadow-hero:var(--shadow-raised); --ss-control:36px;
+    background:transparent; overflow:hidden;
+  }
+  .zs-window { position:absolute; top:24px; left:24px; width:672px; height:700px; box-shadow:var(--ss-shadow-hero); }
+  .zs-layout { display:flex; height:100%; background:var(--ss-surface); }
+  .zs-rail { width:152px; flex:none; padding:24px 16px; background:var(--sunk);
+    border-right:1px solid var(--line); display:flex; flex-direction:column; align-items:start; }
+  .zs-rail>img { filter:invert(1); }
+  .ss-stage[data-theme="dark"] .zs-rail>img { filter:none; }
+  .zs-rail-name { margin-top:12px; font-size:14px; font-weight:500; color:var(--text); }
+  .zs-caption,.zs-context,.zs-rail-note { font:400 12px/1.5 var(--sans); color:var(--muted); }
+  .zs-rail-note { margin-top:24px; line-height:1.8; }
+  .zs-nav { display:grid; width:100%; margin-top:24px; gap:4px; }
+  .zs-screen { display:flex; flex:1; flex-direction:column; gap:12px; padding:20px;
+    min-width:0; font:400 13px/1.5 var(--sans); color:var(--text); }
+  .zs-heading { display:grid; gap:0; }
+  .zs-context { font-size:11px; }
+  .zs-title { font:500 22px/1.3 var(--sans); color:var(--text); letter-spacing:-.025em; }
+  .zs-content { display:grid; gap:8px; }
+  .zs-content>.ss-row { background:transparent; }
+  .zs-facts { border-block:1px solid var(--line); padding-block:4px; }
+  .zs-facts .ss-row { --ss-row-title:12px; --ss-row-meta:12px; color:var(--muted); }
+  .zs-content .ss-field { --ss-control:36px; }
+  .zs-content .ss-field__box { background:var(--sunk); border-color:var(--line-field); }
+  .zs-content .ss-field__label { color:var(--muted); }
+  .zs-total { font:500 20px/1.4 var(--mono); color:var(--text); white-space:nowrap; }
+  .zs-amount-block { display:grid; gap:0; padding:8px 0; }
+  .zs-amount { font:400 30px/1.3 var(--sans); letter-spacing:-.025em; color:var(--text); }
+  .zs-code { font:400 13px/1.7 var(--mono); color:var(--text); overflow-wrap:anywhere; }
+  .ss-check__tick { stroke:var(--on-primary); }
+  .zs-result { display:flex; align-items:center; gap:10px; font-size:13px; padding:4px 0; }
+  .zs-message { font:400 14px/1.6 var(--sans); color:var(--text); }
+  .zs-action { display:grid; gap:12px; }
+  .zs-action>.ss-states { min-height:40px; max-width:300px; }
+  .zs-action .zs-caption { line-height:1.6; }
+  .zs-next { justify-self:stretch; justify-content:center; color:var(--text); }
+  .zs-next[data-variant="primary"] { color:var(--on-primary); }
+  .zs-next[data-variant="primary"][data-hover] { background:var(--primary-hover); }
+  .zs-code>.ss-states { max-width:100%; }
+  .zs-code .ss-states__item { white-space:normal; }
+  .zs-footer { font:400 10px/1.5 var(--sans); color:var(--muted); }
+  .zs-phone { position:absolute; left:16px; top:16px; background:var(--panel); }
+  .zs-phone-body { background:var(--panel); min-height:874px; }
+  .zs-phone-body .zs-screen { padding:20px; gap:20px; }
+  .zs-phone-body .zs-context { font-size:14px; }
+  .zs-phone-body .zs-title { font-size:26px; }
+  .zs-phone-body .zs-content { gap:14px; }
+  .zs-phone-body .zs-caption { font-size:16px; }
+  .zs-phone-body .zs-content .ss-field { --ss-control:44px; }
+  .zs-phone-body .zs-content .ss-field__label { font-size:16px; }
+  .zs-phone-body .zs-facts .ss-row { --ss-row-title:16px; --ss-row-meta:16px; }
+  .zs-phone-body .zs-total { font-size:24px; }
+  .zs-phone-body .zs-amount { font-size:32px; }
+  .zs-phone-body .zs-code { font-size:16px; }
+  .zs-phone-body .zs-result,.zs-phone-body .zs-message { font-size:17px; }
+  .zs-phone-body .zs-footer { font-size:13px; }
+  .zs-phone-body .zs-next { font-size:17px; min-height:44px; }
+}

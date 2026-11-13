@@ -6,4 +6,3 @@ try {
   console.error("The Tor demo did not start.", error);
 }
 await import("./app.js");
-await import("./homepage-motion.js");

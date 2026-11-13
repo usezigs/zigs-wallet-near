@@ -544,6 +544,24 @@ function showField(field) {
   const note = field.getAttribute?.("aria-describedby")?.split(" ").at(-1);
   document.getElementById(note)?.scrollIntoView?.({ block: "nearest" });
 }
+// Native textarea focus can reveal only the caret. Keep the message and its actions in view
+// when they fit, or the field itself when a phone keyboard leaves less room.
+function showComposer(field) {
+  const composer = field?.closest?.(".messages-workspace .composer");
+  if (!composer) return;
+  const visual = window.visualViewport;
+  const height = visual?.height ?? window.innerHeight, top = visual?.offsetTop ?? 0;
+  const target = composer.getBoundingClientRect().height + 32 <= height ? composer : field;
+  const box = target.getBoundingClientRect();
+  if (box.top < top + 16 || box.bottom > top + height - 16)
+    target.scrollIntoView?.({ block: "nearest" });
+}
+document.addEventListener("focusin", (ev) => {
+  if (!ev.target.closest?.(".messages-workspace .composer")) return;
+  requestAnimationFrame(() => {
+    if (document.activeElement === ev.target) showComposer(ev.target);
+  });
+});
 // The focused field scrolls into view only when the keyboard opens, so that a scroll of the person
 // is not undone.
 let lastInset = 0;
@@ -558,6 +576,7 @@ export function fitKeyboard() {
   root.setProperty("--visual-height", visible);
   const field = document.activeElement;
   if (opened && field?.closest?.(".dialog, .drawer")) showField(field);
+  else if (opened) showComposer(field);
 }
 window.visualViewport?.addEventListener("resize", fitKeyboard);
 window.visualViewport?.addEventListener("scroll", fitKeyboard);

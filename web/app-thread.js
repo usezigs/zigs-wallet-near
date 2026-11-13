@@ -11,7 +11,7 @@ import { curChain, curNet, explorerText, netName, readsMemos, spanMs } from "./a
 import { changedSigners } from "./app-filter.js";
 import { canWrite, db, openSession } from "./app-groups.js";
 import {
-  act, avatar, coarse, copyBtn, el, guard, logBox, memoTexts, nameField, newBadge, noteFor,
+  act, avatar, coarse, copyBtn, dialogForm, el, guard, logBox, memoTexts, nameField, newBadge, noteFor,
   payTitle, proposer, secretQr, sender, setNote,
 } from "./app-dom.js";
 import {
@@ -43,8 +43,8 @@ export function messagesCard(titled = true) {
 }
 
 export function teamConversation(notices = []) {
-  return el("section", { class: "messages-thread", "aria-label": "Wallet team conversation" },
-    conversationHeader((state.g?.name || "Wallet") + " team", "Team · Encrypted relay · "
+  return el("section", { class: "messages-thread", "aria-label": "Wallet conversation" },
+    conversationHeader(state.g?.name || "Wallet conversation", "Wallet conversation · Encrypted relay · "
       + curNet().label + " · " + state.g.t + "-of-" + state.g.n),
     el("div", { class: "messages-thread-tools" }, conversationDetails(FINE,
       "Device signatures show continuity with a key this browser has seen. They do not verify a person’s identity.",
@@ -376,7 +376,7 @@ export function leaveBox(cid) {
 
 export function newChatDialog() {
   const close = () => { ui.newChat = false; render(); };
-  return el("form", {
+  return dialogForm({
     class: "dialog", role: "dialog", "aria-modal": "true", "aria-labelledby": "chat-title",
     onsubmit: act(async () => { ui.newChat = false; await createChat(); }),
   },

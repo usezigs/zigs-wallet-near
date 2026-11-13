@@ -11,7 +11,7 @@ import { initials, short, when } from "./app-kit.js";
 import { Z } from "./app-engine.js";
 import { explorerText, netOf, NETWORKS } from "./app-chain.js";
 import {
-  act, copyBtn, el, guard, logBox, money, netBadge, networkPick, noteFor, qrBox, requireAck,
+  act, copyBtn, dialogForm, el, guard, logBox, money, netBadge, networkPick, noteFor, qrBox, requireAck,
   setNote, skeleton,
 } from "./app-dom.js";
 import { proposeWallets, requestCard, requestOf } from "./app-payreq.js";
@@ -54,7 +54,7 @@ export function zcashAccountSetup(pickRestore) {
       el("div", { class: "card-head" }, el("h2", {}, "Your messaging account"),
         netBadge({ network: personal.network })),
       el("p", { class: "small muted" }, "Separate from your shared wallets. Each message spends "
-        + "this account’s network fee without team approval. Whoever controls this browser can "
+        + "this account’s network fee without other devices’ approval. Whoever controls this browser can "
         + "spend it.")),
     accountBalanceBlock(b),
     b ? balanceWarnings(b.total).map((text) =>
@@ -296,7 +296,7 @@ export function contactItem(c) {
 export function contactDialog() {
   const close = () => { ui.contactAdd = false; render(); };
   const net = NETWORKS[personal.network];
-  return el("form", {
+  return dialogForm({
     class: "dialog", role: "dialog", "aria-modal": "true", "aria-labelledby": "contact-title",
     onsubmit: act(async (ev) => {
       const fd = new FormData(ev.target);
@@ -483,7 +483,7 @@ export function messagingCostReviewDialog() {
   const name = memoShown(contact.name), fee = zatText(plan.fee) + " ZEC";
   const row = (label, value) => el("div", { class: "messages-cost-row" },
     el("dt", {}, label), el("dd", {}, value));
-  return el("form", { class: "dialog messages-cost-review", role: "dialog", "aria-modal": "true",
+  return dialogForm({ class: "dialog messages-cost-review", role: "dialog", "aria-modal": "true",
     "aria-labelledby": "messaging-cost-title", onsubmit: act(confirmMessagingCost) },
   el("div", { class: "card-head" }, el("h2", { id: "messaging-cost-title", tabindex: "-1",
     "data-key": "messaging-cost-title", "data-first-focus": "" }, "Review message cost"),
@@ -492,7 +492,7 @@ export function messagingCostReviewDialog() {
   changed ? el("p", { class: "callout", role: "status" },
     "The message changed. Check the updated cost before sending.") : null,
   el("p", { class: "small muted" }, "This message is a permanent on-chain transaction. Your "
-    + "personal account pays its fee without team approval."),
+    + "personal account pays its fee without other devices’ approval."),
   el("dl", { class: "messages-cost-summary" },
     row("From", "Personal messaging account · " + NETWORKS[network].label),
     row("To", el("div", {}, name, el("p", { class: "hex" }, contact.address))),

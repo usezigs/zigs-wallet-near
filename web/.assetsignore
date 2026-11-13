@@ -3,3 +3,4 @@ sim.mjs
 bundle.mjs
 .assetsignore
 test
+dev/stageshow

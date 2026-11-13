@@ -1300,7 +1300,7 @@ function sideMenu() {
     "the Recovery section shows the file state of each device of this browser");
   assert.match(pageText(), /Backups and file checks are optional/);
   assert.match(pageText(),
-    /Verification reopens a file without restoring shares or changing wallet keys/);
+    /Checking reopens a file without restoring shares or changing wallet keys/);
   assert.match(pageText(),
     /Other devices’ signed reports are reported progress, not file checks performed here/);
   assert.match(pageText(),
@@ -1367,15 +1367,15 @@ async function approvalCount(ctl) {
   Object.assign(ctl, { sessions: two, commits: {} });
   t.state.groups = [t.state.g];
   try {
-    const side = sideTree().kids;
-    const wallet = side.find((n) => n.attrs?.["data-key"] === "wallet-" + t.state.gid);
+    const side = sideTree();
+    const wallet = findNode(side, (n) => n.attrs?.["data-key"] === "wallet-" + t.state.gid);
     assert.ok(labelled(wallet, "2 to approve"), "the side item shows the count");
-    const overview = side.find((n) => n.attrs?.id === "tab-overview");
+    const overview = findNode(side, (n) => n.attrs?.id === "tab-overview");
     assert.ok(overview && !labelled(overview, "2 to approve"),
       "Overview leaves the approval badge on the dedicated inbox");
-    assert.equal(side.find((n) => n.attrs?.id === "tab-solana"), undefined,
+    assert.equal(findNode(side, (n) => n.attrs?.id === "tab-solana"), null,
       "Solana stays under its asset actions");
-    const approvals = side.find((n) => n.attrs?.id === "tab-approvals");
+    const approvals = findNode(side, (n) => n.attrs?.id === "tab-approvals");
     assert.ok(approvals && labelled(approvals, "2 to approve across wallets"),
       "the dedicated Approvals destination shows the existing cross-wallet count");
     overviewWiring(ctl);
@@ -1872,8 +1872,8 @@ async function walkSteps(fields, times, fresh = true) {
   dialogText();
   await waitFor("the refusal", () => ui.solServed === false);
   assert.match(dialogText(), CHOICE, "service availability does not erase the disclosed choice");
-  const review = dialogTree().kids
-    .find((kid) => kid.attrs?.["aria-labelledby"] === "create-step-3");
+  const review = findNode(dialogTree(),
+    (kid) => kid.attrs?.["aria-labelledby"] === "create-step-3");
   assert.doesNotMatch(textOf(review), /Solana setup is waiting for service availability/,
     "the review omits the lower network status section");
   config.down = false;
@@ -2751,8 +2751,8 @@ await plainSetupBrowser();
     // They don't match: a second question, then the stop of every seat of this browser.
     assert.equal(creates(), true, "before a stop, seat 1 may build the wallet");
     button("Codes don’t match").on.click();
-    assert.match(seen(), new RegExp("Stop setup on this device\\? Ask the other people to "
-      + "choose “Codes don’t match”"));
+    assert.match(seen(), new RegExp("Stop setup on this device\\? Choose “Codes don’t match” "
+      + "on your other devices"));
     assert.equal(button("Keep checking").attrs["data-key"], "keep-checking",
       "the question gives the focus to Keep checking");
     assert.ok(seen().lastIndexOf("Keep checking") < seen().lastIndexOf("Stop setup"),
@@ -3064,12 +3064,11 @@ assert.equal(quickCode(null), null);
     t.state.groups = [];
     const welcome = lobbyTree();
     const card = findNode(welcome, (n) => /(?:^|\s)welcome(?:\s|$)/.test(n.className));
-    assert.match(textOf(card), /Private by design\. Secured together\./);
-    assert.deepEqual(findAll(welcome, (n) => n.tag === "h1").map(textOf),
-      ["Private by design. Secured together."],
+    const headings = findAll(welcome, (n) => n.tag === "h1");
+    assert.equal(headings.length, 1,
       "the empty lobby has one primary heading rather than competing Wallets and welcome titles");
-    assert.match(textOf(card),
-      /Hold your assets privately\. Protect them with the people and devices/);
+    assert.match(textOf(headings[0]), /Your assets.*Secured together/);
+    assert.match(textOf(card), /Payments follow the approval rules you choose/);
     assert.doesNotMatch(textOf(card), /Beta ·|Not audited|New wallets use test networks only/i,
       "the welcome card omits the recurring release badge and footer warning");
     assert.equal(findNode(card, (n) => n.className === "welcome-facts"), null,
@@ -3133,7 +3132,7 @@ assert.equal(quickCode(null), null);
     assert.equal(savedWallets.tag, "section", "saved wallets are directly discoverable");
     assert.equal(savedWallets.attrs["aria-label"], "Saved wallets");
     assert.equal(textOf(savedWallets.kids[0]), "Your wallets1 wallet in this browser");
-    assert.equal(textOf(findNode(list, (n) => n.tag === "h1")), "Welcome back.");
+    assert.match(textOf(findNode(list, (n) => n.tag === "h1")), /Shared wallets.*Your rules/);
     assert.match(textOf(savedWallets), /W.*Zcash Testnet.*Any 2 of 3 devices.*Open wallet/s,
       "one wallet exposes its actual name, network, rule and existing opening action");
     assert.ok(findNode(list, (n) => n.className === "welcome-brand"),

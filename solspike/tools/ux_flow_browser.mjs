@@ -11,7 +11,7 @@ const check = (pass, label) => { assert.ok(pass, label); checks.push(label); };
 const browser = await chromium.launch({ headless: true,
   executablePath: process.env.CHROME_EXECUTABLE });
 const context = await browser.newContext({ reducedMotion: "reduce",
-  viewport: { width: 1440, height: 1000 } });
+  hasTouch: true, viewport: { width: 1440, height: 1000 } });
 const page = await context.newPage();
 page.setDefaultTimeout(5000);
 page.on("pageerror", (error) => errors.push(error.message));
@@ -111,6 +111,49 @@ async function inspect(flow, theme, width) {
   if (["setup-review", "backup-restore", "direct-chat-create", "payment-review",
     "locked-data-delete"].includes(flow)) await page.screenshot({
     path: resolve(out, `${flow}-${width}-${theme}.png`), animations: "disabled" });
+}
+
+async function nativeFormReview() {
+  await page.evaluate(async () => {
+    const { dialogForm, el } = await import("/app-dom.js");
+    globalThis.formTrial = [];
+    document.getElementById("app").replaceChildren(dialogForm({ class: "dialog",
+      role: "dialog", "aria-modal": "true", "aria-label": "Form behavior check",
+      onsubmit: (ev) => {
+        ev.preventDefault(); globalThis.formTrial.push(new FormData(ev.target).get("label"));
+      } }, el("label", {}, "Device label", el("input", { class: "input", id: "trial-label",
+      name: "label", required: true })),
+    el("button", { class: "btn primary", type: "submit" }, "Confirm label")));
+  });
+  check(await page.getByRole("dialog").isVisible(), "semantic dialog has visible geometry");
+  await page.locator("#trial-label").focus(); await page.keyboard.press("Enter");
+  check(await page.evaluate(() => !globalThis.formTrial.length),
+    "native validation blocks an empty required field");
+  await page.locator("#trial-label").fill("Everyday phone"); await page.keyboard.press("Enter");
+  check(await page.evaluate(() => JSON.stringify(globalThis.formTrial))
+    === '["Everyday phone"]', "Enter submits exactly once with the native form data");
+  await page.getByRole("button", { name: "Confirm label", exact: true }).tap();
+  check(await page.evaluate(() => globalThis.formTrial.length === 2),
+    "a synthesized Chromium touch submits the same native form once");
+}
+
+async function recoverySelectionReview() {
+  await mount("backup-check");
+  const name = "Everyday phone — Zcash — encrypted recovery file.zigsbackup";
+  await page.locator("#bc-file").setInputFiles({ name, mimeType: "application/json",
+    buffer: Buffer.from("Synthetic invalid QA file; never submitted") });
+  await settleOverview(page);
+  check(await page.locator("#bc-file-name").textContent() === name,
+    "selected recovery filename remains explicit after the selection redraw");
+  await page.evaluate(async () => {
+    const { ui } = await import("/app-state.js");
+    ui.backup.error = "Synthetic file-check failure. Choose the matching file.";
+    (await import("/app-loop.js")).draw();
+  });
+  check(await page.locator("#bc-file-name").textContent() === name,
+    "a failed check retains the selected filename");
+  check(await page.getByRole("button", { name: "Choose another file", exact: true })
+    .isEnabled(), "file-check error leaves an explicit way to choose another file");
 }
 
 async function copyChecks() {
@@ -227,7 +270,7 @@ async function scrollAndShortWindow() {
   }
   await page.setViewportSize({ width: 740, height: 420 });
   await mount("backup-restore");
-  check(await page.locator(".dialog>.card-head").evaluate((node) =>
+  check(await page.locator(".dialog .card-head").first().evaluate((node) =>
     getComputedStyle(node).position === "static"),
   "short windows release sticky chrome to preserve reading space");
   await inspect("backup-restore-short", "light", 740);
@@ -238,6 +281,7 @@ try {
   await page.evaluate(async () => {
     // Read-only decoder facts for layout; never used to prepare, approve or submit anything.
     (await import("/app-engine.js")).setZ({ normalizeAddress: (value) => value,
+      payeeAddress: (value) => value,
       inspect: (key) => JSON.stringify({ fee: 1000, standard_fee: 1000, expiry_height: 4529000,
         lines: [{ kind: "output", who: "utest1" + (key.includes("mismatch") ? "s" : "r")
           .repeat(180), value: 10000, memo_status: "empty", change: false }],
@@ -259,6 +303,7 @@ try {
   }
   await copyChecks(); await setupSpaceReview();
   await recipientEditor(); await scrollAndShortWindow();
+  await recoverySelectionReview(); await nativeFormReview();
   const storageAfter = await page.evaluate(() => JSON.stringify({ ...localStorage }));
   if (storageBefore !== storageAfter) writeFileSync(resolve(out, "fixture-storage.json"),
     JSON.stringify({ before: JSON.parse(storageBefore), after: JSON.parse(storageAfter) },

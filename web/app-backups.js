@@ -15,12 +15,12 @@ import { gkeys, mySeatSecrets, persist, putKey, putSec, sec, secrets } from "./a
 import { fitState } from "./app-seats.js";
 import { isChatId } from "./app-links.js";
 import { downloads, openGroup } from "./app-groups.js";
-import { act, copyBtn, el, noteFor, setNote } from "./app-dom.js";
+import { act, announce, copyBtn, dialogForm, el, noteFor, setNote } from "./app-dom.js";
 import { groupVersion, seatCheck } from "./app-dkg.js";
 import {
   changePersonal, personal, personalDamaged, personalEnv, restoreAccount,
 } from "./app-account.js";
-import { once, render } from "./app-loop.js";
+import { focusAfter, once, render } from "./app-loop.js";
 import { solReady, solRestore } from "./app-sol.js";
 import { heldApprovals } from "./app-payments.js";
 import { checkBackupPayload, checkSavedBackup } from "./backup-check.js";
@@ -177,8 +177,8 @@ export function backupDialog() {
       showBanner("ok", "Backup saved. Keep the passphrase apart from the file.");
     } finally { b.busy = false; }
   });
-  const form = el("form", {
-    class: "dialog", role: "dialog", "aria-modal": "true", "aria-labelledby": "backup-title",
+  const form = dialogForm({
+    class: "dialog recovery-sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "backup-title",
     oninput: update, onsubmit: submit,
   },
   el("div", { class: "card-head" }, el("h2", { id: "backup-title" }, words.title),
@@ -241,8 +241,19 @@ function backupCheckDialog() {
     autocomplete: "off", autocapitalize: "off", spellcheck: "false", disabled: b.busy,
     "aria-describedby": "bc-help" });
   const file = el("input", { class: "input", id: "bc-file", type: "file",
-    accept: ".zigsbackup,.json,application/json", disabled: b.busy,
-    onchange: (ev) => { b.file = ev.target.files[0] ?? null; b.error = ""; } });
+    accept: ".zigsbackup,.json,application/json", disabled: b.busy, hidden: true,
+    onchange: (ev) => {
+      b.file = ev.target.files[0] ?? null; b.error = "";
+      announce(b.file ? "Recovery file selected: " + b.file.name : "No recovery file selected.");
+      focusAfter("bc-choose-file", false); render();
+    } });
+  const picker = el("div", { class: "field recovery-file-picker" },
+    el("span", {}, "Saved recovery file"), file,
+    el("button", { class: "btn", type: "button", disabled: b.busy,
+      "data-key": "bc-choose-file", "aria-describedby": "bc-file-name",
+      onclick: () => file.click() }, b.file ? "Choose another file" : "Choose recovery file"),
+    el("p", { id: "bc-file-name", class: "small muted recovery-file-name" },
+      b.file ? b.file.name || "Selected recovery file" : "No file selected"));
   const submit = async (ev) => {
     ev.preventDefault();
     if (b.busy || ui.backup !== b) return;
@@ -261,7 +272,7 @@ function backupCheckDialog() {
     } catch (e) { b.error = e.message || "The recovery file could not be checked."; }
     finally { b.busy = false; render(); }
   };
-  return el("form", { class: "dialog", role: "dialog", "aria-modal": "true",
+  return dialogForm({ class: "dialog recovery-sheet", role: "dialog", "aria-modal": "true",
     "aria-labelledby": "backup-title", onsubmit: submit },
   el("div", { class: "card-head" }, el("h2", { id: "backup-title" },
     "Check saved " + (b.chain === "sol" ? "SOL" : "ZEC") + " file"),
@@ -269,8 +280,7 @@ function backupCheckDialog() {
     onclick: closeBackup }, icon("close"))),
   el("p", { class: "small", id: "bc-help" }, "Choose the encrypted file you saved for device "
     + b.seat + " of this wallet, then enter its separate passphrase. This check opens it without restoring or changing any key shares. File contents, filenames and passphrases are never sent to the other devices."),
-  el("label", { class: "field" }, el("span", {}, "Saved recovery file"), file),
-  b.file ? el("p", { class: "small muted" }, "A file is selected for this check.") : null,
+  picker,
   el("label", { class: "field" }, el("span", {}, "Passphrase"), pass),
   b.error ? el("p", { class: "callout bad", role: "alert" }, b.error) : null,
   el("div", { class: "dialog-actions" },
@@ -296,8 +306,8 @@ export function restoreDialog() {
       ui.restore = null;
     } finally { r.busy = false; }
   });
-  return el("form", {
-    class: "dialog", role: "dialog", "aria-modal": "true", "aria-labelledby": "restore-title",
+  return dialogForm({
+    class: "dialog recovery-sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "restore-title",
     onsubmit: submit,
   },
   el("div", { class: "card-head" }, el("h2", { id: "restore-title" }, "Restore a backup"),

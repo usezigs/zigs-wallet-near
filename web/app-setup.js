@@ -486,8 +486,9 @@ function safetyCard(compact = false) {
     el("div", { class: "card-head" }, el("h2", {}, "Check that your devices match"),
       el("span", { class: "badge " + (yes === n ? "ok" : "warn") }, yes + " of " + n + " confirmed")),
     compact ? null : securityExplanation("verify"),
-    el("p", { class: "small" }, "Compare this safety number on every device, on a call or in "
-      + "person. If every device shows it, only your devices joined this wallet."),
+    el("p", { class: "small" }, "Compare the full safety number on each of your devices. "
+      + "If someone else holds a device, compare with them on a call or in person. "
+      + "If every device shows the same number, only your devices joined this wallet."),
     compact ? null : walletDiagram("verify", { number: no, devices: seatIds().map(seatLabel) }),
     el("div", { class: "safety", "aria-label": "30-digit verification code" },
       no.split(" ").map((digits, i) => el("span", { class: "safety-group" }, digits + (i < 5 ? " " : "")))),
@@ -562,8 +563,8 @@ function mismatchPart() {
       "data-key": "they-differ", onclick: ask(true) }, "Codes don’t match"));
   }
   return el("div", { class: "callout bad", role: "alert" },
-    el("p", {}, "Stop setup on this device? Ask the other people to choose “Codes don’t match” "
-      + "on their devices too, then create a new wallet together."),
+    el("p", {}, "Stop setup on this device? Choose “Codes don’t match” on your other devices "
+      + "too, then create a new wallet. If someone else holds a device, ask them to do the same."),
     el("div", { class: "row-actions" },
       el("button", { class: "btn", type: "button", "data-key": "keep-checking",
         onclick: ask(false) }, "Keep checking"),

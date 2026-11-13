@@ -11,7 +11,7 @@ import { gkeys } from "./app-keystore.js";
 import { DRAFT_MS, draftLive, draftOf, emptyForm, reviewFresh } from "./payment-model.js";
 import { addrHidden, atCap, capUnknown, curChain, curNet, netName } from "./app-chain.js";
 import {
-  act, addrGroups, copyBtn, el, groupName, memoRow, money, normalized, noteFor, onNetwork,
+  act, addrGroups, copyBtn, dialogForm, el, groupName, memoRow, money, normalized, noteFor, onNetwork,
   payeeOnNetwork, qrBox, setNote, transparentOnNetwork,
 } from "./app-dom.js";
 import {
@@ -38,7 +38,7 @@ const TOO_MANY = "A payment can have at most " + MAX_PAYEES + " recipients.";
 // The title of a dialog, with the network of the open wallet under it. The name comes from the
 // wallet, so a mainnet wallet still reads Mainnet (D3).
 const dialogTitle = (id, text, net = "Zcash " + curNet().label) =>
-  el("div", { style: "display:grid;gap:6px;justify-items:start" },
+  el("div", { class: "payment-dialog-context" },
     el("h2", { id }, text),
     el("span", { class: "wallet-context-label small muted" }, walletAvatarFor(state.g),
       el("span", {}, groupName(state.gid))),
@@ -55,13 +55,17 @@ export function receiveDialog() {
   const copy = copyBtn(w.address, "Copy address", "btn primary");
   // A moved wallet leads with its moved note: senders must use the address of the new wallet.
   const moved = !!state.g.movedTo;
+  const restricted = hidden || moved || atCap() || capUnknown();
   const address = hidden ? [] : [moved ? null : sendOnly(net),
-    qrBox(w.address, "Wallet address"), el("div", { class: "addr-full" }, addrGroups(w.address))];
+    el("section", { class: "receive-destination", "aria-label": "Receiving destination" },
+      qrBox(w.address, "Wallet address"),
+      el("div", { class: "addr-full" }, addrGroups(w.address)))];
   return el("div", {
-    class: "dialog", role: "dialog", "aria-modal": "true", "aria-labelledby": "recv-title",
+    class: "dialog receive-sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "recv-title",
   }, el("div", { class: "card-head" }, title, close),
-  receiveLead(hidden, moved), ...address,
+  restricted ? receiveLead(hidden, moved) : null, ...address,
   hidden ? null : el("div", { class: "dialog-actions" }, moved ? null : shareBtn(w.address), copy),
+  restricted ? null : receiveLead(hidden, moved),
   privacyNotice(el, hidden || moved ? "unknown" : "shielded",
     hidden || moved ? "Address unavailable" : "Shielded · Zcash " + curNet().label,
     ZEC_EXPOSURE),
@@ -302,8 +306,8 @@ function payRow(r, i, rows, sumUp) {
       to.focus();
     } });
   return el("div", { class: "pay-row" }, el("div", { class: "pay-recipient-field" },
-    labelled(toLabel() + n, to), saved), amount, remove, hint,
-    amountNote, memoBox(r, n));
+    labelled(toLabel() + n, to), hint, saved),
+  el("div", { class: "pay-amount-field" }, amount, amountNote), remove, memoBox(r, n));
 }
 
 // Shows the bytes of a memo once it comes near the limit, and says why a memo cannot be sent.
@@ -716,7 +720,7 @@ export function sendDialog() {
     total.replaceChildren(money(rows.reduce((n, r) => n + (toZat(r.amt) || 0), 0) + f));
   };
   const why = sendBlocker();
-  const f = el("form", { class: "dialog", role: "dialog", "aria-modal": "true",
+  const f = dialogForm({ class: "dialog payment-composer", role: "dialog", "aria-modal": "true",
     "aria-labelledby": "send-title", oninput: typed, onchange: typed, onclick: keepDraft,
     onsubmit: inDialog((ev) => submitSend(rows, spendable, why, ev)) },
     el("div", { class: "card-head" }, dialogTitle("send-title", "Send ZEC"), closeX()),
@@ -790,7 +794,7 @@ function reviewDialog() {
   const { prep, note } = ui.sendReview, t = prep.t;
   if (prep.gid !== state.gid) { ui.sendReview = null; return sendDialog(); }
   const ins = decodedMatch(prep), ok = !!ins;
-  return el("section", { class: "dialog", role: "dialog", "aria-modal": "true",
+  return el("section", { class: "dialog payment-review", role: "dialog", "aria-modal": "true",
     "aria-labelledby": "review-title" },
   el("div", { class: "card-head" }, dialogTitle("review-title", "Review the payment"), closeX()),
   sendNotice(),
