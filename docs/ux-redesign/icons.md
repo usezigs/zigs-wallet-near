@@ -24,11 +24,17 @@ The polish workflow was informed by [unslop by Damir Sokolovsky](https://heydami
 The audit found mixed small-icon strokes, text characters used as controls and
 illustrations that repeated the zebra instead of explaining the current context.
 
-`web/icon-objects.js` supplies ten local vector objects through the existing
+`web/icon-objects.js` supplies twelve local vector objects through the existing
 `sculptedIcon` API. Each has unique gradient IDs and finite geometry. Wallet,
 shield, approvals, messages, contacts, activity, vault and recovery objects are
 integrated in the relevant existing surfaces. Devices and exchange are available
 in the collection for larger educational placements.
+
+Setup uses the same satin-metal key, phone and laptop objects for browser protection,
+the proposed approval arrangement, device connection and final review. Small Security
+device symbols keep their existing meaning with plain, unframed surfaces. Setup
+buttons share a matte finish, and the approval-rule explanation opens from a compact
+information disclosure. Protection, consent and ceremony checks are unchanged.
 
 Small symbols share a 1.5-unit rounded stroke and inherit their text color. Copy
 actions retain their text, show a check after success and return to the copy icon.

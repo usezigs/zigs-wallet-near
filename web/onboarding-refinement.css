@@ -35,57 +35,18 @@
 .setup-status-column,.setup-action-column,.setup-review-details,.setup-review-configuration {
   display:grid; gap:16px; min-width:0; }
 
-/* Physical depth without canvas, external media, or an animation-driven success state. */
+/* The same satin-metal objects used by the approval-rule illustration. */
 .setup-protection-layout { gap:var(--section-gap); }
 .setup-protection-intro { grid-template-columns:minmax(0,1fr); gap:8px; }
 .setup-protection-intro>p { display:none; } /* The same meaning is carried by the artwork caption. */
 .passkey-illustration { justify-items:center; gap:12px; padding:8px; min-width:0; }
-.passkey-art { width:240px; max-width:100%; height:156px; border:0; background:transparent;
-  box-shadow:none; perspective:700px; }
-.passkey-browser { position:relative; width:min(220px,100%); height:146px;
-  border:1px solid var(--line-2); border-radius:14px;
-  background:linear-gradient(145deg,var(--chrome-hi),var(--sunk) 65%);
-  box-shadow:inset 0 1px 0 var(--edge),inset 0 -2px 4px #0002,10px 18px 24px #0002;
-  transform:rotateY(-12deg) rotateX(7deg); transition:transform 700ms var(--ease); }
-.passkey-browser-bar { display:flex; align-items:center; gap:5px; height:27px; padding:0 12px;
-  border-bottom:1px solid var(--line); }
-.passkey-browser-bar i { width:4px; height:4px; border-radius:50%; background:var(--muted); opacity:.6; }
-.passkey-browser-line { display:block; width:70px; height:4px; margin:18px 20px;
-  border-radius:4px; background:var(--line-2); box-shadow:0 10px 0 var(--line); }
-.passkey-fingerprint { left:83px; top:52px; width:58px; height:58px; border-radius:16px;
-  color:var(--muted); background:linear-gradient(145deg,var(--chrome-hi),var(--sunk));
-  border:1px solid var(--line-2); box-shadow:inset 0 1px 0 var(--edge),0 4px 12px #0002;
-  transition:color 500ms,box-shadow 500ms; }
-.passkey-lock { right:14px; bottom:-8px; width:48px; height:52px; padding:0;
-  border:0; background:transparent; box-shadow:none; }
-.passkey-shackle { position:absolute; width:20px; height:22px; top:2px; left:14px;
-  border:3px solid var(--muted); border-bottom:0; border-radius:12px 12px 0 0;
-  transform:translateX(8px) rotate(24deg); transform-origin:100% 100%;
-  transition:transform 650ms var(--ease),border-color 500ms; }
-.passkey-lock-body { position:absolute; inset:21px 4px 0; border:1px solid var(--line-2);
-  border-radius:8px; background:linear-gradient(130deg,var(--chrome-hi),var(--panel));
-  box-shadow:inset 0 1px 0 var(--edge),0 4px 12px #0003; }
-.passkey-lock-body::after { content:""; position:absolute; width:4px; height:7px;
-  top:10px; left:16px; border-radius:3px; background:var(--muted); }
+.passkey-art { width:200px; max-width:100%; height:156px; padding:0; border:0;
+  border-radius:0; background:none; box-shadow:none; perspective:none; }
+.passkey-art>.icon-object { width:144px; height:144px; }
+.passkey-art>.icon-object svg { stroke-width:0; }
 .passkey-art-caption { display:grid; gap:5px; text-align:center; max-width:34ch; }
 .passkey-art-caption>strong { font-size:18px; font-weight:500; letter-spacing:-.025em; }
-@keyframes setup-arrival-pulse {
-  0%,100% { color:var(--muted); box-shadow:inset 0 1px 0 var(--edge),0 4px 12px #0002; }
-  45% { color:var(--accent-text); box-shadow:inset 0 1px 0 var(--edge),
-    0 0 0 5px var(--accent-soft),0 0 24px var(--accent-soft); }
-}
-.passkey-fingerprint.motion-passkey-arrival { animation:setup-arrival-pulse 1800ms ease-in-out 1;
-  animation-delay:var(--passkey-arrival-offset,0ms); }
-[data-protection-art=pending] .passkey-fingerprint { color:var(--accent-text);
-  animation:setup-active-pulse 1800ms ease-in-out infinite; }
-[data-protection-art=verified] .passkey-browser { transform:rotateY(0) rotateX(0); }
-[data-protection-art=verified] .passkey-shackle { transform:none; border-color:var(--accent-text); }
-[data-protection-art=verified] .passkey-fingerprint { color:var(--accent-text);
-  box-shadow:inset 0 1px 0 var(--edge),0 0 22px var(--accent-soft); }
 [data-protection-art=verified] .passkey-art-caption>strong { color:var(--ok); }
-@keyframes setup-lock-close { from { transform:translateX(8px) rotate(24deg); }
-  to { transform:none; } }
-.passkey-art.motion-complete-enter .passkey-shackle { animation:setup-lock-close 650ms var(--ease) both; }
 .setup-explainer { display:grid; gap:12px; padding-block:8px; min-width:0; }
 .setup-explainer-flow { display:grid; grid-template-columns:repeat(4,minmax(0,1fr));
   gap:16px; list-style:none; padding:0; margin:0; }
@@ -181,11 +142,12 @@
 .setup-review-details .kv { gap:6px 16px; font-size:13px; }
 .setup-review-details .kv dd { overflow-wrap:anywhere; }
 .setup-review-details .callout { padding:10px 12px; font-size:13px; }
-.setup-review-devices { display:grid; gap:12px; padding:16px; border-radius:var(--r); }
+.setup-review-devices { display:grid; gap:16px; padding:0; border:0; border-radius:0;
+  background:none; box-shadow:none; }
 .setup-review-device-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(100px,1fr)); gap:8px; }
-.setup-review-device-list>div { display:flex; align-items:center; gap:8px; min-width:0; font-size:14px;
-  padding:10px; border:1px solid var(--line); border-radius:10px; overflow-wrap:anywhere; }
-.setup-review-device-list .symbol { flex:none; color:var(--metal); }
+.setup-review-device-list>div { display:grid; justify-items:center; align-content:start; gap:8px;
+  min-width:0; font-size:13px; text-align:center; padding:8px 0; border:0; border-radius:0; overflow-wrap:anywhere; }
+.setup-review-device-list .icon-object { width:64px; height:64px; }
 .setup-network-review.setup-consent-row { display:grid; gap:8px; padding-top:12px;
   border-top:1px solid var(--line); }
 .setup-consent-row>p { line-height:1.5; }
@@ -202,22 +164,18 @@
   border:1px solid var(--line); border-radius:12px; color:var(--metal); }
 .setup-status-wallet>div { display:grid; gap:4px; min-width:0; }
 .setup-status-wallet h3 { overflow-wrap:anywhere; font-size:20px; }
-.setup-device-list { padding:0; margin:0; list-style:none; display:grid; gap:8px; }
-.setup-device-row { display:grid; grid-template-columns:36px minmax(0,1fr) minmax(0,.8fr);
-  gap:10px; align-items:center; padding:12px; border:1px solid var(--line); border-radius:12px;
-  --device-pulse:var(--accent-soft); }
-.setup-device-row[data-device-role=joiner] { --device-pulse:color-mix(in srgb,var(--ok) 18%,transparent); }
+.setup-device-list { padding:0; margin:0; list-style:none; display:grid; gap:0; }
+.setup-device-row { display:grid; grid-template-columns:56px minmax(0,1fr) minmax(0,.8fr);
+  gap:12px; align-items:center; padding:16px 0; border:0; border-bottom:1px solid var(--line);
+  border-radius:0; background:none; box-shadow:none; }
+.setup-device-row:last-child { border-bottom:0; }
 .setup-device-row>div { display:grid; gap:3px; min-width:0; }
 .setup-device-row strong { font-size:14px; }
 .setup-device-label { overflow-wrap:anywhere; }
 .setup-device-state { text-align:right; font-size:13px; overflow-wrap:anywhere; color:var(--muted); }
-.setup-device-mark { display:grid; place-items:center; width:36px; height:40px;
-  border:1px solid var(--line); border-radius:10px; }
-.active-device .setup-device-mark { color:var(--accent-text); border-color:var(--accent-border); }
-.active-device[data-device-role=joiner] .setup-device-mark { color:var(--ok); border-color:var(--ok); }
-@keyframes setup-active-pulse { 0%,100% { box-shadow:0 0 0 0 var(--device-pulse,var(--accent-soft)); }
-  50% { box-shadow:0 0 0 6px var(--device-pulse,var(--accent-soft)); } }
-.setup-device-pending .setup-device-mark { animation:setup-active-pulse 2400ms ease-in-out infinite; }
+.setup-device-mark { display:grid; place-items:center; width:56px; height:56px;
+  padding:0; border:0; border-radius:0; background:none; box-shadow:none; }
+.setup-device-mark>.icon-object { width:56px; height:56px; }
 .setup-connect .hero-card { padding:20px; gap:14px; }
 .setup-connect .hero-card h2 { font-size:20px; }
 .setup-connect .card-head { flex-wrap:wrap; gap:8px; }
@@ -320,11 +278,12 @@
   .setup-network-choice { gap:8px; }
   .setup-wallet-status,.setup-completion-actions,.setup-connect .hero-card,
   .setup-verification .hero-card { padding:16px; }
-  .setup-device-row { grid-template-columns:32px minmax(0,1fr); padding:10px; gap:8px; }
+  .setup-device-row { grid-template-columns:48px minmax(0,1fr); padding:12px 0; gap:6px 12px; }
   .compact-backup-device { grid-template-columns:minmax(0,1fr); gap:4px; }
   .setup-completion-actions>.row-actions { grid-template-columns:minmax(0,1fr); }
   .setup-device-state { grid-column:2; text-align:left; }
-  .setup-device-mark { width:32px; grid-row:1/3; }
+  .setup-device-mark { width:48px; height:48px; grid-row:1/3; }
+  .setup-device-mark>.icon-object { width:48px; height:48px; }
   .guided-setup .safety { grid-template-columns:repeat(auto-fit,minmax(min(100%,7ch),1fr)); font-size:22px;
     padding:16px 8px; gap:8px; }
 }
@@ -339,20 +298,8 @@
   .setup-network-choice:not(:has(#g-net-mainnet)) { grid-template-columns:minmax(0,1fr); }
   .setup-network-choice:not(:has(#g-net-mainnet)) .setup-network-unavailable { grid-row:3; grid-column:1; }
 }
-@media(prefers-reduced-motion:reduce) {
-  .setup-device-pending .setup-device-mark,
-  .passkey-fingerprint.motion-passkey-arrival,
-  [data-protection-art=pending] .passkey-fingerprint { animation:none!important; }
-  .passkey-browser,.passkey-fingerprint,.passkey-shackle { transition:none!important; }
-  .passkey-art.motion-complete-enter .passkey-shackle { animation:none!important; }
-}
-.motion-document-hidden .setup-device-mark,
-.motion-document-hidden .passkey-fingerprint { animation-play-state:paused!important; }
-.motion-document-hidden .passkey-shackle { animation-play-state:paused!important; }
 @media(forced-colors:active) {
-  .passkey-browser,.passkey-fingerprint,.passkey-lock-body,.setup-wallet-status,
+  .setup-wallet-status,
   .setup-device-row,.setup-completion-actions { background:Canvas; border-color:CanvasText; box-shadow:none; }
-  .passkey-shackle { border-color:CanvasText; }
-  .passkey-lock-body::after,.passkey-browser-bar i { background:CanvasText; }
-  .active-device .setup-device-mark,.threshold-example-devices .example-approval { border-color:Highlight; }
+  .threshold-example-devices .example-approval { border-color:Highlight; }
 }

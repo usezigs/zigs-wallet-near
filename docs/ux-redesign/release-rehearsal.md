@@ -1,7 +1,7 @@
 # Deslopify checkpoint and release rehearsal
 
 Validated 13 November 2026 on `deslopify`, for draft PR #2 into `Near`.
-The branch includes `Near` at `b303173` and retains portfolio tracking, Solana receiving,
+The branch includes `Near` at `97e7621` and retains portfolio tracking, Solana receiving,
 the icon system and the OpenGlass presentation. Work was isolated from the separate
 `nextlevelvisuals` checkout. No target branch was merged or deployed by this rehearsal.
 
@@ -20,7 +20,8 @@ the icon system and the OpenGlass presentation. Work was isolated from the separ
   reports pending verification, then reports success only after the original address matches.
   The OpenGlass browser regression covers this unloaded state in both themes and three sizes.
 - Place the initial-setup device reminder inside the approval-rule controls. This retains Near's
-  exact warning while removing 17px of overflow at 1366 × 768.
+  warning while removing 17px of overflow at 1366 × 768. The subsequent Near setup polish
+  moves this guidance into its approval explanation; that arrangement is retained.
 
 ## Automated validation
 
@@ -39,6 +40,13 @@ Latest ignored evidence directories are `solspike/.state/validation-final-*` and
 | Fast regression suite | 82 of 82 passed, including the reference QR check |
 | Repository lint | Passed: 318 JavaScript and two Python files |
 | Full baseline gate | Passed: 93 tests, 22 hashed files, zero problems |
+
+After the concurrent Near setup-artwork update (`97e7621`), the fast suite (82/82), real
+unified-setup regression, build, lint and full interface review were repeated. Chrome and WebKit
+journeys recheck both themes, 48px actions, inline navigation and short desktop windows. The
+transaction and recovery code was unchanged by this later integration. The retained capture
+links below precede that later artwork update; current captures remain in ignored
+`solspike/.state/validation-setup-*`.
 
 The full baseline ran afresh on `eec59ad` under Node 26.12.1, including QR; no cached test exits were reused.
 

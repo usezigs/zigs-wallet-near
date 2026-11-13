@@ -2434,7 +2434,7 @@ async function walkSteps(fields, times, fresh = true) {
     /^Set up your wallet.*Protect this browser.*Continue to approval rule$/s);
   assert.match(shown(1),
     new RegExp("Set the approval threshold.*Devices.*Approvals needed.*Any 2 of 3 devices must.*"
-      + "How the approval threshold works.*"
+      + "How approvals work.*Technical details.*"
       + "BackUse this arrangement$", "s"));
   assert.match(shown(2),
     /Set up this device.*This device's label.*Wallet name.*Network.*BackContinue$/s);
@@ -2476,7 +2476,7 @@ async function walkSteps(fields, times, fresh = true) {
         ? findNode(section, (n) => n.attrs?.["data-security-explanation"] === "review")
         : findNode(section, (n) => n.tag === "figure");
       assert.ok(explanation, "each step has contextual guidance or an educational illustration");
-      const symbol = findNode(explanation, (n) => n.className === "symbol");
+      const symbol = findNode(explanation, (n) => n.className?.split(" ").includes("symbol"));
       assert.equal(symbol?.attrs["aria-hidden"], "true", "the repeated icon is decorative");
       assert.ok(findNode(explanation, (n) => n.tag === (i === 3 ? "strong" : "figcaption")),
         "guidance has visible explanatory text");
@@ -2510,7 +2510,10 @@ assert.match(marginText(3, 3), /Each payment needs every device/);
       assert.equal(devices.length, n, "the proposed rule renders exactly its device count");
       assert.equal(devices.filter((node) => node.className.includes("example-selected")).length,
         approvals, "the static/reduced-motion example highlights exactly the threshold");
-      assert.match(textOf(illustration), /not real approvals/);
+      assert.match(textOf(illustration), /Illustration · proposed arrangement/);
+      const info = findNode(tree, (node) => node.className === "setup-threshold-info");
+      assert.match(textOf(info), /not connected devices or real approvals/);
+      assert.equal(info.attrs.open, undefined, "extra guidance is collapsed by default");
       assert.equal(byId(tree, "g-n").attrs.value, String(n));
       assert.equal(byId(tree, "g-t").attrs.value, String(approvals));
       assert.equal(byId(tree, "g-n-less").attrs.disabled === "", n === 2);

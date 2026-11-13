@@ -6,6 +6,22 @@ let sequence = 0;
 const shape = (d, material = "body", depth = true) => ({ d, material, depth });
 const line = (d, width = 2, material = "metal") => ({ d, width, material });
 const OBJECTS = Object.freeze({
+  phone: [
+    shape("M34 12 61 8Q68 7 68 15V78Q68 85 61 86L34 90Q27 91 27 83V21"
+      + "Q27 13 34 12Z", "metal"),
+    shape("M32 23 63 19V73L32 77Z", "body", false),
+    line("M42 17 53 15.5", 1.5, "side"),
+    line("M42 82 53 80.5", 1.5, "side"),
+    line("M29 27V72", .7),
+  ],
+  laptop: [
+    shape("M16 23 71 15Q77 14 77 21V63L16 72Q11 73 11 67V30Q11 24 16 23Z", "metal"),
+    shape("M16 29 72 21V60L16 68Z", "body", false),
+    shape("M11 72 77 63 91 76Q92 78 88 79L21 89Q17 90 13 87L3 80Q0 77 5 75Z", "metal"),
+    shape("M21 73 69 66 79 74 29 82Z", "body", false),
+    line("M18 86 86 76", .8),
+    line("M42 82 57 80", 1, "side"),
+  ],
   chat: [
     shape("M36 31 76 26Q81 25 81 31V60Q81 65 76 66L64 67 50 79V69L36 71Z"),
     shape("M16 24Q16 19 22 18L62 13Q68 12 68 18V50Q68 55 62 56L38 59 23 73V61"

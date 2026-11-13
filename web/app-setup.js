@@ -32,7 +32,7 @@ import { beginGuided, completeGuided, guidedState, pauseGuided,
 import { openGroup } from "./app-groups.js";
 import { outcomeSeal } from "./outcome-seal.js";
 import { openBackup, openBackupCheck } from "./app-backups.js";
-import { icon } from "./app-icons.js";
+import { icon, sculptedIcon } from "./app-icons.js";
 import { walletMark, walletReveal } from "./app-wallet-art.js";
 
 // Only an open overlay's wallet id is kept in memory; never persist an invitation capability.
@@ -88,7 +88,7 @@ function setupDeviceStatus(f, phase = "connect", joining = false) {
       return el("li", { class: "setup-device-row" + (here || target ? " active-device" : "")
         + (pending ? " setup-device-pending" : ""),
       "data-device-seat": String(i), "data-device-role": i === 1 ? "initiator" : "joiner" },
-      el("span", { class: "setup-device-mark", "aria-hidden": "true" }, icon(i === 1 ? "laptop" : "phone")),
+      el("span", { class: "setup-device-mark", "aria-hidden": "true" }, sculptedIcon(i === 1 ? "laptop" : "phone")),
       el("div", {}, el("strong", {}, "Device " + i + (here ? " · You" : "")),
         el("span", { class: "small muted setup-device-label" }, state.seats[i]?.name || "Independent signing share")),
       el("span", { class: "small setup-device-state" }, status));

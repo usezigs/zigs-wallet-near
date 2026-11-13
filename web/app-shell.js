@@ -787,12 +787,12 @@ function ruleCounter(label, id, name, value, help) {
   const less = el("button", { class: "btn rule-adjust", type: "button",
     id: id + "-less",
     "aria-label": "Fewer " + label.toLowerCase(), "aria-controls": id,
-    disabled: value <= 2, onclick: adjust(-1) }, el("span", { "aria-hidden": "true" }, "−"));
+    disabled: value <= 2, onclick: adjust(-1) }, icon("minus"));
   const more = el("button", { class: "btn rule-adjust", type: "button",
     id: id + "-more",
     "aria-label": "More " + label.toLowerCase(), "aria-controls": id,
     disabled: value >= (name === "t" ? ui.createDraft?.n ?? 3 : 7),
-    onclick: adjust(1) }, el("span", { "aria-hidden": "true" }, "+"));
+    onclick: adjust(1) }, icon("plus"));
   return el("div", { class: "rule-counter" }, el("label", { for: id }, label),
     el("div", { class: "rule-counter-control" }, less, input, more),
     el("p", { class: "small muted", id: id + "-help" }, help));
@@ -1006,9 +1006,14 @@ const ruleStep = (lines) => step(1,
       ruleCounter("Approvals needed", "g-t", "t", ui.createDraft?.t ?? 2,
         "Approvals required for each payment.")),
       el("div", { class: "threshold-result" }, lines.rule, lines.margin, lines.ack),
-      el("p", { class: "small muted" }, "All devices must join and stay open for initial setup. After setup, any required subset can approve a payment."))),
-  el("details", { class: "setup-threshold-details" }, el("summary", {}, "How the approval threshold works"),
-    thresholdExplanation(ui.createDraft?.n ?? 3, ui.createDraft?.t ?? 2)));
+      el("details", { class: "setup-threshold-info" },
+        el("summary", {}, icon("info"), el("span", {}, "How approvals work"), icon("chevronDown")),
+        el("div", { class: "threshold-info-body" },
+          el("p", {}, "Each device keeps its own signing share. No single device holds the complete spending key for Zcash."),
+          el("p", {}, "All chosen devices must join and stay open for initial setup. After setup, the required number can approve a payment."),
+          el("p", {}, "The illustration shows proposed devices and example groups, not connected devices or real approvals."),
+          el("details", { class: "setup-threshold-details" }, el("summary", {}, "Technical details"),
+            thresholdExplanation(ui.createDraft?.n ?? 3, ui.createDraft?.t ?? 2)))))));
 const namesStep = () => step(2,
   el("div", { class: "setup-device-layout setup-labels-layout" },
     el("div", { class: "setup-device-fields" },
@@ -1028,7 +1033,7 @@ function reviewStep() {
         el("section", { class: "setup-review-devices surface-quiet", "aria-label": "Proposed participating devices" },
           el("span", { class: "label" }, "Devices at setup · proposed arrangement"),
           el("div", { class: "setup-review-device-list" }, Array.from({ length: d.n }, (_, i) =>
-            el("div", {}, icon(i === 0 ? "laptop" : "phone"),
+            el("div", {}, sculptedIcon(i === 0 ? "laptop" : "phone"),
               el("span", {}, i === 0 ? d.label || "This device" : "Device " + (i + 1)))))),
         el("dl", { class: "kv" }, row("Wallet name", d.name || "Treasury"),
           d.description ? row("Private description", d.description) : null,
@@ -1083,7 +1088,8 @@ function newDialog() {
   const lines = ruleLines(ui.createDraft?.n ?? 3, ui.createDraft?.t ?? 2,
     (n, t, valid) => updateSetupIllustrations(form, n, t, valid)), at = ui.createStep;
   const submit = (ev) => (at === ui.createStep ? stepSubmit(ev) : ev.preventDefault());
-  const form = frame("Set up your wallet", { class: "dialog guided-plan", oninput: lines.update, onsubmit: submit },
+  const form = frame("Set up your wallet", { class: "dialog guided-plan", "data-setup-step": String(at),
+    oninput: lines.update, onsubmit: submit },
     el("nav", { class: "setup-plan-progress", "aria-label": "Wallet setup plan" },
       el("p", { class: "sr-only", role: "status" }, "Step " + (at + 1) + " of " + STEPS.length
         + ": " + STEPS[at]),
