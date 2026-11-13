@@ -192,7 +192,7 @@ async function messagingReview() {
   for (const scene of ["team", "direct", "contact", "changed-key", "invite", "setup"]) {
     await page.goto(OVERVIEW_ORIGIN);
     await installMessagingFixture(page, scene, "after");
-    if (scene === "setup") await page.getByRole("tab", { name: "Zcash", exact: true }).click();
+    if (scene === "setup") await page.locator("#messages-tab-zcash").click();
     const variants = [320, 390, 1440].flatMap((width) =>
       ["dark", "light"].map((theme) => ({ width, theme })));
     for (const { width, theme } of variants) await messagingVariant(scene, width, theme);

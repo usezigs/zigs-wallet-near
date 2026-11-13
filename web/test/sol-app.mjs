@@ -119,14 +119,11 @@ const hashes = [1, 2, 3].map((i) => sha(solOf(gid, i).solSeed));
   try {
     let tree = draw();
     const hero = one(tree, (n) => n.className === "overview-hero");
-    assert.equal(text(one(hero, (n) => n.className?.split(" ").includes("portfolio-value"))),
-      "$0.00");
-    assert.match(text(hero), /Portfolio balanceUSDDemo\$0\.00Demo prices/,
-      "the USD total reads as a demo value");
-    assert.match(text(hero), /The USD total is a demo\. The displayed \$0\.00 is not a confirmed/);
-    assert.equal(one(hero, (n) => n.attrs?.["data-valuation-state"])?.attrs["data-valuation-state"],
-      "unknown", "displayed zero remains an unknown valuation");
-    assert.match(text(hero), /Test funds have no cash value/);
+    assert.equal(text(one(hero, n => n.className?.split(" ").includes("portfolio-value"))),
+      "1.23456798 ZEC", "the actual native balance replaces the demo USD value");
+    assert.doesNotMatch(text(hero), /Demo|\$0\.00/);
+    assert.equal(one(hero, n => n.attrs?.["data-valuation-state"])
+      ?.attrs["data-valuation-state"], "known");
     assert.equal("disabled" in button(hero, "Swap").attrs, false, "Swap is on");
     t.ui.tab = "overview";
     button(hero, "Swap").on.click();
@@ -144,7 +141,7 @@ const hashes = [1, 2, 3].map((i) => sha(solOf(gid, i).solSeed));
     assert.equal(details.attrs.open, undefined);
     assert.match(text(details), /Total shielded balance 1\.23456798ZEC/,
       "the exact total including incoming remains available in balance details");
-    const summaries = ["zec", "sol", "usdc"].map((id) => text(one(asset(tree, id),
+    const summaries = ["zec", "sol"].map((id) => text(one(asset(tree, id),
       (n) => n.tag === "summary")));
     assert.equal(new Set(summaries).size, summaries.length,
       "each asset disclosure keeps a distinct identity for the existing open-state restorer");
@@ -152,7 +149,7 @@ const hashes = [1, 2, 3].map((i) => sha(solOf(gid, i).solSeed));
     assert.match(text(asset(tree, "sol")), /last saved sync/);
     assert.doesNotMatch(text(asset(tree, "sol")), /900 SOL|800 SOL/,
       "legacy group and device fee-account balances are not silently added to holdings");
-    for (const id of ["zec", "sol", "usdc"]) {
+    for (const id of ["zec", "sol"]) {
       const privacy = one(asset(tree, id), (n) => n.className?.split(" ")
         .includes("asset-shielding"));
       assert.match(text(privacy), /Privacy breakdown unavailable/);
@@ -161,18 +158,13 @@ const hashes = [1, 2, 3].map((i) => sha(solOf(gid, i).solSeed));
       const track = one(asset(tree, id), (n) => n.className === "shielding-track is-unknown");
       assert.equal(track, undefined, "unknown holdings do not imply a measured allocation");
     }
-    assert.match(text(asset(tree, "usdc")), /^USDCSolana DevnetDemo/, "the USDC row is a demo");
-    assert.match(text(choice(tree, "Send", "usdc")), /Demo row · unavailable; do not deposit/);
-    const usdcBalance = one(asset(tree, "usdc"), (n) => n.className === "asset-balance-block");
-    assert.match(text(usdcBalance), /Unavailable.*Do not deposit USDC to this wallet/,
-      "the unavailable asset and deposit warning remain outside collapsed details");
-    for (const id of ["zec", "usdc"]) {
-      for (const action of ["Shield", "Unshield"]) {
-        assert.equal(button(asset(tree, id), action).attrs.disabled, "");
-      }
+    assert.equal(asset(tree, "usdc"), undefined, "unsupported USDC is omitted");
+    for (const action of ["Shield", "Unshield"]) {
+      assert.equal(button(asset(tree, "zec"), action), undefined,
+        "unsupported ZEC actions are omitted");
     }
     for (const action of ["Send", "Receive"]) {
-      assert.equal(choice(tree, action, "usdc").attrs.disabled, "");
+      assert.equal(choice(tree, action, "usdc"), undefined);
     }
     button(asset(tree, "sol"), "Shield").on.click();
     assert.deepEqual([t.ui.tab, t.wantFocus?.key], ["solana", "INPUT:sol-add-amount:0"]);
@@ -199,7 +191,7 @@ const hashes = [1, 2, 3].map((i) => sha(solOf(gid, i).solSeed));
     const solOff = one(asset(off, "sol"), (n) => n.className === "asset-balance-block");
     assert.match(text(solOff), /Unavailable.*Do not send SOL to the Zcash address/,
       "the ineligible asset retains its address warning outside collapsed details");
-    const offSummaries = ["zec", "sol", "usdc"].map((id) => text(one(asset(off, id),
+    const offSummaries = ["zec", "sol"].map((id) => text(one(asset(off, id),
       (n) => n.tag === "summary")));
     assert.equal(new Set(offSummaries).size, offSummaries.length,
       "unavailable assets also have distinct open-state identities");

@@ -18,7 +18,7 @@ import { agreement, fitsSolana, pdaFields, seatProgress, startBlock } from "../s
 import { backupText as solBackupText, backupWords } from "../sol/backup.js";
 import { base58 } from "../sol/docs.js";
 import { syncSolana } from "../sol/session.js";
-import { solView } from "../sol/view.js";
+import { solSurfaces as solView } from "./sol-view-rig.mjs";
 import { config, loadRig, sleep, storage } from "./sol-rig.mjs";
 
 const rig = await loadRig();

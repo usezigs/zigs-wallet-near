@@ -1,3 +1,4 @@
+import { readSwapRecovery } from "./swap-recovery.js";
 // The state of the swap page. It keeps data in memory only: no wallet, storage or signer. A
 // provider gives the quotes: NEAR Intents for the swap page, MockSwapProvider for the demos. The
 // live swap from SOL to ZEC (openSwap) is paid from a wallet outside Zigs, so Zigs signs nothing.
@@ -37,8 +38,6 @@ export const SWAP_STATUS_MAX_MS = 60_000; // the longest wait: after errors and 
 export const SWAP_GROUP_STATUS_MS = SWAP_STATUS_MAX_MS;
 export const SWAP_FINAL = Object.freeze(['SUCCESS', 'REFUNDED', 'FAILED']);
 const SWAP_WAITING = ['unknown', 'PENDING_DEPOSIT'];
-const OVER_CAP = 'The payout would take the wallet over the warning level for unaudited mainnet '
-  + 'wallets. Choose a smaller amount.';
 const STATUS_DOWN = 'The state of the swap is not available now. Zigs asks again.';
 const BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 // The ask of a live swap. Only a swap from SOL that the plain Solana wallet pays carries `group`,
@@ -53,6 +52,20 @@ function liveOf(swap, from, group, wallet) {
   const base = group ? SWAP_GROUP_STATUS_MS : SWAP_STATUS_MS;
   return { swap, from, group, wallet, status: null, statusError: '', base, wait: base,
     timer: null };
+}
+
+function verifiedRecovery(live, status) {
+  const got = status.swap ?? {}, expected = live.swap;
+  return [got.from === live.from, got.to === (live.from === 'sol' ? 'zec' : 'sol'),
+    ['recipient', 'refundTo', 'amountIn', 'amountOut'].every((k) => got[k] === expected[k]),
+    Date.parse(got.deadline) === Date.parse(expected.deadline),
+    !live.group || got.plain === true].every(Boolean);
+}
+function applySwapStatus(live, status) {
+  if (live.restored) live.verified = verifiedRecovery(live, status);
+  const statusError = live.restored && !live.verified
+    ? 'NEAR Intents has not confirmed the saved route. Payment details remain hidden.' : '';
+  Object.assign(live, { status, statusError, wait: live.base });
 }
 
 /** True when `text` is base58 of exactly 32 bytes: the form of a Solana address. */
@@ -259,22 +272,18 @@ export class SwapPreviewModel {
   }
   // The live swap: one at a time, in memory only. It lives apart from the quote: the expiry of
   // the quote, typing and stale() keep it. Only closeSwap() ends it. `where` holds the payout
-  // address (recipient), the name of the wallet, the refund address and, for a payout in ZEC, the
-  // room under the cap in zatoshi. A swap from ZEC pays SOL, so no ZEC cap applies. `group` says
+  // address (recipient), the name of the wallet and the refund address. `group` says
   // that the plain Solana wallet pays a swap from SOL (docs/sol-to-zec-group.md).
   async openSwap(where) {
     const s = this.value;
     if (s.live || s.phase !== 'REVIEW_OPEN') return false;
     const from = swapAsset(s.from).key;
-    const over = (zat) => from === 'sol' && BigInt(zat) > BigInt(where.room);
-    if (over(s.quote.amountOut)) return this.swapFailed(OVER_CAP);
     const asking = { asking: true };
     s.live = asking; s.swapError = ''; this.emit();
     const ask = swapAsk(s, from, where);
     const swap = await this.provider.openSwap(ask).catch((error) => error);
     if (s.live !== asking) return false;
     if (swap instanceof Error) return this.swapFailed(this.failure(swap));
-    if (over(swap.amountOut)) return this.swapFailed(OVER_CAP);
     s.live = liveOf(swap, from, ask.group === true, where.wallet);
     // The page must hide the address at the deadline, also when no read falls on it.
     const left = Math.max(0, Date.parse(swap.deadline) - this.clock.now());
@@ -284,6 +293,27 @@ export class SwapPreviewModel {
     void this.readSwap(s.live);
     return true;
   }
+  // Resume tracking only. A fresh provider response must verify the saved route before
+  // the page exposes a deposit address or enables any existing payment action.
+  restoreSwap(value) {
+    if (this.value.live) return false;
+    let record;
+    try { record = readSwapRecovery(value); } catch { return false; }
+    const live = liveOf(record.swap, record.from, record.group, record.wallet);
+    Object.assign(live, { restored: true, verified: false });
+    if (record.proposalId) live.proposal = { id: record.proposalId };
+    else if (record.proposalPending) live.proposal = { busy: true, recovering: true };
+    this.value.live = live;
+    const from = SWAP_ASSETS.find((a) => a.key === record.from);
+    const to = SWAP_ASSETS.find((a) => a.key === (record.from === 'sol' ? 'zec' : 'sol'));
+    Object.assign(this.value, { from: from.id, to: to.id,
+      amount: swapDecimal(record.swap.amountIn, from) });
+    const left = Math.max(0, Date.parse(record.swap.deadline) - this.clock.now());
+    live.end = this.clock.set(() => this.emit(), left);
+    this.emit();
+    void this.readSwap(live);
+    return true;
+  }
   swapFailed(message) {
     Object.assign(this.value, { live: null, swapError: message });
     this.emit();
@@ -291,10 +321,12 @@ export class SwapPreviewModel {
   }
   // Reads the state until it is final. An error doubles the wait, up to SWAP_STATUS_MAX_MS.
   async readSwap(live) {
+    this.clock.clear(live.timer);
+    live.timer = null;
     try {
       const status = await this.provider.swapStatus(live.swap.depositAddress);
       if (this.value.live !== live) return;
-      Object.assign(live, { status, statusError: '', wait: live.base });
+      applySwapStatus(live, status);
     } catch {
       if (this.value.live !== live) return;
       Object.assign(live, { statusError: STATUS_DOWN,

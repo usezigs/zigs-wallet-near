@@ -158,6 +158,11 @@ for runtime values remains `web/design-system.css`, followed by the component an
 styles loaded by `web/index.html`. Both themes are first-class. The isolated Stageshow illustrations
 are examples of the product, not a source of miniature geometry for the live application.
 
+The integrated `Near` build uses an OpenGlass React presentation shell around the existing native
+wallet modules. Its material rules live in `web/openglass/theme.css`; native dialog forms keep their
+ownership, validation and handlers. Financial cards, balances, dialogs and receipts retain opaque
+grounds. `web/journey-refinement.css` loads last for the reviewed journey and navigation details.
+
 **Key Characteristics:**
 - Original zebra identity and wallet identity artwork.
 - Warm chalk or charcoal, with icy blue used for focus and selected detail.

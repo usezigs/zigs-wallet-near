@@ -42,6 +42,7 @@ import { closeSetupQr, setupQrDialog } from "./app-setup.js";
 import { endSend, receiveDialog, sendDialog } from "./app-send.js";
 import { closeNetworkPrivacy, hasNetworkPrivacy, networkPrivacyPanel } from "./app-network-privacy.js";
 import { presentPrivacyStatus } from "./network-privacy-popup.js";
+import { keepPortfolioView, presentPortfolio } from "./app-portfolio.js";
 
 import { closeHowZigsWorks, hasHowZigsWorks, howZigsWorksDialog } from "./app-how-zigs-works.js";
 
@@ -296,6 +297,9 @@ export function draw() {
   const view = pageView(), top = lockedVault ? [] : layers();
   document.title = pageTitle(view, pending);
   const header = selectedWalletHeader(app, view);
+  if (!top.length && keepPortfolioView(view)) {
+    placeWalletHeader(app, header); presentWalletMarble(document); return;
+  }
   if (typingMessage(app, [view, ...top])) {
     placeWalletHeader(app, header); presentWalletMarble(document); return;
   }
@@ -305,6 +309,8 @@ export function draw() {
   if (view !== previousView || top.length || app.querySelector(".scrim"))
     app.replaceChildren(...(header ? [header] : []), view, ...top, appFoot());
   else placeWalletHeader(app, header);
+  // Commit the shared React presentation before measuring, restoring fields, or moving focus.
+  globalThis.zigsGlass?.flush();
   presentPrivacyStatus(document);
   announceApprovalProgress(document);
   keyControls(shell);
@@ -320,6 +326,7 @@ export function draw() {
     session: state.sid, chat: state.cid, contact: state.contact,
     surface: view.id || view.className } });
   presentWalletReveal(document);
+  presentPortfolio(document);
 }
 
 // Rebuilding a focused text box closes a phone's keyboard. While a message box or a field of the
@@ -543,6 +550,23 @@ function showField(field) {
   field.scrollIntoView?.({ block: "nearest" });
   const note = field.getAttribute?.("aria-describedby")?.split(" ").at(-1);
   document.getElementById(note)?.scrollIntoView?.({ block: "nearest" });
+  clearLayerFocus(field);
+}
+// Browser focus scrolling does not consistently account for a wrapped sticky heading.
+// Measure the actual chrome instead of assuming its height from a fixed scroll margin.
+function clearLayerFocus(field) {
+  const sheet = field?.closest?.(".dialog, .drawer");
+  if (!sheet) return;
+  const bounds = sheet.getBoundingClientRect(), box = field.getBoundingClientRect();
+  const sticky = (selector) => {
+    const node = sheet.querySelector(selector);
+    return node && window.getComputedStyle(node).position === "sticky"
+      ? node.getBoundingClientRect() : null;
+  };
+  const top = Math.max(bounds.top, sticky(".card-head")?.bottom ?? bounds.top) + 8;
+  const bottom = Math.min(bounds.bottom, sticky(".dialog-actions")?.top ?? bounds.bottom) - 8;
+  if (box.top < top) sheet.scrollTop += box.top - top;
+  else if (box.bottom > bottom) sheet.scrollTop += box.bottom - bottom;
 }
 // Native textarea focus can reveal only the caret. Keep the message and its actions in view
 // when they fit, or the field itself when a phone keyboard leaves less room.
@@ -557,9 +581,11 @@ function showComposer(field) {
     target.scrollIntoView?.({ block: "nearest" });
 }
 document.addEventListener("focusin", (ev) => {
-  if (!ev.target.closest?.(".messages-workspace .composer")) return;
+  if (!ev.target.matches?.("input,textarea,select")) return;
   requestAnimationFrame(() => {
-    if (document.activeElement === ev.target) showComposer(ev.target);
+    if (document.activeElement !== ev.target) return;
+    clearLayerFocus(ev.target);
+    showComposer(ev.target);
   });
 });
 // The focused field scrolls into view only when the keyboard opens, so that a scroll of the person

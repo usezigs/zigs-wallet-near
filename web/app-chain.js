@@ -29,7 +29,7 @@ export const NETWORKS = {
     explorer: "https://testnet.zecblock.com/tx/", prefix: "utest1", tPrefixes: ["tm", "t2"],
     faucet: "https://faucet.testnet.valargroup.dev/" },
   mainnet: { label: "Mainnet", servers: ["https://zcash-mainnet.chainsafe.dev"],
-    explorer: "https://zecblock.com/tx/", prefix: "u1", tPrefixes: ["t1", "t3"], cap: 50000000 },
+    explorer: "https://zecblock.com/tx/", prefix: "u1", tPrefixes: ["t1", "t3"] },
 };
 export const validNet = (x) => typeof x === "string" && Object.hasOwn(NETWORKS, x);
 export const netName = (g) => g && validNet(g.network) ? g.network : "testnet";
@@ -40,7 +40,6 @@ export const curNet = () => netOf(state.g);
 export const explorerText = (net, link) => link + " opens " + new URL(net.explorer).host
   + " in a new tab. That site is not Zigs: it sees the transaction id that you open and your IP "
   + "address.";
-export const capText = (zat) => zat / 1e8 + " ZEC";
 export const SERVER_TIMEOUT_MS = 8000;
 const FIRST_TIMEOUT_MS = 3000, FAILED_MS = 5 * 60000, SYNC_STALL_MS = 60000;
 export let chain = null;   // { gid, cw, prog, bal, received, ms, error, syncing } for the open group
@@ -377,10 +376,8 @@ setInterval(() => {
 // The expected milliseconds from block `from` to block `to`, at the block time of each block (75
 // seconds before NU7, 25 from it). The engine knows the upgrade heights of each network.
 export const spanMs = (net, from, to) => Z.blockSpanSeconds(net, from, to) * 1000;
-// A signer shows the address only after its own seat checked it against its key share. A wallet
-// of a network with a cap shows it only when the balance is known and under the cap.
-export const addrHidden = () => atCap() || capUnknown()
-  || (localSeats().length > 0 && !myVerified());
+// A signer shows the address only after checking it against its key share.
+export const addrHidden = () => localSeats().length > 0 && !myVerified();
 export const curChain = () => chain && chain.gid === state.gid ? chain : null;
 
 // Sent payments that no synced block contains yet. Until one does, the synced balance still
@@ -414,18 +411,6 @@ export function balanceNow(b) {
   };
 }
 
-// Unaudited code holds real money only up to the network's cap; past it the address is hidden.
-export function atCap() {
-  const cap = curNet().cap, total = knownTotal();
-  return !!cap && total !== undefined && total >= cap;
-}
-
-// The balance that the cap is checked against: the open wallet's, else the one that the last sync
-// of this browser saved, else undefined.
-export const knownTotal = () => openTotal() ?? balOf(state.gid)?.total;
-// A network with a cap and no known balance (before the first sync): the app treats it as at the
-// cap, so the address stays hidden.
-export const capUnknown = () => !!curNet().cap && knownTotal() === undefined;
 
 // The balance of the open wallet, or undefined before its first sync.
 export function openTotal() {
@@ -435,9 +420,6 @@ export function openTotal() {
   return b.spendable + b.pending;
 }
 
-// A request names the address of a wallet, so the app offers it only when it knows that the balance
-// is under the cap of the network. `total` is undefined when the balance is not known.
-export const underCap = (g, total) => !netOf(g).cap || total < netOf(g).cap;
 // New blocks every 25 s: refresh the open wallet once a minute while someone looks at it.
 setInterval(() => {
   if (document.visibilityState !== "visible") return;

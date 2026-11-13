@@ -84,12 +84,12 @@ TESTS=(messaging-presentation messaging-cost-review messaging-account-view premi
   homepage-motion
   outcome-seal passkey-setup optional-passkey guided-create wallet-description
   backup-check guided-setup
-  recipients swap-preview
+  recipients swap-preview swap-recovery
   chat signed app
   requests account personal payees
   vault util qr shim shim-status
   lwd zns near-quote
-  sol-config sol-docs sol-ceremony sol-plain-ceremony sol-plain-app sol-plain-reads
+  sol-config sol-receive sol-docs sol-ceremony sol-plain-ceremony sol-plain-app sol-plain-reads
   sol-plain-view sol-plain-load sol-plain-security sol-plain-review sol-plain-direct
   sol-plain-sessions sol-plain-sign sol-plain-ui sol-mode sol-private sol-start-watch
   sol-wallet-page sol-app
@@ -102,7 +102,8 @@ TESTS=(messaging-presentation messaging-cost-review messaging-account-view premi
   graph sol-fee sol-rent sol-addsol sol-pool-mainnet sol-errors sol-sdk sol-prove demo-check
   mainnet-on mempool
   chain-fallback smoke
-  contrast orientation overview setup-stage approvals recovery security-dashboard payment-model
+  contrast orientation overview portfolio setup-stage approvals recovery security-dashboard
+  payment-model
   plain-worker
   sol-nonce-tabs nonce-locks no-storage sync-pause)
 HELPERS=(passkey-fixture sol-rig sol-setup sol-chain sol-vector sol-fixture sol-pay-rig page

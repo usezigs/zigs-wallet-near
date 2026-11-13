@@ -1,0 +1,63 @@
+/* Zigs icon craft: consistent small instruments, dimensional objects at larger sizes.
+   Objects are original inline vectors; all material and lighting stay inside their silhouettes. */
+.symbol:not(.icon-object) svg { stroke-width:1.5; }
+.symbol .icon-relief { display:none; }
+.symbol:not(.icon-object) .icon-body,.symbol:not(.icon-object) .icon-face { stroke:currentColor; }
+.side-item>.symbol { width:28px; height:30px; border:0; border-radius:0;
+  background:none; box-shadow:none; }
+.side-item>.symbol svg { width:20px; height:20px; }
+.side-item.active>.symbol,.side-item:hover>.symbol { background:none; border-color:transparent;
+  box-shadow:none; }
+.btn .symbol,.btn.lg .symbol { width:18px; height:18px; }
+.icon-btn .symbol { width:20px; height:20px; }
+
+.icon-object { width:96px; height:96px; color:#000; overflow:visible; }
+.icon-object svg { width:100%; height:100%; overflow:visible;
+  filter:drop-shadow(0 6px 5px #0003); }
+.icon-object .object-part { transform:none; }
+.icon-object .object-line { fill:none; }
+.messages-empty-art,.recipient-empty-art { display:grid; place-items:center;
+  width:112px; height:112px; margin:0 0 16px; padding:0;
+  border:0; border-radius:0; background:none; box-shadow:none; }
+.messages-empty-art>.icon-object,.recipient-empty-art>.icon-object { width:104px; height:104px; }
+.approval-empty-mark:has(.icon-object) { display:grid; place-items:center; width:80px;
+  height:88px; padding:0; background:none; border:0; box-shadow:none; border-radius:0; }
+.approval-empty-mark>.icon-object { width:80px; height:80px; }
+.security-emblem:has(.icon-object) { width:48px; height:48px; padding:0;
+  border:0; background:none; box-shadow:none; border-radius:0; }
+.security-emblem>.icon-object { width:48px; height:48px; }
+.workflow-empty>.empty-illustration:has(.icon-object) { display:grid; place-items:center;
+  width:96px; height:96px; margin:0 auto 12px; border:0; background:none; box-shadow:none; }
+.workflow-empty>.empty-illustration:has(.icon-object)::before { display:none; }
+.workflow-empty>.empty-illustration>.icon-object { visibility:visible; width:96px; height:96px; }
+.launch-card>.icon-object,.lock-card>.icon-object { width:96px; height:96px; margin:0 auto 16px; }
+.security-access-icon>.symbol { width:20px; height:20px; }
+.security-access-chevron>.symbol { width:16px; height:16px; }
+.preference-symbol { display:grid; place-items:center; width:32px; height:32px;
+  flex:0 0 32px; color:var(--muted); }
+.preference-symbol>.symbol { width:20px; height:20px; }
+.btn:has(>.symbol[data-icon=copy]),.btn:has(>.symbol[data-icon=check]) { gap:8px; }
+.recovery-dialog-heading { display:flex; align-items:center; gap:12px; min-width:0; }
+.recovery-dialog-heading>.icon-object { width:56px; height:56px; }
+.recovery-dialog-heading>h2 { margin:0; }
+
+/* Light mode keeps the same material; its silhouette comes from the darker extruded edge. */
+:root[data-theme=light] .icon-object { --object-edge:#e2eeeccc; }
+@media(prefers-color-scheme:light) {
+  :root:not([data-theme=dark]) .icon-object { --object-edge:#e2eeeccc; }
+}
+@media(max-width:600px) {
+  .preference-row:has(>.preference-symbol) { gap:8px; }
+  .preference-symbol { width:24px; flex-basis:24px; }
+  .messages-empty-art,.recipient-empty-art { width:96px; height:96px; }
+  .messages-empty-art>.icon-object,.recipient-empty-art>.icon-object { width:88px; height:88px; }
+}
+@media(forced-colors:active) {
+  .icon-object svg { filter:none; }
+  .icon-object .object-depth,.icon-object .object-ground { display:none; }
+  .icon-object .object-face { fill:Canvas; stroke:CanvasText; stroke-width:1.5; }
+  .icon-object .object-face[data-material=accent],
+  .icon-object .object-face[data-material=metal] { fill:CanvasText; }
+  .icon-object .object-line { stroke:CanvasText; }
+  .side-item.active>.symbol { color:HighlightText; }
+}

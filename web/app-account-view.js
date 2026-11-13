@@ -11,12 +11,12 @@ import { initials, short, when } from "./app-kit.js";
 import { Z } from "./app-engine.js";
 import { explorerText, netOf, NETWORKS } from "./app-chain.js";
 import {
-  act, copyBtn, dialogForm, el, guard, logBox, money, netBadge, networkPick, noteFor, qrBox, requireAck,
+  act, copyBtn, dialogForm, el, guard, logBox, money, netBadge, networkPick, noteFor, qrBox,
   setNote, skeleton,
 } from "./app-dom.js";
 import { proposeWallets, requestCard, requestOf } from "./app-payreq.js";
 import {
-  accountInbox, acct, acctAddressWhy, acctBalance, addPersonalContact, addressFor, blockTime,
+  accountInbox, acct, acctBalance, addPersonalContact, addressFor, blockTime,
   contactRows, copyFundingRequest, createPersonal, flightNow, fundFromWallet, messageWhy, NOT_READY,
   openContact, personal, personalDamaged, personalEnv, personalError, personalPending,
   removeAccount, sendOnChain, sentStateOf, splitParts,
@@ -105,7 +105,7 @@ function createCard(pickRestore) {
     el("p", { class: "small muted" }, "Write to anyone who has a shielded Zcash address, also if "
       + "they do not use Zigs. A message is a small payment on chain, and this account pays its "
       + "fee. The account is apart from your wallets, and the group server never sees it."),
-    networkPick(p, "account", "p"),
+    networkPick(p, "p"),
     el("div", { class: "callout" }, "Whoever controls this browser can "
       + "spend the account. Make a backup file right after you create it."),
     el("div", { class: "dialog-actions" },
@@ -113,7 +113,6 @@ function createCard(pickRestore) {
       el("button", {
         class: "btn primary", type: "button", disabled: !Z,
         onclick: act(() => {
-          requireAck(p, p.net, "make a mainnet account");
           return createPersonal(p.net);
         }),
       }, "Create account")));
@@ -159,8 +158,6 @@ function accountBackupNote() {
 }
 
 export function addressBlock(c) {
-  const why = acctAddressWhy();
-  if (why) return el("div", { class: "callout" + (acctBalance() ? " bad" : "") }, why);
   return el("div", { style: "display:grid;gap:8px" },
     el("span", { class: "label" }, "Public address"),
     el("div", { class: "addr-box" }, el("span", { class: "hex" }, short(c.address, 18)),
@@ -177,7 +174,6 @@ export function addressBlock(c) {
 
 // The request pays 3 notes, so the account can send a message after each block.
 export function fundBlock() {
-  if (acctAddressWhy()) return null;
   const b = acctBalance();
   const wallets = proposeWallets(REQUEST_NET[personal.network]);
   const pick = wallets.length > 1 ? el("select", {
@@ -369,8 +365,7 @@ export function contactView() {
 }
 
 function contactAddress(contact, name) {
-  const why = acct ? acctAddressWhy() : NOT_READY;
-  if (why) return el("div", { class: "callout" }, why);
+  if (!acct) return el("div", { class: "callout" }, NOT_READY);
   const address = addressFor(contact.index);
   return el("section", { class: "messages-reply-address" },
     el("h3", {}, "Your address for " + name),

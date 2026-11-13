@@ -2,6 +2,7 @@
 import { el } from "./app-dom.js";
 import { icon, sculptedIcon } from "./app-icons.js";
 import { deriveSecurityDashboard, recoveryFileStatus, signerRecoveryStatus } from "./security-dashboard-model.js";
+import { SECURITY_DISCLOSURES } from "./security-disclosures.js";
 
 const CHAIN = { zec: "Zcash", sol: "Solana" };
 const badge = (text, tone = "neutral", attrs = {}) =>
@@ -47,6 +48,11 @@ export function securityDashboard(f, actions, advanced) {
           : "The Zcash wallet can tolerate losing " + (f.n - f.t) + " distinct shares while the remaining " + f.t + " can still approve.") : "Check the wallet’s configuration before relying on its recovery arrangement."),
         paragraph("Viewing access is separate from spending authority. Devices with viewing access can see this wallet’s balances and history."))),
     recoveryAccess(f, m, actions, advanced),
+    el("details", { class: "security-explainer", id: "security-disclosures" },
+      el("summary", {}, "Security model and disclosures"),
+      SECURITY_DISCLOSURES.map(([title, copy]) => el("div", {},
+        el("h4", {}, title), paragraph(copy)))),
+    advanced.solana,
     el("div", { class: "security-browser-link" }, icon("lock"),
       paragraph("Browser protection is managed in Settings. A passkey unlocks local data; it does not replace a recovery file."),
       button("Browser access", actions.settings, { class: "btn ghost sm" })));
@@ -156,13 +162,13 @@ function recoveryAccess(f, m, actions, advanced) {
     el("summary", { "data-key": id + "-summary" },
       el("span", { class: "security-access-icon", "aria-hidden": "true" }, icon(symbol)),
       el("span", {}, el("strong", {}, title), el("span", {}, copy)),
-      el("span", { class: "security-access-chevron", "aria-hidden": "true" }, "+")),
+      el("span", { class: "security-access-chevron", "aria-hidden": "true" }, icon("plus"))),
     el("div", { class: "security-access-body" }, ...body));
   return el("section", { class: "security-access", "aria-labelledby": "security-access-title" },
     el("div", { class: "security-section-head" }, el("h3", { id: "security-access-title" }, "Recovery & Access"),
       el("span", { class: "security-optional" }, "At your own pace")),
     el("div", { class: "security-access-list" },
-      disclosure("security-files", "receive", "Back up & check files", "Save your shares. Check the files you keep.",
+      disclosure("security-files", "download", "Back up & check files", "Save your shares. Check the files you keep.",
         paragraph("Backups and file checks are optional. A saved download is not a checked file. For recovery without the original browsers, keep files for at least "
           + f.t + " distinct devices for each chain, together with their separate passphrases. Extra copies of one share do not add another device."),
         el("div", { class: "security-chain-progress" }, m.chainCounts.map((c) => paragraph(CHAIN[c.chain] + " · " + c.checked
@@ -172,7 +178,7 @@ function recoveryAccess(f, m, actions, advanced) {
         el("details", { class: "security-explainer" }, el("summary", {}, "What the progress can tell you"),
           paragraph("Saved labels record copies exported or restored in this browser. Checked labels apply to files matched to this browser’s current share. Other devices’ signed reports are reported progress, not file checks performed here. No label proves that a file or passphrase remains accessible."),
           paragraph("Store each file and its passphrase safely and separately. The personal account has its own backup in Settings. Other wallets need their own files, and direct chats are not included in recovery files."))),
-      disclosure("security-restore", "key", "Restore an existing device", "Recover a share in another browser or device.",
+      disclosure("security-restore", "restore", "Restore an existing device", "Recover a share in another browser or device.",
         paragraph("Use the encrypted recovery file and the passphrase chosen when it was saved. Restore the Zcash file first, then its separate Solana file when applicable. A passkey or backup passphrase alone cannot restore a share."),
         paragraph("A restored copy represents the same device; it does not add another approval. Keep working copies intact and avoid using two copies of the same device at once."),
         actions.restoreInput,

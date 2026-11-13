@@ -35,7 +35,7 @@ is a bug: please report it.
 - A new mainnet wallet can be a private Solana wallet in the Zolana pool on mainnet (web app only;
   the server turns it on: it is off on production, and off on staging until the owner turns it
   on). It uses real SOL. It is a test with no audit, and one upgrade key that the Zigs owner holds
-  can replace its program. Its cap of 0.5 SOL is a check of this app only. The devices make the
+  can replace its program. There is no app-imposed private balance cap. The devices make the
   proofs. Do not expect anonymity: the mainnet pool is small. Read
   [Solana mainnet private wallet](#solana-mainnet-private-wallet-staging-only).
 - The personal account (web app only) sends and reads messages on chain. A message is the memo of
@@ -343,19 +343,11 @@ How a quote works:
   stores nothing and writes no log.
 - The Worker limits `/near/quote`, the three swap routes and `/near/status` together to 60 calls
   a minute for each IPv4 address or IPv6 /64 (`NEAR_PER_IP`, counted per Cloudflare location). It uses the IP address in memory only.
-- The Overview of a mainnet wallet asks for the price of 1 ZEC through the same route. It posts
-  exactly 1 ZEC (100,000,000 zatoshi) to USDC with the slippage 50. The amount is fixed: it never
-  depends on your balance. The page multiplies the price by the ZEC total of the wallet, on the
-  device, and counts 1 USDC as 1 USD. It asks when the Overview shows and no price on the page is
-  younger than 5 minutes. It runs one call at a time and waits at least 60 seconds after a failed
-  call. A call with no answer in 15 seconds counts as failed. A hidden tab asks nothing, and a
-  testnet wallet asks nothing. The price stays in memory only, for at most 1 hour: the page stores
-  it nowhere.
 
 | Party | What it learns |
 |---|---|
-| NEAR Intents (`1click.chaindefuser.com`) | The pair, the amount, the slippage and the time of each quote, and the sample addresses. It sees the Worker, not your IP address. It cannot link a quote to a wallet or to you. For the Overview, the pair and the amount are always 1 ZEC to USDC: it learns only the time |
-| App Worker | Your IP address, and the pair, the amount and the slippage of each quote. It keeps no log. For the Overview, it learns your IP address and the time, and the fixed 1 ZEC to USDC ask |
+| NEAR Intents (`1click.chaindefuser.com`) | The pair, the amount, the slippage and the time of each quote, and the sample addresses. It sees the Worker, not your IP address. It cannot link a quote to a wallet or to you. |
+| App Worker | Your IP address, and the pair, the amount and the slippage of each quote. It keeps no log. |
 | Cloudflare | Connection data, as for every request to the app |
 | Group server, light-wallet server | Nothing |
 | Chain observers | Nothing: no transaction exists |
@@ -375,15 +367,39 @@ What stays visible:
   address, so no payout was made. The chain-support page of NEAR Intents still lists Zcash as
   "Partially supported - Transparent addresses only". Treat the shielded claim as unproven until
   a real swap pays to such an address.
-- An open Overview of a mainnet wallet asks about once every 5 minutes, and at most once a minute
-  while calls fail. It asks with no action of yours. So the Worker and NEAR Intents see the times
-  at which someone has a mainnet wallet open in the web app. They do not see the balance, the
-  wallet or the address.
-- The USD total of the Overview is the price of a NEAR Intents quote for 1 ZEC, times your ZEC
-  total. The quote includes the fees and the spread of NEAR Intents. It is not a market rate, and a
-  swap can give another amount. The page shows the age of the price. Only ZEC counts in the total.
 - NEAR Intents is a third party with its own terms. The prices are mainnet prices, and they can
   change within seconds.
+
+## Portfolio observations and market prices
+
+The mainnet Overview uses `GET /portfolio/prices` of the app Worker for a fixed set of market
+prices: ZEC, SOL and USDC. It no longer requests a NEAR Intents swap quote for its USD total.
+The Worker contacts CoinGecko with a server-side API key, uses a one-minute shared in-memory
+cache and sends no browser cookie, wallet identifier, address, balance or user header upstream.
+Without a configured market-data key the endpoint reports unavailable, and the chart preserves
+its observed history. Testnet wallets make no market-price request and keep their native balance.
+
+The app Worker and Cloudflare can see your connection and the time of this fixed price request.
+CoinGecko sees the Worker's request for the same three assets, its API key and timing; it does not
+receive your wallet data. The chart makes no additional blockchain queries. The existing balance
+syncs still have the privacy properties described in the Zcash and Solana sections below.
+
+The device multiplies each freshly observed supported balance by its observed USD market price.
+It records complete valuations while the wallet Overview is visible, at most once a minute except
+when holdings change. Balance reads older than two minutes and prices older than five minutes do
+not become new observations. USDC uses its observed market price, without a fixed dollar peg.
+
+Historical balances, prices and totals are encrypted with the wallet's existing authenticated
+sealing function and a separate wallet/network context, then stored locally on this device.
+They are never uploaded by this feature. The store retains up to 10,000 observations for at most
+400 days, and may retain less if browser storage fills. Locking or leaving the wallet clears this
+chart's decrypted history from its active controller. Encrypted observations remain on the device;
+this is device history, not a shared history or a recovery backup.
+
+Earlier shielded holdings and offline activity cannot be reconstructed. The chart shows only
+recorded observations and breaks the line for missing intervals or holdings changes. The
+percentage is explicitly **portfolio value change**, including deposits and withdrawals, rather
+than investment return. [Implementation and deployment details](docs/portfolio-tracker.md).
 
 ## Live swap from SOL to ZEC (staging only)
 
@@ -411,8 +427,7 @@ How a live swap works:
 - While the screen shows, the page reads `/near/status` every 10 seconds (up to 60 seconds after
   errors and after the deadline) until the state is final. The Worker passes only the state, its
   time, the transaction hashes, the amounts and the refund reason. It drops the explorer links of NEAR Intents.
-- The page refuses a payout that would take the wallet over the warning level of unaudited
-  mainnet wallets (0.5 ZEC).
+- Verified mainnet wallets can receive swap payouts without a trial balance limit.
 
 | Party | What it learns |
 |---|---|
@@ -447,7 +462,7 @@ How it works:
   proposal holds a signed field that marks it as this swap: the deposit address and the deadline.
 - Each device that reviews or approves the send reads `/near/status` for the deposit address. It
   approves only when NEAR Intents waits for a deposit of the exact amount, for a swap from SOL to
-  ZEC that pays the ZEC address of this wallet under the cap, refunds to the plain Solana address
+  ZEC that pays the ZEC address of this wallet, refunds to the plain Solana address
   of this wallet and ends at the deadline of the field, with 30 minutes left. This check trusts the
   Worker and NEAR Intents. It does not check the signature of the quote.
 - No device approves or sends the deposit in the last 30 minutes before the deadline. The signed
@@ -744,9 +759,7 @@ substance; the exact text is `MAINNET_DISCLOSURE` in `web/sol/net.js`.
 - It is a test on staging. No one audited it.
 - One upgrade key can replace the program, and then move the funds of every private wallet. The
   Zigs owner holds that key.
-- The cap is 0.5 SOL. The app checks the private balance at each Add SOL, and only in this app.
-  Private payments from other wallets and deposits by other people can let a group hold more over
-  time.
+- There is no app-imposed private balance cap. Program authority applies to all funds held.
 - Never send public SOL to the PDA address. No code can move it.
 - Each fee address must keep 650,240 lamports, which never leave it. Any SOL above that amount
   leaves only through Add SOL.
@@ -1010,7 +1023,7 @@ the passkey guards the key share instead. The lock is opt-in.
   false server can also show a note of a block that the wallet has not synced yet, or of a branch
   that the chain left. The page shows such a payment only as waiting: the line "Not in a block
   yet", the row, and "A payment to this wallet is on its way" on an empty wallet. It never counts
-  it as Available or Incoming, and it does not change the 0.5 ZEC warning level.
+  it as Available or Incoming, and it does not change receiving-address availability.
 - A payment request names a wallet address, and may name an amount and a memo. Everyone who reads
   the message reads them. In a wallet room, these are the signers and anyone who has the invite
   link. In a direct chat, they are the contact and anyone who has the contact link. A request to
@@ -1050,10 +1063,9 @@ the passkey guards the key share instead. The lock is opt-in.
 - Anyone with an invite link can write many small messages into a wallet room or a chat. The
   iPhone and Mac apps open each message document once and stop reading a conversation with more
   than 10,000 documents. The web app downloads the whole room.
-- The code is not audited. A mainnet wallet holds real ZEC and is limited to 0.5 ZEC: at that
-  balance, or while the app does not know the balance, it stops showing the address and warns.
-  An address that was shared stays valid. The app cannot stop someone from sending more, and
-  payments out always stay possible.
+- The code is not audited. Mainnet wallets hold real ZEC without a trial balance limit.
+  Receiving addresses are shown after device verification, independently of balance sync.
+  Audit status remains available in the expandable FAQ and Security sections.
 
 ## Checks
 

@@ -7,7 +7,7 @@ can mark it as a Zigs payment (PRIVACY.md, On chain). Zigs uses re-randomized FR
 signatures ([ZIP 312](https://zips.z.cash/zip-0312)) on the Ironwood shielded pool (NU7, v6
 transactions).
 
-Status: beta, not audited. It runs on testnet, and on mainnet with a warning at 0.5 ZEC. The web
+Status: beta, not audited. It runs on testnet, and on mainnet. The web
 app also has a Solana beta for testnet wallets (section 16).
 
 ## 1. The parts
@@ -344,7 +344,7 @@ wallet, the creator also cannot choose `nk` or `rivk`.
     leaves out a note above 21,000,000 ZEC (`MAX_MONEY`). It returns `[{"txid", "value",
     "index"}, …]`, one entry for each note, and leaves out a transaction or a note that a block of
     the wallet holds. It changes nothing in the wallet: not the notes, the snapshot, the balance
-    or the 0.5 ZEC level.
+    or receiving-address availability.
   - The page asks after each finished sync and every 30 seconds, one call at a time for each
     wallet (the group wallet and the personal account ask apart). A call that fails or takes 20
     seconds shows nothing, and the last good list stays for 2 minutes. The stream of a call that
@@ -354,7 +354,7 @@ wallet, the creator also cannot choose `nk` or `rivk`.
     and the row go away when a synced block holds the payment or the mempool drops it.
   - The list is not authenticated: a false server can hide a payment, or show a made-up one
     (section 13).
-- On mainnet, at 0.5 ZEC the app warns and hides the address. It cannot block deposits.
+- Mainnet receiving addresses remain available after device verification, regardless of balance.
 
 ## 7. Making a payment
 
@@ -758,7 +758,7 @@ the web, on iPhone and on Mac at the same time.
   | Network | Light-wallet servers | Address prefix | Notes |
   |---|---|---|---|
   | Testnet | `/lwd` of the app host (relays to `lwd.zigs.app`), `zcash-testnet.chainsafe.dev` | `utest1` | Free coins from a faucet |
-  | Mainnet | `zcash-mainnet.chainsafe.dev` | `u1` | Real ZEC. Warning and hidden address at 0.5 ZEC |
+  | Mainnet | `zcash-mainnet.chainsafe.dev` | `u1` | Real ZEC. No app-imposed balance limit |
 
 - **Light-wallet relay.** `/lwd` is behind the password gate. It accepts POST only, and only the
   seven methods of `cash.z.wallet.sdk.rpc.CompactTxStreamer` that the engine calls
@@ -1149,10 +1149,8 @@ The engine has the calls, in the native table too, so a native app can add the s
   a move to a new wallet (section 7.2). The app offers a wallet only when:
   - the seat has checked the address of the wallet
   - the wallet has not moved
-  - the balance is known and under the cap of the network
 
-  A mainnet wallet with no known balance gets no form. A room uses the live balance of the open
-  wallet. A chat uses the last balance that this browser saved. The form holds the id of the
+  A verified address is available independently of balance sync. The form holds the id of the
   chosen wallet, never its place in a list, because the list can change while the person types. If
   that wallet is no longer in the list, the form sends nothing and asks the person to choose
   again. The URI is the text of the message and obeys the limit of 2,000 characters.

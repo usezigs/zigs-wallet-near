@@ -42,8 +42,10 @@ JS=(solspike/harness/*.mjs solspike/tools/*.mjs solspike/build.mjs solspike/vend
   web/test/guided-setup.mjs web/test/backup-check.mjs
   web/test/sol-errors.mjs web/test/sol-sdk.mjs web/sol/localprove.js web/sol/localprover.js
   web/test/sol-prove.mjs
-  web/app-icons.js web/app-theme.js web/test/contrast.mjs web/test/orientation.mjs web/theme.js
+  web/app-icons.js web/icon-objects.js web/app-theme.js
+  web/test/contrast.mjs web/test/orientation.mjs web/theme.js
   web/overview-model.js
+  web/portfolio-*.js web/overview-popover.js web/test/portfolio.mjs cf/src/portfolio.js
   web/app-motion.js web/premium-motion.js web/test/premium-motion.mjs
   web/homepage-motion.js web/homepage-scene.js web/test/homepage-motion.mjs
   web/test/overview.mjs web/setup-model.js web/test/setup-stage.mjs web/approvals-model.js
@@ -51,12 +53,13 @@ JS=(solspike/harness/*.mjs solspike/tools/*.mjs solspike/build.mjs solspike/vend
   web/security-dashboard-model.js web/test/security-dashboard.mjs web/payment-model.js
   web/test/payment-model.mjs web/wallet-identity.js web/wallet-avatar-svg.js
   cf/src/gate.js cf/test/gate.mjs cf/src/near.js web/near-intents-swap-provider.js
-  web/swap-preview-model.js web/test/near-quote.mjs)
+  web/swap-preview-model.js web/swap-recovery.js web/test/near-quote.mjs)
 PY=(solspike/tools/*.py)
 # The page modules first: no unbound name, no assignment of an import, no missing named import.
 # This is the only check for an import that a function body needs and that no test runs. The full
 # rules below do not apply to the page modules yet: they keep the findings of the old app.js.
-"$OX" -c solspike/oxlintrc-page.json --deny-warnings web/app.js web/app-*.js || exit 1
+"$OX" -c solspike/oxlintrc-page.json --deny-warnings web/app.js web/app-*.js \
+  web/openglass/*.jsx web/build.mjs web/openglass/browser-check.mjs || exit 1
 "$OX" -c solspike/oxlintrc.json --deny-warnings "${JS[@]}" || exit 1
 python3 -I solspike/tools/check_py.py "${PY[@]}" || exit 1
 long=$(awk 'length($0)>100 {print FILENAME":"FNR": "length($0)}' "${JS[@]}" "${PY[@]}" \

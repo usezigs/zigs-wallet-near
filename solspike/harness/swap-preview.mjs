@@ -18,7 +18,7 @@ if (scenario === 'before') {
   document.getElementById('app').replaceChildren(before.swapWorkspace());
 } else {
   // Context is explicitly synthetic. No real wallet, secrets or engine are booted.
-  const preview = createSwapPreview({ name: 'Example wallet · fixture',
+  const preview = createSwapPreview({ demo: true, name: 'Example wallet · fixture',
     threshold: '2 of 3 device approvals per payment.' },
     new MockSwapProvider(fixture));
   document.getElementById('app').replaceChildren(preview.element);

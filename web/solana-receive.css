@@ -1,0 +1,103 @@
+/* One receiving destination, with scan and copy as equal ways to use it. */
+.sol-receive-card {
+  --sol-receive-line: color-mix(in srgb, var(--text) 16%, transparent);
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+  padding: 32px;
+  border: 1px solid var(--sol-receive-line);
+  border-radius: 20px;
+  background: var(--panel);
+}
+.sol-receive-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.sol-receive-heading h3 { margin: 0; font-size: 20px; line-height: 1.4; font-weight: 500; }
+.sol-receive-heading > span { font-size: 12px; line-height: 20px; }
+.sol-receive-card p { margin: 0; }
+.sol-receive-body { display: flex; flex-wrap: wrap; align-items: center; gap: 32px; min-width: 0; }
+.sol-receive-code {
+  flex: 0 1 232px;
+  width: 232px;
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 8px;
+  border-radius: 12px;
+  background: #fff;
+}
+.sol-receive-code .qr { width: 100%; margin: 0; padding: 0; border: 0; border-radius: 0; }
+.sol-receive-code svg { display: block; width: var(--qr-size, 100%); max-width: 100%; height: auto; margin-inline: auto; aspect-ratio: 1; }
+.sol-receive-destination { flex: 1 1 240px; display: grid; gap: 20px; min-width: 0; }
+.sol-receive-address { margin: 0; }
+.sol-receive-address dd { margin: 0; min-width: 0; }
+.sol-receive-address.kv { display: block; }
+.sol-receive-address dt, .sol-receive-destination > .label {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.sol-receive-address .row-actions { display: grid; gap: 20px; justify-items: start; }
+.sol-receive-address .hex, .sol-receive-card .addr-full {
+  overflow-wrap: anywhere; word-break: break-all; font-size: 14px; line-height: 1.7; user-select: all;
+}
+.sol-receive-card .addr-full { padding: 0; border: 0; border-radius: 0; background: transparent; }
+.sol-receive-card .btn {
+  --interaction-rest: var(--text);
+  --interaction-ink: var(--bg);
+  --interaction-edge: var(--text);
+  min-width: 120px;
+  min-height: 48px;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: none;
+  font-weight: 500;
+  transition: opacity 140ms ease, border-color 140ms ease;
+}
+.sol-receive-card .btn::before, .sol-receive-card .btn::after { display: none; }
+.sol-receive-card .btn:hover { opacity: .88; }
+.sol-receive-card .btn:active { opacity: .76; }
+.sol-receive-card .btn.primary:hover:not(:disabled), .sol-receive-card .btn.primary:active:not(:disabled) {
+  background: var(--text); color: var(--bg); box-shadow: none;
+}
+.sol-receive-card > p { font-size: 13px; line-height: 20px; }
+.sol-receive-card > p:last-child { padding-top: 16px; border-top: 1px solid var(--sol-receive-line); color: var(--muted); }
+.sol-receive-note { max-width: 68ch; }
+.receive-address { min-width: 0; width: 100%; }
+.receive-address > summary { display: grid; gap: 8px; min-height: 48px; align-content: center; cursor: pointer; list-style: none; }
+.receive-address > summary::-webkit-details-marker { display: none; }
+.receive-address-preview { font-size: 14px; line-height: 24px; overflow-wrap: anywhere; }
+.receive-address-show, .receive-address-hide { color: var(--muted); font-size: 12px; line-height: 20px; }
+.receive-address-hide { display: none; }
+.receive-address[open] .receive-address-show, .receive-address[open] .receive-address-preview { display: none; }
+.receive-address[open] .receive-address-hide { display: inline; }
+.receive-address[open] > .hex { display: block; padding-top: 12px; }
+.sol-detail-body { display: grid; gap: 16px; min-width: 0; padding-top: 16px; }
+.sol-detail-body > details > summary, .sol-payment-tools > summary { min-height: 48px; align-content: center; cursor: pointer; }
+.sol-detail-body .kv { min-width: 0; }
+.sol-detail-body .hex { overflow-wrap: anywhere; word-break: break-all; }
+.sol-detail-links { gap: 8px; }
+.sol-detail-links .btn { min-height: 48px; }
+.sol-security-details { padding: 20px 24px; }
+.sol-view { display: grid; gap: 16px; min-width: 0; }
+.sol-view:has(.sol-receive-card) { padding: 0; border: 0; background: transparent; box-shadow: none; }
+.sol-receive-card :is(button, a, summary):focus-visible, .sol-payment-tools > summary:focus-visible {
+  outline: 2px solid var(--focus); outline-offset: 4px;
+}
+@media (max-width: 600px) {
+  .sol-receive-card { gap: 20px; padding: 20px; border-radius: 16px; }
+  .sol-receive-body { gap: 24px; }
+  .sol-receive-destination { gap: 16px; }
+  .sol-receive-address .row-actions { gap: 16px; align-items: start; }
+  .sol-receive-destination .btn { width: 100%; }
+  .sol-receive-destination .row-actions { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sol-receive-card .btn { transition: none; }
+}
+@media (max-width: 360px) {
+  .sol-receive-card { padding: 16px; }
+}

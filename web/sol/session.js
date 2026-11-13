@@ -165,6 +165,7 @@ export async function syncSolana(c, busyText = "syncing") {
     await saveSnap(host.Z, roles.seal_key, gid, snap);
     if (!stillOpen(c, opened)) return;
     c.sync = {
+      at: snap.at,
       balance: solText(r.balance),
       ...notesOf(r),
       oldBalance: old.movable,
@@ -348,6 +349,7 @@ export async function showSaved(c) {
   if (!snap || c.gid !== gid || c.sync.balance !== undefined) return;
   const oldBalance = snap.old?.movable;
   c.sync = {
+    at: snap.at,
     balance: solText(snap.balance),
     ...notesOf(snap),
     oldBalance,

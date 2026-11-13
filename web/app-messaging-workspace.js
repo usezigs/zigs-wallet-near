@@ -77,7 +77,7 @@ function relayRows() {
     teams.length ? teams.map((g) => conversationRow({ id: "messages-team-" + g.id,
       title: g.name || "Wallet conversation", sub: "Wallet conversation · Encrypted relay",
       selected: ui.tab === "messages" && state.gid === g.id && !state.cid,
-      unread: unreadIn(g.id, "wallet"), open: () => chooseTeam(g.id), avatarText: "↔" }))
+      unread: unreadIn(g.id, "wallet"), open: () => chooseTeam(g.id), avatarText: icon("people") }))
       : el("p", { class: "small muted messages-inbox-note" }, search ? "No matching wallet conversations." : "Your wallet conversations appear here."),
     el("h2", { class: "messages-section-label" }, "Direct chats"),
     direct.length ? direct.map((cid) => conversationRow({ id: "messages-direct-" + cid,
@@ -185,7 +185,7 @@ export function messagingWorkspace(teamContent = null) {
         onclick: newConversation }, icon("plus"), "New chat"))),
   newChatWhy ? el("p", { id: "why-new-chat", class: "small muted", role: "status" }, newChatWhy) : null,
   el("div", { class: "messages-tabs", role: "tablist", "aria-label": "Message transport" },
-    tab("relay", "Relay"), tab("zcash", "Zcash")),
+    tab("relay", "Chat"), tab("zcash", "On-chain messages")),
   ...joins.map((cid) => guard(chatJoinCard, cid)),
   el("div", { class: "messages-layout"
     + (transport === "zcash" && !personal ? " messages-onboarding" : ""),

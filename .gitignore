@@ -2,6 +2,9 @@
 /wallet-data
 /wasm/target
 /web/dist
+/web/node_modules
+/web/openglass-dist
+/.impeccable/review/
 /cf/node_modules
 /cf/.wrangler
 /cf/.dev.vars

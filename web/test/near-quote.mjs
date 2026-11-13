@@ -12,7 +12,9 @@ const NEAR = new URL("../../cf/src/near.js", import.meta.url).href;
 const source = readFileSync(new URL("../../cf/src/index.js", import.meta.url), "utf8").replace(
   'import { DurableObject } from "cloudflare:workers";',
   "const DurableObject = class { constructor(ctx, env) { this.ctx = ctx; this.env = env; } };",
-).replace('from "./gate.js";', `from "${GATE}";`).replace('from "./near.js";', `from "${NEAR}";`);
+).replace('from "./gate.js";', `from "${GATE}";`).replace('from "./near.js";', `from "${NEAR}";`)
+    .replace('from "./portfolio.js";',
+      `from "${new URL("../../cf/src/portfolio.js", import.meta.url).href}";`);
 const { default: worker } = await import(
   `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`
 );

@@ -3,6 +3,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { gate, withCookie } from "./gate.js";
 import { nearQuote, nearStatus, nearSwap, nearSwapSolGroup, nearSwapZec } from "./near.js";
+import { portfolioPrices } from "./portfolio.js";
 
 const GROUP_ID = /^[0-9a-f]{20}$/;
 // The light-wallet servers in NETWORKS (web/app-chain.js) that the page calls itself. The page may
@@ -539,6 +540,7 @@ const NEAR_POSTS = new Map([["/near/quote", nearQuote], ["/near/swap", nearSwap]
 
 async function route(req, env, ctx) {
   const url = new URL(req.url);
+  if (url.pathname === "/portfolio/prices") return portfolioPrices(req, env);
   if (url.pathname === "/ws") return groupSocket(req, env, url);
   if (url.pathname.startsWith("/lwd/")) return lwd(req, env, url);
   if (url.pathname === "/zns") return zns(req, ctx);

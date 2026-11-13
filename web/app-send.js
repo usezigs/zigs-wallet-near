@@ -9,10 +9,10 @@ import { fmtZec } from "./app-kit.js";
 import { Z } from "./app-engine.js";
 import { gkeys } from "./app-keystore.js";
 import { DRAFT_MS, draftLive, draftOf, emptyForm, reviewFresh } from "./payment-model.js";
-import { addrHidden, atCap, capUnknown, curChain, curNet, netName } from "./app-chain.js";
+import { addrHidden, curChain, curNet, netName } from "./app-chain.js";
 import {
   act, addrGroups, copyBtn, dialogForm, el, groupName, memoRow, money, normalized, noteFor, onNetwork,
-  payeeOnNetwork, qrBox, setNote, transparentOnNetwork,
+  payeeOnNetwork, qrBox, receiveAddress, setNote, transparentOnNetwork,
 } from "./app-dom.js";
 import {
   feeEstimate, inspectOf, newSpend, prepareSpend, PRIORITY_FACTOR, proposeMoveNow, proposePrepared,
@@ -22,14 +22,14 @@ import { requestOf } from "./app-payreq.js";
 import { nameOf, recentNote, registry, resolveRecipient, zecName } from "./zns.js";
 import { focusAfter, render } from "./app-loop.js";
 import {
-  capNote, capUnknownNote, FAUCET_TEXT, movedNote, plainStays, receiveLimit, receiveWhat,
+  FAUCET_TEXT, movedNote, plainStays, receiveWhat,
   SOL_STAYS,
 } from "./app-wallet.js";
 import { solOn } from "./app-sol.js";
 import { recipientSelect } from "./app-recipients.js";
 import { securityExplanation } from "./app-tutorial.js";
 import { taddressSection } from "./app-taddress.js";
-import { privacyNotice, ZEC_EXPOSURE } from "./privacy-language.js";
+import { DEVICE_CHANGE_PRIVACY, privacyNotice, ZEC_EXPOSURE } from "./privacy-language.js";
 import { walletAvatarFor } from "./app-wallet-identity.js";
 
 const MAX_PAYEES = 8;
@@ -55,30 +55,30 @@ export function receiveDialog() {
   const copy = copyBtn(w.address, "Copy address", "btn primary");
   // A moved wallet leads with its moved note: senders must use the address of the new wallet.
   const moved = !!state.g.movedTo;
-  const restricted = hidden || moved || atCap() || capUnknown();
-  const address = hidden ? [] : [moved ? null : sendOnly(net),
-    el("section", { class: "receive-destination", "aria-label": "Receiving destination" },
-      qrBox(w.address, "Wallet address"),
-      el("div", { class: "addr-full" }, addrGroups(w.address)))];
+  const address = hidden ? [] : [el("div", { class: "receive-surface" },
+    qrBox(w.address, "Zcash " + curNet().label + " receive address QR code", 208),
+    receiveAddress(w.address, { class: "addr-full", "data-receive-address": "zec" }),
+    el("div", { class: "dialog-actions" }, moved ? null : shareBtn(w.address), copy),
+    moved ? null : el("p", { class: "small muted" }, "Only ZEC on " + net + ". Funds need 3 confirmations."))];
   return el("div", {
-    class: "dialog receive-sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "recv-title",
+    class: "dialog receive-dialog", role: "dialog", "aria-modal": "true", "aria-labelledby": "recv-title",
   }, el("div", { class: "card-head" }, title, close),
-  restricted ? receiveLead(hidden, moved) : null, ...address,
-  hidden ? null : el("div", { class: "dialog-actions" }, moved ? null : shareBtn(w.address), copy),
-  restricted ? null : receiveLead(hidden, moved),
-  privacyNotice(el, hidden || moved ? "unknown" : "shielded",
-    hidden || moved ? "Address unavailable" : "Shielded · Zcash " + curNet().label,
-    ZEC_EXPOSURE),
-  hidden || moved ? null : taddressSection(),
-  securityExplanation("receive"));
+  hidden || moved ? receiveLead(hidden, moved) : null,
+  ...address,
+  el("details", { class: "workflow-details" }, el("summary", {}, "Receiving and privacy details"),
+    privacyNotice(el, hidden || moved ? "unknown" : "shielded",
+      hidden || moved ? "Address unavailable" : "Shielded · Zcash " + curNet().label,
+      ZEC_EXPOSURE),
+    hidden || moved ? null : receiveLead(hidden, moved), securityExplanation("receive")),
+  !hidden && !moved && curNet().faucet ? el("details", { class: "workflow-details" },
+    el("summary", {}, "Get test coins"), sendOnly(net)) : null,
+  hidden || moved ? null : taddressSection());
 }
 
-// What the dialog says above the address: the move, the cap, why the address is not shown yet,
+// What the dialog says above the address: the move, why the address is not shown yet,
 // or what the address does.
 function receiveLead(hidden, moved) {
   if (moved) return movedNote();
-  if (atCap()) return capNote();
-  if (capUnknown()) return capUnknownNote();
   if (hidden) {
     return el("p", { class: "small muted" }, "The address shows here after your device checks it "
       + "against its own key.");
@@ -86,8 +86,7 @@ function receiveLead(hidden, moved) {
   return el("p", { class: "small muted" }, "Use this shielded address to receive "
     + receiveWhat() + ". Senders and the network cannot see the balance or who controls it. "
     + "The devices of this wallet and anyone who has the invite link can see its balance and "
-    + "history. A device that Change devices leaves out later can still see them."
-    + receiveLimit());
+    + "history. A device that Change devices leaves out later can still see them.");
 }
 
 function sendOnly(net) {
@@ -329,7 +328,10 @@ function memoBox(r, n) {
   });
   noteFor(hint, memo);
   memoHint(hint, r.memo);
-  return el("div", { class: "memo-row" }, labelled(MEMO_LABEL, memo), hint);
+  return el("details", { class: "workflow-details memo-options", open: !!r.memo,
+    "data-disclosure-key": "memo:" + state.gid + ":" + r.k },
+    el("summary", {}, "Recipient memo"), labelled(MEMO_LABEL, memo), hint,
+    el("p", { class: "small muted" }, "Included on chain. The recipient and wallet viewers can read it."));
 }
 
 // A whole request pasted in a recipient field replaces that row with the rows of its payees. It
@@ -725,10 +727,12 @@ export function sendDialog() {
     onsubmit: inDialog((ev) => submitSend(rows, spendable, why, ev)) },
     el("div", { class: "card-head" }, dialogTitle("send-title", "Send ZEC"), closeX()),
     sendNotice(),
-    securityExplanation("send"),
+    el("p", { class: "small muted" }, "Enter a recipient and amount. Review the payment before requesting approvals."),
     el("div", { class: "field" },
       rows.length > 1 ? el("span", {}, rows.length + " recipients, one transaction") : null,
-      rows.map((r, i) => payRow(r, i, rows, sumUp)),
+      rows.map((r, i) => payRow(r, i, rows, sumUp))),
+    el("details", { class: "workflow-details send-options", open: !!ui.note || !!ui.priority || rows.length > 1,
+      "data-disclosure-key": "send-options:" + state.gid }, el("summary", {}, "More options"),
       el("div", { class: "row-actions" },
         el("button", {
           class: "btn sm", type: "button", disabled: rows.length >= MAX_PAYEES,
@@ -738,7 +742,7 @@ export function sendDialog() {
             render();
           },
         }, "Add recipient"),
-        pasteList(net))),
+        pasteList(net)),
     el("label", { class: "field" }, el("span", {}, "Wallet note (optional)"),
       el("input", {
         class: "input", id: "s-note", name: "note", type: "text", maxlength: "80",
@@ -750,7 +754,7 @@ export function sendDialog() {
     el("p", { class: "small faint" }, "A memo goes on chain with the payment. Its recipient, "
       + "the devices of this wallet, and anyone else who has the invite link can read it. A "
       + "device that Change devices leaves out later can still read it."),
-    priorityBox(rows, sumUp),
+    priorityBox(rows, sumUp)),
     el("div", { class: "summary" },
       el("div", {}, el("span", { class: "muted" }, "Available"), money(spendable)),
       el("div", {}, el("span", { class: "muted" }, "Network fee (estimate)"), fee),
@@ -794,13 +798,15 @@ function reviewDialog() {
   const { prep, note } = ui.sendReview, t = prep.t;
   if (prep.gid !== state.gid) { ui.sendReview = null; return sendDialog(); }
   const ins = decodedMatch(prep), ok = !!ins;
+  const publicPayee = prep.payees.some((p) => transparentOnNetwork(p.to));
   return el("section", { class: "dialog payment-review", role: "dialog", "aria-modal": "true",
     "aria-labelledby": "review-title" },
   el("div", { class: "card-head" }, dialogTitle("review-title", "Review the payment"), closeX()),
   sendNotice(),
-  privacyNotice(el, ok ? "shielded" : "unknown",
-    ok ? "Shielded · Zcash " + curNet().label : "Privacy not verified",
-    ok ? ZEC_EXPOSURE : "Privacy cannot be verified because the transaction check did not pass."),
+  !ok ? privacyNotice(el, "unknown", "Privacy not verified",
+    "Privacy cannot be verified because the transaction check did not pass.")
+    : publicPayee ? el("p", { class: "callout warn", role: "note" },
+      "Public recipient: its address and amount are visible on chain. Transparent recipients cannot receive memos.") : null,
   ok ? el("div", { class: "review-hero" }, el("span", { class: "label" }, "Leaves the wallet"),
     money(t.amount + ins.fee, "lg"), el("span", { class: "small muted" },
       "Zcash " + curNet().label + ": the amounts and the network fee")) : null,
@@ -808,8 +814,13 @@ function reviewDialog() {
     : el("p", { class: "callout bad", role: "alert" }, REVIEW_BAD),
   prep.payees.map((p, i) => reviewRow(p, i, prep.payees.length)),
   reviewFacts(ins, note),
-  securityExplanation("payment-review"),
-  ...privacyNotes(),
+  el("details", { class: "workflow-details" }, el("summary", {}, "Payment privacy details"),
+    privacyNotice(el, ok ? (publicPayee ? "partial" : "shielded") : "unknown",
+      ok ? (publicPayee ? "Public recipient" : "Shielded · Zcash " + curNet().label) : "Privacy not verified",
+      publicPayee ? "The recipient address and amount are public on chain." : ZEC_EXPOSURE),
+    securityExplanation("payment-review"), el("p", { class: "small muted" }, publicPayee
+      ? "Wallet devices and anyone with the private invite link can read the payment and wallet note."
+      : REVIEW_NOW)),
   el("p", { class: "small faint" }, EXPIRY_NOTE),
   el("p", { class: "small ux-flow-summary", id: "proposal-help" },
     "Requesting approvals shares this payment with the wallet’s devices. It does not sign or send it."),
@@ -865,12 +876,6 @@ const REVIEW_NOW = "The chain does not show the recipients, the amounts or the m
   + "device of this wallet can read the recipients, the amounts, the memos and the note, in the "
   + "shared history of the wallet. So can anyone who has its invite link. A memo goes on chain "
   + "with the payment, and its recipient can read it too.";
-const REVIEW_LATER = "A device that a later Change devices leaves out keeps the viewing key and "
-  + "the messages of this wallet. It can still read this history and each later payment of this "
-  + "wallet. It cannot read the new wallet. The move payment gives it the address, the amount and "
-  + "the note of that payment, and the id of the new wallet. With the id, the device can get the "
-  + "sealed documents of the new wallet and each later write from the group server. The server "
-  + "also accepts writes from it, so the device can stop the new wallet with false documents.";
 // A move has no memo and no priority fee, and its Change devices has begun: its notes say so.
 const MOVE_NOW = "The chain does not show the recipient or the amount. The expiry height is "
   + "public and can show that Zigs made this payment. Every device of this wallet can read the "
@@ -882,7 +887,7 @@ const MOVE_LATER = "If this Change devices leaves out a device, that device keep
   + "of the new wallet and each later write from the group server. The server also accepts "
   + "writes from it, so the device can stop the new wallet with false documents.";
 const privacyNotes = (move = false) => (move ? [MOVE_NOW, MOVE_LATER]
-  : [REVIEW_NOW, REVIEW_LATER]).map((text) => el("p", { class: "small muted" }, text));
+  : [REVIEW_NOW, DEVICE_CHANGE_PRIVACY]).map((text) => el("p", { class: "small muted" }, text));
 
 // The fee as the engine decoded it (none when the decode does not match), the approvals, the note.
 function reviewFacts(ins, note) {

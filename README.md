@@ -64,8 +64,8 @@ proposer chooses one ([comparison](PRIVACY.md#on-chain)).
   wallet in Zolana v1 on mainnet, when every device accepts the private mode at setup. It uses
   real SOL. It is a test on staging, and no one audited it. One upgrade key, which the Zigs owner
   holds, can replace the Zigs approvals program and then move the funds of every private wallet.
-  The app caps the private balance at 0.5 SOL at each Add SOL, but only in this app: deposits by
-  other people and private payments in can take a group above it. Never send public SOL to the
+  The app imposes no private balance cap. Add SOL still checks the deployed program and
+  tracks uncertain sends to avoid duplicate deposits. Never send public SOL to the
   PDA address: no code can move it. Do not expect anonymity: the mainnet pool is small. The
   devices make the proofs. The server serves it only where `SOL_POOL_MAINNET` is `"1"`: it is
   `"1"` on staging and `"0"` on production ([ZOLANA.md](ZOLANA.md) 6.15
@@ -77,8 +77,7 @@ proposer chooses one ([comparison](PRIVACY.md#on-chain)).
 Zigs uses re-randomized FROST threshold signatures ([ZIP 312](https://zips.z.cash/zip-0312)) on
 the Ironwood shielded pool. It is a **beta** and **not audited**. The web app makes Zcash wallets on
 **testnet** (free test coins) or on **mainnet** (real ZEC, which you can lose). Solana Devnet is for
-testnet wallets only. In a mainnet wallet, at **0.5 ZEC** the app warns and hides the address. It
-cannot block deposits. The iPhone and Mac apps do not support mainnet wallets yet: use the web app.
+testnet wallets only. Verified mainnet receive addresses remain available regardless of balance. The iPhone and Mac apps do not support mainnet wallets yet: use the web app.
 
 ## For judges: try it alone
 
@@ -196,6 +195,29 @@ flowchart LR
 | Helius and the explorer (plain Solana wallet, mainnet) | Helius: IP address, the app origin, the group address, the fee addresses and the nonce accounts that the page reads, and each signed transaction that the page sends, with its recipient and amount. The explorer: the address that you open, and your IP address. Balances and payments are public on chain anyway. Never a key share |
 | Helius and its key host (private Solana wallet, mainnet, staging only) | Helius: IP address, the app origin, the PDA and the group key, the fee addresses of this browser, and which notes each payment spends. The devices make the proofs, so Helius gets no witness. The key host: your IP address and the app origin when it sends a proving key. Never a key share |
 | ZNS resolver (testnet names) | That the app Worker downloads the whole name registry. Never which name a person pays, never a key |
+
+## Building the web interface
+
+The wallet uses a React shell with OpenGlass UI. `web/openglass/app.jsx` installs the system
+provider and stylesheet; `bridge.jsx` connects the existing native renderers to OpenGlass cards,
+buttons, badges, fields and stats. Native form inputs keep their references and event handlers.
+Dialogs keep the wallet's existing focus and dismissal logic, with OpenGlass materials.
+
+```sh
+npm ci --prefix web
+npm run build --prefix web
+```
+
+Wrangler runs this build automatically before local development and deployment. To run the full
+local Worker, install its dependencies with `npm ci --prefix cf`, then run `npx wrangler dev`
+from `cf/`. Opening the HTML through a plain static server omits the Worker's store-client shim.
+
+`npm run test:openglass --prefix web` checks the interface with isolated wallet fixtures, then
+boots the real app under its strict content security policy. It checks desktop and mobile
+layouts, both themes, navigation, keyboard dismissal, labels, input persistence and cached views.
+It uses local Chrome on macOS, or Playwright Chromium (`npx playwright install chromium` from
+`web/`); `CHROME_EXECUTABLE` can select another installed Chromium browser. Screenshots go to the
+temporary directory, or to `OPENGLASS_OUTPUT` when set.
 
 ## Creating a wallet
 
@@ -797,7 +819,7 @@ folder path.
   or link before the first paint, and no notice for an image or style, or after the first paint.
 - `node web/test/mempool.mjs`: the payments that wait in the mempool, with a fake engine and the
   real page modules: the line "Not in a block yet" and the row "Receiving · not in a block yet" for
-  a listed note, and no change of the balance numbers or the 0.5 ZEC level; the row goes away when
+  a listed note, and no change of the balance numbers or address availability; the row goes away when
   a block holds the payment or the mempool drops it; one redraw when a good answer changes the
   list, and none when it does not; no call for a hidden tab or a closed wallet; one call at a time
   for each wallet; a failed call, or one that takes 20 seconds, shows no error and the list stays
@@ -854,8 +876,7 @@ folder path.
 ## Known limits
 
 - **Not audited.** The web app makes Zcash testnet wallets and mainnet wallets. A mainnet wallet
-  holds real ZEC. At 0.5 ZEC the app hides its address and warns. It cannot stop someone from
-  sending more. The iPhone and Mac apps read a mainnet wallet but do not create, join, approve for
+  holds real ZEC and has no app-imposed balance limit. The iPhone and Mac apps read a mainnet wallet but do not create, join, approve for
   or send from one yet.
 - **ZIP 2005 is Proposed, and every signer holds `qsk`.** New wallets are built to it so that funds
   can be recovered if quantum computers break today's keys. A quantum attacker who has `qsk` may
@@ -887,8 +908,7 @@ folder path.
   send real SOL and USDC in a public account. It is not audited, and it has no privacy. A signed
   send cannot be cancelled yet.
 - **The private Solana wallet on mainnet is a staging test.** Real SOL, no audit, and one upgrade
-  key that the Zigs owner holds can replace its program and then move its funds. The 0.5 SOL cap
-  is a check of this app only. The mainnet pool is small, so do not expect anonymity. The server
+  key that the Zigs owner holds can replace its program and then move its funds. There is no app-imposed private balance cap. The mainnet pool is small, so do not expect anonymity. The server
   keeps it off on production.
 
 ## License

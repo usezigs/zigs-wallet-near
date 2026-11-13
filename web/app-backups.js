@@ -1,5 +1,5 @@
 // Backup and restore: logic and dialogs.
-import { icon } from "./app-icons.js";
+import { icon, sculptedIcon } from "./app-icons.js";
 import {
   backupName, boxPairMatches, heldRefusal, keysOf, lateFields, makePassphrase, passIssue,
   passLength, restoredSecret, settledFields, shareShape, skey, staleRestore, takenKeys, undoPlan,
@@ -181,7 +181,9 @@ export function backupDialog() {
     class: "dialog recovery-sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "backup-title",
     oninput: update, onsubmit: submit,
   },
-  el("div", { class: "card-head" }, el("h2", { id: "backup-title" }, words.title),
+  el("div", { class: "card-head" },
+    el("div", { class: "recovery-dialog-heading" }, sculptedIcon("lock"),
+      el("h2", { id: "backup-title" }, words.title)),
     el("button", {
       class: "icon-btn", type: "button", "aria-label": "Close", onclick: closeBackup,
     }, icon("close"))),
@@ -310,7 +312,9 @@ export function restoreDialog() {
     class: "dialog recovery-sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "restore-title",
     onsubmit: submit,
   },
-  el("div", { class: "card-head" }, el("h2", { id: "restore-title" }, "Restore a backup"),
+  el("div", { class: "card-head" },
+    el("div", { class: "recovery-dialog-heading" }, sculptedIcon("key"),
+      el("h2", { id: "restore-title" }, "Restore a backup")),
     el("button", {
       class: "icon-btn", type: "button", "aria-label": "Close", onclick: closeBackup,
     }, icon("close"))),

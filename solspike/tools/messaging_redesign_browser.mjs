@@ -18,14 +18,22 @@ const mime = { ".js": "text/javascript", ".css": "text/css", ".html": "text/html
 const sourceText = async (relative) => phase === "before"
   ? execFileSync("git", ["show", "HEAD:web/" + relative], { cwd: root, maxBuffer: 8 * 1024 * 1024 })
   : readFile(resolve(root, "web", relative));
+function fixtureEntry(relative, body) {
+  if (relative === "app.js") return "// Isolated fixture; no wallet boot.";
+  if (relative === "network-privacy-demo-entry.js") return body.toString().replace(
+    "installPrivacyPopup();", "installPrivacyPopup({ autoOpen: false });");
+  return body;
+}
 const server = createServer(async (req, res) => {
   try {
     const relative = new URL(req.url, "http://localhost").pathname.slice(1) || "index.html";
     if (relative.includes("..")) throw Error("Invalid path");
     let body = await sourceText(relative);
     if (relative === "index.html") body = body.toString()
-      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "")
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, (script) =>
+        phase === "after" && script.includes("/openglass-dist/app.js") ? script : "")
       .replace(/<link[^>]+rel="(?:modulepreload|preload)"[^>]*>/g, "");
+    body = fixtureEntry(relative, body);
     if (relative === "app-loop.js") {
       body = body.toString().replace("export function react() {",
         "export function react() { return;")
@@ -60,8 +68,7 @@ const check = (ok, label) => { checks.push({ label, pass: !!ok }); assert.ok(ok,
 async function scene(name) {
   await page.goto(origin);
   const result = await installMessagingFixture(page, name, phase);
-  if (name === "setup" && phase === "after") await page.getByRole("tab", { name: "Zcash",
-    exact: true }).click();
+  if (name === "setup" && phase === "after") await page.locator("#messages-tab-zcash").click();
   await settled();
   return result;
 }
@@ -92,7 +99,7 @@ async function capture(name, width, theme) {
 
 async function verifyWorkspaceNavigation() {
   await scene("team"); await page.setViewportSize({ width: 1440, height: 1000 });
-  const tab = (name) => page.getByRole("tab", { name, exact: true });
+  const tab = (name) => page.locator("#messages-tab-" + (name === "Relay" ? "relay" : "zcash"));
   check(await page.getByRole("heading", { name: "Messages", exact: true }).count() === 1,
     "one Messages workspace heading");
   check(await page.locator(".messages-conversation-row").count() === 2,
@@ -304,7 +311,8 @@ async function verifyCostReview() {
 
 async function verifyDraftNavigation() {
   await scene("contact"); await page.setViewportSize({ width: 1440, height: 1000 });
-  const transport = (name) => page.getByRole("tab", { name, exact: true });
+  const transport = (name) => page.locator(
+    "#messages-tab-" + (name === "Relay" ? "relay" : "zcash"));
   await page.locator("#chat-text-oc-1").fill("Zcash conversation draft retained.");
   await transport("Relay").click(); await settled();
   await page.locator(".messages-conversation-row").filter({

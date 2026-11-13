@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zigs · Icon collection</title>
+<link rel="stylesheet" href="../../../web/design-system.css">
+<link rel="stylesheet" href="../../../web/icon-craft.css">
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; background:#101214; color:#edf1ee; font:15px/1.5 system-ui,sans-serif; }
+  main { max-width:1120px; margin:auto; padding:64px 48px; }
+  header { display:flex; align-items:start; justify-content:space-between; gap:32px;
+    padding-bottom:40px; border-bottom:1px solid #ffffff18; }
+  .brand { color:#b6c9bd; font-size:14px; margin:0 0 12px; }
+  h1 { margin:0; font-size:40px; line-height:1.2; letter-spacing:-.04em; font-weight:500; }
+  header p:last-child { margin:16px 0 0; color:#a8b1ad; max-width:500px; }
+  button { color:inherit; background:#222728; border:1px solid #ffffff30; border-radius:8px;
+    padding:10px 16px; cursor:pointer; font:inherit; }
+  button:focus-visible { outline:2px solid #b6c9bd; outline-offset:4px; }
+  .objects { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); padding:32px 0; gap:24px 0; }
+  .object { display:grid; justify-items:center; gap:12px; margin:0; padding:24px 8px; }
+  .object>.icon-object { display:inline-flex; width:112px; height:112px; }
+  figcaption { font-size:13px; color:#a8b1ad; }
+  h2 { margin:0 0 24px; font-weight:500; font-size:16px; }
+  .instruments { border-top:1px solid #ffffff18; padding-top:32px; }
+  .glyphs { display:grid; grid-template-columns:repeat(10,minmax(0,1fr)); gap:24px 8px; }
+  .glyph { display:grid; justify-items:center; gap:12px; color:#ccd5cf; }
+  .glyph .symbol { display:inline-flex; width:20px; height:20px; }
+  .glyph small { font-size:11px; color:#a8b1ad; }
+  footer { display:flex; justify-content:space-between; gap:24px; margin-top:48px; color:#85918a;
+    font-size:12px; }
+  a { color:inherit; text-underline-offset:3px; }
+  html[data-theme=light] body { background:#f5f6f3; color:#202823; }
+  html[data-theme=light] :is(header,.instruments) { border-color:#17291f24; }
+  html[data-theme=light] :is(figcaption,.glyph small,header p:last-child,footer) { color:#59685f; }
+  html[data-theme=light] :is(.brand,.glyph) { color:#374d3e; }
+  html[data-theme=light] button { background:white; border-color:#17291f40; }
+  @media(max-width:700px) { main { padding:32px 20px; } h1 { font-size:28px; }
+    .objects { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .glyphs { grid-template-columns:repeat(4,minmax(0,1fr)); }
+    header,footer { flex-direction:column; } }
+</style>
+<main>
+  <header><div><p class="brand">Zigs / Icon collection</p>
+    <h1>Depth, in the details.</h1>
+    <p>Smoked glass. Satin silver. A quiet sage inlay.<br>Made for the moments that deserve a closer look.</p>
+  </div><button type="button" id="theme" aria-label="Switch to light appearance">Light appearance</button></header>
+  <section class="objects" aria-label="Dimensional illustrations"></section>
+  <section class="instruments"><h2>Everyday instruments</h2><div class="glyphs"></div></section>
+  <footer><span>Original vectors · Local rendering · No animation loop</span>
+    <span>Material study inspired by <a href="https://github.com/volkanakyel/vitrum-3d">Vitrum</a></span></footer>
+</main>
+<script type="module">
+  import { icon, sculptedIcon } from '../../../web/app-icons.js';
+  const objects = [['wallet','Wallet'],['security','Shield'],['approvals','Approvals'],
+    ['chat','Messages'],['addressBook','Contacts'],['devices','Devices'],['activity','Activity'],
+    ['lock','Local vault'],['key','Recovery'],['swap','Exchange']];
+  for (const [name,label] of objects) {
+    const figure = document.createElement('figure'), caption = document.createElement('figcaption');
+    figure.className = 'object'; caption.textContent = label;
+    figure.append(sculptedIcon(name),caption); document.querySelector('.objects').append(figure);
+  }
+  for (const [name,label] of [['home','Overview'],['approvals','Approvals'],['activity','Activity'],
+    ['addressBook','Contacts'],['swap','Swap'],['chat','Messages'],['security','Security'],
+    ['settings','Settings'],['people','Team'],['key','Key'],['send','Send'],['receive','Receive'],
+    ['copy','Copy'],['download','Save'],['restore','Restore'],['theme','Appearance'],
+    ['bell','Notifications'],['search','Search'],['plus','Add'],['external','Open']]) {
+    const cell = document.createElement('div'), caption = document.createElement('small');
+    cell.className = 'glyph'; caption.textContent = label;
+    cell.append(icon(name),caption); document.querySelector('.glyphs').append(cell);
+  }
+  document.getElementById('theme').onclick = event => {
+    const light = document.documentElement.dataset.theme !== 'light';
+    document.documentElement.dataset.theme = light ? 'light' : 'dark';
+    event.target.textContent = light ? 'Dark appearance' : 'Light appearance';
+    event.target.setAttribute('aria-label','Switch to ' + (light ? 'dark' : 'light') + ' appearance');
+  };
+</script>
+</html>

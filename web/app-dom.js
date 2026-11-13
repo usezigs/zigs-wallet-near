@@ -7,7 +7,7 @@ import { clearBadBanner, log, showBanner, state, ui } from "./app-state.js";
 import { initials, short, ZEC_FMT } from "./app-kit.js";
 import { Z } from "./app-engine.js";
 import { isMe, localSeats, seatMine, seatNameOf } from "./app-seats.js";
-import { capText, curNet, MAINNET_ON, netOf, NETWORKS } from "./app-chain.js";
+import { curNet, MAINNET_ON, netOf } from "./app-chain.js";
 import { signedMode } from "./app-filter.js";
 import { closeSession } from "./app-groups.js";
 import {
@@ -16,14 +16,11 @@ import {
 } from "./app-payments.js";
 import { focusAfter, react, render } from "./app-loop.js";
 
-// `full`: a mainnet badge that states the risk in its text (wallet header, join card).
-export const netBadge = (g, full = false) => netOf(g).cap
-  ? el("span", { class: "badge bad", title: "Real ZEC. Not audited. At " + capText(netOf(g).cap)
-    + " the app warns and hides the address. It cannot block deposits." },
-  full ? "Mainnet · Beta · Not audited" : "Mainnet")
-  : el("span", { class: "badge plain" }, "Testnet");
+export const netBadge = (g) => el("span", { class: "badge plain" }, netOf(g).label);
 
 export const el = (tag, attrs = {}, ...kids) => {
+  const glass = globalThis.zigsGlass?.element(tag, attrs, kids);
+  if (glass) return glass;
   const n = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
     if (v == null || v === false) continue;
@@ -91,17 +88,17 @@ export function copyBtn(text, label = "Copy", cls = "btn sm", onFailure = null) 
     const b = ev.currentTarget;
     try {
       await navigator.clipboard.writeText(typeof text === "function" ? text() : text);
-      b.textContent = "Copied";
+      b.replaceChildren(icon("check"), document.createTextNode("Copied"));
     } catch {
       // A caller may open a private overlay; older cards keep their existing disclosure fallback.
-      b.textContent = "Select and copy";
+      b.replaceChildren(icon("copy"), document.createTextNode("Select and copy"));
       if (onFailure) onFailure();
       else b.closest("section")?.querySelector("details[data-link]")?.setAttribute("open", "");
     }
-    setTimeout(() => b.textContent = label, 1500);
+    setTimeout(() => b.replaceChildren(icon("copy"), document.createTextNode(label)), 1500);
   };
   return el("button", { class: cls, type: "button", "aria-live": "polite",
-    "aria-atomic": "true", onclick: copy }, label);
+    "aria-atomic": "true", onclick: copy }, icon("copy"), label);
 }
 
 // One bad document from another signer must not break the page: the item it feeds shows as a
@@ -218,6 +215,12 @@ export function nameField(id, to = "", initial = undefined) {
   let saved = ""; try { saved = localStorage.getItem("zf-name") || ""; } catch {}
   const save = (ev) => { try { localStorage.setItem("zf-name", ev.target.value.trim()); } catch {} };
   const hint = to ? "Any nickname · shown to " + to : "For example: Ana's phone";
+  if (globalThis.zigsGlass) return globalThis.zigsGlass.field({
+    id, value: initial ?? saved, maxlength: "40", autocomplete: "nickname",
+    placeholder: hint, oninput: save,
+  }, to ? "Your name" : "This device's label", to
+    ? "Shown to " + to + ". A nickname is fine."
+    : "Use a label you’ll recognize, such as Everyday phone. A label does not verify identity.");
   return el("label", { class: "field" }, el("span", {}, to ? "Your name" : "This device's label"),
     el("input", { class: "input", id, value: initial ?? saved, maxlength: "40", autocomplete: "nickname",
       placeholder: hint, "aria-describedby": id + "-help", oninput: save }),
@@ -229,54 +232,19 @@ export function nameField(id, to = "", initial = undefined) {
 // The choice lives in `sel` (`ui`, or `ui.personal`), so a redraw keeps it. `what` names the thing
 // that holds the funds, and `idp` prefixes the ids.
 // While MAINNET_ON is false, the picker shows Testnet only and no tick (M1). Mainnet needs a tick.
-export function networkPick(sel = ui, what = "wallet", idp = "g") {
+export function networkPick(sel = ui, idp = "g") {
   if (!MAINNET_ON) sel.net = "testnet";
   const on = (value) => (sel.net === value ? " on" : "");
   const opt = (value, title, text) => el("label", { class: "net-opt" + on(value) },
     el("input", { type: "radio", name: idp + "-network", value, id: idp + "-net-" + value,
       checked: sel.net === value,
-      onchange: () => { sel.net = value; sel.ackBad = ""; render(); } }),
+      onchange: () => { sel.net = value; render(); } }),
     el("span", { class: "net-text" }, el("b", {}, title), el("span", { class: "small muted" }, text)));
   return el("fieldset", { class: "net-pick" },
     el("legend", { class: "label" }, "Network"),
     el("div", { class: "two" },
       opt("testnet", "Testnet", "Free test coins, for trying Zigs."),
-      MAINNET_ON ? opt("mainnet", "Mainnet", "Real ZEC. At " + capText(NETWORKS.mainnet.cap)
-        + " the app warns and hides the address. It cannot block deposits.") : null),
-    sel.net === "mainnet" ? ackTick(sel, what, idp) : null);
-}
-
-/** The risk of a mainnet wallet, for the review step and for a device that joins one. */
-export const mainnetRisk = () => "Real ZEC. Beta, not audited: you can lose the funds. At "
-  + capText(NETWORKS.mainnet.cap) + " the app warns and hides the address. It cannot block "
-  + "deposits.";
-
-/**
- * The "I understand" tick of a mainnet choice in `sel`, with its error `sel.ackBad` next to it.
- * `what` names the thing that holds the funds, and `idp` prefixes the ids.
- */
-export function ackTick(sel, what, idp) {
-  const error = idp + "-ack-error", bad = !!sel.ackBad;
-  return [el("label", { class: "ack" },
-    el("input", { type: "checkbox", id: idp + "-ack", checked: sel.ack,
-      "aria-invalid": bad ? "true" : null, "aria-describedby": bad ? error : null,
-      onchange: (ev) => {
-        sel.ack = ev.target.checked;
-        if (sel.ack && sel.ackBad) { sel.ackBad = ""; render(); }
-      } }),
-    el("span", { class: "small" }, "I understand that Zigs is not audited and that I can lose "
-      + "the funds in this " + what + ".")),
-  bad ? el("p", { class: "small bad", id: error, role: "alert" }, sel.ackBad) : null];
-}
-
-/**
- * Throws unless a device that uses `net` ticked the box of `sel`. The error shows next to the tick
- * (`sel.ackBad`), so the thrown error has `shown` set: `act` and the dialog do not show it again.
- */
-export function requireAck(sel, net, doing) {
-  if (net !== "mainnet" || sel.ack) return;
-  sel.ackBad = "Confirm that you understand Zigs is not audited before you " + doing + ".";
-  throw Object.assign(new Error(sel.ackBad), { shown: true });
+      MAINNET_ON ? opt("mainnet", "Mainnet", "Send and receive ZEC on the Zcash network.") : null));
 }
 
 export const countBadge = (n, what, cls) => n
@@ -307,10 +275,29 @@ export const addrGroups = (addr) =>
   el("span", {}, chunks(addr).map((c) => el("span", { class: "addr-g" }, c)));
 
 // The SVG comes from our own encoder and holds only path data, so innerHTML is safe here.
-export function qrBox(text, label) {
+export function qrBox(text, label, maxPixels = null) {
   const box = el("div", { class: "qr" });
-  box.innerHTML = qrSvg(text, label);
+  const svg = qrSvg(text, label);
+  box.innerHTML = svg;
+  if (maxPixels !== null) {
+    const modules = Number(svg.match(/viewBox="0 0 (\d+) /)?.[1]);
+    if (modules) box.style.cssText = "--qr-size:"
+      + modules * Math.max(1, Math.floor(maxPixels / modules)) + "px";
+  }
   return box;
+}
+
+// A long receive address stays inspectable without overwhelming the QR card.
+// Scope the disclosure to the full address so a redraw cannot reveal another wallet's value.
+export function receiveAddress(text, attrs = {}, make = el) {
+  const value = make("span", attrs, text);
+  if (!text || text.length <= 64) return value;
+  return make("details", { class: "receive-address", "data-disclosure-key": "receive:" + text },
+    make("summary", {},
+      make("span", { class: "receive-address-preview mono", "aria-hidden": "true" },
+        text.slice(0, 22) + "…" + text.slice(-10)),
+      make("span", { class: "receive-address-show" }, "View full address"),
+      make("span", { class: "receive-address-hide" }, "Hide full address")), value);
 }
 // A link with the wallet secret stays hidden until asked for: cameras and people can read screens.
 // `text`: the disclosure holds the link as text too, and the page shows only its Copy button.

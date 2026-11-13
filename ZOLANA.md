@@ -1759,8 +1759,8 @@ single development upgrade key. Before mainnet, the upgrade key moves to a multi
 (SOL-45). After the audit, the program becomes immutable with `--final` (SOL-46).
 
 **Custody of the mainnet approvals program (owner decision of 10 November 2026).** The owner
-overrides SOL-45 and the audit no-go of the recommendation below for staging only, with a cap of
-0.5 SOL. The program is `9mE7WUJHK6dQwzK6AP6wf1eyPmePULZrGeRbXqke2ukq` (deploy in 6.15). The rest
+overrides SOL-45 and the audit no-go of the recommendation below for staging only. The
+13 November 2026 release branch removes the former 0.5 SOL trial balance cap. The program is `9mE7WUJHK6dQwzK6AP6wf1eyPmePULZrGeRbXqke2ukq` (deploy in 6.15). The rest
 of SOL-40 stays: the multisig with a time lock, the audit and `--final` come before any production
 use.
 
@@ -1782,21 +1782,10 @@ use.
   prover is no path here. The key can also freeze every group with broken code, take the rent of
   open proposals and records, and drop the digest rule. A close of `9mE7…` strands the notes of
   every group PDA, and no code can get them back. Never close it while a PDA holds notes.
-- The loss limit and its gaps. The checker refuses a shield that takes the private balance of a
-  group above 0.5 SOL (rule `shield-over-cap`), and Add SOL refuses it first in the page. This is
-  a check of the Zigs app only, run in the browser of the seat that adds. It does not bound the
-  balance:
-  - Only the fee key of that seat signs a shield, so a changed client on one device can skip it.
-  - Anyone who knows the PDA address can deposit with the SDK: a seat or another person.
-  - A private payment into the PDA address passes it. Zigs cannot refuse an incoming payment.
-  - An indexer that hides notes makes the synced balance too low. Each shield then stays at most
-    0.5 SOL, but the total has no bound. An indexer that shows too much only makes the rule
-    refuse.
-  - The program has no code that moves public SOL from the PDA address, so public SOL sent there
-    stays there.
-
-  So the exposure to the one key is the number of private groups × 0.5 SOL, plus what other
-  people send to them.
+- Balance policy. The app and checker impose no private mainnet balance cap. Add SOL still
+  verifies the deployed program, checks the transaction bytes and tracks uncertain deposits.
+  The upgrade authority applies to the entire private balance. The program has no code to move
+  public SOL from a group PDA; use Add SOL rather than sending public SOL to that address.
 - Parties outside Zigs. The upgrade authority of the pool ring1G on mainnet is
   `CuZ42BsoBcLaNTUboJpGhekGmrYMZ7sRhwVki4frz1FB` (read on 10 November 2026). Zigs did not verify
   who controls it. It can replace the pool program, and new pool code can move the SOL of every

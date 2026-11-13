@@ -16,6 +16,7 @@ const destinations = [
   ["SOL:devnet:shielded", "Shielded SOL · Solana Devnet"],
   ["SOL:devnet:public", "Public SOL withdrawal · Solana Devnet"],
   ["SOL:mainnet:public", "Public SOL · Solana Mainnet"],
+  ["SOL:mainnet:shielded", "Shielded SOL · Solana Mainnet"],
   ["USDC:mainnet:public", "Public USDC · Solana Mainnet"],
 ];
 const kindKey = (r) => [r.asset, r.network, r.type].join(":");
@@ -46,17 +47,17 @@ export function recipientsView() {
     el("div", { class: "section-heading" }, el("p", { class: "label" }, "Private to this device"),
       el("h1", { id: "recipients-page-title" }, "Address book"), el("p", { class: "small muted" },
         "Save payment recipients for all wallets on this device. Chat contacts stay in Messages."),
-      securityExplanation("recipients")),
+      el("details", { class: "workflow-details" }, el("summary", {}, "About saved recipients"),
+        securityExplanation("recipients"))),
     el("section", { class: "card surface-financial" },
       el("div", { class: "card-head" }, el("h2", {}, "Payment recipients"),
         el("button", { class: "btn primary", type: "button", disabled: !!why || !Z,
           onclick: () => beginEdit() }, "Add recipient")),
-      el("p", { class: "small muted" }, "Saved names are your labels, not proof of identity. "
-        + "Choose a wallet and open Send to use one, then check the full address in the review."),
+      el("details", { class: "workflow-details" }, el("summary", {}, "Storage and privacy"),
       el("p", { class: "small faint" }, vault
         ? "Protected by this browser's existing passkey lock. Not shared with wallet participants or included in recovery files."
         : "Saved in this browser. Turn on the passkey lock in Settings to protect the saved book. "
-          + "Not shared with wallet participants or included in recovery files."),
+          + "Not shared with wallet participants or included in recovery files.")),
       why ? el("div", { class: "callout bad", role: "alert" }, why) : null,
       editor && !why ? editorForm() : null, search, list));
 }
@@ -103,7 +104,6 @@ function editorForm() {
   destinations.map(([value, label]) => el("option", { value, selected: draft.kind === value }, label)));
   const address = el("textarea", { class: "input mono", id: key + "-address", required: true,
     rows: "3", maxlength: "2048", spellcheck: "false", autocomplete: "off", disabled: draft.saving,
-    "aria-describedby": key + "-help",
     "aria-describedby": key + "-help", oninput: (ev) => { draft.address = ev.target.value; } }, draft.address);
   return el("form", { class: "recipient-editor surface-quiet", "aria-busy": !!draft.saving,
     onsubmit: async (ev) => {
@@ -134,6 +134,7 @@ function editorForm() {
 export function recipientSelect({ asset, network, type, onSelect, id = "saved-recipient" }) {
   const filter = { asset, network, type }, why = recipientsBlocked();
   const entries = why ? [] : matchingRecipients(recipients, filter);
+  if (!why && !entries.length) return null;
   const status = el("span", { class: "hint", id: id + "-hint", role: "status" }, why
     || (entries.length ? "Fills only the recipient address. Check the full address before approving."
       : "Add a matching recipient in Address book, or enter an address manually."));

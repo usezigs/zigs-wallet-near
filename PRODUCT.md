@@ -62,9 +62,10 @@ anonymity, custody or audit claim; the repository documents important limits and
   Pending or unknown outcomes must not appear completed.
 - Saved backup, checked file, restored share and another device's self-report are different
   facts. Preserve passphrase, device replacement and viewing-access consequences.
-- The production web client uses JavaScript ES modules, DOM helpers and CSS with the existing
-  Rust/WebAssembly engines and service architecture. React in `web/dev/stageshow/` belongs to
-  the isolated illustration lab, not to a production framework migration.
+- The production wallet logic uses JavaScript ES modules and native DOM helpers with the existing
+  Rust/WebAssembly engines and service architecture. The OpenGlass React presentation shell and
+  portals retain native form ownership and existing wallet handlers. `web/dev/stageshow/` remains
+  an isolated illustration lab, excluded from deployed assets.
 - Current implementation work belongs on `deslopify`, created from `Near`. Committing or merging
   to `main` requires the user's explicit approval. Do not commit, deploy or publish as part of init.
 

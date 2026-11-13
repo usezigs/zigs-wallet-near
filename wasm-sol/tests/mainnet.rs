@@ -15,7 +15,7 @@ use p3_check::approve::Device;
 use p3_check::beta::{approve_message, approve_payment, Signer};
 use p3_check::consts::{
     Key, DEVNET_GENESIS, MAINNET_GENESIS, MULTISIG_DEVNET, MULTISIG_MAINNET, POOL_DEVNET,
-    PRIVATE_CAP_MAINNET, REGISTRY_DEVNET,
+    REGISTRY_DEVNET,
 };
 use p3_check::frost::{check_cluster, PROGRAM_LABEL};
 use p3_check::intent::{Intent, Program};
@@ -219,8 +219,7 @@ fn the_mainnet_row_names_9me7_and_each_part_of_its_program_label_is_a_constant()
         ),
         (2, PRIVATE, MAINNET_GENESIS, MULTISIG_MAINNET)
     );
-    assert_eq!(MAINNET.cap, Some(PRIVATE_CAP_MAINNET));
-    assert_eq!(PRIVATE_CAP_MAINNET, 500_000_000);
+    assert_eq!(MAINNET.cap, None);
 }
 
 #[test]
@@ -649,20 +648,20 @@ fn shield_rules(f: &Fixture, amount: u64, held: u64) -> Vec<Rule> {
 }
 
 #[test]
-fn a_mainnet_shield_may_bring_the_private_balance_to_the_cap_and_not_one_lamport_more() {
+fn mainnet_deposits_are_not_restricted_by_the_former_trial_limit() {
     let f = mainnet_payment();
-    assert_eq!(shield_rules(&f, 500_000_000, 0), vec![]);
-    assert_eq!(shield_rules(&f, 200_000_000, 300_000_000), vec![]);
-    assert_eq!(
-        shield_rules(&f, 200_000_001, 300_000_000),
-        vec![Rule::ShieldOverCap]
-    );
-    assert_eq!(shield_rules(&f, 1, 500_000_000), vec![Rule::ShieldOverCap]);
-    // The wasm entry reads `held` from the wire of the intent.
+    for (amount, held) in [
+        (500_000_000, 0),
+        (500_000_001, 0),
+        (1_000_000_000, 500_000_000),
+        (5_000_000_000, 10_000_000_000),
+    ] {
+        assert_eq!(shield_rules(&f, amount, held), vec![], "{amount} + {held}");
+    }
     let proposal = bare(Intent::Shield {
         blockhash: [5; 32],
-        amount: 2,
-        held: 499_999_999,
+        amount: 1_000_000_000,
+        held: 500_000_000,
     });
     let message = compiled(&proposal.intent, &f.pins.for_pda().unwrap(), None);
     let mut snapshot = f.snapshot.clone();
@@ -671,20 +670,13 @@ fn a_mainnet_shield_may_bring_the_private_balance_to_the_cap_and_not_one_lamport
     assert_eq!(wire.len(), 49, "tag, blockhash, amount, held");
     let snapshot = snapshot.encode().unwrap();
     let answer = wasm::check_message(&message, &wire, &f.pins.wire(), &snapshot, NOW);
-    assert!(answer.starts_with("refused\nshield-over-cap\t"), "{answer}");
+    assert!(answer.starts_with("accepted"), "{answer}");
 }
 
 #[test]
-fn a_held_value_near_u64_max_is_refused_and_devnet_has_no_cap() {
-    let f = mainnet_payment();
-    for held in [u64::MAX, u64::MAX - 999, u64::MAX - 1_000] {
-        assert_eq!(
-            shield_rules(&f, 1_000, held),
-            vec![Rule::ShieldOverCap],
-            "{held}"
-        );
+fn both_deployments_have_no_private_balance_limit() {
+    for f in [mainnet_payment(), Fixture::payment(&Spec::transfer())] {
+        assert_eq!(shield_rules(&f, 1_000, u64::MAX), vec![]);
+        assert_eq!(shield_rules(&f, 600_000_000, 0), vec![]);
     }
-    let devnet = Fixture::payment(&Spec::transfer());
-    assert_eq!(shield_rules(&devnet, 1_000, u64::MAX), vec![]);
-    assert_eq!(shield_rules(&devnet, 600_000_000, 0), vec![]);
 }

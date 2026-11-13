@@ -2,6 +2,8 @@
 // no link and asks for nothing. The diagnostics hold a fixed list of facts and no line of the
 // log, which has free text. Display only: nothing here sends anything.
 
+import { SECURITY_DISCLOSURES } from "./security-disclosures.js";
+
 export const HELP = [
   ["What does a payment need?",
     "A payment needs approval from as many devices as the approval rule names, for example 2 of "
@@ -33,7 +35,7 @@ export const HELP = [
     + "When you send, Helius also sees the signed transaction."],
   ["How do I read the memos of payments to this wallet?",
     (
-      "Open Incoming payment memos under General in Settings, "
+      "Open Incoming payment memos under Privacy & Network in Settings, "
       + "review the privacy disclosure and enable it. A memo is "
       + "only in "
     )
@@ -46,10 +48,12 @@ export const HELP = [
     + "need a few blocks to confirm. Do not pay again while it shows Confirming."],
   ["Which networks does Zigs use?",
     "Zigs uses Zcash testnet or mainnet, and Solana Devnet. Testnet and Devnet use test coins. "
-    + "Mainnet uses real ZEC: it is a beta, it is not audited, and you can lose the funds. "
+    + "Mainnet uses real ZEC. "
     + "Where a server offers it, a mainnet wallet also has a Solana part. It is a plain account "
     + "with real SOL and USDC, with no privacy and no hosted prover. A send needs the same "
     + "approvals as a Zcash payment. Every device of the group sees its recipient and amount."],
+  ["Has Zigs been audited?", SECURITY_DISCLOSURES[0][1]],
+  ["How is the private Solana program managed?", SECURITY_DISCLOSURES[1][1]],
 ];
 
 /**
