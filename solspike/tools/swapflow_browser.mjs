@@ -35,9 +35,24 @@ async function open(scenario = 'private', width = 1440, theme = 'dark') {
   await page.evaluate(() => document.fonts.ready);
 }
 async function capture(name) {
+  await page.evaluate(() => window.zigsGlass.flush());
+  const missing = await page.evaluate(() => {
+    const painted = node => node.matches('.ogui-button,[data-ogui-glass]')
+      || !!node.querySelector(':scope > .openglass-backdrop-slot > [data-ogui-glass]');
+    const selector = ['.swap-composer', '.swap-privacy-explainer', '.swap-execution',
+      '.swap-execution-option', '.swap-pane', '.swap-history', '.swap-history-row',
+      'dialog[open]', '.swap-page button', 'dialog[open] button'].join(',');
+    return [...document.querySelectorAll(selector)]
+      .filter(node => node.checkVisibility({ opacityProperty: true }) && !node.closest('[hidden]'))
+      .filter(node => !painted(node)).map(node => node.className);
+  });
+  check(!missing.length, name + ': OpenGlass covers all visible Swap surfaces and controls: '
+    + missing.join(', '));
   // Controlled-clock playback can defer a CSS frame. Capture the settled chapter, not opacity 0.
   await page.locator('.swap-privacy-explainer').evaluateAll((nodes) => nodes.forEach((node) =>
-    node.getAnimations({ subtree: true }).forEach((animation) => animation.finish())));
+    node.getAnimations({ subtree: true }).forEach((animation) => {
+      if (Number.isFinite(animation.effect.getComputedTiming().endTime)) animation.finish();
+    })));
   const dialog = await page.locator('dialog[open]').count();
   await page.screenshot({ path: resolve(out, name + '.png'), fullPage: !dialog });
      screenshots.push(name);

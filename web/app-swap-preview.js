@@ -263,7 +263,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     ['public', 'Standard mainnet', 'NEAR Intents - Not Confidential', 'publicSwap'],
     ['basic', 'Confidential mainnet', 'Provider access required', 'confidentialSwap'],
   ].map(([value, label, caption, art]) => el('label', {
-    class: 'swap-execution-option', 'data-mode': value, 'data-interface-control': '' },
+    class: 'swap-execution-option', 'data-mode': value, 'data-interface-control': '', 'data-button-surface': '' },
     el('input', { type: 'radio', name: 'swap-execution', value, checked: value === 'preview',
       'aria-describedby': 'swap-execution-help', onchange: async () => {
         if (model.value.live) return;

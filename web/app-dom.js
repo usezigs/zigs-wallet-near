@@ -85,20 +85,20 @@ export const act = (fn) => async (ev) => {
 };
 export function copyBtn(text, label = "Copy", cls = "btn sm", onFailure = null, makeIcon = icon) {
   const copy = async (ev) => {
-    const b = ev.currentTarget;
+    const b = ev.currentTarget, labelNode = b.querySelector(".openglass-native") || b;
     try {
       await navigator.clipboard.writeText(typeof text === "function" ? text() : text);
-      b.replaceChildren(makeIcon("check"), document.createTextNode("Copied"));
+      labelNode.replaceChildren(makeIcon("check"), document.createTextNode("Copied"));
     } catch {
       // A caller may open a private overlay; older cards keep their existing disclosure fallback.
-      b.replaceChildren(makeIcon("copy"), document.createTextNode("Select and copy"));
+      labelNode.replaceChildren(makeIcon("copy"), document.createTextNode("Select and copy"));
       if (onFailure) onFailure();
       else b.closest("section")?.querySelector("details[data-link]")?.setAttribute("open", "");
     }
-    setTimeout(() => b.replaceChildren(makeIcon("copy"), document.createTextNode(label)), 1500);
+    setTimeout(() => labelNode.replaceChildren(makeIcon("copy"), document.createTextNode(label)), 1500);
   };
-  return el("button", { class: cls, type: "button", "aria-live": "polite",
-    "aria-atomic": "true", onclick: copy }, makeIcon("copy"), label);
+  return el("button", { "data-glass": "button", class: cls, type: "button", "aria-live": "polite", "aria-atomic": "true", onclick: copy },
+    makeIcon("copy"), label);
 }
 
 // One bad document from another signer must not break the page: the item it feeds shows as a
@@ -320,6 +320,7 @@ export const memoRow = (label, m, bad = false) => el("div", { class: "memo-line"
   el("span", { class: "memo-text" + (m ? "" : " faint") }, memoWords(m)));
 
 export const closeBtn = () => el("button", {
+  "data-glass": "icon-button",
   class: "icon-btn", type: "button", "aria-label": "Close",
   onclick: () => { closeSession(); render(); },
 }, icon("close"));

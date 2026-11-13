@@ -146,17 +146,25 @@ You can play every device from one browser. Use a desktop browser with Zigs in o
 private window. The steps below use Zcash testnet and Solana Devnet, so every coin is a free test
 coin. Keep Testnet chosen in the network choice. The runbook of a demo with three devices is in [docs/demo.md](docs/demo.md).
 
+The same **Play device** controls are available during mainnet setup. Played devices keep
+separate signing shares in this browser, so enough local shares let it authorize real mainnet
+payments by itself. They do not provide separate-device protection. Keep each share’s recovery
+file and passphrase safe. The configured approval threshold and per-device approval actions
+still apply.
+
 **Zcash testnet**
 
 1. Open https://app.zigs.app.
-2. Click **Set up a wallet**, then **Set up my wallet**. Open **Advanced approval rule**, set
-   **Devices** to 2 and **Approvals needed** to 2, tick the box under the warning, and click
-   **Next**. The network is **Testnet**, the only choice. Keep **Also set up Solana Devnet**
-   ticked (it is on by default). Click **Review wallet**, then **Create wallet**. This browser
-   is now device 1.
+2. Click **Create wallet**. Protect this browser with a passkey, or explicitly confirm
+   **Skip for now**. Continue to the approval rule: keep the recommended **2 of 3**, or set
+   **Devices** to 2 and **Approvals needed** to 2 and acknowledge the warning. Click
+   **Use this arrangement**, name the wallet and this device, and choose **Testnet**.
+   Click **Continue**, review the wallet, then **Create wallet**. Solana Devnet is included
+   by default and starts when service is available. This browser is now device 1.
 3. Open **Trying Zigs alone? Play the other devices in this browser** and click
-   **Play device 2**. The two devices create the key together. Within half a minute the wallet
-   opens, and both devices show **Address checked**.
+   **Play device 2** (and **Play device 3** for the recommended rule). The same browser now
+   holds every demo device and creates their keys together. Continue through the wallet reveal
+   and optional backup options, then click **Open Overview**.
 4. In the **Fund this wallet** card on the Overview, click **Copy address**. Then click **Open the
    faucet**: it opens the Valar faucet, which pays 0.125 TAZ to a `utest1…` address, once for each
    IP address and once for each address every 24 hours. On a shared network, such as a venue or an
@@ -261,8 +269,26 @@ flowchart LR
 
 The wallet uses a React shell with OpenGlass UI. `web/openglass/app.jsx` installs the system
 provider and stylesheet; `bridge.jsx` connects the existing native renderers to OpenGlass cards,
-buttons, badges, fields and stats. Native form inputs keep their references and event handlers.
-Dialogs keep the wallet's existing focus and dismissal logic, with OpenGlass materials.
+buttons, badges, fields and stats. Existing panels keep their native layout and receive an
+OpenGlass background; standalone loading and lock screens use Card. Native form inputs keep
+their references and event handlers.
+Dialogs keep the wallet's existing focus and dismissal logic, with frosted OpenGlass materials.
+The shared bridge also covers the welcome hero, guided setup, device rows, invitation actions, asset pickers,
+preferences, tabs, and controls held by native wallet code. Regular glass distinguishes raised
+panels from inset rows; text fields stay solid for readability. Restrained rim reflections
+complement the cursor treatment described below. Reduced motion, reduced transparency, high contrast
+and forced colors have explicit fallbacks.
+
+`web/openglass/use-button-hover.js` exports `useButtonHover(scopeRef?, { magnet? })` and its
+native adapter `installButtonHover(scope, options)`. The app shell installs the hook once for
+all buttons, including cached views and native dialogs. It uses Motion springs and CSS
+variables for a clipped cursor highlight and less than one pixel of magnetic travel; no
+React state is updated on pointer movement. Pass a ref to limit it to a group in another app,
+or set `data-button-hover="off"` on an element or ancestor to opt out. Touch, reduced motion,
+reduced transparency and high contrast retain the existing controls without cursor effects.
+Idle/hidden/detached controls release their springs and decorative layers.
+Native control surfaces such as Swap's radio-card labels opt in with `data-button-surface`;
+their radio inputs, labels and disabled states remain native.
 
 ```sh
 npm ci --prefix web
@@ -275,10 +301,36 @@ from `cf/`. Opening the HTML through a plain static server omits the Worker's st
 
 `npm run test:openglass --prefix web` checks the interface with isolated wallet fixtures, then
 boots the real app under its strict content security policy. It checks desktop and mobile
-layouts, both themes, navigation, keyboard dismissal, labels, input persistence and cached views.
+layouts, both themes, all eight wallet destinations, the guided Connect screen, QR dialog
+keyboard containment, forced colors, labels, input persistence and cached views.
 It uses local Chrome on macOS, or Playwright Chromium (`npx playwright install chromium` from
 `web/`); `CHROME_EXECUTABLE` can select another installed Chromium browser. Screenshots go to the
 temporary directory, or to `OPENGLASS_OUTPUT` when set.
+
+`npm run test:button-hover --prefix web` checks actual mouse/touch input, spring settling,
+layout and label preservation, native actions/dialogs, preference changes and cleanup. It
+also records a frame-paced cursor-path measurement in `button-hover.json` under
+`OPENGLASS_AUDIT_OUTPUT` (default `/tmp/zigs-glass-audit/flows`). Frame timings describe the
+local Chromium run; they are not a physical-device performance guarantee.
+
+`npm run test:single-browser --prefix web` verifies real, unfunded Zcash Testnet and Mainnet formation
+with all devices in one browser tab for both 2-of-2 and 2-of-3 rules. It checks the solo-device
+controls in both themes at 320 and 1440px, per-device approval availability, and saved shares
+after reload and virtual-passkey unlock. Start the local Worker relay on port 8788 first;
+`ZIGS_SINGLE_BROWSER_ORIGIN` can select another `http://localhost:<port>` origin (passkey
+creation requires the hostname rather than a numeric IP address). HTTP chain/provider services
+are blocked, and the check never funds, proposes, approves or broadcasts a payment. Fresh
+browser stores leave existing wallets untouched. Reports and masked screenshots go to
+`/tmp/zigs-glass-audit/single-browser`, or `OPENGLASS_SINGLE_BROWSER_OUTPUT`.
+
+`npm run audit:openglass --prefix web` expands this to 120 presentation states across 320, 390,
+768 and 1440px in both themes, followed by keyboard, theme, motion and input-persistence checks.
+It uses disposable synthetic wallet data and stops before wallet creation or transaction
+submission. Reports and masked screenshots go to `/tmp/zigs-glass-audit/flows`, or
+`OPENGLASS_AUDIT_OUTPUT`. The [OpenGlass flow audit](docs/ux-redesign/openglass-flow-audit.md)
+records coverage, fixes and validation limits.
+The [Near Swap integration review](docs/ux-redesign/near-swap-glass.md) covers the updated
+routing controls, walkthrough, saved history and six-step simulation from `Near`.
 
 ## Creating a wallet
 

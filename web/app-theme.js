@@ -19,6 +19,9 @@ export function themeChoice() {
     apply(ev.target.value);
     try { localStorage.setItem(KEY, ev.target.value); } catch {}
   };
+  if (globalThis.zigsGlass) return globalThis.zigsGlass.select({
+    id: "settings-appearance", value: now, onchange: change,
+  }, "Appearance", CHOICES.map(([value, label]) => ({ value, label })));
   return el("label", { class: "field" }, el("span", {}, "Appearance"),
     el("select", { class: "input", "aria-label": "Appearance", onchange: change },
       CHOICES.map(([value, label]) => el("option", { value, selected: now === value }, label))));

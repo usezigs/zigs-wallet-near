@@ -63,6 +63,7 @@ export async function overviewFixture(context, page, { messaging = false } = {})
     return route.fulfill({ body, contentType: types[extname(file)] || "application/octet-stream" });
   });
   await page.goto(OVERVIEW_ORIGIN);
+  await page.locator("#app").waitFor({ state: "attached" });
   await page.evaluate(async () => {
     const { state, ui } = await import("/app-state.js");
     const { signPins } = await import("/app-filter.js");

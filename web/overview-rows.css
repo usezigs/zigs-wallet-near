@@ -14,7 +14,7 @@
 .premium-overview-grid>* { min-width:0; }
 .premium-overview-grid>.overview-rail { display:grid; grid-template-columns:minmax(0,1fr);
   gap:var(--page-gap); align-content:start; }
-.premium-overview-grid>.overview-rail>.overview-transactions { grid-column:1; }
+.premium-overview-grid>.overview-rail>.overview-transactions { grid-column:1; order:0; }
 .premium-overview-grid>.overview-hero {
   display:grid; grid-template-columns:minmax(0,1fr); align-content:start; gap:var(--section-gap);
   position:relative; padding:var(--panel-pad-compact); min-height:0; overflow:visible; border-radius:24px;
@@ -97,6 +97,14 @@
 }
 
 .overview-page .overview-transactions { display:grid; gap:14px; }
+.overview-page .overview-approvals { gap:14px; min-width:0; padding:0; border:0; }
+.premium-overview-grid>.overview-rail>.overview-approvals { grid-column:1; }
+.overview-page .workflow-details[data-overview-popover="1"][open] { gap:0; }
+.overview-page :is(.approval-heading,.transaction-heading) { display:flex; align-items:center;
+  justify-content:space-between; min-height:44px; gap:12px; flex-wrap:wrap; }
+.overview-page :is(.overview-all-approvals,.overview-all-activity) { flex:none; min-height:44px;
+  padding:6px 10px; font-size:12px; white-space:nowrap; }
+.overview-page :is(.overview-all-approvals,.overview-all-activity)>.symbol { width:14px; height:14px; }
 .overview-page .transaction-heading { min-height:48px; gap:12px; flex-wrap:wrap; }
 .overview-page .transaction-views { display:flex; width:auto; min-width:144px; flex:0 0 auto; padding:3px; border:1px solid var(--line); border-radius:14px; background:var(--sunk); }
 .overview-page .transaction-views>.btn { flex:1 0 auto; min-height:48px; padding:6px 10px; font-size:13px; white-space:nowrap; word-break:normal; overflow-wrap:normal; border:0; border-radius:10px; background:transparent; box-shadow:none; transition:background-color 180ms var(--ease),color 180ms var(--ease); }
