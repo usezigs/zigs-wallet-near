@@ -29,7 +29,7 @@ import { finishStep, refusedSend } from "./app-drawer.js";
 import { BUCKETS, bucketOf, emptyState, solLine } from "./approvals-model.js";
 import { teamConversation } from "./app-thread.js";
 import { messagingWorkspace } from "./app-messaging-workspace.js";
-import { openBackup, openBackupCheck, restore, staleRestoreNote } from "./app-backups.js";
+import { openBackup, openBackupCheck, restore, restoreProgressNote, staleRestoreNote } from "./app-backups.js";
 import { browserSettings, loadingView } from "./app-shell.js";
 import { focusAfter, render } from "./app-loop.js";
 import { openSend } from "./app-send.js";
@@ -67,7 +67,7 @@ export function groupView({ showHeader = true } = {}) {
   const back = el("button", {
     class: "btn ghost sm", type: "button", onclick: () => openGroup(null),
   }, icon("back"), "Wallets");
-  if (!g) return el("div", { class: "page" }, back, loadingView());
+  if (!g) return el("div", { class: "page" }, back, restoreProgressNote(), loadingView());
   if (g.unreadable) {
     return el("div", { class: "page" }, back, el("div", { class: "card" }, unreadable()));
   }
@@ -82,18 +82,18 @@ export function groupView({ showHeader = true } = {}) {
   }
   const ready = walletReady();
   if (ui.tab === "messages") return messagingWorkspace(teamConversation([
-    staleRestoreNote(), signedNotes(), networkNote(),
+    restoreProgressNote(), staleRestoreNote(), signedNotes(), networkNote(),
     !ready ? el("button", { class: "btn ghost sm", type: "button",
       onclick: () => { ui.tab = "overview"; render(); } }, "Return to wallet setup") : null,
   ]));
   const destination = ui.tab === "approvals" || ui.tab === "recovery";
   if (!destination && ui.tab !== "settings" && ui.tab !== "messages" && (guidedEnabled()
     || !ready && !state.g.movedFrom && groupVersion() >= 2)) {
-    return guidedSetupView([staleRestoreNote(), signedNotes(), networkNote()]);
+    return guidedSetupView([restoreProgressNote(), staleRestoreNote(), signedNotes(), networkNote()]);
   }
   const why = ready ? sendBlocker() : null;
   const head = [showHeader ? groupHead(g, ready, why) : null,
-    staleRestoreNote(), signedNotes(), networkNote()];
+    restoreProgressNote(), staleRestoreNote(), signedNotes(), networkNote()];
   if (!ready && destination) return unfinishedDestination(head, ui.tab);
   return ready ? walletView(head, why) : el("div", { class: "page" }, head, setupView());
 }
@@ -280,7 +280,7 @@ function balanceOverview() {
     isMainnet() ? portfolioOverview() : el("div", { class: "overview-wallet-summary" }, walletMark(state.g, 64),
     el("div", { class: "portfolio-summary" }, el("div", { class: "balance-heading" },
       el("h2", { id: "total-balance-title", class: "label" },
-        "Wallet balance"),
+        "ZEC balance"),
       el("span", { class: "portfolio-currency" }, "ZEC")), testnetTotal())),
     el("div", { class: "overview-actions" }, assetActionPicker("send"), assetActionPicker("receive"),
       el("button", { "data-glass": "button", class: "btn", type: "button", "data-key": "overview-swap",
@@ -293,7 +293,7 @@ function testnetTotal() {
   const total = zecTotal(zecBal(curChain()));
   if (globalThis.zigsGlass) return globalThis.zigsGlass.stat({
     "data-valuation-state": total === null ? "unknown" : "known",
-  }, { label: "Wallet balance in ZEC", value: total === null ? "—" : fmtZec(total), change: "Zcash Testnet" });
+  }, { label: "ZEC balance on Testnet", value: total === null ? "—" : fmtZec(total), change: "Zcash Testnet" });
   return [el("p", { class: "portfolio-value", "data-valuation-state": total === null ? "unknown" : "known" },
     total === null ? "—" : fmtZec(total)),
   el("p", { class: "portfolio-network-note" }, "Zcash Testnet")];
@@ -488,8 +488,8 @@ function paymentStep(c, ss, to) {
       + "payment to approve it or take the next step.", session: ss };
   }
   if (inFlight().includes(ss)) {
-    return { text: "The Zcash funds are on their way to " + groupName(to) + ". They arrive with "
-      + "the next block.", open: to };
+    return { text: "The Zcash transfer to " + groupName(to) + " was submitted. Wait for block "
+      + "confirmation before treating the funds as received.", open: to };
   }
   const b = c && c.bal ? balanceNow(c.bal) : null;
   if (!b) return sentStep(to);
@@ -515,6 +515,7 @@ function moveCard(c) {
     el("div", { class: "card-head" },
       el("h3", {}, m.done ? "The Zcash funds moved" : "Changing devices")),
     el("p", { class: "small muted" }, m.text),
+    migrationScope(),
     el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, moveButtons(m, c, why)),
     why ? el("p", { class: "small faint" }, why) : null);
 }
@@ -956,7 +957,7 @@ function solNoteText() {
   return SOL_ACTIVITY_NOTE + solLacks();
 }
 // The Solana rows that the list lacks: older proposals, and proposals that wait for their check.
-const solLacks = () => (solOlderCount() > 0 ? " Older Solana proposals are not listed." : "")
+const solLacks = () => (solOlderCount() > 0 ? " Older Solana proposals are available in Solana’s proposal history." : "")
   + (solActivityWaits() ? " Zigs still reads some Solana proposals, so more rows can show." : "");
 function activityNote(pick) {
   const text = pick === "zec" ? null : solNoteText();
@@ -1320,11 +1321,22 @@ function changeSignersCard() {
       + "key, so they cannot change in place. To change them, create a new wallet with the devices "
       + "you want, then move the Zcash funds to it." + solStays()),
     el("p", { class: "small muted" }, "Removed devices retain their old key share and viewing access."),
+    migrationScope(),
     el("details", { class: "workflow-details" }, el("summary", {}, "What removed devices can still access"),
       el("p", { class: "small muted" }, DEVICE_CHANGE_PRIVACY)),
     el("div", {}, moving
       ? el("button", { class: "btn", type: "button", onclick: () => { ui.tab = "overview"; render(); } }, "See the move")
       : el("button", { class: "btn", type: "button", disabled: !localSeats().length, onclick: () => { ui.move = true; render(); } }, "Change devices")));
+}
+
+function migrationScope() {
+  return el("details", { class: "workflow-details", "data-migration-scope": "" },
+    el("summary", {}, "What changes for each asset"),
+    el("ul", { class: "small" },
+      el("li", {}, "Zcash: create and check the replacement wallet, then approve each transfer under the old rule. More than one payment may be needed."),
+      el("li", {}, "SOL and USDC: stay under the old Solana arrangement. Review and move them separately; this operation does not replace their devices or approval rule."),
+      el("li", {}, "Future Zcash receipts: share the replacement wallet’s checked address. Payments to the old address still belong to the old wallet.")),
+    el("p", { class: "small muted" }, "An empty balance after the last sync is not a promise that no later payment will arrive. Keep the old wallet accessible until every asset is accounted for."));
 }
 
 function seatBadge(i) {

@@ -242,7 +242,7 @@ export function lockView() {
   const text = lockedVault.damaged
     ? "The locked keys in this browser are damaged and cannot be opened."
     : "The key shares in this browser are encrypted with your passkey. "
-      + "Unlock with Face ID, Touch ID or your security key.";
+      + "Your passkey provider may ask for a fingerprint, face, PIN or security key.";
   return el("div", { class: "card empty lock-card" }, sculptedIcon("lock"),
     el("h1", {}, "Zigs is locked"), el("p", { class: "small" }, text),
     lockedVault.damaged ? null : securityExplanation("passkey"),
@@ -641,7 +641,7 @@ function welcome(off, restoreLink) {
           el("span", { class: "welcome-title-accent" }, wallets ? "Your rules" : "Secured together")),
         el("p", { class: "muted welcome-summary" }, wallets
           ? "Pick a wallet to see its assets, review payments, and coordinate with your devices."
-          : "A shared wallet for Zcash and Solana. Payments follow the approval rules you choose."),
+          : "A shared wallet for Zcash and supported Solana assets. Payments follow the approval rules you choose."),
         wallets ? null : entryPaths)),
     wallets ? el("div", { class: "home-wallet-launcher" + (wallets === 1 ? " home-launcher-single" : "") },
       walletList,
@@ -674,7 +674,7 @@ function joinWallet(heading = "h3") {
   };
   return el("section", { class: "join" }, el(heading, {}, "Join a shared wallet"),
     el("p", { class: "small muted", id: "join-help" },
-      "Adding another of your devices? Paste the wallet’s invite link here. You can also use a link from someone sharing their wallet."),
+      "Paste a private invite link to open the wallet in this browser. To approve payments, join an open device slot or restore your existing device’s backup."),
     el("form", { class: "join-row", onsubmit: submit },
       el("label", { class: "field" }, el("span", {}, "Invite link"), input),
       el("button", { class: "btn", type: "submit", ...off.attrs }, "Open wallet"),
@@ -1006,6 +1006,7 @@ const ruleStep = (lines) => step(1,
       ruleCounter("Approvals needed", "g-t", "t", ui.createDraft?.t ?? 2,
         "Approvals required for each payment.")),
       el("div", { class: "threshold-result" }, lines.rule, lines.margin, lines.ack))),
+  el("p", { class: "small muted" }, "All devices must join and stay open for initial setup. After setup, any required subset can approve a payment."),
   el("details", { class: "setup-threshold-details" }, el("summary", {}, "How the approval threshold works"),
     thresholdExplanation(ui.createDraft?.n ?? 3, ui.createDraft?.t ?? 2)));
 const namesStep = () => step(2,

@@ -244,7 +244,7 @@ assert.equal(wallet.network, "mainnet");
     t.setChain({ gid, bal: { spendable: 900_000, pending: 100_000, height: 1 },
       received: [], sent: new Set(), cw: null });
     const testnet = draw("overview");
-    assert.match(textOf(testnet), /Wallet balanceZEC0\.01 ZEC/);
+    assert.match(textOf(testnet), /ZEC balanceZEC0\.01 ZEC/);
     assert.equal(findNode(testnet, (n) => n.className === "portfolio-slot"), null);
     assert.deepEqual(requests, [], "testnet funds have no USD price request");
     t.state.g = keep;

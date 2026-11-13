@@ -99,9 +99,10 @@ assert.deepEqual(solLine({ on: true, setup: ready, toApprove: 0, reading: 1 }),
 assert.equal(solLine({ on: true, setup: ready, toApprove: 1, reading: 1 }).kind, "review",
   "a proposal to approve comes first");
 assert.match(solLine({ on: true, setup: ready, toApprove: 0, older: 2 }).text,
-  / 2 older Solana proposals are not listed here or in Solana\.$/, "older ones are not hidden");
+  new RegExp(" 2 older Solana proposals are available in Solana’s proposal history; "
+    + "use Older proposals to review them\\.$"), "older ones are not hidden");
 assert.match(solLine({ on: true, setup: ready, toApprove: 1, older: 1 }).text,
-  /^1 Solana proposal waits.* 1 older Solana proposal is not listed/);
+  /^1 Solana proposal waits.* 1 older Solana proposal is available in Solana’s proposal history/);
 assert.equal(solLine({ on: true, setup: ready, toApprove: 0, older: 0 }).text, none.text);
 console.log("ok  the Solana line");
 console.log("approvals: ok");

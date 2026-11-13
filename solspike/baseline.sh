@@ -103,7 +103,7 @@ TESTS=(messaging-presentation messaging-cost-review messaging-account-view premi
   mainnet-on mempool
   chain-fallback smoke
   contrast orientation overview portfolio setup-stage approvals recovery security-dashboard
-  payment-model
+  payment-model error-feedback proposal-history
   plain-worker
   sol-nonce-tabs nonce-locks no-storage sync-pause)
 HELPERS=(sol-view-rig sol-receive-fixture passkey-fixture sol-rig sol-setup sol-chain sol-vector

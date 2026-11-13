@@ -1,0 +1,525 @@
+{
+  "date": "2026-11-13",
+  "branch": "codex/near/ux",
+  "target": "Near",
+  "targetSha": "fc8d504bf314b960392589f6e0f303189cfed043",
+  "node": "v26.13.1",
+  "webChecks": [
+    {
+      "test": "account",
+      "exit": 0,
+      "seconds": 0.2
+    },
+    {
+      "test": "app",
+      "exit": 0,
+      "seconds": 66.9
+    },
+    {
+      "test": "approvals",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "backup-check",
+      "exit": 0,
+      "seconds": 1.5
+    },
+    {
+      "test": "chain-fallback",
+      "exit": 0,
+      "seconds": 5.0
+    },
+    {
+      "test": "chat",
+      "exit": 0,
+      "seconds": 1.7
+    },
+    {
+      "test": "contrast",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "demo-check",
+      "exit": 0,
+      "seconds": 4.4
+    },
+    {
+      "test": "error-feedback",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "graph",
+      "exit": 0,
+      "seconds": 1.3
+    },
+    {
+      "test": "guided-create",
+      "exit": 0,
+      "seconds": 0.7
+    },
+    {
+      "test": "guided-setup",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "help",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "homepage-motion",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "lwd",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "mainnet-on",
+      "exit": 0,
+      "seconds": 1.3
+    },
+    {
+      "test": "mempool",
+      "exit": 0,
+      "seconds": 10.1
+    },
+    {
+      "test": "messaging-account-view",
+      "exit": 0,
+      "seconds": 0.2
+    },
+    {
+      "test": "messaging-cost-review",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "messaging-presentation",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "near-quote",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "no-storage",
+      "exit": 0,
+      "seconds": 0.2
+    },
+    {
+      "test": "nonce-locks",
+      "exit": 0,
+      "seconds": 6.0
+    },
+    {
+      "test": "optional-passkey",
+      "exit": 0,
+      "seconds": 5.2
+    },
+    {
+      "test": "orientation",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "outcome-seal",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "overview",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "passkey-setup",
+      "exit": 0,
+      "seconds": 0.2
+    },
+    {
+      "test": "payees",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "payment-model",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "personal",
+      "exit": 0,
+      "seconds": 1.1
+    },
+    {
+      "test": "plain-worker",
+      "exit": 0,
+      "seconds": 4.2
+    },
+    {
+      "test": "portfolio",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "premium-motion",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "proposal-history",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "recipients",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "recovery",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "requests",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "security-dashboard",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "setup-stage",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "shim",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "shim-status",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "signed",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "smoke",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "sol-addsol",
+      "exit": 0,
+      "seconds": 1.5
+    },
+    {
+      "test": "sol-app",
+      "exit": 0,
+      "seconds": 45.7
+    },
+    {
+      "test": "sol-ceremony",
+      "exit": 0,
+      "seconds": 47.0
+    },
+    {
+      "test": "sol-config",
+      "exit": 0,
+      "seconds": 0.9
+    },
+    {
+      "test": "sol-docs",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "sol-errors",
+      "exit": 0,
+      "seconds": 0.8
+    },
+    {
+      "test": "sol-fee",
+      "exit": 0,
+      "seconds": 6.4
+    },
+    {
+      "test": "sol-limits",
+      "exit": 0,
+      "seconds": 16.4
+    },
+    {
+      "test": "sol-mode",
+      "exit": 0,
+      "seconds": 4.8
+    },
+    {
+      "test": "sol-nonce-tabs",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "sol-pay",
+      "exit": 0,
+      "seconds": 64.0
+    },
+    {
+      "test": "sol-pay-end",
+      "exit": 0,
+      "seconds": 35.8
+    },
+    {
+      "test": "sol-pay-exec",
+      "exit": 0,
+      "seconds": 51.4
+    },
+    {
+      "test": "sol-pay-lease",
+      "exit": 0,
+      "seconds": 57.9
+    },
+    {
+      "test": "sol-pay-look",
+      "exit": 0,
+      "seconds": 46.7
+    },
+    {
+      "test": "sol-pay-seats",
+      "exit": 0,
+      "seconds": 59.6
+    },
+    {
+      "test": "sol-plain-app",
+      "exit": 0,
+      "seconds": 5.3
+    },
+    {
+      "test": "sol-plain-ceremony",
+      "exit": 0,
+      "seconds": 13.1
+    },
+    {
+      "test": "sol-plain-direct",
+      "exit": 0,
+      "seconds": 3.3
+    },
+    {
+      "test": "sol-plain-load",
+      "exit": 0,
+      "seconds": 1.1
+    },
+    {
+      "test": "sol-plain-reads",
+      "exit": 0,
+      "seconds": 6.0
+    },
+    {
+      "test": "sol-plain-review",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "sol-plain-security",
+      "exit": 0,
+      "seconds": 1.6
+    },
+    {
+      "test": "sol-plain-sessions",
+      "exit": 0,
+      "seconds": 4.9
+    },
+    {
+      "test": "sol-plain-sign",
+      "exit": 0,
+      "seconds": 116.0
+    },
+    {
+      "test": "sol-plain-ui",
+      "exit": 0,
+      "seconds": 2.8
+    },
+    {
+      "test": "sol-plain-view",
+      "exit": 0,
+      "seconds": 3.6
+    },
+    {
+      "test": "sol-pool-mainnet",
+      "exit": 0,
+      "seconds": 1.6
+    },
+    {
+      "test": "sol-private",
+      "exit": 0,
+      "seconds": 6.8
+    },
+    {
+      "test": "sol-prove",
+      "exit": 0,
+      "seconds": 3.0
+    },
+    {
+      "test": "sol-receive",
+      "exit": 0,
+      "seconds": 0.2
+    },
+    {
+      "test": "sol-receive-fixture",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "sol-rent",
+      "exit": 0,
+      "seconds": 0.9
+    },
+    {
+      "test": "sol-sdk",
+      "exit": 0,
+      "seconds": 0.8
+    },
+    {
+      "test": "sol-sessions",
+      "exit": 0,
+      "seconds": 34.6
+    },
+    {
+      "test": "sol-start-watch",
+      "exit": 0,
+      "seconds": 3.2
+    },
+    {
+      "test": "sol-transfer",
+      "exit": 0,
+      "seconds": 0.2
+    },
+    {
+      "test": "sol-view-rig",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "sol-wallet-page",
+      "exit": 0,
+      "seconds": 3.3
+    },
+    {
+      "test": "sol-wasm",
+      "exit": 0,
+      "seconds": 0.3
+    },
+    {
+      "test": "swap-preview",
+      "exit": 0,
+      "seconds": 0.4
+    },
+    {
+      "test": "swap-recovery",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "sync-pause",
+      "exit": 0,
+      "seconds": 2.2
+    },
+    {
+      "test": "unified-setup",
+      "exit": 0,
+      "seconds": 23.4
+    },
+    {
+      "test": "util",
+      "exit": 0,
+      "seconds": 0.1
+    },
+    {
+      "test": "vault",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "wallet-description",
+      "exit": 0,
+      "seconds": 0.0
+    },
+    {
+      "test": "zns",
+      "exit": 0,
+      "seconds": 0.2
+    }
+  ],
+  "webChecksPassed": 92,
+  "localSkipped": [
+    "qr: qrencode unavailable; CI installs it"
+  ],
+  "lint": {
+    "exit": 0,
+    "javascriptFiles": 317,
+    "pythonFiles": 2
+  },
+  "build": {
+    "exit": 0
+  },
+  "browser": {
+    "ux": {
+      "exit": 0,
+      "variants": 24,
+      "errors": [],
+      "horizontalOverflow": false
+    },
+    "openglass": {
+      "exit": 0
+    },
+    "portfolio": {
+      "exit": 0,
+      "checks": 126
+    }
+  },
+  "fastSuite": {
+    "checksRun": 81,
+    "exit": 1,
+    "unchangedHistoricalFailures": [
+      "plain-equiv.test: missing historical 69803a1d smoke vectors",
+      "policy.test: recorded base commit lacks cf/src/index.js"
+    ]
+  },
+  "criticalControllerFilesUnchangedSinceCopyPhase": [
+    "app-payments.js",
+    "app-filter.js",
+    "app-keystore.js",
+    "app-seats.js",
+    "app-dkg.js",
+    "util.js",
+    "sol/approve.js",
+    "sol/execute.js",
+    "sol/sessions.js",
+    "sol/signing.js",
+    "sol/nonces.js",
+    "sol/gate.js",
+    "sol/guard.js",
+    "sol/propose.js",
+    "sol/backup.js"
+  ],
+  "liveTransactionsSent": false,
+  "liveQualification": "pending; default Devnet SDK/RPC/funder configuration absent; swaps mainnet-only",
+  "privateSolanaAuthorityReview": "open",
+  "evidenceDirectory": "/private/tmp/zigs-near-ux-review-evidence"
+}

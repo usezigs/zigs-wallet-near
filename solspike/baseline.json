@@ -274,6 +274,12 @@
     },
     "web/test/sync-pause.mjs": {
       "exit": 0
+    },
+    "web/test/error-feedback.mjs": {
+      "exit": 0
+    },
+    "web/test/proposal-history.mjs": {
+      "exit": 0
     }
   },
   "hashes": {

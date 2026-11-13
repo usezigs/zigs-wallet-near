@@ -1,0 +1,299 @@
+[
+  {
+    "id": "C01",
+    "finding": "F55",
+    "file": "web/app-account-view.js",
+    "location": "accountCard",
+    "reason": "Clarify separate single-key custody and the absence of shared-wallet approval protection.",
+    "original": "Pays the fee of your on-chain messages. It is not a wallet: anyone who controls this browser can spend it, with no approval.",
+    "updated": "Pays the fee of your on-chain messages. This separate account has no shared-wallet approval rule; whoever controls this browser can spend it."
+  },
+  {
+    "id": "C02",
+    "finding": "F56",
+    "file": "web/app-account-view.js",
+    "location": "fundBlock",
+    "reason": "Explain funding outputs without requiring knowledge of notes or promising exact equal division.",
+    "original": "Asks for 3 equal notes, so the account can send after each block.",
+    "updated": "Splits the amount into 3 payment outputs so separate funds are available for message fees."
+  },
+  {
+    "id": "C03",
+    "finding": "F70",
+    "file": "web/app-account.js",
+    "location": "deliver success banner",
+    "reason": "Attribute submission accurately and avoid promising message arrival in the next block.",
+    "original": "Sent to the network. It arrives with the next block.",
+    "updated": "Message submitted to the network. Wait for its on-chain status before sending again."
+  },
+  {
+    "id": "C04",
+    "finding": "F09",
+    "file": "web/app-dom.js",
+    "location": "networkPick",
+    "reason": "State that mainnet uses real funds and fees at the network decision.",
+    "original": "Send and receive ZEC on the Zcash network.",
+    "updated": "Real ZEC. Transactions use real funds and network fees."
+  },
+  {
+    "id": "C05",
+    "finding": "F53",
+    "file": "web/app-messaging-workspace.js",
+    "location": "emptyConversation",
+    "reason": "Give the empty state a useful task-oriented heading.",
+    "original": "A little closer. A little more private.",
+    "updated": "Choose a conversation."
+  },
+  {
+    "id": "C06",
+    "finding": "F68",
+    "file": "web/app-payments.js",
+    "location": "broadcastTx success banner",
+    "reason": "Distinguish successful submission from uncertain future block confirmation.",
+    "original": "Sent to the network. It confirms with the next block.",
+    "updated": "Submitted to the network. Wait for block confirmation in Activity."
+  },
+  {
+    "id": "C07",
+    "finding": "F68",
+    "file": "web/app-payments.js",
+    "location": "resendTx success banner",
+    "reason": "State that the same transaction was resubmitted without promising inclusion timing.",
+    "original": "Sent again. It confirms with the next block.",
+    "updated": "The same transaction was submitted again. Wait for block confirmation in Activity."
+  },
+  {
+    "id": "C08",
+    "finding": "F34",
+    "file": "web/app-recipients.js",
+    "location": "recipientsView",
+    "reason": "Match Messages navigation and precise browser-local storage scope.",
+    "original": "Save payment recipients for all wallets on this device. Chat contacts stay in Chats.",
+    "updated": "Save payment recipients for all wallets in this browser. Chat contacts stay in Messages."
+  },
+  {
+    "id": "C09",
+    "finding": "F17",
+    "file": "web/app-send.js",
+    "location": "receiveLead",
+    "reason": "Scope the privacy claim to shielded on-chain information; preserve invite-holder viewing limits.",
+    "original": ". Senders and the network cannot see the balance or who controls it. The devices of this wallet and anyone who has the invite link can see its balance and history. A device that Change devices leaves out later can still see them.",
+    "updated": ". Shielded payments hide recipient addresses and amounts on chain. The devices of this wallet and anyone who has the invite link can see its balance and history. A device that Change devices leaves out later can still see them."
+  },
+  {
+    "id": "C10",
+    "finding": "F20",
+    "file": "web/app-send.js",
+    "location": "draftLine",
+    "reason": "State how to retain unsaved text when local persistence fails.",
+    "original": "This draft could not be saved in this browser. The form still works.",
+    "updated": "This draft could not be saved in this browser. Keep this page open to retain what you typed."
+  },
+  {
+    "id": "C11",
+    "finding": "F23",
+    "file": "web/app-send.js",
+    "location": "EXPIRY_NOTE",
+    "reason": "Explain that the entire transaction lifecycle must beat expiry, not just approvals.",
+    "original": "The approvals must finish within about 24 hours. After that the payment expires, and a device proposes it again.",
+    "updated": "The transaction usually expires within about 24 hours. Approve, sign, prove and send it in time for block inclusion. Check its expiry in the payment details."
+  },
+  {
+    "id": "C12",
+    "finding": "F24",
+    "file": "web/app-send.js",
+    "location": "priorityBox",
+    "reason": "Describe a request for faster inclusion without promising network performance; the factor interpolation is unchanged.",
+    "original": " times the standard fee, for a faster block when the network is busy. The fee is public. Few wallets pay a priority fee, so it can show that Zigs made this payment, as the expiry height can.",
+    "updated": " times the standard fee, to request faster inclusion when the network is busy. The fee is public. Few wallets pay a priority fee, so it can show that Zigs made this payment, as the expiry height can."
+  },
+  {
+    "id": "C13",
+    "finding": "F06",
+    "file": "web/app-shell.js",
+    "location": "lockView",
+    "reason": "Include passkey providers that authenticate with a PIN or non-Apple biometric.",
+    "original": "The key shares in this browser are encrypted with your passkey. Unlock with Face ID, Touch ID or your security key.",
+    "updated": "The key shares in this browser are encrypted with your passkey. Your passkey provider may ask for a fingerprint, face, PIN or security key."
+  },
+  {
+    "id": "C14",
+    "finding": "F01",
+    "file": "web/app-shell.js",
+    "location": "welcome",
+    "reason": "Avoid a blanket privacy claim across assets with different public visibility.",
+    "original": "Hold your assets privately. Protect them with the people and devices you trust.",
+    "updated": "Share control of Zcash and supported Solana assets across the people and devices you trust."
+  },
+  {
+    "id": "C15",
+    "finding": "F03",
+    "file": "web/app-shell.js",
+    "location": "joinWallet",
+    "reason": "Distinguish opening a wallet from holding a share that can approve.",
+    "original": "Did someone send you an invite link? Paste it here to open the wallet.",
+    "updated": "Paste a private invite link to open the wallet. To approve payments, join an open device slot or restore your existing device’s backup."
+  },
+  {
+    "id": "C16",
+    "finding": "F51",
+    "file": "web/app-swap-preview.js",
+    "location": "SWAP_STATES.SUCCESS",
+    "reason": "Attribute payout to the provider and ask the user to check destination receipt.",
+    "original": "Done. NEAR Intents sent the ZEC to the wallet. The wallet shows it after its next sync.",
+    "updated": "NEAR Intents reports the ZEC payout was sent. Sync the wallet to check its receipt."
+  },
+  {
+    "id": "C17",
+    "finding": "F51",
+    "file": "web/app-swap-preview.js",
+    "location": "SWAP_STATES.REFUNDED",
+    "reason": "Attribute the refund report and name the chain to check.",
+    "original": "Refunded. NEAR Intents sent the SOL back to the refund address.",
+    "updated": "NEAR Intents reports a SOL refund. Check the refund address on Solana."
+  },
+  {
+    "id": "C18",
+    "finding": "F51",
+    "file": "web/app-swap-preview.js",
+    "location": "ZEC_STATES.SUCCESS",
+    "reason": "Distinguish the provider payout report from locally verified destination state.",
+    "original": "Done. NEAR Intents sent the SOL to the Solana address of this wallet.",
+    "updated": "NEAR Intents reports the SOL payout was sent. Check this wallet’s Solana balance and transaction."
+  },
+  {
+    "id": "C19",
+    "finding": "F51",
+    "file": "web/app-swap-preview.js",
+    "location": "ZEC_STATES.REFUNDED",
+    "reason": "Check public refund funds before attempting their separate shielding operation.",
+    "original": "Refunded. NEAR Intents sent the ZEC back to the transparent address of this wallet. Move it to the shielded address from Receive.",
+    "updated": "NEAR Intents reports a ZEC refund. Check the transparent balance in Receive before moving it to the shielded address."
+  },
+  {
+    "id": "C20",
+    "finding": "F46",
+    "file": "web/app-swap-preview.js",
+    "location": "slippage helper",
+    "reason": "Explain the user-facing effect of slippage on the quoted minimum.",
+    "original": "Sent with the quote request",
+    "updated": "Sets the minimum quoted amount you receive."
+  },
+  {
+    "id": "C21",
+    "finding": "F48",
+    "file": "web/app-swap-preview.js",
+    "location": "drawLiveReview refundNote",
+    "reason": "Remove the unsupported promise of an automatic refund for every failure.",
+    "original": "NEAR Intents sends the SOL back to this address if the swap fails.",
+    "updated": "NEAR Intents uses this address for any SOL refund."
+  },
+  {
+    "id": "C22",
+    "finding": "F69",
+    "file": "web/app-sweep.js",
+    "location": "sendSweep submission banner",
+    "reason": "Remove an unsupported next-block confirmation promise.",
+    "original": "Sent. The move confirms with the next block.",
+    "updated": "The move was submitted to the network. Wait for block confirmation."
+  },
+  {
+    "id": "C23",
+    "finding": "F15",
+    "file": "web/app-wallet.js",
+    "location": "balanceOverview heading",
+    "reason": "Make the asset scope clear without changing any values or calculations.",
+    "original": "Wallet balance",
+    "updated": "ZEC balance"
+  },
+  {
+    "id": "C24",
+    "finding": "F15",
+    "file": "web/app-wallet.js",
+    "location": "testnetTotal stat label",
+    "reason": "Make clear this is only ZEC, not a total including Solana.",
+    "original": "Wallet balance in ZEC",
+    "updated": "ZEC balance on Testnet"
+  },
+  {
+    "id": "C25",
+    "finding": "F25",
+    "file": "web/help-model.js",
+    "location": "HELP: What does a payment need?",
+    "reason": "Distinguish threshold approval, selected-device signing, Zcash proof/submission, and Solana-specific steps.",
+    "original": "A payment needs approval from as many devices as the approval rule names, for example 2 of 3. Each device approves with its own key share. After enough approvals, the devices sign together, and then the payment can be sent.",
+    "updated": "A payment needs the number of device approvals set by its rule, for example 2 of 3. Each device approves with its own key share. After enough approvals, the selected devices sign together while this wallet is open on them. Zcash then needs Build proof and Send to network. Solana follows its own sending or execution steps."
+  },
+  {
+    "id": "C26",
+    "finding": "F36",
+    "file": "web/help-model.js",
+    "location": "HELP: Where is my backup file?",
+    "reason": "Describe per-file passphrase encryption and qualify saved-file progress.",
+    "original": "A backup file holds the key share of one device. Your browser saves it as a download, usually in its download folder. Zigs does not know where. The file is locked with a passphrase that you choose. Zigs cannot recover that passphrase. A device with a Solana part has two files and two passphrases. Keep each file and its passphrase apart, and make sure that you can find both. The Security section shows which files this browser saved.",
+    "updated": "A backup file holds the key share of one device. Your browser saves it as a download, usually in its download folder. Zigs does not know where. The file is locked with a passphrase that you choose. Zigs cannot recover that passphrase. A device with a Solana part has two files, each protected by its chosen passphrase. Keep each file and its passphrase apart, and make sure that you can find both. The Security section shows saved-file progress, not a guarantee that the files remain accessible."
+  },
+  {
+    "id": "C27",
+    "finding": "F39",
+    "file": "web/help-model.js",
+    "location": "HELP: What do the servers see?",
+    "reason": "Correct public/private Solana scope and disclose direct testnet fallback consistently with Settings and app-chain.js.",
+    "original": "The group server keeps the encrypted data of the wallet. It cannot read the data. It sees which IP addresses open which wallet, and when data is sent. The light-wallet server sends the blocks to this page. It sees the transactions that you send, and it never sees a secret key. It sees your IP address, except that on testnet the Zigs light-wallet server sees only the Zigs Worker. That Worker is also the group server, so one operator sees the traffic of both. The Solana part also asks Helius. Helius sees your IP address and the public keys of this wallet. The wallet makes proofs on your device, so nothing goes to the Helius prover. The Zigs server operator can link this wallet to its Solana addresses by timing. On mainnet, the Solana part is a plain account. Helius sees your IP address and the address of this wallet, and the explorer sees the address that you open. When you send, Helius also sees the signed transaction.",
+    "updated": "The group server keeps encrypted wallet data. It sees which IP addresses open which wallet, and when data is sent. It cannot read the sealed data without the wallet secret. The light-wallet server supplies blocks and sees the transactions that you send, but never sees a secret key. On direct connections, it sees your IP address. Testnet normally uses the Zigs Worker proxy, so the upstream node sees the Worker IP. A direct fallback can expose your IP address. The Worker also hosts the group server, so one operator sees both traffic streams. Solana uses Helius, which sees your IP address and public wallet keys. Private Solana payments require proofs on your device; no spend witness goes to the Helius prover. The Zigs server operator can link this wallet to its Solana addresses by timing. Public mainnet Solana accounts expose balances and payments. Private Solana hides payment amounts, but payee owner keys, deposits and withdrawals remain public. The private program has upgrade authority outside wallet approvals. Explorers see the addresses or transaction IDs you open. When you send, Helius also sees the signed transaction."
+  },
+  {
+    "id": "C28",
+    "finding": "F32",
+    "file": "web/help-model.js",
+    "location": "HELP: How do I read the memos of payments to this wallet?",
+    "reason": "Explain that switching retrieval off does not delete already-downloaded memos.",
+    "original": "Open Incoming payment memos under Privacy & Network in Settings, review the privacy disclosure and enable it. A memo is only in the full transaction, so this browser then asks the light-wallet server for each transaction that pays this wallet. That server learns which transactions pay this wallet. The setting is off until you turn it on.",
+    "updated": "Open Incoming payment memos under Privacy & Network in Settings, review the privacy disclosure and enable it. A memo is only in the full transaction, so this browser then asks the light-wallet server for each transaction that pays this wallet. That server learns which transactions pay this wallet. The setting is off until you turn it on. Turning it off stops new memo requests; memos already downloaded stay in this browser."
+  },
+  {
+    "id": "C29",
+    "finding": "F28",
+    "file": "web/help-model.js",
+    "location": "HELP: Why is my payment not done yet?",
+    "reason": "Give per-rail steps and caution about proposing a second payment when outcome is unknown.",
+    "original": "A payment goes through these steps: approval, signing, proof, send, and then block confirmations. Open the payment in Approvals or Activity to see its step. A payment can need a few blocks to confirm. Do not pay again while it shows Confirming.",
+    "updated": "Zcash payments need approvals, signing, a proof, submission to the network, and block confirmations. Solana payments have separate sending or execution steps. Open the payment in Approvals or Activity to see what remains. A submitted transaction is not yet confirmed. Check Activity before proposing another payment when the outcome is unknown."
+  },
+  {
+    "id": "C30",
+    "finding": "F39",
+    "file": "web/help-model.js",
+    "location": "HELP: Which networks does Zigs use?",
+    "reason": "Describe server-gated public SOL/USDC and private SOL with distinct visibility and upgrade authority.",
+    "original": "Zigs uses Zcash testnet or mainnet, and Solana Devnet. Testnet and Devnet use test coins. Mainnet uses real ZEC. Where a server offers it, a mainnet wallet also has a Solana part. It is a plain account with real SOL and USDC, with no privacy and no hosted prover. A send needs the same approvals as a Zcash payment. Every device of the group sees its recipient and amount.",
+    "updated": "Zigs uses Zcash testnet or mainnet, and Solana Devnet. Testnet and Devnet use test coins. Mainnet uses real ZEC. Where the server offers it, mainnet wallets can use public Solana accounts with real SOL and USDC, or private Solana wallets with real SOL. Public Solana balances and payments are visible on chain. Private Solana hides payment amounts, but payee owner keys and public deposits and withdrawals remain visible. The private program's upgrade authority is outside wallet approvals. Both modes need the wallet's approval rule for payments. Every wallet device can see the recipients and amounts."
+  },
+  {
+    "id": "C31",
+    "finding": "F14",
+    "file": "web/how-zigs-works-content.js",
+    "location": "Receiving: Confirmed, pending and available",
+    "reason": "Remove the obsolete Testnet USD demo claim and distinguish separately read transparent refunds.",
+    "original": "Zcash holdings here are shielded holdings. A USD display is a valuation, not another balance. On a testnet wallet, $0.00 with a Demo label stands for an unknown USD value. It must not be read as a verified zero or used to infer a price. On a mainnet wallet, the USD total is the ZEC total times the price of a NEAR Intents quote for 1 ZEC, with 1 USDC counted as 1 USD. The quote includes fees and spread. It is not a market rate.",
+    "updated": "The primary Zcash balance shows shielded funds; public swap refunds have a separate transparent balance. A USD display is a valuation, not another balance. Testnet shows native test-coin balances, not a USD valuation. On a mainnet wallet, the USD total is the ZEC total times the price of a NEAR Intents quote for 1 ZEC, with 1 USDC counted as 1 USD. The quote includes fees and spread. It is not a market rate."
+  },
+  {
+    "id": "C32",
+    "finding": "F61",
+    "file": "web/how-zigs-works-content.js",
+    "location": "Solana: External authority and feature boundaries",
+    "reason": "Distinguish enabled live SOL/ZEC routes from the post-quantum illustration.",
+    "original": "Changing Zcash devices and moving Zcash does not automatically migrate a Solana position. Zcash and SOL are not swapped merely by sharing a wallet interface. Swap and post-quantum swap illustrations in this UI are design previews, not live cross-chain execution or a quantum-resistant custody guarantee.",
+    "updated": "Changing Zcash devices and moving Zcash does not automatically migrate a Solana position. Where the server enables them, Swap supports live mainnet SOL/ZEC routes through NEAR Intents. Other routes may show quotes only. The separately labeled post-quantum swap is a demo, not live execution or a quantum-resistant custody guarantee."
+  },
+  {
+    "id": "C33",
+    "finding": "F62",
+    "file": "web/how-zigs-works-journey-content.js",
+    "location": "Private Swaps journey description",
+    "reason": "Scope the no-execution claim to this illustration, not the whole application.",
+    "original": "A preview of a possible cross-chain journey. The current implementation does not execute swaps.",
+    "updated": "This illustration does not execute swaps. Check Swap for the routes available on your server."
+  }
+]

@@ -379,7 +379,7 @@ function guidedReady(f) {
       setupDeviceStatus(f, "complete"),
       el("section", { class: "setup-action-column setup-completion-actions surface-quiet" },
         el("h3", {}, "Backup & recovery"),
-        el("p", { class: "small muted" }, "Optional · Keep encrypted files and passphrases apart. Recovery needs " + state.g.t + " usable independent shares."),
+        el("p", { class: "small muted" }, "Optional · Keep encrypted files and passphrases apart. Recovery needs " + state.g.t + " usable independent shares. Without enough working devices or usable recovery files, funds can become inaccessible."),
         el("div", { class: "compact-backup-list", "aria-label": "Backup shares on this browser" }, local.map((b) => compactBackupRow(b))),
         el("div", { class: "setup-completion-details" },
           el("details", { class: "optional-backup-check setup-completion-checks" },

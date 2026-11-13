@@ -458,7 +458,7 @@ async function deliver(c, rec, txHex) {
   }
   await mark({ broadcast: true }).catch((err) => log("could not save the send: " + err.message));
   log("message sent: " + rec.txid);
-  showBanner("ok", "Sent to the network. It arrives with the next block.");
+  showBanner("ok", "Message submitted to the network. Wait for its on-chain status before sending again.");
   if (c === acct) runSync(c);   // not an account that was removed or replaced meanwhile
 }
 

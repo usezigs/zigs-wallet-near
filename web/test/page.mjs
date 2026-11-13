@@ -51,7 +51,7 @@ export const NAMES = [
   "recipientCheck", "refilter", "releaseHold",
   "removeAccount", "requestCard", "requestOf", "rereadPersonal", "resendTx",
   "resetSolStart", "restore", "restoreAccount", "restoreFocus", "approvalsDone", "restoredFor",
-  "restoreWatch", "roomRequest",
+  "restoreWatch", "restoreProgressNote", "roomRequest",
   "round3V1", "runMemos",
   "sawSigning", "canCreateWallet",
   "runSync", "safetyNo", "saveAccountBackup", "saveBackup", "sealAndSave", "seatCheck", "seatIds",

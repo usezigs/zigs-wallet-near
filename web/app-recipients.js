@@ -46,7 +46,7 @@ export function recipientsView() {
     "aria-labelledby": "recipients-page-title" },
     el("div", { class: "section-heading" }, el("p", { class: "label" }, "Private to this device"),
       el("h1", { id: "recipients-page-title" }, "Address book"), el("p", { class: "small muted" },
-        "Save payment recipients for all wallets on this device. Chat contacts stay in Messages."),
+        "Save payment recipients for all wallets in this browser. Chat contacts stay in Messages."),
       el("details", { class: "workflow-details" }, el("summary", {}, "About saved recipients"),
         securityExplanation("recipients"))),
     el("section", { class: "card surface-financial" },

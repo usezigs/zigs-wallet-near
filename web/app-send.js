@@ -84,7 +84,7 @@ function receiveLead(hidden, moved) {
       + "against its own key.");
   }
   return el("p", { class: "small muted" }, "Use this shielded address to receive "
-    + receiveWhat() + ". Senders and the network cannot see the balance or who controls it. "
+    + receiveWhat() + ". Shielded payments hide recipient addresses and amounts on chain. "
     + "The devices of this wallet and anyone who has the invite link can see its balance and "
     + "history. A device that Change devices leaves out later can still see them.");
 }
@@ -562,7 +562,7 @@ function freshForm() {
 function draftLine() {
   if (ui.after || ui.sendFor) return null;
   if (ui.draftFailed) return el("p", { class: "small faint" }, "This draft could not be saved in "
-    + "this browser. The form still works.");
+    + "this browser. Keep this page open to retain what you typed.");
   if (!readDraft(state.gid)) return null;
   return el("p", { class: "small faint" }, "Draft saved in this browser for 24 hours. ",
     el("button", { class: "btn ghost sm", type: "button",
@@ -922,8 +922,7 @@ export async function proposeReviewed(r) {
 }
 
 // The expiry window of the engine (wasm/src/expiry.rs), in words.
-const EXPIRY_NOTE = "The approvals must finish within about 24 hours. After that the payment "
-  + "expires, and a device proposes it again.";
+const EXPIRY_NOTE = "The transaction usually expires within about 24 hours. Approve, sign, prove and send it in time for block inclusion. Check its expiry in the payment details.";
 
 // The priority fee: 10 times the standard fee, for a faster block when the network is busy. It
 // is public on chain, so it marks the payment. Older builds of the apps refuse it.
@@ -934,7 +933,7 @@ function priorityBox(rows, sumUp) {
       onchange: (ev) => { ui.priority = ev.target.checked; followMax(rows); sumUp(); },
     }),
     el("span", { class: "small" }, "Pay a priority fee: " + PRIORITY_FACTOR + " times the "
-      + "standard fee, for a faster block when the network is busy. The fee is public. Few wallets "
+      + "standard fee, to request faster inclusion when the network is busy. The fee is public. Few wallets "
       + "pay a priority fee, so it can show that Zigs made this payment, as the expiry height "
       + "can."));
 }

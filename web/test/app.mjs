@@ -2060,7 +2060,7 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
     }
 
     // An expired payment: the chip and the drawer say so, the drawer offers "Propose again" and
-    // no Cancel, and the page signs nothing for it. "Send again" comes 10 minutes after a send
+    // no Cancel, and the page signs nothing for it. "Resend transaction" comes 10 minutes after a send
     // that no block holds, and not when a node would refuse it. A move proposes the move again.
     const tipAt = (height, sent = new Set(), balAt = Date.now()) => {
       const c = { gid: t.state.gid, url: "https://lwd.test", bal: { spendable: 1e8, pending: 0,
@@ -2081,7 +2081,7 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
     tipAt(4500000, new Set(), null);
     assert.match(textOf(t.expiryLine(proposal)), /^Expires at block 4,503,456\. The approvals/,
       "a height from saved state gives no time");
-    assert.deepEqual(labels(t.cancelAction(proposal)), ["Cancel payment"]);
+    assert.deepEqual(labels(t.cancelAction(proposal)), ["Cancel proposal"]);
     tipAt(4503453);
     assert.equal(textOf(t.statusChip(proposal)), "Expired");
     assert.match(textOf(t.expiryLine(proposal)), /expired at block 4,503,456/);
@@ -2105,18 +2105,18 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
     const bucket = (ss) =>
       Object.entries(t.inboxRows()).find(([, list]) => list.includes(ss))?.[0] ?? null;
     tipAt(4500000);
-    assert.deepEqual(t.finishButtons(sentOne), [], "no Send again before 10 minutes");
+    assert.deepEqual(t.finishButtons(sentOne), [], "no Resend transaction before 10 minutes");
     assert.equal(bucket(sentOne), "waiting", "the inbox: a sent payment waits for its block");
     sentOne.broadcastAt = Date.now() - 11 * 60 * 1000;
-    assert.deepEqual(labels(t.finishButtons(sentOne)), ["Send again"]);
+    assert.deepEqual(labels(t.finishButtons(sentOne)), ["Resend transaction"]);
     assert.equal(t.finishButtons(sentOne)[0].attrs.disabled, undefined);
-    assert.equal(bucket(sentOne), "ready", "the inbox: Send again is the next step");
-    // A finished transaction whose id is not the id of the proposal: Send again is off with its
+    assert.equal(bucket(sentOne), "ready", "the inbox: Resend transaction is the next step");
+    // A finished transaction whose id is not the id of the proposal: Resend transaction is off with its
     // reason, and the inbox lists the payment under attention, not as ready.
     const otherId = { ...sentOne, id: "x2b", final: { txid: "t5", tx_hex: "00" } };
     t.state.sessions.push(otherId);
     const [again, why] = t.finishButtons(otherId);
-    assert.deepEqual([textOf(again), again.attrs.disabled], ["Send again", ""]);
+    assert.deepEqual([textOf(again), again.attrs.disabled], ["Resend transaction", ""]);
     assert.match(textOf(why), /another id than the proposal/);
     assert.equal(t.refusedSend(otherId), true);
     assert.equal(bucket(otherId), "attention", "the inbox agrees with the drawer");
@@ -2178,12 +2178,12 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
     // Its finished transaction names another id than the proposal: the drawer that shows the
     // false id above sends nothing.
     const [resend, refused] = t.finishButtons(unmarkedOne);
-    assert.deepEqual([textOf(resend), resend.attrs.disabled], ["Send again", ""]);
+    assert.deepEqual([textOf(resend), resend.attrs.disabled], ["Resend transaction", ""]);
     assert.match(textOf(refused), /another id than the proposal/);
     assert.deepEqual(labels(t.finishButtons({ ...unmarkedOne,
-      final: { txid: "realtx", tx_hex: "00" } })), ["Send again"]);
+      final: { txid: "realtx", tx_hex: "00" } })), ["Resend transaction"]);
     tipAt(4500000, new Set(["realtx"]));
-    assert.deepEqual(t.finishButtons(unmarkedOne), [], "no Send again for a payment on chain");
+    assert.deepEqual(t.finishButtons(unmarkedOne), [], "no Resend transaction for a payment on chain");
     t.state.sessions.splice(t.state.sessions.indexOf(sentOne), 1);
 
     // The Fund card tops Overview of an empty testnet wallet that has an address, and only then.
@@ -2770,7 +2770,7 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
       const live = { ...open("zv", "PC"), package: "PK", status: "signing" };
       put(live);
       t.noteSessions();
-      assert.deepEqual(labels(t.cancelAction(live)), ["Cancel payment"]);
+      assert.deepEqual(labels(t.cancelAction(live)), ["Cancel proposal"]);
       const liveReset = open("zv", "PC");
       put(liveReset);
       assert.deepEqual(t.cancelAction(liveReset), [], "no Cancel after a reset, without approval");
@@ -3332,7 +3332,7 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
           "a block marks the approvals done");
         assert.equal(landedPackage.step("Combined signature").className, "step done",
           "a block marks the signature done");
-        assert.deepEqual([landedPackage.now, landedPackage.buttons.includes("Cancel payment")],
+        assert.deepEqual([landedPackage.now, landedPackage.buttons.includes("Cancel proposal")],
           [[], false], "a landed payment offers no Cancel");
         assert.match(textOf(landedPackage.step("Combined signature")), /A synced block holds/);
         assert.deepEqual(look(open("hdl", "PA")).now, [],
@@ -3348,7 +3348,7 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
         "a send error on a document with no finished transaction is no failed send");
         // The cancel question, as the person reads it.
         const cancelOf = all(t.sessionLayer(open("hdc", "PA")),
-          (x) => x.tag === "button" && textOf(x).includes("Cancel payment"))[0];
+          (x) => x.tag === "button" && textOf(x).includes("Cancel proposal"))[0];
         let asked = null;
         const realConfirm = globalThis.confirm;
         globalThis.confirm = (text) => { asked = text; return false; };
@@ -3360,8 +3360,8 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
         } finally {
           globalThis.confirm = realConfirm;
         }
-        assert.equal(asked, "Cancel this payment? No device can approve it after this. Anyone "
-          + "can propose it again.", "the cancel question says device");
+        assert.match(asked, /Cancellation cannot revoke signed data already held elsewhere/);
+        assert.match(asked, /Check Activity and any Send hold before proposing a replacement/);
         // The status is no signed part: any holder of the invite link can write it.
         const spoofed = look({ ...open("hdp", "PA"), status: "proving", provingAt: Date.now() });
         assert.deepEqual([spoofed.head.startsWith("Your approval is needed"),
@@ -3702,7 +3702,7 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
       assert.deepEqual(t.cancelAction(zal), [], "no Cancel");
       const honest = open("zho", "PC");
       put(honest);
-      assert.deepEqual(labels(t.cancelAction(honest)), ["Cancel payment"],
+      assert.deepEqual(labels(t.cancelAction(honest)), ["Cancel proposal"],
         "an open payment keeps its Cancel");
 
       // A browser without an approval holds a sent payment up to the latest expiry that an
@@ -6806,7 +6806,17 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
   assert.deepEqual([got.keyPackage, got.backupSaved, got.restored, got.nonces],
     [share, false, true, undefined]);
   assert.equal(t.gkeys[A], "K".repeat(43));
-  assert.match(t.banner.text, /^Restored device 2 of Team\./);
+  assert.match(t.banner.text, /^Backup opened for device 2 of Team\. Checking/);
+  assert.equal(t.banner.kind, "info", "opening a file does not declare a completed restore");
+  const noteDocument = globalThis.document;
+  globalThis.document = { createElement: (tag) => ({ tag, attrs: {}, kids: [],
+    setAttribute(k, v) { this.attrs[k] = v; }, append(...kids) { this.kids.push(...kids); } }),
+    createTextNode: (text) => ({ text }) };
+  try {
+    assert.ok(t.restoreProgressNote(), "the closed file dialog leaves visible checking progress");
+    t.restoreWatch.clear();
+    assert.ok(t.restoreProgressNote(), "an interrupted restore stays pending after its in-memory watch is lost");
+  } finally { globalThis.document = noteDocument; }
   assert.equal(unsaved(A, 2), true);
 }
 

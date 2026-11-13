@@ -135,8 +135,7 @@ export function accountCard() {
   return el("section", { class: "card card-pad" },
     el("div", { class: "card-head" }, el("h2", {}, "Personal account"),
       netBadge({ network: personal.network })),
-    el("p", { class: "small muted" }, "Pays the fee of your on-chain messages. It is not a wallet: "
-      + "anyone who controls this browser can spend it, with no approval."),
+    el("p", { class: "small muted" }, "Pays the fee of your on-chain messages. This separate account has no shared-wallet approval rule; whoever controls this browser can spend it."),
     personal.backedUp ? null : el("div", { class: "callout warn" }, personal.everBackedUp
       ? "Your last backup file has the seed but not your newest contacts."
       : "Not backed up. The backup file is the only copy outside this browser."),
@@ -201,8 +200,7 @@ export function fundBlock() {
     // The notes stay out of the label, so that they are no part of the name of the field.
     el("div", { class: "field" },
       el("label", { class: "field" }, el("span", {}, "Amount in ZEC"), amount),
-      el("span", { class: "hint", id: "fund-hint" }, "Asks for 3 equal notes, so the account can "
-        + "send after each block."), warn, refusal),
+      el("span", { class: "hint", id: "fund-hint" }, "Splits the amount into 3 payment outputs so separate funds are available for message fees."), warn, refusal),
     el("div", { class: "req-actions" }, pick,
       el("button", {
         class: "btn primary sm", type: "button", disabled: !wallets.length,
