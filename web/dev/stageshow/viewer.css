@@ -1,0 +1,23 @@
+@font-face {font-family:Manrope;src:url('../../fonts/manrope-latin.woff2') format('woff2');font-weight:200 800;font-display:swap}
+@font-face {font-family:'Geist Mono';src:url('../../fonts/geist-mono-latin.woff2') format('woff2');font-weight:100 900;font-display:swap}
+* {box-sizing:border-box}
+body {margin:0;background:var(--bg);color:var(--text);font:400 15px/1.6 var(--sans)}
+.lab {max-width:900px;margin:auto;padding:48px 24px}
+.lab-header {display:flex;justify-content:space-between;align-items:start;gap:24px;margin-bottom:32px}
+.lab-header h1 {font:500 36px/1.2 var(--sans);letter-spacing:-.035em;margin:8px 0}
+.lab-header p {margin:0;color:var(--muted)}
+.lab-eyebrow {font-size:13px}
+.lab a {color:var(--accent-text);text-underline-offset:4px}
+.lab-controls {display:flex;align-items:end;gap:12px;flex-wrap:wrap}
+.lab-controls label {display:grid;gap:6px;font-size:13px;color:var(--muted)}
+.lab-controls select,.lab-controls button {min-height:48px;border:1px solid var(--line-field);border-radius:8px;
+  padding:10px 14px;background:var(--panel);color:var(--text);font:inherit}
+.lab-controls button {cursor:pointer;min-width:88px}
+.lab-controls button:hover {background:var(--raised)}
+.lab-controls button[aria-pressed=true] {background:var(--primary);color:var(--on-primary)}
+.lab-controls :focus-visible,.lab a:focus-visible {outline:2px solid var(--focus);outline-offset:3px}
+.lab-description {margin:24px 0 8px;color:var(--muted)}
+.lab-disclosure {max-width:65ch;font-size:13px;color:var(--muted);margin:20px 0}
+#example {max-width:720px;margin:auto}
+.capture {padding:16px;max-width:752px;margin:auto}
+@media(max-width:600px){.lab{padding:24px 16px}.lab-header{display:grid}.lab-header h1{font-size:30px}.lab-controls label:first-child{width:100%}.capture{padding:16px}}

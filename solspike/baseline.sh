@@ -106,8 +106,8 @@ TESTS=(messaging-presentation messaging-cost-review messaging-account-view premi
   payment-model error-feedback proposal-history
   plain-worker
   sol-nonce-tabs nonce-locks no-storage sync-pause)
-HELPERS=(passkey-fixture sol-rig sol-setup sol-chain sol-vector sol-fixture sol-pay-rig page
-  closure)
+HELPERS=(sol-view-rig sol-receive-fixture passkey-fixture sol-rig sol-setup sol-chain sol-vector
+  sol-fixture sol-pay-rig page closure)
 # The tests that take more than 20 s, slowest first, then the server test. Each must be in TESTS.
 SLOW_FIRST=(sol-pay app sol-pay-seats sol-pay-exec sol-pay-lease sol-pay-look sol-ceremony sol-app
   unified-setup sol-sessions sol-pay-end sol-plain-sign sol-limits cf/test/limits)

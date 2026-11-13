@@ -73,13 +73,13 @@ function relayRows() {
   const teams = state.groups.filter((g) => matches(g.name));
   const direct = Object.keys(chats.list).filter((cid) => matches(contactName(cid)));
   return [
-    el("h2", { class: "messages-section-label" }, "Team"),
+    el("h2", { class: "messages-section-label" }, "Wallet conversations"),
     teams.length ? teams.map((g) => conversationRow({ id: "messages-team-" + g.id,
-      title: g.name || "Wallet team", sub: "Wallet team · Encrypted relay",
+      title: g.name || "Wallet conversation", sub: "Wallet conversation · Encrypted relay",
       selected: ui.tab === "messages" && state.gid === g.id && !state.cid,
       unread: unreadIn(g.id, "wallet"), open: () => chooseTeam(g.id), avatarText: icon("people") }))
-      : el("p", { class: "small muted messages-inbox-note" }, search ? "No matching teams." : "Your wallet teams appear here."),
-    el("h2", { class: "messages-section-label" }, "Direct"),
+      : el("p", { class: "small muted messages-inbox-note" }, search ? "No matching wallet conversations." : "Your wallet conversations appear here."),
+    el("h2", { class: "messages-section-label" }, "Direct chats"),
     direct.length ? direct.map((cid) => conversationRow({ id: "messages-direct-" + cid,
       title: contactName(cid), sub: contactOf(cid) ? preview(chat[cid]) : "Invite your contact",
       selected: state.cid === cid, unread: unreadIn(cid), open: () => {
@@ -133,9 +133,9 @@ function emptyConversation(newChatWhy) {
   return el("section", { class: "messages-thread messages-empty", "aria-label": "Choose a conversation" },
     el("div", { class: "messages-empty-art", "aria-hidden": "true" }, sculptedIcon("chat")),
     el("span", { class: "label" }, transport === "relay" ? "Private coordination" : "Messages on Zcash"),
-    el("h2", {}, "Choose a conversation."),
+    el("h2", {}, "Choose a conversation"),
     el("p", {}, transport === "relay"
-      ? "Open a wallet team or a direct chat. Text messages use the encrypted relay and have no blockchain fee."
+      ? "Open a wallet conversation or a direct chat. Text messages use the encrypted relay and have no blockchain fee."
       : "Choose a contact to send shielded memos. Your separate messaging account pays the network fee."),
     el("div", { class: "messages-empty-actions" },
       el("button", { class: "btn primary", type: "button", onclick: newConversation,
@@ -176,7 +176,7 @@ export function messagingWorkspace(teamContent = null) {
     + (selected ? " has-conversation" : ""), id: "panel-messages", "data-key": "panel-messages",
     tabindex: "-1", role: "region", "aria-labelledby": "messages-page-title" },
   el("header", { class: "messages-heading" },
-    el("div", {}, el("span", { class: "label" }, "Stay connected"), el("h1", { id: "messages-page-title" }, "Messages")),
+    el("div", {}, el("h1", { id: "messages-page-title" }, "Messages")),
     el("div", { class: "messages-toolbar" }, messagingLearnButton(),
       el("button", { class: "btn primary", type: "button", "data-key": "messages-new",
         disabled: transport === "relay" && (!Z || !db || canWrite === false)

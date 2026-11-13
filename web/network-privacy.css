@@ -1,5 +1,5 @@
 /* Neutral connection information: no verified-protection mark or live-service claim. */
-.network-connection-control { min-height:44px; gap:8px; white-space:normal; text-align:start;
+.network-connection-control { min-height:48px; gap:8px; white-space:normal; text-align:start;
   border:1px solid var(--control-line); color:var(--muted); background:var(--panel); }
 .network-connection-control .symbol { flex-shrink:0; }
 .network-privacy-panel { width:min(600px,calc(100% - 32px)); gap:20px; }
@@ -17,7 +17,7 @@
   font-size:13px; color:var(--text); }
 .network-privacy-limits>div { display:grid; gap:12px; padding-bottom:4px; }
 .network-privacy-preview { display:grid; gap:10px; padding-top:18px; border-top:1px solid var(--line); }
-.network-privacy-preview .btn { justify-self:start; min-height:44px; white-space:normal; }
+.network-privacy-preview .btn { justify-self:start; min-height:48px; white-space:normal; }
 .home-network-privacy { padding:0 28px; }
 @media(max-width:760px) {
   .network-connection-control { font-size:13px; padding:8px 12px; }

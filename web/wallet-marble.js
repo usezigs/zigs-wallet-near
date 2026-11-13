@@ -41,7 +41,8 @@ function createMarbleController(doc) {
   const forced = win.matchMedia("(forced-colors: active)");
   let size = 0;
   let host, entry, studio, generation = 0, frame = 0, previous = 0, angle = 0;
-  let paused = false, visible = false, failed = false, loading = false;
+  // The identity is still until the user chooses to inspect it in motion.
+  let paused = true, visible = false, failed = false, loading = false;
   const observer = new win.IntersectionObserver((entries) => {
     visible = entries.some((e) => e.target === host && e.isIntersecting);
     refresh();

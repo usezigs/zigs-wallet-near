@@ -114,6 +114,16 @@ async function menuReview() {
     .getAttribute("aria-expanded") === "true");
   check(await page.locator(".main").evaluate((node) => node.inert),
     "open mobile menu keeps the underlying page out of keyboard reach");
+  for (const name of ["Money", "Contacts", "Wallet care"]) {
+    check(await page.getByRole("group", { name, exact: true }).count() === 1,
+      "navigation exposes the " + name + " group");
+  }
+  check(await page.locator(".side-section button[id^=tab-]").count() === 8,
+    "grouping preserves all eight direct section actions");
+  check(await page.locator(".side-section .side-name").evaluateAll((nodes) => nodes
+    .filter((n) => !n.textContent.includes(" ")).every((n) => n.getBoundingClientRect().height
+      <= parseFloat(getComputedStyle(n).lineHeight) + 1)),
+  "compact phone navigation keeps whole destination words together");
   for (let i = 0; i < 16; i++) await page.keyboard.press("Tab");
   check(await page.evaluate(() => document.querySelector(".side").contains(document.activeElement)),
     "mobile menu keyboard loop stays inside navigation");
@@ -123,6 +133,22 @@ async function menuReview() {
   check(await page.locator("#wallet-menu").evaluate((node) => node === document.activeElement
     && node.getAttribute("aria-expanded") === "false"),
   "Escape dismisses mobile navigation and returns focus to Menu");
+}
+
+async function restoreRouteReview() {
+  for (const theme of ["light", "dark"]) {
+    await choose("recovery", theme, 390);
+    const shortcut = page.locator(".security-restore-shortcut");
+    check(await shortcut.evaluate((node) => {
+      const r = node.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight;
+    }), theme + ": Restore is available in the first phone viewport");
+    await shortcut.click();
+    check(await page.locator("#security-restore").evaluate((node) => node.open
+      && node.querySelector("summary") === document.activeElement),
+    theme + ": Restore opens existing guidance and moves keyboard focus there");
+    check(await page.locator('[data-key="security-restore-file"]').isVisible(),
+      theme + ": recovery-file selection remains in the existing restore path");
+  }
 }
 
 async function stressReview() {
@@ -166,7 +192,7 @@ async function messagingReview() {
   for (const scene of ["team", "direct", "contact", "changed-key", "invite", "setup"]) {
     await page.goto(OVERVIEW_ORIGIN);
     await installMessagingFixture(page, scene, "after");
-    if (scene === "setup") await page.getByRole("tab", { name: "Zcash", exact: true }).click();
+    if (scene === "setup") await page.locator("#messages-tab-zcash").click();
     const variants = [320, 390, 1440].flatMap((width) =>
       ["dark", "light"].map((theme) => ({ width, theme })));
     for (const { width, theme } of variants) await messagingVariant(scene, width, theme);
@@ -259,7 +285,7 @@ try {
   await overviewFixture(context, page, { messaging: true });
   await page.evaluate(() => localStorage.setItem("zf-name", ""));
   const before = await page.evaluate(() => JSON.stringify({ ...localStorage }));
-  await pageMatrix(); await menuReview();
+  await pageMatrix(); await menuReview(); await restoreRouteReview();
   check(before === await page.evaluate(() => JSON.stringify({ ...localStorage })),
     "page audit and navigation leave synthetic browser storage unchanged");
   await stressReview(); await backupReminderReview(); await messagingReview();

@@ -1,5 +1,5 @@
 // Policy tests (P8c). Usage: node solspike/test/policy.test.mjs
-// 1. policy() of the clone gives the same string as policy() of the base commit, for three URLs.
+// 1. policy() matches the source hash and three URL values pinned in baseline.json.
 // 2. The page policy names no Helius host, also with SOL=1.
 // 3. With SOL=1 every response under /sol but /sol/plain, in every spelling of the path,
 //    carries the Worker policy, and no other path does. /sol/plain has its own policy.
@@ -10,9 +10,9 @@
 //    no-store and the Worker policy, to GET only, behind the gate, and only with SOL=1. No other
 //    spelling of the path gives the value.
 // The real fetch handler of cf/src/index.js runs as an ES module with stubs for the Cloudflare
-// parts. policy() alone still runs in a vm, to compare it with the base commit.
+// parts. policy() alone still runs in a vm, against the pinned baseline source hash and values.
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync,
 } from "node:fs";
@@ -24,7 +24,7 @@ import { runInNewContext } from "node:vm";
 const KEY_NAME = "api-key";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const BASE = JSON.parse(readFileSync(join(ROOT, "solspike/baseline.json"), "utf8")).baseCommit;
+const BASE = JSON.parse(readFileSync(join(ROOT, "solspike/baseline.json"), "utf8")).policy;
 const URLS = ["http://localhost:8795/", "https://app.zigs.app/", "http://127.0.0.1:8795/"];
 const WORKER_POLICY =
   "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; " +
@@ -34,9 +34,6 @@ const WORKER_POLICY =
 const PROVER_POLICY =
   "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; base-uri 'none'";
 const step = (name) => console.log(`ok  ${name}`);
-
-const baseSource = () =>
-  execFileSync("git", ["show", `${BASE}:cf/src/index.js`], { cwd: ROOT, encoding: "utf8" });
 
 /** policy() as written in a source text, run alone (the way tools/baseline.mjs does). */
 function policyOf(source) {
@@ -92,10 +89,11 @@ const ask = (worker, env, url) =>
   worker.fetch(new Request(url, { headers: { "x-forwarded-proto": "https" } }), env);
 
 function samePolicy() {
-  const base = policyOf(baseSource());
   const now = policyOf(readFileSync(join(ROOT, "cf/src/index.js"), "utf8"));
-  assert.equal(now.text, base.text, "the source of policy() or CHAIN_SERVERS changed");
-  for (const url of URLS) assert.equal(now.run(new URL(url)), base.run(new URL(url)));
+  assert.match(BASE.sourceSha256, /^[a-f0-9]{64}$/, "the baseline pins the policy source");
+  assert.equal(createHash("sha256").update(now.text).digest("hex"), BASE.sourceSha256,
+    "the source of policy() or CHAIN_SERVERS changed");
+  for (const url of URLS) assert.equal(now.run(new URL(url)), BASE.byUrl[url]);
   assert.equal(/helius/i.test(now.run(new URL(URLS[1]))), false, "the page policy names Helius");
   step("policy() equals the base policy for three URLs and names no Helius host");
 }
@@ -143,7 +141,7 @@ async function workerHeaders(worker) {
     assert.equal(res.headers.get("content-security-policy"), null, `${path} got the policy`);
   }
   const page = await ask(worker, env, "https://app.zigs.app/");
-  const base = policyOf(baseSource()).run(new URL("https://app.zigs.app/"));
+  const base = BASE.byUrl["https://app.zigs.app/"];
   assert.equal(page.headers.get("content-security-policy"), base, "the page policy changed");
   step("with SOL=1 every spelling of a /sol path carries the Worker policy; the page does not");
 }

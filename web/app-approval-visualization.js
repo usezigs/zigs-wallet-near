@@ -52,7 +52,7 @@ export function SharedControlVisual({ required, total, participants = [], loaded
  * Without those facts the component renders an aggregate, never invented device statuses.
  */
 export function ApprovalVisualization({ required, total, confirmed, stage, participants,
-  error = false, isBusy = false, context = "" }) {
+  error = false, isBusy = false, context = "", showStage = true }) {
   const known = Number.isInteger(confirmed) && confirmed >= 0 && confirmed <= total;
   const count = known ? confirmed + " of " + required : "Count unavailable";
   const summary = (known ? confirmed + " of " + required + " required approvals received. "
@@ -70,7 +70,7 @@ export function ApprovalVisualization({ required, total, confirmed, stage, parti
   el("div", { class: "approval-stage" },
     el("div", { class: "approval-count" }, el("strong", {}, count),
       el("span", {}, known ? "required approvals received" : "Approval records not available")),
-    el("p", { class: "approval-current" }, stage.title),
+    showStage ? el("p", { class: "approval-current" }, stage.title) : null,
     isBusy ? el("p", { class: "small muted" }, "Checking approval records…") : null),
   individual ? el("ol", { class: "approval-constellation", "aria-label": "Device approval records" },
     participants.map((p) => SignerNode({ ...p, received: p.confirmed,

@@ -6,7 +6,7 @@
 // record writes solspike/baseline.json. check writes .state/baseline-now.json and compares it
 // with baseline.json: test results, sha256 of wasm/, web/pkg/ and web/signed.js, policy(), and
 // the security headers that the dev server really sent. Record on the base commit only: the
-// file names it, and policy.test.mjs reads the base policy from that commit.
+// file names it; policy.test.mjs checks its recorded policy source hash and URL values.
 // A run with 0 problems on a clean tree leaves a stamp in .state (never in the repo). begin
 // starts a run: it removes the stamp. A run with problems removes the pending file of begin.
 // reuse writes EXITS.tsv from the stamp and exits 0 when the working tree is clean and has the

@@ -552,7 +552,46 @@ function showField(field) {
   field.scrollIntoView?.({ block: "nearest" });
   const note = field.getAttribute?.("aria-describedby")?.split(" ").at(-1);
   document.getElementById(note)?.scrollIntoView?.({ block: "nearest" });
+  clearLayerFocus(field);
 }
+// Browser focus scrolling does not consistently account for a wrapped sticky heading.
+// Measure the actual chrome instead of assuming its height from a fixed scroll margin.
+function clearLayerFocus(field) {
+  const sheet = field?.closest?.(".dialog, .drawer");
+  if (!sheet) return;
+  const bounds = sheet.getBoundingClientRect(), box = field.getBoundingClientRect();
+  const sticky = (selector) => {
+    const node = sheet.querySelector(selector);
+    return node && window.getComputedStyle(node).position === "sticky"
+      ? node.getBoundingClientRect() : null;
+  };
+  const top = Math.max(bounds.top, sticky(".card-head")?.bottom ?? bounds.top) + 8;
+  const bottom = Math.min(bounds.bottom, sticky(".dialog-actions")?.top ?? bounds.bottom) - 8;
+  const label = field.closest("label")?.getBoundingClientRect();
+  const start = label && box.bottom - label.top <= bottom - top ? label.top : box.top;
+  if (start < top) sheet.scrollTop += start - top;
+  else if (box.bottom > bottom) sheet.scrollTop += box.bottom - bottom;
+}
+// Native textarea focus can reveal only the caret. Keep the message and its actions in view
+// when they fit, or the field itself when a phone keyboard leaves less room.
+function showComposer(field) {
+  const composer = field?.closest?.(".messages-workspace .composer");
+  if (!composer) return;
+  const visual = window.visualViewport;
+  const height = visual?.height ?? window.innerHeight, top = visual?.offsetTop ?? 0;
+  const target = composer.getBoundingClientRect().height + 32 <= height ? composer : field;
+  const box = target.getBoundingClientRect();
+  if (box.top < top + 16 || box.bottom > top + height - 16)
+    target.scrollIntoView?.({ block: "nearest" });
+}
+document.addEventListener("focusin", (ev) => {
+  if (!ev.target.matches?.("input,textarea,select")) return;
+  requestAnimationFrame(() => {
+    if (document.activeElement !== ev.target) return;
+    clearLayerFocus(ev.target);
+    showComposer(ev.target);
+  });
+});
 // The focused field scrolls into view only when the keyboard opens, so that a scroll of the person
 // is not undone.
 let lastInset = 0;
@@ -567,6 +606,7 @@ export function fitKeyboard() {
   root.setProperty("--visual-height", visible);
   const field = document.activeElement;
   if (opened && field?.closest?.(".dialog, .drawer")) showField(field);
+  else if (opened) showComposer(field);
 }
 window.visualViewport?.addEventListener("resize", fitKeyboard);
 window.visualViewport?.addEventListener("scroll", fitKeyboard);

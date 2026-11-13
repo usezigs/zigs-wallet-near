@@ -1,0 +1,797 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-13T18:39:24.464922+00:00",
+  "title": "Design System: Zigs",
+  "extensions": {
+    "colorMeta": {
+      "dark-page": {
+        "role": "neutral",
+        "displayName": "Dark page",
+        "canonical": "#141617",
+        "tonalRamp": [
+          "oklch(15% 0.0016 229.01)",
+          "oklch(26% 0.0022 229.01)",
+          "oklch(38% 0.0028 229.01)",
+          "oklch(49% 0.0034 229.01)",
+          "oklch(61% 0.0034 229.01)",
+          "oklch(72% 0.0028 229.01)",
+          "oklch(84% 0.0022 229.01)",
+          "oklch(95% 0.0016 229.01)"
+        ]
+      },
+      "dark-rail": {
+        "role": "neutral",
+        "displayName": "Dark rail",
+        "canonical": "#101213",
+        "tonalRamp": [
+          "oklch(15% 0.0016 229.04)",
+          "oklch(26% 0.0022 229.04)",
+          "oklch(38% 0.0029 229.04)",
+          "oklch(49% 0.0035 229.04)",
+          "oklch(61% 0.0035 229.04)",
+          "oklch(72% 0.0029 229.04)",
+          "oklch(84% 0.0022 229.04)",
+          "oklch(95% 0.0016 229.04)"
+        ]
+      },
+      "dark-surface": {
+        "role": "neutral",
+        "displayName": "Dark surface",
+        "canonical": "#1c1f20",
+        "tonalRamp": [
+          "oklch(15% 0.0021 219.68)",
+          "oklch(26% 0.0029 219.68)",
+          "oklch(38% 0.0037 219.68)",
+          "oklch(49% 0.0045 219.68)",
+          "oklch(61% 0.0045 219.68)",
+          "oklch(72% 0.0037 219.68)",
+          "oklch(84% 0.0029 219.68)",
+          "oklch(95% 0.0021 219.68)"
+        ]
+      },
+      "dark-raised": {
+        "role": "neutral",
+        "displayName": "Dark raised",
+        "canonical": "#292c2d",
+        "tonalRamp": [
+          "oklch(15% 0.0020 219.63)",
+          "oklch(26% 0.0027 219.63)",
+          "oklch(38% 0.0035 219.63)",
+          "oklch(49% 0.0043 219.63)",
+          "oklch(61% 0.0043 219.63)",
+          "oklch(72% 0.0035 219.63)",
+          "oklch(84% 0.0027 219.63)",
+          "oklch(95% 0.0020 219.63)"
+        ]
+      },
+      "dark-well": {
+        "role": "neutral",
+        "displayName": "Dark well",
+        "canonical": "#181b1c",
+        "tonalRamp": [
+          "oklch(15% 0.0021 219.70)",
+          "oklch(26% 0.0029 219.70)",
+          "oklch(38% 0.0038 219.70)",
+          "oklch(49% 0.0045 219.70)",
+          "oklch(61% 0.0045 219.70)",
+          "oklch(72% 0.0038 219.70)",
+          "oklch(84% 0.0029 219.70)",
+          "oklch(95% 0.0021 219.70)"
+        ]
+      },
+      "dark-ink": {
+        "role": "neutral",
+        "displayName": "Dark ink",
+        "canonical": "#f2f3ee",
+        "tonalRamp": [
+          "oklch(15% 0.0029 115.71)",
+          "oklch(26% 0.0039 115.71)",
+          "oklch(38% 0.0051 115.71)",
+          "oklch(49% 0.0061 115.71)",
+          "oklch(61% 0.0061 115.71)",
+          "oklch(72% 0.0051 115.71)",
+          "oklch(84% 0.0039 115.71)",
+          "oklch(95% 0.0029 115.71)"
+        ]
+      },
+      "dark-muted": {
+        "role": "neutral",
+        "displayName": "Dark muted",
+        "canonical": "#b2b8b6",
+        "tonalRamp": [
+          "oklch(15% 0.0031 174.31)",
+          "oklch(26% 0.0043 174.31)",
+          "oklch(38% 0.0055 174.31)",
+          "oklch(49% 0.0066 174.31)",
+          "oklch(61% 0.0066 174.31)",
+          "oklch(72% 0.0055 174.31)",
+          "oklch(84% 0.0043 174.31)",
+          "oklch(95% 0.0031 174.31)"
+        ]
+      },
+      "dark-quiet": {
+        "role": "neutral",
+        "displayName": "Dark quiet",
+        "canonical": "#989f9c",
+        "tonalRamp": [
+          "oklch(15% 0.0039 168.63)",
+          "oklch(26% 0.0053 168.63)",
+          "oklch(38% 0.0069 168.63)",
+          "oklch(49% 0.0083 168.63)",
+          "oklch(61% 0.0083 168.63)",
+          "oklch(72% 0.0069 168.63)",
+          "oklch(84% 0.0053 168.63)",
+          "oklch(95% 0.0039 168.63)"
+        ]
+      },
+      "dark-line": {
+        "role": "neutral",
+        "displayName": "Dark line",
+        "canonical": "#303536",
+        "tonalRamp": [
+          "oklch(15% 0.0031 211.05)",
+          "oklch(26% 0.0042 211.05)",
+          "oklch(38% 0.0054 211.05)",
+          "oklch(49% 0.0065 211.05)",
+          "oklch(61% 0.0065 211.05)",
+          "oklch(72% 0.0054 211.05)",
+          "oklch(84% 0.0042 211.05)",
+          "oklch(95% 0.0031 211.05)"
+        ]
+      },
+      "dark-control-line": {
+        "role": "neutral",
+        "displayName": "Dark control line",
+        "canonical": "#7d8586",
+        "tonalRamp": [
+          "oklch(15% 0.0041 205.86)",
+          "oklch(26% 0.0056 205.86)",
+          "oklch(38% 0.0073 205.86)",
+          "oklch(49% 0.0088 205.86)",
+          "oklch(61% 0.0088 205.86)",
+          "oklch(72% 0.0073 205.86)",
+          "oklch(84% 0.0056 205.86)",
+          "oklch(95% 0.0041 205.86)"
+        ]
+      },
+      "dark-action": {
+        "role": "primary",
+        "displayName": "Dark action",
+        "canonical": "#eeefea",
+        "tonalRamp": [
+          "oklch(15% 0.0029 115.71)",
+          "oklch(26% 0.0039 115.71)",
+          "oklch(38% 0.0051 115.71)",
+          "oklch(49% 0.0061 115.71)",
+          "oklch(61% 0.0061 115.71)",
+          "oklch(72% 0.0051 115.71)",
+          "oklch(84% 0.0039 115.71)",
+          "oklch(95% 0.0029 115.71)"
+        ]
+      },
+      "dark-action-hover": {
+        "role": "primary",
+        "displayName": "Dark action hover",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "oklch(15% 0.0000 89.88)",
+          "oklch(26% 0.0000 89.88)",
+          "oklch(38% 0.0000 89.88)",
+          "oklch(49% 0.0000 89.88)",
+          "oklch(61% 0.0000 89.88)",
+          "oklch(72% 0.0000 89.88)",
+          "oklch(84% 0.0000 89.88)",
+          "oklch(95% 0.0000 89.88)"
+        ]
+      },
+      "dark-on-action": {
+        "role": "primary",
+        "displayName": "Dark on action",
+        "canonical": "#202523",
+        "tonalRamp": [
+          "oklch(15% 0.0035 169.70)",
+          "oklch(26% 0.0048 169.70)",
+          "oklch(38% 0.0062 169.70)",
+          "oklch(49% 0.0074 169.70)",
+          "oklch(61% 0.0074 169.70)",
+          "oklch(72% 0.0062 169.70)",
+          "oklch(84% 0.0048 169.70)",
+          "oklch(95% 0.0035 169.70)"
+        ]
+      },
+      "dark-focus": {
+        "role": "primary",
+        "displayName": "Dark focus",
+        "canonical": "#a8c7ea",
+        "tonalRamp": [
+          "oklch(15% 0.0256 251.66)",
+          "oklch(26% 0.0350 251.66)",
+          "oklch(38% 0.0453 251.66)",
+          "oklch(49% 0.0547 251.66)",
+          "oklch(61% 0.0547 251.66)",
+          "oklch(72% 0.0453 251.66)",
+          "oklch(84% 0.0350 251.66)",
+          "oklch(95% 0.0256 251.66)"
+        ]
+      },
+      "dark-success": {
+        "role": "semantic",
+        "displayName": "Dark success",
+        "canonical": "#8bd5b5",
+        "tonalRamp": [
+          "oklch(15% 0.0373 165.30)",
+          "oklch(26% 0.0510 165.30)",
+          "oklch(38% 0.0660 165.30)",
+          "oklch(49% 0.0797 165.30)",
+          "oklch(61% 0.0797 165.30)",
+          "oklch(72% 0.0660 165.30)",
+          "oklch(84% 0.0510 165.30)",
+          "oklch(95% 0.0373 165.30)"
+        ]
+      },
+      "dark-danger": {
+        "role": "semantic",
+        "displayName": "Dark danger",
+        "canonical": "#f5a1a9",
+        "tonalRamp": [
+          "oklch(15% 0.0430 13.37)",
+          "oklch(26% 0.0588 13.37)",
+          "oklch(38% 0.0760 13.37)",
+          "oklch(49% 0.0917 13.37)",
+          "oklch(61% 0.0917 13.37)",
+          "oklch(72% 0.0760 13.37)",
+          "oklch(84% 0.0588 13.37)",
+          "oklch(95% 0.0430 13.37)"
+        ]
+      },
+      "dark-warning": {
+        "role": "semantic",
+        "displayName": "Dark warning",
+        "canonical": "#eac17d",
+        "tonalRamp": [
+          "oklch(15% 0.0419 79.45)",
+          "oklch(26% 0.0573 79.45)",
+          "oklch(38% 0.0741 79.45)",
+          "oklch(49% 0.0895 79.45)",
+          "oklch(61% 0.0895 79.45)",
+          "oklch(72% 0.0741 79.45)",
+          "oklch(84% 0.0573 79.45)",
+          "oklch(95% 0.0419 79.45)"
+        ]
+      },
+      "light-page": {
+        "role": "neutral",
+        "displayName": "Light page",
+        "canonical": "#f6f5f1",
+        "tonalRamp": [
+          "oklch(15% 0.0023 95.10)",
+          "oklch(26% 0.0032 95.10)",
+          "oklch(38% 0.0041 95.10)",
+          "oklch(49% 0.0049 95.10)",
+          "oklch(61% 0.0049 95.10)",
+          "oklch(72% 0.0041 95.10)",
+          "oklch(84% 0.0032 95.10)",
+          "oklch(95% 0.0023 95.10)"
+        ]
+      },
+      "light-rail": {
+        "role": "neutral",
+        "displayName": "Light rail",
+        "canonical": "#efeee9",
+        "tonalRamp": [
+          "oklch(15% 0.0029 97.35)",
+          "oklch(26% 0.0039 97.35)",
+          "oklch(38% 0.0051 97.35)",
+          "oklch(49% 0.0062 97.35)",
+          "oklch(61% 0.0062 97.35)",
+          "oklch(72% 0.0051 97.35)",
+          "oklch(84% 0.0039 97.35)",
+          "oklch(95% 0.0029 97.35)"
+        ]
+      },
+      "light-surface": {
+        "role": "neutral",
+        "displayName": "Light surface",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "oklch(15% 0.0000 89.88)",
+          "oklch(26% 0.0000 89.88)",
+          "oklch(38% 0.0000 89.88)",
+          "oklch(49% 0.0000 89.88)",
+          "oklch(61% 0.0000 89.88)",
+          "oklch(72% 0.0000 89.88)",
+          "oklch(84% 0.0000 89.88)",
+          "oklch(95% 0.0000 89.88)"
+        ]
+      },
+      "light-raised": {
+        "role": "neutral",
+        "displayName": "Light raised",
+        "canonical": "#eeede8",
+        "tonalRamp": [
+          "oklch(15% 0.0029 97.35)",
+          "oklch(26% 0.0040 97.35)",
+          "oklch(38% 0.0051 97.35)",
+          "oklch(49% 0.0062 97.35)",
+          "oklch(61% 0.0062 97.35)",
+          "oklch(72% 0.0051 97.35)",
+          "oklch(84% 0.0040 97.35)",
+          "oklch(95% 0.0029 97.35)"
+        ]
+      },
+      "light-well": {
+        "role": "neutral",
+        "displayName": "Light well",
+        "canonical": "#f4f3ef",
+        "tonalRamp": [
+          "oklch(15% 0.0023 95.10)",
+          "oklch(26% 0.0032 95.10)",
+          "oklch(38% 0.0041 95.10)",
+          "oklch(49% 0.0050 95.10)",
+          "oklch(61% 0.0050 95.10)",
+          "oklch(72% 0.0041 95.10)",
+          "oklch(84% 0.0032 95.10)",
+          "oklch(95% 0.0023 95.10)"
+        ]
+      },
+      "light-ink": {
+        "role": "neutral",
+        "displayName": "Light ink",
+        "canonical": "#222523",
+        "tonalRamp": [
+          "oklch(15% 0.0024 156.81)",
+          "oklch(26% 0.0033 156.81)",
+          "oklch(38% 0.0043 156.81)",
+          "oklch(49% 0.0052 156.81)",
+          "oklch(61% 0.0052 156.81)",
+          "oklch(72% 0.0043 156.81)",
+          "oklch(84% 0.0033 156.81)",
+          "oklch(95% 0.0024 156.81)"
+        ]
+      },
+      "light-muted": {
+        "role": "neutral",
+        "displayName": "Light muted",
+        "canonical": "#5c635d",
+        "tonalRamp": [
+          "oklch(15% 0.0055 149.67)",
+          "oklch(26% 0.0075 149.67)",
+          "oklch(38% 0.0097 149.67)",
+          "oklch(49% 0.0117 149.67)",
+          "oklch(61% 0.0117 149.67)",
+          "oklch(72% 0.0097 149.67)",
+          "oklch(84% 0.0075 149.67)",
+          "oklch(95% 0.0055 149.67)"
+        ]
+      },
+      "light-quiet": {
+        "role": "neutral",
+        "displayName": "Light quiet",
+        "canonical": "#626a62",
+        "tonalRamp": [
+          "oklch(15% 0.0068 145.34)",
+          "oklch(26% 0.0093 145.34)",
+          "oklch(38% 0.0120 145.34)",
+          "oklch(49% 0.0144 145.34)",
+          "oklch(61% 0.0144 145.34)",
+          "oklch(72% 0.0120 145.34)",
+          "oklch(84% 0.0093 145.34)",
+          "oklch(95% 0.0068 145.34)"
+        ]
+      },
+      "light-line": {
+        "role": "neutral",
+        "displayName": "Light line",
+        "canonical": "#ddded8",
+        "tonalRamp": [
+          "oklch(15% 0.0035 114.23)",
+          "oklch(26% 0.0048 114.23)",
+          "oklch(38% 0.0062 114.23)",
+          "oklch(49% 0.0074 114.23)",
+          "oklch(61% 0.0074 114.23)",
+          "oklch(72% 0.0062 114.23)",
+          "oklch(84% 0.0048 114.23)",
+          "oklch(95% 0.0035 114.23)"
+        ]
+      },
+      "light-control-line": {
+        "role": "neutral",
+        "displayName": "Light control line",
+        "canonical": "#797f77",
+        "tonalRamp": [
+          "oklch(15% 0.0060 137.80)",
+          "oklch(26% 0.0082 137.80)",
+          "oklch(38% 0.0105 137.80)",
+          "oklch(49% 0.0127 137.80)",
+          "oklch(61% 0.0127 137.80)",
+          "oklch(72% 0.0105 137.80)",
+          "oklch(84% 0.0082 137.80)",
+          "oklch(95% 0.0060 137.80)"
+        ]
+      },
+      "light-action": {
+        "role": "primary",
+        "displayName": "Light action",
+        "canonical": "#252a26",
+        "tonalRamp": [
+          "oklch(15% 0.0044 151.45)",
+          "oklch(26% 0.0059 151.45)",
+          "oklch(38% 0.0077 151.45)",
+          "oklch(49% 0.0093 151.45)",
+          "oklch(61% 0.0093 151.45)",
+          "oklch(72% 0.0077 151.45)",
+          "oklch(84% 0.0059 151.45)",
+          "oklch(95% 0.0044 151.45)"
+        ]
+      },
+      "light-action-hover": {
+        "role": "primary",
+        "displayName": "Light action hover",
+        "canonical": "#383e39",
+        "tonalRamp": [
+          "oklch(15% 0.0050 150.36)",
+          "oklch(26% 0.0069 150.36)",
+          "oklch(38% 0.0089 150.36)",
+          "oklch(49% 0.0107 150.36)",
+          "oklch(61% 0.0107 150.36)",
+          "oklch(72% 0.0089 150.36)",
+          "oklch(84% 0.0069 150.36)",
+          "oklch(95% 0.0050 150.36)"
+        ]
+      },
+      "light-on-action": {
+        "role": "primary",
+        "displayName": "Light on action",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "oklch(15% 0.0000 89.88)",
+          "oklch(26% 0.0000 89.88)",
+          "oklch(38% 0.0000 89.88)",
+          "oklch(49% 0.0000 89.88)",
+          "oklch(61% 0.0000 89.88)",
+          "oklch(72% 0.0000 89.88)",
+          "oklch(84% 0.0000 89.88)",
+          "oklch(95% 0.0000 89.88)"
+        ]
+      },
+      "light-focus": {
+        "role": "primary",
+        "displayName": "Light focus",
+        "canonical": "#2e5985",
+        "tonalRamp": [
+          "oklch(15% 0.0372 250.77)",
+          "oklch(26% 0.0509 250.77)",
+          "oklch(38% 0.0658 250.77)",
+          "oklch(49% 0.0795 250.77)",
+          "oklch(61% 0.0795 250.77)",
+          "oklch(72% 0.0658 250.77)",
+          "oklch(84% 0.0509 250.77)",
+          "oklch(95% 0.0372 250.77)"
+        ]
+      },
+      "light-success": {
+        "role": "semantic",
+        "displayName": "Light success",
+        "canonical": "#176549",
+        "tonalRamp": [
+          "oklch(15% 0.0373 164.13)",
+          "oklch(26% 0.0510 164.13)",
+          "oklch(38% 0.0659 164.13)",
+          "oklch(49% 0.0796 164.13)",
+          "oklch(61% 0.0796 164.13)",
+          "oklch(72% 0.0659 164.13)",
+          "oklch(84% 0.0510 164.13)",
+          "oklch(95% 0.0373 164.13)"
+        ]
+      },
+      "light-danger": {
+        "role": "semantic",
+        "displayName": "Light danger",
+        "canonical": "#a52d37",
+        "tonalRamp": [
+          "oklch(15% 0.0667 20.76)",
+          "oklch(26% 0.0911 20.76)",
+          "oklch(38% 0.1178 20.76)",
+          "oklch(49% 0.1422 20.76)",
+          "oklch(61% 0.1422 20.76)",
+          "oklch(72% 0.1178 20.76)",
+          "oklch(84% 0.0911 20.76)",
+          "oklch(95% 0.0667 20.76)"
+        ]
+      },
+      "light-warning": {
+        "role": "semantic",
+        "displayName": "Light warning",
+        "canonical": "#795012",
+        "tonalRamp": [
+          "oklch(15% 0.0393 71.86)",
+          "oklch(26% 0.0536 71.86)",
+          "oklch(38% 0.0693 71.86)",
+          "oklch(49% 0.0837 71.86)",
+          "oklch(61% 0.0837 71.86)",
+          "oklch(72% 0.0693 71.86)",
+          "oklch(84% 0.0536 71.86)",
+          "oklch(95% 0.0393 71.86)"
+        ]
+      },
+      "icy-blue": {
+        "role": "primary",
+        "displayName": "Icy blue",
+        "canonical": "#a8c7ea",
+        "tonalRamp": [
+          "oklch(15% 0.0256 251.66)",
+          "oklch(26% 0.0350 251.66)",
+          "oklch(38% 0.0453 251.66)",
+          "oklch(49% 0.0547 251.66)",
+          "oklch(61% 0.0547 251.66)",
+          "oklch(72% 0.0453 251.66)",
+          "oklch(84% 0.0350 251.66)",
+          "oklch(95% 0.0256 251.66)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Home artwork-led entry."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Working page titles."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Section headings."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Ordinary readable interface text."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Control labels."
+      },
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "Supporting metadata."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Identifiers and selected numeric metadata."
+      },
+      "input": {
+        "displayName": "Input",
+        "purpose": "Editable text at the existing mobile-safe input size."
+      }
+    },
+    "shadows": [
+      {
+        "name": "dark-shadow-card",
+        "value": "0 2px 4px -2px rgba(0,0,0,.18),0 12px 28px -20px rgba(0,0,0,.5),\n    inset 0 1px 0 rgba(242,243,238,.04)",
+        "purpose": "Outer panels and records."
+      },
+      {
+        "name": "dark-shadow-raised",
+        "value": "0 4px 12px -8px rgba(0,0,0,.4),0 24px 48px -32px rgba(0,0,0,.5)",
+        "purpose": "Prominent balance and raised panels."
+      },
+      {
+        "name": "dark-shadow-floating",
+        "value": "0 12px 32px -12px rgba(0,0,0,.4)",
+        "purpose": "Menus and anchored floating controls."
+      },
+      {
+        "name": "dark-shadow",
+        "value": "0 24px 80px -24px rgba(0,0,0,.4)",
+        "purpose": "Dialogs and sheets."
+      },
+      {
+        "name": "dark-shadow-control",
+        "value": "0 1px 2px rgba(0,0,0,.08)",
+        "purpose": "A small control lift."
+      },
+      {
+        "name": "light-shadow-card",
+        "value": "0 2px 4px -2px rgba(32,43,37,.05),0 12px 28px -20px rgba(32,43,37,.16),\n    inset 0 1px 0 rgba(255,255,255,.9)",
+        "purpose": "Outer panels and records."
+      },
+      {
+        "name": "light-shadow-raised",
+        "value": "0 4px 12px -8px rgba(32,43,37,.12),0 24px 48px -32px rgba(32,43,37,.2)",
+        "purpose": "Prominent balance and raised panels."
+      },
+      {
+        "name": "light-shadow-floating",
+        "value": "0 12px 32px -12px rgba(19,22,20,.18)",
+        "purpose": "Menus and anchored floating controls."
+      },
+      {
+        "name": "light-shadow",
+        "value": "0 24px 80px -24px rgba(19,22,20,.2)",
+        "purpose": "Dialogs and sheets."
+      },
+      {
+        "name": "light-shadow-control",
+        "value": "0 1px 2px rgba(32,43,37,.04)",
+        "purpose": "A small control lift."
+      }
+    ],
+    "motion": [
+      {
+        "name": "motion-press",
+        "value": "80ms",
+        "purpose": "Existing production interaction timing/easing."
+      },
+      {
+        "name": "motion-hover",
+        "value": "120ms",
+        "purpose": "Existing production interaction timing/easing."
+      },
+      {
+        "name": "motion-release",
+        "value": "160ms",
+        "purpose": "Existing production interaction timing/easing."
+      },
+      {
+        "name": "motion-dialog",
+        "value": "220ms",
+        "purpose": "Existing production interaction timing/easing."
+      },
+      {
+        "name": "motion-content",
+        "value": "240ms",
+        "purpose": "Existing production interaction timing/easing."
+      },
+      {
+        "name": "motion-exit",
+        "value": "120ms",
+        "purpose": "Existing production interaction timing/easing."
+      },
+      {
+        "name": "ease",
+        "value": "cubic-bezier(.2,.8,.2,1)",
+        "purpose": "Existing production interaction timing/easing."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "mobile-shell",
+        "value": "760px"
+      },
+      {
+        "name": "narrow-dialog",
+        "value": "600px"
+      },
+      {
+        "name": "compact-sheet",
+        "value": "520px"
+      },
+      {
+        "name": "small-gutter",
+        "value": "400px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary button",
+      "kind": "button",
+      "description": "Extracted from the existing Zigs production component.",
+      "html": "<button class=\"ds-primary\">Review payment</button>",
+      "css": ".ds-primary{font:500 14px/20px Manrope, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;min-height:48px;padding:12px 16px;border:1px solid var(--line-2);border-radius:var(--r-control);cursor:pointer;transition:background-color var(--motion-hover) var(--ease),border-color var(--motion-hover) var(--ease);background:var(--primary);color:var(--on-primary);border-color:var(--primary);}.ds-primary:hover:not(:disabled){background:var(--primary-hover);color:var(--on-primary)}.ds-primary:focus-visible{outline:2px solid var(--focus);outline-offset:3px}.ds-primary:active:not(:disabled){translate:0 1px}.ds-primary:disabled{background:var(--sunk);color:var(--muted);border-color:var(--line);cursor:not-allowed;border-style:dashed}@media(prefers-reduced-motion:reduce){.ds-primary{transition:none}.ds-primary:active:not(:disabled){translate:none}}.ds-primary:focus-visible:active{translate:none}"
+    },
+    {
+      "name": "Secondary button",
+      "kind": "button",
+      "description": "Extracted from the existing Zigs production component.",
+      "html": "<button class=\"ds-secondary\">Review payment</button>",
+      "css": ".ds-secondary{font:500 14px/20px Manrope, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;min-height:48px;padding:12px 16px;border:1px solid var(--line-2);border-radius:var(--r-control);cursor:pointer;transition:background-color var(--motion-hover) var(--ease),border-color var(--motion-hover) var(--ease);background:var(--raised);color:var(--text);}.ds-secondary:hover:not(:disabled){background:var(--control-hover);color:var(--text)}.ds-secondary:focus-visible{outline:2px solid var(--focus);outline-offset:3px}.ds-secondary:active:not(:disabled){translate:0 1px}.ds-secondary:disabled{background:var(--sunk);color:var(--muted);border-color:var(--line);cursor:not-allowed;border-style:dashed}@media(prefers-reduced-motion:reduce){.ds-secondary{transition:none}.ds-secondary:active:not(:disabled){translate:none}}.ds-secondary:focus-visible:active{translate:none}"
+    },
+    {
+      "name": "Ghost button",
+      "kind": "button",
+      "description": "Extracted from the existing Zigs production component.",
+      "html": "<button class=\"ds-ghost\">Review payment</button>",
+      "css": ".ds-ghost{font:500 14px/20px Manrope, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;min-height:48px;padding:12px 16px;border:1px solid var(--line-2);border-radius:var(--r-control);cursor:pointer;transition:background-color var(--motion-hover) var(--ease),border-color var(--motion-hover) var(--ease);background:transparent;color:var(--muted);border-color:transparent;}.ds-ghost:hover:not(:disabled){background:var(--raised);color:var(--text)}.ds-ghost:focus-visible{outline:2px solid var(--focus);outline-offset:3px}.ds-ghost:active:not(:disabled){translate:0 1px}.ds-ghost:disabled{background:var(--sunk);color:var(--muted);border-color:var(--line);cursor:not-allowed;border-style:dashed}@media(prefers-reduced-motion:reduce){.ds-ghost{transition:none}.ds-ghost:active:not(:disabled){translate:none}} .ds-ghost:disabled{background:transparent;border-color:transparent}.ds-ghost:focus-visible:active{translate:none}"
+    },
+    {
+      "name": "Text field",
+      "kind": "input",
+      "refersTo": "input-dark",
+      "description": "Extracted from the existing Zigs production component.",
+      "html": "<label class=\"ds-field\">Amount \u00b7 ZEC<input class=\"ds-input\" placeholder=\"0.00\" inputmode=\"decimal\"></label>",
+      "css": ".ds-field{display:grid;gap:6px;color:var(--muted);font:500 14px/20px Manrope, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif}.ds-input{font:500 14px/20px Manrope, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;min-height:48px;padding:12px 16px;border:1px solid var(--line-2);border-radius:var(--r-control);cursor:pointer;transition:background-color var(--motion-hover) var(--ease),border-color var(--motion-hover) var(--ease);background:var(--sunk);color:var(--text);border-color:var(--line-field);min-width:0}.ds-input:focus{border-color:var(--focus)}.ds-input:focus-visible{outline:2px solid var(--focus);outline-offset:3px}.ds-input{font:400 16px/24px var(--sans);padding:12px 14px;cursor:text}.ds-input[aria-invalid=\"true\"]{border-color:var(--bad)}.ds-input[aria-invalid=\"true\"]:focus-visible{outline-color:var(--bad)}.ds-input:disabled{background:var(--sunk);color:var(--muted)}"
+    },
+    {
+      "name": "Selected navigation",
+      "kind": "nav",
+      "description": "Extracted from the existing Zigs production component.",
+      "html": "<button class=\"ds-nav\" aria-current=\"page\">Overview</button>",
+      "css": ".ds-nav{font:500 14px/20px Manrope, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;min-height:48px;padding:12px 16px;border:1px solid var(--line-2);border-radius:var(--r-control);cursor:pointer;transition:background-color var(--motion-hover) var(--ease),border-color var(--motion-hover) var(--ease);min-height:36px;padding:8px 12px;background:var(--nav-selected);color:var(--text);border:0;font-size:13px}.ds-nav:hover{background:var(--raised)}.ds-nav:focus-visible{outline:2px solid var(--focus);outline-offset:3px}"
+    },
+    {
+      "name": "State badge",
+      "kind": "chip",
+      "refersTo": "badge-dark",
+      "description": "Extracted from the existing Zigs production component.",
+      "html": "<span class=\"ds-badge\">Testnet</span>",
+      "css": ".ds-badge{display:inline-flex;align-items:center;padding:4px 8px;min-height:24px;background:var(--sunk);color:var(--muted);border:1px solid var(--line);border-radius:6px;font:400 12px/16px Manrope, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif}"
+    },
+    {
+      "name": "Opaque panel",
+      "kind": "card",
+      "refersTo": "card-dark",
+      "description": "Extracted from the existing Zigs production component.",
+      "html": "<section class=\"ds-card\"><strong>Approvals needed</strong><span>2 of 3 devices</span></section>",
+      "css": ".ds-card{display:grid;gap:12px;padding:24px;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow-card);font:400 15px/24px Manrope, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif}.ds-card strong{font-weight:500}"
+    },
+    {
+      "name": "Wallet context",
+      "kind": "custom",
+      "description": "Extracted from the existing Zigs production component.",
+      "html": "<header class=\"ds-context\"><strong>Everyday wallet</strong><span>Zcash Testnet</span></header>",
+      "css": ".ds-context{display:flex;gap:16px;align-items:center;justify-content:space-between;padding:16px 20px;border:1px solid var(--line);border-radius:16px;background:var(--glass-fallback);color:var(--text);box-shadow:var(--shadow-card);font:400 13px/20px Manrope, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif}.ds-context strong{font-size:20px;font-weight:500}@supports(backdrop-filter:blur(1px)){.ds-context{background:var(--glass);backdrop-filter:blur(var(--glass-blur))}}@media(prefers-reduced-transparency:reduce){.ds-context{background:var(--glass-fallback);backdrop-filter:none}}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Discreet, precise, a little wild",
+    "overview": "Zigs pairs the original zebra fingerprint and artwork with a quiet working interface. The approved\ncharacter comes from the product itself: recognizable identity, exact financial records, restrained\ncontrols and a clear distinction between navigation, a document and a temporary surface.\n\nThis documents the implemented system, rather than proposing a replacement. The source of truth\nfor runtime values remains `web/design-system.css`, followed by the component and refinement\nstyles loaded by `web/index.html`. Both themes are first-class. The isolated Stageshow illustrations\nare examples of the product, not a source of miniature geometry for the live application.",
+    "keyCharacteristics": [
+      "Original zebra identity and wallet identity artwork.",
+      "Warm chalk or charcoal, with icy blue used for focus and selected detail.",
+      "Precise, restrained typography and complete financial identifiers.",
+      "Subtle elevation, with glass reserved for orientation and utility chrome."
+    ],
+    "rules": [
+      {
+        "name": "The Theme Pair Rule",
+        "body": "Every surface takes its foreground and controls from the same theme.",
+        "section": "colors"
+      },
+      {
+        "name": "The State Evidence Rule",
+        "body": "Color reinforces an established state; it never establishes success itself.",
+        "section": "colors"
+      },
+      {
+        "name": "The Complete Value Rule",
+        "body": "Preserve exact native amounts, units, full addresses and full comparison\nvalues. Wrap or disclose long records deliberately; do not silently replace a decision-relevant value\nwith an illustration placeholder or truncation.",
+        "section": "typography"
+      },
+      {
+        "name": "The Working Document Rule",
+        "body": "Let financial information read as a coherent document, with one\nprimary task and exact values; do not turn every supporting fact into an equally prominent card.",
+        "section": "layout"
+      },
+      {
+        "name": "The Utility Glass Rule",
+        "body": "Use glass to maintain location around a task, while the task's financial\ncontent keeps a stable, readable surface.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Scope Rule",
+        "body": "Name the browser, device and chain covered by a recovery state or action. Local file checks and reports from other devices remain separate kinds of evidence.",
+        "section": "components"
+      },
+      {
+        "name": "The Navigation Group Rule",
+        "body": "Group money, contacts and wallet-care tasks while keeping their destinations directly available.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "Do preserve the original zebra identity and the approved restrained material character.",
+      "Do use matching semantic surface, text and control tokens in each theme.",
+      "Do keep the complete financial record and the actual next action understandable together.",
+      "Do compose mobile for touch, scrolling, visible focus and enlarged text.",
+      "Do keep reduced-motion, reduced-transparency and forced-color fallbacks working."
+    ],
+    "donts": [
+      "Don't introduce a new visual world during a refinement pass.",
+      "Don't use decorative success styling to imply a payment or recovery step completed.",
+      "Don't put transparent glass behind decision-relevant financial values.",
+      "Don't scale miniature illustration controls into the live app.",
+      "Don't replace real marks with invented monograms or omit capability disclosures."
+    ]
+  }
+}
