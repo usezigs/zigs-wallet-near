@@ -722,7 +722,7 @@ export function sendDialog() {
     total.replaceChildren(money(rows.reduce((n, r) => n + (toZat(r.amt) || 0), 0) + f));
   };
   const why = sendBlocker();
-  const f = dialogForm({ class: "dialog payment-composer", role: "dialog", "aria-modal": "true",
+  const f = dialogForm({ class: "dialog payment-flow payment-composer", role: "dialog", "aria-modal": "true",
     "aria-labelledby": "send-title", oninput: typed, onchange: typed, onclick: keepDraft,
     onsubmit: inDialog((ev) => submitSend(rows, spendable, why, ev)) },
     el("div", { class: "card-head" }, dialogTitle("send-title", "Send ZEC"), closeX()),
@@ -799,7 +799,7 @@ function reviewDialog() {
   if (prep.gid !== state.gid) { ui.sendReview = null; return sendDialog(); }
   const ins = decodedMatch(prep), ok = !!ins;
   const publicPayee = prep.payees.some((p) => transparentOnNetwork(p.to));
-  return el("section", { class: "dialog payment-review", role: "dialog", "aria-modal": "true",
+  return el("section", { class: "dialog payment-flow payment-review", role: "dialog", "aria-modal": "true",
     "aria-labelledby": "review-title" },
   el("div", { class: "card-head" }, dialogTitle("review-title", "Review the payment"), closeX()),
   sendNotice(),
