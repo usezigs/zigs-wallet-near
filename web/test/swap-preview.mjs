@@ -590,6 +590,13 @@ const press = (root, label) => {
 };
 const delay = () => new Promise((resolve) => setImmediate(resolve));
 const realTimers = [globalThis.setTimeout, globalThis.clearTimeout];
+// Component tests omit the full page shell. Hold delayed page redraws while these partial DOM
+// fixtures are installed; component state transitions use fakeClock and setImmediate instead.
+// Zero-delay tasks still run so asynchronous operations can settle.
+const componentTimers = [
+  (fn, ms = 0, ...args) => ms > 0 ? 0 : realTimers[0](fn, ms, ...args), realTimers[1],
+];
+[globalThis.setTimeout, globalThis.clearTimeout] = componentTimers;
 Object.assign(globalThis, { document: fakeDocument, HTMLElement: FakeNode,
   MutationObserver: class { observe() {} },
   matchMedia: () => ({ matches: false }) });
@@ -676,7 +683,7 @@ try {
   assert.deepEqual([...storage.keys()].filter((key) => /privacy/i.test(key)), [],
     'the Tor demo stores no choice');
 } finally {
-  [globalThis.setTimeout, globalThis.clearTimeout] = realTimers;
+  [globalThis.setTimeout, globalThis.clearTimeout] = componentTimers;
 }
 try {
   // The funding checkout: a demo with no payment, never a step of the wallet setup.
@@ -1437,6 +1444,7 @@ try {
     /does not send the payment/, 'the Send button of a payment refuses it near the deadline');
   console.log('ok  each approving device checks the swap of the deposit address with NEAR Intents');
 }
+[globalThis.setTimeout, globalThis.clearTimeout] = realTimers;
 // The page shell: the saved theme applies before the first paint, and the demo entry cannot stop
 // the wallet from loading.
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');

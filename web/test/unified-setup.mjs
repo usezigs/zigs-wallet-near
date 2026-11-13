@@ -1603,26 +1603,23 @@ assert.match(pageText(), /Private setup invitation2 devices to join/, "two open 
   const real = globalThis.document, nav = Object.getOwnPropertyDescriptor(globalThis, "navigator");
   globalThis.document = { createElement: () => new Rec(), createElementNS: () => new Rec(),
     createTextNode: (text) => ({ text }) };
-  let button;
-  try {
-    button = copyBtn(inviteLink(gid), "Copy link");
-  } finally {
-    globalThis.document = real;
-  }
   const opened = [], disclosure = { setAttribute: (k) => opened.push(k) };
   const section = { querySelector: (q) => (q === "details[data-link]" ? disclosure : null) };
-  const target = { textContent: "Copy link", closest: (q) => (q === "section" ? section : null) };
   Object.defineProperty(globalThis, "navigator", { configurable: true,
     value: { clipboard: { writeText: async () => { throw new Error("denied"); } } } });
   try {
-    await button.on.click({ currentTarget: target });
+    const button = copyBtn(inviteLink(gid), "Copy link");
+    button.closest = (q) => (q === "section" ? section : null);
+    await button.on.click({ currentTarget: button });
+    assert.deepEqual(opened, ["open"], "a failed copy opens the link to select");
+    assert.equal(textOf(button), "Select and copy");
   } finally {
+    globalThis.document = real;
     if (nav) Object.defineProperty(globalThis, "navigator", nav);
     else delete globalThis.navigator;
   }
-  assert.deepEqual(opened, ["open"], "a failed copy opens the link to select");
-  assert.equal(target.textContent, "Select and copy");
 }
+
 {
   const cid = "c0ffee00c0ffee00c0ff";
   chats.list[cid] = { key: "ab".repeat(32), member: "m", at: Date.now() };
