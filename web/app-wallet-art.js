@@ -29,7 +29,9 @@ export function walletReveal(g, onContinue) {
   const entry = walletArtEntry(facts);
   const dismiss = () => { visit.dismissed = true; onContinue(); };
   const scene = el("div", { class: "wallet-reveal-scene" },
-    el("div", { class: "wallet-reveal-orb" }, walletMarble(facts, { size: 192 })));
+    el("span", { class: "wallet-reveal-studio", "aria-hidden": "true" }),
+    el("div", { class: "wallet-reveal-orb" }, walletMarble(facts, { size: 192 })),
+    el("span", { class: "wallet-reveal-halo", "aria-hidden": "true" }));
   const reveal = el("section", { class: "wallet-reveal surface-quiet", "aria-labelledby": "wallet-reveal-title",
     "data-key": "wallet-reveal", tabindex: "-1" },
     el("p", { class: "label" }, "Your devices prepared this wallet together"), scene,
@@ -72,7 +74,7 @@ export function presentWalletReveal(doc) {
   const reduced = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   if (doc.hidden || reduced) visit.settled = true;
   const elapsed = performance.now() - visit.started;
-  node.style.setProperty("--wallet-reveal-offset", -Math.min(elapsed, 6000) + "ms");
-  node.classList.toggle("wallet-reveal-playing", !visit.settled && elapsed < 6000);
+  node.style.setProperty("--wallet-reveal-offset", -Math.min(elapsed, 1400) + "ms");
+  node.classList.toggle("wallet-reveal-playing", !visit.settled && elapsed < 1400);
 }
 const revealDocuments = new WeakSet();

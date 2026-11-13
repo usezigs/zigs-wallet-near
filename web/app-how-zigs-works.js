@@ -1,10 +1,11 @@
-import { icon } from "./app-icons.js";
+import { interfaceIcon } from "./sidebar-icons.js";
 import { el } from "./app-dom.js";
 import { render } from "./app-loop.js";
 import { chapters, GUIDE_SOURCE } from "./how-zigs-works-content.js";
 import { guideDiagram } from "./how-zigs-works-diagrams.js";
 import { journeyView, reliefIcon } from "./how-zigs-works-journeys.js";
 import { guideMotion } from "./how-zigs-works-motion.js";
+import { paymentStory } from "./how-zigs-works-story.js";
 
 // Browser-session reading state only. Reusing this subtree preserves focus, chapter and
 // animation through unrelated app redraws. This module never reads or changes wallet state.
@@ -29,8 +30,8 @@ export function howZigsWorksDialog() {
       el("header", { class: "home-how-heading" },
         el("h2", { id: "home-how-title" }, "How Zigs works"),
         el("button", { class: "icon-btn", type: "button", "data-first-focus": "",
-          "data-key": "home-how-close", "aria-label": "Close How Zigs works",
-          onclick: () => { closeHowZigsWorks(); render(); } }, icon("close"))),
+          "data-key": "home-how-close", "aria-label": "Close How Zigs works", "data-interface-control": "",
+          onclick: () => { closeHowZigsWorks(); render(); } }, interfaceIcon("close"))),
       el("div", { class: "home-how-content" }, howZigsWorks(el)));
   }
   return dialog;
@@ -43,12 +44,12 @@ export function howZigsWorks(el) {
   const tabs = [];
   const panel = el("div", { class: "hw-panel", id: "hw-chapter", role: "tabpanel", tabindex: "0" });
   const position = el("span", { class: "hw-position", "aria-live": "polite", "aria-atomic": "true" });
-  const experience = el("div", { class: "hw-experience", "data-view": "journeys", "data-visible": "true", "data-paused": "false" });
+  const experience = el("div", { class: "hw-experience", "data-view": "walkthrough", "data-visible": "true", "data-paused": "false" });
   const root = el("section", { class: "hw-guide", id: "hw-reference", hidden: true, "aria-label": "How Zigs works: complete guide" });
   const nav = el("div", { class: "hw-tabs", role: "tablist", "aria-orientation": "vertical", "aria-label": "Guide chapters" });
   const chapterName = el("span", { class: "hw-menu-current" });
   const menu = el("details", { class: "hw-chapters" },
-    el("summary", {}, "Chapters", chapterName, el("span", { "aria-hidden": "true" }, icon("chevronDown"))), nav);
+    el("summary", { "data-interface-control": "" }, "Chapters", chapterName, interfaceIcon("chevronDown")), nav);
   const mobile = () => typeof matchMedia === "function" && matchMedia("(max-width:900px)").matches;
   menu.open = !mobile();
   if (typeof matchMedia === "function") matchMedia("(max-width:900px)").addEventListener?.("change", event => {
@@ -119,20 +120,20 @@ export function howZigsWorks(el) {
       el("p", { class: "hw-eyebrow" }, "Explore the technical source"),
       el("div", {}, chapter.sources.map(([file, anchor], i) => el("a", {
         href: "https://github.com/devzigs/zigs/blob/" + GUIDE_SOURCE + "/" + file + (anchor ? "#" + anchor : ""),
-        target: "_blank", rel: "noopener noreferrer", referrerpolicy: "no-referrer",
+        target: "_blank", rel: "noopener noreferrer", referrerpolicy: "no-referrer", "data-interface-control": "",
       }, (file === "PROTOCOL.md" ? "Protocol" : file === "PRIVACY.md" ? "Privacy model"
         : file === "ZOLANA.md" ? "Solana design" : "Messaging design")
-        + (chapter.sources.filter(([name]) => name === file).length > 1 ? " · " + (i + 1) : "") + " ↗"))),
+        + (chapter.sources.filter(([name]) => name === file).length > 1 ? " · " + (i + 1) : ""), interfaceIcon("external")))),
       el("p", { class: "hw-source-note" }, "Opens GitHub. The site can see your IP address and the document you open."));
     const next = el("div", { class: "hw-pagination", "aria-label": "Chapter navigation" },
       el("button", { type: "button", class: "hw-page-button", disabled: index === 0,
-        "data-key": "hw-previous", onclick: () => choose(index - 1, { scroll: true }) },
-        el("span", { "aria-hidden": "true" }, icon("back")), "Previous"),
+        "data-key": "hw-previous", "data-interface-control": "", onclick: () => choose(index - 1, { scroll: true }) },
+        interfaceIcon("back"), "Previous"),
       el("span", { class: "hw-page-count" }, number(index) + " / 10"),
-      el("button", { type: "button", class: "hw-page-button hw-next", "data-key": "hw-next",
+      el("button", { type: "button", class: "hw-page-button hw-next", "data-key": "hw-next", "data-interface-control": "",
         onclick: () => choose(index === chapters.length - 1 ? 0 : index + 1, { scroll: true }) },
         index === chapters.length - 1 ? "Back to the basics" : "Next: " + chapters[index + 1].nav,
-        el("span", { "aria-hidden": "true" }, icon("forward"))));
+        interfaceIcon("forward")));
     return el("div", { class: "hw-layout" }, el("article", { class: "hw-article" },
         el("header", { class: "hw-chapter-heading" },
           el("p", { class: "hw-eyebrow" }, "Chapter " + number(index) + " · " + chapter.nav),
@@ -144,23 +145,36 @@ export function howZigsWorks(el) {
   root.append(el("nav", { class: "hw-navigation", "aria-label": "How Zigs works" },
     el("div", { class: "hw-reference-brand" }, "The complete guide", el("span", {}, "10 chapters")),
     el("div", { class: "hw-navigation-meta" }, position), menu), panel);
-  const journeys = journeyView(el, (id) => {
+  const openChapter = (id) => {
     const index = chapters.findIndex(chapter => chapter.id === id);
     choose(index < 0 ? 0 : index, { focus: false });
     switchView("reference"); panel.focus({ preventScroll: true });
-  });
+  };
+  const journeys = journeyView(el, openChapter);
+  const story = paymentStory(el, openChapter);
+  journeys.hidden = true;
+  let currentMode = "walkthrough", storyScroll = 0;
   const modeButtons = [];
   const modes = el("div", { class: "hw-view-choices", role: "group", "aria-label": "Guide view" });
   function switchView(mode) {
     experience.dataset.view = mode;
+    const scroller = experience.closest(".home-how-content");
+    if (currentMode === "walkthrough") storyScroll = scroller?.scrollTop || 0;
+    story.hidden = mode !== "walkthrough";
     root.hidden = mode !== "reference";
     journeys.hidden = mode !== "journeys";
     modeButtons.forEach(button => button.setAttribute("aria-pressed", String(button.dataset.view === mode)));
-    scrollReader();
+    currentMode = mode;
+    if (mode === "walkthrough" && scroller) scroller.scrollTop = storyScroll;
+    else scrollReader();
   }
-  for (const [mode, label] of [["journeys", "Explore the journeys"], ["reference", "Complete guide"]]) {
-    const button = el("button", { type: "button", "data-view": mode, "data-key": "hw-view-" + mode, "aria-controls": mode === "reference" ? "hw-reference" : "hw-journeys",
-      "aria-pressed": String(mode === "journeys"), onclick: () => switchView(mode) }, label);
+  for (const [mode, label] of [["walkthrough", "A payment walkthrough"], ["journeys", "Explore the journeys"], ["reference", "Complete guide"]]) {
+    const compact = { walkthrough: "Walkthrough", journeys: "Journeys", reference: "Guide" };
+    const button = el("button", { type: "button", "data-view": mode, "data-key": "hw-view-" + mode,
+      "aria-controls": mode === "reference" ? "hw-reference" : mode === "walkthrough" ? "hw-payment-story" : "hw-journeys",
+      "aria-label": label, "aria-pressed": String(mode === "walkthrough"), onclick: () => switchView(mode) },
+    el("span", { class: "hw-view-label" }, label),
+    el("span", { class: "hw-view-label-compact", "aria-hidden": "true" }, compact[mode]));
     modeButtons.push(button); modes.append(button);
   }
   const pause = el("button", { type: "button", class: "hw-pause", "data-key": "hw-pause",
@@ -171,7 +185,7 @@ export function howZigsWorks(el) {
     } }, "Pause illustrations");
   experience.append(el("div", { class: "hw-toolbar" }, modes,
     el("div", { class: "hw-toolbar-motion" }, pause,
-      el("span", { class: "hw-reduced-label" }, "Animation off · reduced motion"))), journeys, root);
+      el("span", { class: "hw-reduced-label" }, "Animation off · reduced motion"))), story, journeys, root);
   guide = experience;
   choose(0, { focus: false });
   guideMotion(experience);

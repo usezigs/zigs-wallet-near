@@ -1,6 +1,6 @@
 // Educational route visibility only. This component never reads a wallet, signs or pays.
 import { el } from './app-dom.js';
-import { icon } from './app-icons.js';
+import { interfaceIcon } from './sidebar-icons.js';
 import { createSwapPrivacyFilm } from './app-swap-privacy-art.js';
 import { createSwapPrivacyPlayback } from './app-swap-privacy-motion.js';
 
@@ -92,7 +92,7 @@ export function createSwapPrivacyExplainer() {
   const stageFacts = el('dl', { class: 'swap-privacy-facts' });
   const stageDescription = paragraph('');
   const title = el('h2', { id: 'swap-privacy-title' }, 'What stays private?');
-  const play = el('button', { type: 'button', class: 'swap-privacy-play',
+  const play = el('button', { type: 'button', class: 'swap-privacy-play', 'data-interface-control': '',
     onclick: () => player.toggle() }, 'Pause');
   const playbackControls = el('div', { class: 'swap-privacy-controls' }, play);
   const closeDetails = () => details.close();
@@ -101,20 +101,20 @@ export function createSwapPrivacyExplainer() {
     onkeydown: (event) => { if (event.key === 'Escape') event.stopPropagation(); } },
   el('div', { class: 'swap-modal-heading' },
     el('h2', { id: 'swap-privacy-details-title', tabindex: '-1' }, 'Privacy details'),
-    el('button', { type: 'button', class: 'swap-close', onclick: closeDetails,
-      'aria-label': 'Close privacy details' }, icon('close'))),
+    el('button', { type: 'button', class: 'swap-close', onclick: closeDetails, 'data-interface-control': '',
+      'aria-label': 'Close privacy details' }, interfaceIcon('close'))),
   el('div', { class: 'swap-modal-content' }, stageDescription, stageFacts, boundary,
     paragraph('Price previews send the pair, amount and slippage through Zigs with public sample '
       + 'addresses. Real execution sends the wallet’s payout and refund addresses too. '
       + 'The Zigs server sees the requesting device’s IP address.'), refund,
     paragraph('For real swaps, recovery receipts are encrypted in this browser. They help resume '
       + 'tracking; a receipt alone cannot prove that the payout reached the wallet.')));
-  const more = el('button', { type: 'button', class: 'swap-privacy-more',
+  const more = el('button', { type: 'button', class: 'swap-privacy-more', 'data-interface-control': '',
     'aria-haspopup': 'dialog', onclick: () => {
       player.pause(); details.showModal(); details.querySelector('h2').focus();
-    } }, 'Privacy details, refunds and recovery', icon('external'));
+    } }, 'Privacy details, refunds and recovery', interfaceIcon('info'));
   const controls = labels.map((label, i) => el('button', { type: 'button',
-    class: 'swap-privacy-stop', onclick: () => {
+    class: 'swap-privacy-stop', 'data-interface-control': '', onclick: () => {
       content.setAttribute('aria-live', 'polite'); player.seek(i);
     } },
   el('span', { class: 'swap-privacy-node', 'aria-hidden': 'true' }),
@@ -139,7 +139,7 @@ export function createSwapPrivacyExplainer() {
       control.dataset.kind = steps[i].kind;
       control.setAttribute('aria-label', String(i + 1) + '. ' + steps[i].title);
       control.querySelector('.swap-privacy-node').replaceChildren(
-        icon(steps[i].kind === 'private' ? 'lock' : i === 2 ? 'swap' : 'unshield'));
+        interfaceIcon(steps[i].kind === 'private' ? 'lock' : i === 2 ? 'swap' : 'unshield'));
     });
     content.replaceChildren(el('article', { class: 'swap-privacy-scene' },
       paragraph(badges[current.kind], 'swap-privacy-visibility'),
@@ -160,9 +160,10 @@ export function createSwapPrivacyExplainer() {
     const key = [playing, finished, reduced, manual].join('|');
     if (key === controlKey) return;
     controlKey = key;
-    play.textContent = playing ? 'Pause' : 'Resume';
-    play.setAttribute('aria-label', playing ? 'Pause explainer' : 'Resume explainer');
-    playbackControls.hidden = reduced || finished;
+    play.replaceChildren(interfaceIcon(finished ? 'restore' : playing ? 'pause' : 'play'),
+      el('span', {}, finished ? 'Replay' : playing ? 'Pause' : 'Resume'));
+    play.setAttribute('aria-label', finished ? 'Replay explainer' : playing ? 'Pause explainer' : 'Resume explainer');
+    playbackControls.hidden = reduced;
     element.dataset.playing = String(playing);
     element.dataset.motion = reduced || manual ? 'manual' : 'animated';
     content.setAttribute('aria-live', manual ? 'polite' : 'off');

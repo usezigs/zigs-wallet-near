@@ -35,7 +35,7 @@ function Island({ entry }) {
   const ref = useRef(null);
   useLayoutEffect(() => nativeAttributes(ref.current, attrs), [attrs]);
   const content = <NativeContent nodes={nodes} slot={slot} />;
-  const shine = <EdgeShine phase={entry.id} />;
+  const shine = <EdgeShine />;
   const heroFrame = /\bwelcome\b/.test(attrs.class);
   if (kind === "card") return <Card
     className={attrs.class + (heroFrame ? "" : " openglass-reflective")} ref={ref}>
@@ -55,7 +55,10 @@ function Island({ entry }) {
     tone={/\bbad\b/.test(attrs.class) ? "danger" : /\bwarn\b/.test(attrs.class) ? "warning"
       : /\bok\b/.test(attrs.class) ? "positive" : /\binfo\b/.test(attrs.class) ? "accent" : "neutral"}
     >{content}</Badge>;
+  const financialSurface = /\boverview-hero\b/.test(attrs.class);
   return <Glass ref={ref} material="frosted" className={attrs.class + " openglass-reflective"}
+    style={financialSurface ? { background: "var(--studio-surface,var(--panel))",
+      boxShadow: "var(--studio-shadow,none)", backdropFilter: "none", WebkitBackdropFilter: "none" } : undefined}
     as={options.tag || "div"} aria-hidden={kind === "backdrop" ? "true" : undefined}>
     {shine}{kind === "backdrop" ? null : content}</Glass>;
 }

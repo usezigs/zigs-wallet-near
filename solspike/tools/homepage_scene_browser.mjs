@@ -6,7 +6,7 @@ import { entryReady } from "../harness/entry-flow.mjs";
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || "playwright");
 const origin = process.env.ZIGS_HOME_ORIGIN || "http://127.0.0.1:55847";
 assert.ok(["localhost", "127.0.0.1"].includes(new URL(origin).hostname));
-const output = resolve("docs/ux-redesign/visuals/cinematic-homepage/motion");
+const output = resolve(process.env.ZIGS_SCENE_OUTPUT || "docs/ux-redesign/visuals/cinematic-homepage/motion");
 const temporary = resolve(output, ".temporary-video");
 mkdirSync(temporary, { recursive: true });
 const report = { checks: [], facts: [], videos: [], errors: [], notes: [
@@ -21,6 +21,8 @@ const browser = await chromium.launch({ headless: true,
 async function fresh(width, options = {}) {
   const context = await browser.newContext({ viewport: { width, height: width < 768 ? 844 : 900 },
     colorScheme: "dark", reducedMotion: "no-preference", ...options });
+  // The worker normally injects this script; a bare static server needs it explicitly.
+  if (process.env.ZIGS_SCENE_STATIC_SHIM === "1") await context.addInitScript({ path: resolve("web/shim.js") });
   await context.route("**/*", (r) => new URL(r.request().url()).origin === origin
     ? r.continue() : r.abort());
   await context.addInitScript(() => {
@@ -114,33 +116,52 @@ async function pixelProof() {
     await open(page);
     const stats = await page.evaluate(async () => {
       const { createHeroScene, sceneSample } = await import("/homepage-scene.js");
-      const scene = createHeroScene(document.querySelector(".home-hero-art")); scene.resize(320, 1);
+      const image = document.querySelector(".home-hero-art");
+      const scene = createHeroScene(image); scene.resize(320, 1);
+      const source = document.createElement("canvas");
+      source.width = image.naturalWidth; source.height = image.naturalHeight;
+      const context = source.getContext("2d"); context.drawImage(image, 0, 0);
+      const original = context.getImageData(0, 0, source.width, source.height).data;
+      // Match WebGL's bilinear sample footprint in the unchanged source image. A rendered
+      // alpha of 255 alone can include a rounded, partially transparent antialiased edge.
+      const opaqueAt = (index) => {
+        const x = ((index / 4) % 320 + .5) / 320 * source.width - .5;
+        const y = (1 - (Math.floor(index / 4 / 320) + .5) / 320) * source.height - .5;
+        return [Math.floor(x), Math.ceil(x)].every((sx) => [Math.floor(y), Math.ceil(y)].every((sy) =>
+          original[(Math.max(0, Math.min(source.height - 1, sy)) * source.width
+            + Math.max(0, Math.min(source.width - 1, sx))) * 4 + 3] === 255));
+      };
       const gl = scene.canvas.getContext("webgl"), samples = [];
       for (const [time, x] of [[1500,0],[5000,0],[12000,0],[4000,-1],[4000,1]]) {
         scene.draw(sceneSample(time, { x, y: 0 }));
         const pixels = new Uint8Array(320 * 320 * 4);
         gl.readPixels(0, 0, 320, 320, gl.RGBA, gl.UNSIGNED_BYTE, pixels); samples.push(pixels);
       }
-      let moving = 0, alphaChanges = 0, eyeChanges = 0, eyePixels = 0, maxDifference = 0;
+      let moving = 0, opaquePixels = 0, foregroundAlphaChanges = 0, atmosphereChanges = 0,
+        eyeChanges = 0, eyePixels = 0, maxDifference = 0;
       for (let i = 0; i < samples[0].length; i += 4) {
         const first = samples[0];
+        const opaque = opaqueAt(i); opaquePixels += Number(opaque);
         const eye = Number(first[i] > 75 && first[i] > first[i + 1] * 2.5);
         eyePixels += eye;
         for (const next of samples.slice(1)) {
           const difference = Math.max(...[0,1,2].map((k) => Math.abs(first[i+k] - next[i+k])));
           maxDifference = Math.max(maxDifference, difference);
           moving += Number(difference > 8);
-          alphaChanges += Number(first[i+3] !== next[i+3]);
+          foregroundAlphaChanges += Number(opaque && first[i+3] !== next[i+3]);
+          atmosphereChanges += Number(first[i+3] < 40 && first[i+3] !== next[i+3]);
           eyeChanges += eye * Number(difference > 2);
         }
       }
       scene.dispose();
-      return { moving, alphaChanges, eyeChanges, eyePixels, maxDifference };
+      return { moving, opaquePixels, foregroundAlphaChanges, atmosphereChanges, eyeChanges, eyePixels, maxDifference };
     });
     report.facts.push({ pixelProof: stats });
     check(stats.moving > 1000 && stats.maxDifference > 25,
       "lighting changes pixels visibly over time");
-    check(stats.alphaChanges === 0, "all phases preserve the source silhouette/transparency");
+    check(stats.opaquePixels > 100 && stats.foregroundAlphaChanges === 0,
+      "all phases preserve the opaque portrait foreground");
+    check(stats.atmosphereChanges > 100, "Radiant atmosphere changes behind the portrait");
     check(stats.eyePixels > 0 && stats.eyeChanges === 0, "red eye remains unlit and stable");
   } finally { await context.close(); }
 }

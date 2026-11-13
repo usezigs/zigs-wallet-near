@@ -4,9 +4,15 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
-    "test:openglass": "node openglass/browser-check.mjs"
+    "test:openglass": "node openglass/browser-check.mjs",
+    "test:visuals": "node ../solspike/tools/nextlevel_visuals_browser.mjs",
+    "test:journeys": "node ../solspike/tools/nextlevel_journeys_browser.mjs",
+    "test:receive": "node ../solspike/tools/nextlevel_receive_browser.mjs",
+    "test:wallet-pages": "node ../solspike/tools/nextlevel_security_activity_browser.mjs",
+    "test:sidebar": "node ../solspike/tools/nextlevel_sidebar_browser.mjs"
   },
   "dependencies": {
+    "motion": "14.14.0",
     "open-glass-ui": "^0.5.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"

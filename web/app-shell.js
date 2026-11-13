@@ -43,6 +43,7 @@ import { swapJournal } from "./app-swap-store.js";
 import { zecSwapSource } from "./app-swap-zec.js";
 import { generalSettings, settingsDisclosure, settingsGroup, settingsRow } from "./app-settings-ui.js";
 import { walletMark } from "./app-wallet-art.js";
+import { sidebarIcon } from "./sidebar-icons.js";
 import { labsSettings, networkPrivacySettings } from "./app-network-privacy.js";
 import { openHowZigsWorks } from "./app-how-zigs-works.js";
 
@@ -79,11 +80,12 @@ export function renderSide() {
     : ui.tab === "members" ? "recovery"
     : ui.tab === "solana" ? "overview" : ui.tab;
   nav.replaceChildren(
+    el("span", { class: "sidebar-active-marker", "aria-hidden": "true", hidden: true }),
     sectionGroup("money", "Money", ["overview", "swap", "approvals", "activity"], sections, selected),
     sectionGroup("contacts", "Contacts", ["recipients", "chats"], sections, selected),
     sectionGroup("care", "Wallet care", ["recovery", "settings"], sections, selected),
     el("div", { class: "side-head" }, el("span", { class: "label" }, "Wallets"),
-      el("button", { class: "icon-btn", type: "button", title: "New wallet", "aria-label": "New wallet", onclick: () => { ui.tab = "overview"; newWallet(); } }, icon("plus"))),
+      el("button", { class: "icon-btn", type: "button", title: "New wallet", "aria-label": "New wallet", onclick: () => { ui.tab = "overview"; newWallet(); } }, sidebarIcon("plus"))),
     ...testWalletEntry("sidebar"),
     ...(state.groups.length ? state.groups.map((g) => guard(sideItem, g))
       : [el("p", { class: "side-empty" }, sideEmpty())]));
@@ -115,13 +117,14 @@ export function sectionNav(sections, selected) {
   const item = ([id, label, count]) => el("button", {
     "data-glass": "button",
     class: "side-item" + (id === now ? " active" : ""), type: "button", id: "tab-" + id,
+    "data-sidebar-nav": id,
     "data-key": "tab-" + id, "aria-current": id === now ? "page" : null,
     onclick: () => {
       if (selected !== undefined && (state.cid || state.contact != null)) openGroup(null);
       const destination = id;
       ui.tab = destination; focusAfter("panel-" + (id === "chats" ? "messages" : destination), true); render();
     },
-  }, icon(SECTION_ICONS[id]), el("span", { class: "side-name" }, label),
+  }, sidebarIcon(SECTION_ICONS[id]), el("span", { class: "side-name" }, label),
   el("span", { class: "side-tail" }, count));
   return sections.map(item);
 }
@@ -210,7 +213,7 @@ function sideItem(g) {
       if (g.id === state.gid) { closeSession(); render(); return; }
       openGroup(g.id);
     },
-  }, walletMark(g, 32),
+  }, el("span", { class: "sidebar-wallet-symbol", "aria-hidden": "true" }, sidebarIcon("wallet"), walletMark(g, 32)),
   el("span", { class: "side-label" }, el("span", { class: "side-name" }, g.name),
     el("span", { class: "side-network" }, "Zcash " + netOf(g).label), rule,
     g.movedTo ? el("span", { class: "side-meta" }, moveWord(g)) : null),

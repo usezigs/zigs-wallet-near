@@ -1,11 +1,11 @@
 // Code-native teaching illustrations. Labels describe visibility, never wallet or chain data.
 import { el } from './app-dom.js';
-import { icon } from './app-icons.js';
+import { interfaceIcon } from './sidebar-icons.js';
 
 const word = (text, cls = '') => el('span', { class: cls }, text);
 const line = (label, value, cls = '') => el('div', { class: 'privacy-film-field ' + cls },
   word(label), word(value));
-const coin = (asset, cls = '') => el('div', { class: 'privacy-film-coin ' + cls }, icon(asset));
+const coin = (asset, cls = '') => el('div', { class: 'privacy-film-coin ' + cls }, interfaceIcon(asset));
 const foot = (text) => el('p', { class: 'privacy-film-foot' }, text);
 const scene = (name, ...children) => el('div', { class: 'privacy-film-scene',
   'data-scene': name }, ...children);
@@ -13,7 +13,7 @@ const scene = (name, ...children) => el('div', { class: 'privacy-film-scene',
 function sourceArt(route) {
   const privateSource = route.privateSource || route.from === 'zec';
   const sheet = el('div', { class: 'privacy-film-note privacy-film-note-front' },
-    el('div', { class: 'privacy-film-note-title' }, icon(privateSource ? 'lock' : 'unshield'),
+    el('div', { class: 'privacy-film-note-title' }, interfaceIcon(privateSource ? 'lock' : 'unshield'),
       word(privateSource ? 'Private notes' : 'Public balance')),
     line('Owner', privateSource ? '••••••' : 'Visible'),
     line('Value', privateSource ? '••••••' : 'Visible'));
@@ -26,7 +26,7 @@ function sourceArt(route) {
 
 function depositArt(route) {
   const card = el('div', { class: 'privacy-film-ledger' },
-    el('div', { class: 'privacy-film-note-title' }, icon('unshield'), word('Public deposit')),
+    el('div', { class: 'privacy-film-note-title' }, interfaceIcon('unshield'), word('Public deposit')),
     line('Address', 'Visible', 'privacy-film-reveal privacy-film-reveal-one'),
     line('Amount', 'Visible', 'privacy-film-reveal privacy-film-reveal-two'),
     line('Time', 'Visible', 'privacy-film-reveal privacy-film-reveal-three'));
@@ -53,7 +53,7 @@ function providerLinks() {
 function providerArt(route) {
   return scene('provider', providerLinks(),
     el('div', { class: 'privacy-film-addresses' }, ['Deposit', 'Payout', 'Refund'].map((name) =>
-      el('div', { class: 'privacy-film-address' }, icon('key'), word(name)))),
+      el('div', { class: 'privacy-film-address' }, interfaceIcon(name === 'Deposit' ? 'send' : name === 'Payout' ? 'receive' : 'restore'), word(name)))),
     el('div', { class: 'privacy-film-provider' }, word('NEAR'),
       word(route.execution === 'basic' ? 'Basic route' : 'Standard route')),
     foot('The provider can connect all three'));
@@ -67,7 +67,7 @@ function destinationArt(route) {
         word(shielded ? 'Shielded destination' : 'Public destination')),
       line('Recipient', shielded ? '••••••' : 'Visible'),
       line('Amount', shielded ? '••••••' : 'Visible'),
-      el('div', { class: 'privacy-film-seal' }, icon(shielded ? 'lock' : 'unshield'))),
+      el('div', { class: 'privacy-film-seal' }, interfaceIcon(shielded ? 'lock' : 'unshield'))),
     foot(shielded ? 'Hidden on Zcash · still known to NEAR' : 'Public on Solana · known to NEAR'));
 }
 

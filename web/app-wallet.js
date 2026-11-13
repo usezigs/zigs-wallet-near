@@ -3,6 +3,7 @@ import { fmtInt, seatBackedUp, usesV2 } from "./util.js";
 import { IGNORED_NOTE } from "./signed.js";
 import { inbox, log, ready, showBanner, state, ui } from "./app-state.js";
 import { fmtZec, short, when } from "./app-kit.js";
+import { groupLedgerDates } from "./activity-dates.js";
 import { gkeys, mySeatSecrets, sec } from "./app-keystore.js";
 import { keysDiffer, localSeats, seatIds, seatMine, seatStage, STAGE_LABEL } from "./app-seats.js";
 import { inviteLink, senderNote } from "./app-links.js";
@@ -265,13 +266,12 @@ function overviewTab() {
           el("h2", { id: "assets-title" }, "Your assets")),
         el("div", { class: "assets-grid asset-rows" }, zecAsset(c), solAsset(), plainShown() ? usdcAsset() : null)),
       el("aside", { class: "overview-rail", "aria-label": "Wallet status and transactions" },
-        overviewTransactions(), el("details", { class: "workflow-details" },
-          el("summary", {}, "Wallet approval rule"), sharedControl({ required: state.g.t, total: state.g.n, context: state.gid,
+        overviewTransactions(), sharedControl({ required: state.g.t, total: state.g.n, context: state.gid,
         status: state.g.shapeMoved ? "Configuration mismatch" : "Wallet formed",
         attention: !!state.g.shapeMoved,
         participants: seatIds().map((i) => ({ id: i, name: seatLabel(i),
           joined: state.seats[i] ? true : state.seatsLoaded && state.seatsSettled ? false : null })),
-        openSecurity: openWalletSection("recovery") })))));
+        openSecurity: openWalletSection("recovery") }))));
 }
 
 function balanceOverview() {
@@ -902,7 +902,7 @@ const historyNote = (pick) => {
 };
 
 // `line` is the rule above the rows: the card of the Activity section has no head to separate.
-function activityRows(list, pick = "all", line = "border-top:1px solid var(--line)") {
+function activityRows(list, pick = "all", line = "border-top:1px solid var(--line)", flying = null) {
   if (!list.length) {
     const [head, text] = emptyText(pick);
     return el("div", { class: "empty workflow-empty", style: line },
@@ -910,8 +910,8 @@ function activityRows(list, pick = "all", line = "border-top:1px solid var(--lin
       el("p", { class: "small" }, text));
   }
   // One list of sent payments for the whole draw: a row does not walk all sessions again.
-  const flying = new Set(inFlight());
-  return el("div", { class: "list stacked", style: line }, list.map((a) => rowOf(a, flying)));
+  const active = flying || new Set(inFlight());
+  return el("div", { class: "list stacked", style: line }, list.map((a) => rowOf(a, active)));
 }
 
 function rowOf(a, flying) {
@@ -1239,12 +1239,23 @@ function activityTab() {
           + (pick === "all" ? "" : " · " + (pick === "sol" ? "Solana" : "Zcash")))),
     activityLimit(pick),
     el("div", { class: "activity-ledger" },
-      list.length ? activityRows(list, pick, "") : activityEmpty(pick, all.length > 0),
+      list.length ? datedActivityRows(list, pick) : activityEmpty(pick, all.length > 0),
       list.length ? historyNote(pick) : null),
+    list.some((row) => row.r) ? el("p", { class: "activity-date-note small muted" },
+      "Dates for received Zcash are estimated from block heights.") : null,
     receivedNote(list),
     el("details", { class: "activity-history-help" },
       el("summary", {}, "About this history"),
       securityExplanation("activity")));
+}
+
+function datedActivityRows(list, pick) {
+  const flying = new Set(inFlight());
+  return groupLedgerDates(list).map((group) => el("section", { class: "activity-day",
+    "aria-labelledby": "activity-day-" + group.key },
+    el("header", { class: "activity-day-heading" }, el("h3", { id: "activity-day-" + group.key }, group.label),
+      el("span", {}, group.rows.length + (group.rows.length === 1 ? " record" : " records"))),
+    activityRows(group.rows, pick, "", flying)));
 }
 
 // Decorative ledger engraving, not sample transactions or a transaction-status indicator.

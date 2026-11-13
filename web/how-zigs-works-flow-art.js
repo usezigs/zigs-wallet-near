@@ -12,7 +12,7 @@ const check=(x,y)=>`<g transform="translate(${x} ${y})"><circle r="13" fill="#17
 const phone=(id,x,y,title,kind='share')=>panel(id,x,y,130,205,`${text(65,32,title,{small:true})}${wire('M19 49H111')}${kind==='message'?`${bars(27,79,76,4)}${lock(65,147,.65)}`:kind==='read'?`${bars(27,78,76,3)}${check(65,145)}`:`${key(63,101,.8)}${text(65,164,'LOCAL SHARE',{small:true})}`}${wire('M48 189H82')}`,{rounded:15});
 const heading=value=>text(400,44,value,{small:true});
 const foot=value=>text(400,482,value,{small:true});
-const preview=()=>`${heading('DESIGN PREVIEW')}${text(400,79,'Planned swap experience',{bright:true})}`;
+const swapIllustration=()=>`${heading('ILLUSTRATED SWAP')}${text(400,79,'SOL and ZEC across chains',{bright:true})}`;
 
 const scenes={
  chains:id=>`${heading('ONE GROUP · TWO SEPARATE CHAIN KEYS')}
@@ -80,23 +80,23 @@ const scenes={
   ${panel(id,430,257,310,155,`${[65,130,195].map(x=>`<rect x="${x}" y="35" width="50" height="44" rx="4" fill="#111" stroke="#707070"/>${x<195?wire(`M${x+50} 57h15`):''}`).join('')}${text(155,125,'On-chain record is permanent')}`)}
   ${foot('CHATS ARE NOT FORWARD SECRET · MEMOS HAVE DIFFERENT PERSISTENCE')}`,
 
- 'swap-route':id=>`${preview()}
+ 'swap-route':id=>`${swapIllustration()}
   ${panel(id,60,172,192,192,`<circle cx="96" cy="68" r="37" fill="#111" stroke="#929292"/>${text(96,76,'Ƶ',{bright:true})}${text(96,137,'Zcash',{bright:true})}${text(96,165,'Shielded source',{small:true})}`)}
   ${arrow(266,265,306,265,{dashed:true})}
-  ${panel(id,319,196,162,144,`${text(81,37,'Swap route',{bright:true})}${wire('M30 72h101m-9-7 9 7-9 7',{dashed:true})}${text(81,114,'PLANNED',{small:true})}`)}
+  ${panel(id,319,196,162,144,`${text(81,37,'NEAR Intents',{bright:true})}${wire('M30 72h101m-9-7 9 7-9 7',{dashed:true})}${text(81,114,'Standard / Basic',{small:true})}`)}
   ${arrow(495,265,535,265,{dashed:true})}
   ${panel(id,548,172,192,192,`<circle cx="96" cy="68" r="37" fill="#111" stroke="#929292"/>${text(96,75,'SOL',{bright:true})}${text(96,137,'Solana',{bright:true})}${text(96,165,'Destination chain',{small:true,fit:true})}`)}
-  ${foot('CONCEPTUAL ROUTE · AVAILABILITY AND PRIVACY REQUIRE VERIFICATION')}`,
+  ${foot('ILLUSTRATION · PUBLIC DEPOSIT · PROVIDER SEES THE ROUTE')}`,
 
- 'swap-review':id=>`${preview()}
+ 'swap-review':id=>`${swapIllustration()}
   ${panel(id,158,108,484,310,`${text(242,38,'Review before approval',{bright:true})}${wire('M25 59H459')}${[['Quote','Receive estimate'],['Route','Chains &amp; providers'],['Fees','Complete cost'],['Destination','Address &amp; network']].map(([a,b],i)=>`${text(30,99+i*53,a,{anchor:'start'})}${text(449,99+i*53,b,{anchor:'end',small:true})}${i<3?wire(`M25 ${117+i*53}H459`):''}`).join('')}`)}
-  ${foot('CONCEPTUAL CHECKS · A QUOTE IS NOT A COMPLETED SWAP')}`,
+  ${foot('CHECK THE QUOTE, MINIMUM, DEADLINE AND REFUND ADDRESS')}`,
 
- 'swap-settlement':id=>`${preview()}
+ 'swap-settlement':id=>`${swapIllustration()}
   ${wire('M154 226H646',{dashed:true})}
-  ${[150,400,650].map((x,i)=>`<circle cx="${x}" cy="226" r="36" fill="#111" stroke="${i===2?'#bcbcbc':'#626262'}" stroke-width="1.4"/>${i===2?`<path d="m${x-13} 226 9 9 18-21" fill="none" stroke="#d3d3d3" stroke-width="2"/>`:i===1?wire(`M${x-12} 230h24m-9-8 9 8-9 8`,{bright:true}):`<circle cx="${x}" cy="226" r="13" fill="none" stroke="#9a9a9a"/><path d="M${x} 217v10l7 4" fill="none" stroke="#9a9a9a"/>`}${text(x,302,['Pending','Broadcast','Confirmed'][i],{bright:true})}${text(x,332,['Awaiting the next step','Submitted to a chain','Chain confirmation'][i],{small:true})}`).join('')}
-  ${panel(id,214,379,372,56,`${text(186,34,'Illustrative status · planned flow',{small:true})}`)}
-  ${foot('SUBMISSION AND SETTLEMENT ARE DIFFERENT STATES')}`
+  ${[150,400,650].map((x,i)=>`<circle cx="${x}" cy="226" r="36" fill="#111" stroke="${i===2?'#bcbcbc':'#626262'}" stroke-width="1.4"/>${i===2?`<path d="m${x-13} 226 9 9 18-21" fill="none" stroke="#d3d3d3" stroke-width="2"/>`:i===1?wire(`M${x-12} 230h24m-9-8 9 8-9 8`,{bright:true}):`<circle cx="${x}" cy="226" r="13" fill="none" stroke="#9a9a9a"/><path d="M${x} 217v10l7 4" fill="none" stroke="#9a9a9a"/>`}${text(x,302,['Deposit','Payout reported','Receipt checked'][i],{bright:true})}${text(x,332,['Source payment','Provider status','Check the wallet'][i],{small:true})}`).join('')}
+  ${panel(id,214,379,372,56,`${text(186,34,'Illustration only · not a transaction status',{small:true})}`)}
+  ${foot('A PROVIDER REPORT DOES NOT PROVE RECEIPT')}`
 };
 
 /** Decorative, build-time diagrams for the additional How it works flows. */

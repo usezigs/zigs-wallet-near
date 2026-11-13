@@ -1,4 +1,5 @@
 // Decorative lighting only. The sole texture is the unchanged original hero zebra artwork.
+import { radiantDither } from "./vendor/radiant-dither.js";
 const VERTEX = `
 attribute vec2 a_position;
 varying vec2 v_uv;
@@ -13,6 +14,8 @@ uniform sampler2D u_art;
 uniform float u_time;
 uniform vec2 u_pointer;
 varying vec2 v_uv;
+
+${radiantDither}
 
 float ellipse(vec2 p, vec2 center, vec2 radius) {
   vec2 q = (p - center) / radius;
@@ -34,7 +37,8 @@ vec3 portraitNormal(vec2 p) {
 void main() {
   vec2 p = vec2(v_uv.x, 1. - v_uv.y);
   vec4 art = texture2D(u_art, p);
-  if (art.a < .004) discard;
+  vec4 atmosphere = radiantAtmosphere(p, u_time);
+  if (art.a < .004) { gl_FragColor = atmosphere; return; }
   float cycle = max(0., u_time - 1.5) * 6.283185 / 14.;
   vec3 normal = portraitNormal(p);
   vec3 light = normalize(vec3(.12 + sin(cycle) * .9 + u_pointer.x * .75,
@@ -60,7 +64,7 @@ void main() {
   // The original red eye is an unlit identity detail, never a pulsing status light.
   float red = smoothstep(.07, .20, art.r - max(art.g, art.b));
   color = mix(color, art.rgb, red);
-  gl_FragColor = vec4(clamp(color, 0., 1.) * art.a, art.a);
+  gl_FragColor = vec4(clamp(color, 0., 1.) * art.a, art.a) + atmosphere * (1. - art.a);
 }`;
 
 function compile(gl, type, source) {

@@ -31,6 +31,8 @@ import { securityExplanation } from "./app-tutorial.js";
 import { taddressSection } from "./app-taddress.js";
 import { DEVICE_CHANGE_PRIVACY, privacyNotice, ZEC_EXPOSURE } from "./privacy-language.js";
 import { walletAvatarFor } from "./app-wallet-identity.js";
+import { paymentJourney } from "./payment-experience.js";
+import { receiveDestinationCard } from "./receive-card.js";
 
 const MAX_PAYEES = 8;
 const TOO_MANY = "A payment can have at most " + MAX_PAYEES + " recipients.";
@@ -39,7 +41,8 @@ const TOO_MANY = "A payment can have at most " + MAX_PAYEES + " recipients.";
 // wallet, so a mainnet wallet still reads Mainnet (D3).
 const dialogTitle = (id, text, net = "Zcash " + curNet().label) =>
   el("div", { class: "payment-dialog-context" },
-    el("h2", { id }, text),
+    el("h2", { id, tabindex: id === "review-title" ? "-1" : null,
+      "data-first-focus": id === "review-title" ? "" : null }, text),
     el("span", { class: "wallet-context-label small muted" }, walletAvatarFor(state.g),
       el("span", {}, groupName(state.gid))),
     el("span", { class: "badge plain" }, net));
@@ -51,15 +54,15 @@ export function receiveDialog() {
     "data-first-focus": "",
     onclick: () => { ui.receive = false; render(); },
   }, icon("close"));
-  const title = dialogTitle("recv-title", "Receive ZEC", net);
-  const copy = copyBtn(w.address, "Copy address", "btn primary");
+  const title = el("div", { class: "receive-heading" }, el("h2", { id: "recv-title" }, "Receive ZEC"),
+    el("p", { class: "receive-network-label" }, net));
   // A moved wallet leads with its moved note: senders must use the address of the new wallet.
   const moved = !!state.g.movedTo;
-  const address = hidden ? [] : [el("div", { class: "receive-surface" },
-    qrBox(w.address, "Zcash " + curNet().label + " receive address QR code", 208),
-    receiveAddress(w.address, { class: "addr-full", "data-receive-address": "zec" }),
-    el("div", { class: "dialog-actions" }, moved ? null : shareBtn(w.address), copy),
-    moved ? null : el("p", { class: "small muted" }, "Only ZEC on " + net + ". Funds need 3 confirmations."))];
+  const address = hidden ? [] : [receiveDestinationCard(el, icon, { address: w.address, network: net, moved,
+    walletName: groupName(state.gid), sculpture: walletAvatarFor(state.g, 64),
+    code: qrBox(w.address, net + " receive address QR code", 208),
+    addressNode: receiveAddress(w.address, { class: "addr-full", "data-receive-address": "zec" }),
+    onShareFailure: () => showBanner("bad", SHARE_FAILED) })];
   return el("div", {
     class: "dialog receive-dialog", role: "dialog", "aria-modal": "true", "aria-labelledby": "recv-title",
   }, el("div", { class: "card-head" }, title, close),
@@ -97,17 +100,6 @@ function sendOnly(net) {
     + "address. A payment that arrives becomes spendable after 3 confirmations.", ...faucet));
 }
 
-// Web Share sends the address alone. A sheet that the person closes is no error.
-function shareBtn(address) {
-  if (!navigator.share) return null;
-  const failed = (e) => {
-    if (e?.name !== "AbortError") showBanner("bad", SHARE_FAILED);
-  };
-  return el("button", {
-    class: "btn", type: "button",
-    onclick: () => navigator.share({ text: address }).catch(failed),
-  }, "Share address");
-}
 const SHARE_FAILED = "This browser could not share the address. Use Copy address.";
 
 // The address of the open wallet: Send refuses it, as it refuses an address of another network.
@@ -722,10 +714,11 @@ export function sendDialog() {
     total.replaceChildren(money(rows.reduce((n, r) => n + (toZat(r.amt) || 0), 0) + f));
   };
   const why = sendBlocker();
-  const f = dialogForm({ class: "dialog payment-flow payment-composer", role: "dialog", "aria-modal": "true",
+  const f = dialogForm({ class: "dialog payment-flow payment-composer payment-surface", "data-payment-view": "send", role: "dialog", "aria-modal": "true",
     "aria-labelledby": "send-title", oninput: typed, onchange: typed, onclick: keepDraft,
     onsubmit: inDialog((ev) => submitSend(rows, spendable, why, ev)) },
     el("div", { class: "card-head" }, dialogTitle("send-title", "Send ZEC"), closeX()),
+    paymentJourney(el, "send"),
     sendNotice(),
     el("p", { class: "small muted" }, "Enter a recipient and amount. Review the payment before requesting approvals."),
     el("div", { class: "field" },
@@ -799,9 +792,10 @@ function reviewDialog() {
   if (prep.gid !== state.gid) { ui.sendReview = null; return sendDialog(); }
   const ins = decodedMatch(prep), ok = !!ins;
   const publicPayee = prep.payees.some((p) => transparentOnNetwork(p.to));
-  return el("section", { class: "dialog payment-flow payment-review", role: "dialog", "aria-modal": "true",
+  return el("section", { class: "dialog payment-flow payment-review payment-surface", "data-payment-view": "review", role: "dialog", "aria-modal": "true",
     "aria-labelledby": "review-title" },
   el("div", { class: "card-head" }, dialogTitle("review-title", "Review the payment"), closeX()),
+  paymentJourney(el, "review"),
   sendNotice(),
   !ok ? privacyNotice(el, "unknown", "Privacy not verified",
     "Privacy cannot be verified because the transaction check did not pass.")

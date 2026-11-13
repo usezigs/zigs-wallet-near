@@ -22,6 +22,8 @@ function reveal(id) {
 
 export function securityDashboard(f, actions, advanced) {
   const m = deriveSecurityDashboard(f);
+  const nextDevice = f.rosterKnown !== false && !m.critical
+    && ["backup", "check"].includes(m.next.kind) ? m.next.id : null;
   const primary = (ev) => {
     const next = m.next;
     if (next.kind === "backup") actions.backup(next.id, next.chain, ev);
@@ -38,7 +40,7 @@ export function securityDashboard(f, actions, advanced) {
             : "Any " + f.t + " of " + f.n + " devices must approve each transaction."
             : "The signing rule is unavailable.")),
         m.valid ? badge(f.t + "-of-" + f.n) : null),
-      el("div", { class: "security-signer-list" }, f.signers.map((s) => signerRow(s, f, actions))),
+      el("div", { class: "security-signer-list" }, f.signers.map((s) => signerRow(s, f, actions, nextDevice))),
       el("details", { class: "security-explainer" },
         el("summary", {}, "What is a signing share?"),
         paragraph("Each device holds a separate part of the wallet’s signing authority. "
@@ -99,7 +101,10 @@ function securityOverview(f, m, primary) {
           paragraph(f.rosterKnown === false ? "Wait for the existing device checks before reviewing recovery progress."
             : m.held ? "Save each share’s recovery file. Keep its passphrase separately, then reopen the file to check it."
             : "This browser holds no completed Zcash share. Other devices’ locations and file accessibility cannot be verified here.")) : null),
-      button(m.next.label, primary, { class: "btn primary security-primary", "data-key": "security-primary" })),
+      el("div", { class: "security-next-action" },
+        el("span", {}, f.rosterKnown !== false && m.next.id && m.next.chain
+          ? "Next · Device " + m.next.id + " · " + CHAIN[m.next.chain] + " file" : "Next step"),
+        button(m.next.label, primary, { class: "btn primary security-primary", "data-key": "security-primary" }))),
     f.storageIssue || f.reportIssue ? el("div", { class: "security-progress-issue", role: "status" },
       f.storageIssue ? paragraph(f.storageIssue) : null,
       f.reportIssue ? paragraph(f.reportIssue) : null) : null);
@@ -113,19 +118,20 @@ const remoteProgress = (m) => m.total === null ? m.reported + " files reported c
 const metric = (label, value, detail) => el("div", {}, el("dt", {}, label),
   el("dd", {}, value), el("dd", { class: "security-metric-detail" }, paragraph(detail)));
 
-function signerRow(s, f, actions) {
+function signerRow(s, f, actions, nextDevice) {
   const id = "security-signer-" + s.id, [status, tone] = signerRecoveryStatus(s);
   const file = (chain) => recoveryFileRow(s, chain, actions);
-  return el("article", { class: "security-signer" },
-    badge(status, tone, { class: "security-status security-status--" + tone + " security-signer-status", id: id + "-status" }),
+  return el("article", { class: "security-signer", "data-next-device": s.id === nextDevice ? "true" : null },
     el("details", { id },
       el("summary", { "aria-describedby": id + "-status", "data-key": id + "-summary" },
-        el("span", { class: "security-device-avatar", "aria-hidden": "true" }, icon(s.local ? "browser" : "key")),
+        el("span", { class: "security-device-avatar", "aria-hidden": "true" }, String(s.id).padStart(2, "0")),
         el("span", { class: "security-signer-name" },
           el("strong", {}, (s.label || "Device") + " · " + s.id),
           el("span", {}, "Device " + s.id + " · " + (s.rosterUnknown ? "Reading device details…"
             : s.local ? "This browser" : s.joined ? "Location unknown" : "Not joined")),
-          el("span", { class: "security-signer-chains" }, "Zcash" + (s.sol ? " · Solana" : ""))),
+          el("span", { class: "security-file-previews" },
+            filePreview(s, "zec"), s.sol ? filePreview(s, "sol") : null)),
+        badge(status, tone, { class: "security-status security-status--" + tone + " security-signer-status", id: id + "-status" }),
         el("span", { class: "security-details-link" }, el("span", { class: "security-details-closed" }, "View details"),
           el("span", { class: "security-details-open" }, "Hide details"), el("span", { "aria-hidden": "true" }, icon("chevronDown")))),
       el("div", { class: "security-signer-body" },
@@ -136,6 +142,12 @@ function signerRow(s, f, actions) {
           fact("Zcash address", s.address)),
         el("h4", {}, "Recovery files"), file("zec"), s.sol ? file("sol") : null,
         !s.local ? paragraph("Other devices’ progress is self-reported. This browser has not opened their files. Save or check a file in the browser holding that share.", "security-file-help") : null)));
+}
+
+// Existing file-status wording remains authoritative; a remote report is never a local check.
+function filePreview(s, chain) {
+  return el("span", { class: "security-file-preview" }, el("span", {}, CHAIN[chain]),
+    el("span", {}, s.rosterUnknown ? "Reading device details…" : recoveryFileStatus(s[chain], s.local)));
 }
 
 const fact = (title, value) => el("div", {}, el("dt", {}, title), el("dd", {}, value));

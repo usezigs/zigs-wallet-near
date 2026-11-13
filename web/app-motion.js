@@ -1,4 +1,5 @@
 // Presentation only. These short-lived observations never authorize or advance wallet work.
+import { presentPaymentExperience } from "./payment-experience.js";
 const BRAND_KEY = "zigs-ui-brand-arrived-v1";
 const PASSKEY_ARRIVAL_MS = 1800;
 const CLASSES = ["motion-content-enter", "motion-dialog-enter", "motion-complete-enter",
@@ -78,7 +79,7 @@ function browserStorage() {
 }
 
 function browserMedia() {
-  try { return globalThis.matchMedia?.("(prefers-reduced-motion: reduce)"); }
+  try { return globalThis.matchMedia?.("(prefers-reduced-motion: reduce),(update:slow),(forced-colors:active)"); }
   catch { return null; }
 }
 
@@ -239,6 +240,20 @@ export function createMotionController({ document, storage = null, media = null,
   const add = (node, name) => {
     if (!allowed() || !safeNode(node, document)) return;
     node.classList.add(name); active.add(node);
+    const beam = name === "motion-complete-enter" && node.querySelector(".approval-node-beam");
+    const joinedDevice = name === "motion-complete-enter" && node.matches(".setup-device-mark");
+    const animate = globalThis.zigsGlass?.animate;
+    if ((beam || joinedDevice) && animate) {
+      try {
+        const playback = beam ? animate(beam, { strokeDashoffset: [100, -100], opacity: [0, 1, 1, 0] },
+          { duration: .72, ease: "linear" }) : animate(node, { transform: ["scale(.96)", "none"] },
+          { duration: .24, ease: [.18, .8, .22, 1] });
+        (beam || node).setAttribute("data-motion-library", "motion");
+        const effect = { cancel: () => playback.cancel() };
+        animations.add(effect);
+        Promise.resolve(playback).then(() => animations.delete(effect), () => animations.delete(effect));
+      } catch { /* The static recorded state remains readable. */ }
+    }
   };
   const visibility = () => {
     document.documentElement?.classList.toggle("motion-document-hidden", !!document.hidden);
@@ -351,5 +366,6 @@ export function presentMotion(parts) {
       storage: browserStorage(), media: browserMedia() });
     controller.present(parts);
     walletPicker?.measure();
+    presentPaymentExperience(parts);
   } catch { /* A presentation effect must never interfere with the wallet render or its focus. */ }
 }

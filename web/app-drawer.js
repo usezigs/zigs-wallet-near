@@ -31,6 +31,7 @@ import { swapDeadline, swapReview } from "./app-swap-zec.js";
 import { zecApprovalMotionValue } from "./app-motion.js";
 import { ApprovalVisualization } from "./app-approval-visualization.js";
 import { walletAvatarFor } from "./app-wallet-identity.js";
+import { paymentJourney } from "./payment-experience.js";
 
 // The expiry of an open payment, or why an expired one ends here. The engine counts from the
 // last sync, so the time since that sync comes off. A height from saved state gives no time.
@@ -331,12 +332,16 @@ function holdLeft(end) {
 function sessionDrawer(ss) {
   const ins = inspectOf(ss), refused = ins && ins.error, rc = recipientCheck(ss, ins);
   const read = refused ? null : ins;
-  return el("div", { class: "drawer approval-review", role: "dialog", "aria-modal": "true", "aria-label": "Payment details" },
+  const paymentView = ui.tab === "activity" ? "record" : "approve";
+  return el("div", { class: "drawer approval-review payment-surface", "data-payment-view": paymentView,
+    role: "dialog", "aria-modal": "true", "aria-label": "Payment details" },
     el("div", { class: "drawer-head" }, el("div", { class: "review-heading" },
-    el("h2", {}, "Review payment"),
+    el("span", { class: "label" }, paymentView === "record" ? "Activity record" : "Transaction review"),
+    el("h2", {}, paymentView === "record" ? "Payment record" : "Review payment"),
     statusChip(ss, enoughApprovals())),
       closeBtn()),
     el("div", { class: "drawer-body" },
+      paymentJourney(el, paymentView),
       el("div", { class: "review-warnings", "data-review": "warnings" },
         ...notes(ss, refused, rc)),
       guard(headline, ss, refused, rc),
