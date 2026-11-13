@@ -198,10 +198,10 @@ function sideTree(dataset = {}) {
     assert.equal(note, null, "the side list omits the recurring release warning");
     const swapItem = (dataset) => textOf(findNode(sideTree(dataset),
       (n) => n.attrs?.["data-key"] === "tab-swap"));
-    assert.equal(swapItem(), "Swap, Quotes",
-      "the Swap item of the side list says Quotes on a server with no live swap");
-    assert.equal(swapItem({ nearLive: "1" }), "Swap, Live",
-      "the Swap item of the side list says Live on a server with the live swap");
+    assert.equal(swapItem(), "Swap",
+      "the Swap item keeps the short label on a server with no live swap");
+    assert.equal(swapItem({ nearLive: "1" }), "Swap",
+      "the Swap item keeps the same label on a server with live swap");
     for (const origin of ["https://wallet.example:8792/", "http://localhost:8794/",
       "http://localhost:8795/", "https://localhost/", "not a URL"]) {
       location.href = origin;
@@ -3088,8 +3088,8 @@ assert.equal(quickCode(null), null);
     const brand = findNode(card, (n) => n.className === "welcome-brand");
     const mark = findNode(brand, (n) => n.tag === "img");
     assert.equal(brand.attrs["aria-hidden"], "true", "the brand object adds no security claim");
-    assert.equal(mark.attrs.src, "/assets/brand/hero-zebra.png?v=e2a70c42c377",
-      "the original zebra artwork is reused separately from the fingerprint header logo");
+    assert.equal(mark.attrs.src, "/assets/brand/hero-zebra-rest.webp?v=rest-1",
+      "the resting zebra portrait stays separate from the fingerprint header logo");
     assert.equal(mark.attrs.alt, "", "the repeated decorative logo has no spoken label");
     assert.equal(findNode(brand, (n) => n.className === "welcome-object-caption"), null,
       "the zebra stands alone without a repeated shared-wallet caption");

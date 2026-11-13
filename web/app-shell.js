@@ -636,7 +636,7 @@ function welcome(off, restoreLink) {
     el("header", { class: "home-masthead" }),
     el("div", { class: "welcome-main home-hero", "data-home-hero": "" },
       el("div", { class: "welcome-brand", "aria-hidden": "true" },
-        el("img", { class: "home-hero-art", src: "/assets/brand/hero-zebra.png?v=e2a70c42c377", alt: "",
+        el("img", { class: "home-hero-art", src: "/assets/brand/hero-zebra-rest.webp?v=rest-1", alt: "",
           width: "1254", height: "1254", decoding: "async", draggable: "false" })),
       el("div", { class: "welcome-intro" },
         el("h1", { id: "welcome-title" }, wallets ? "Shared wallets" : "Your assets",

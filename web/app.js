@@ -28,6 +28,8 @@ import "./wallet-avatar-svg.js";
 import "./payment-model.js";
 import "./error-feedback.js";
 import "./premium-motion.js";
+import "./homepage-scene.js";
+import "./homepage-motion.js";
 import "./approvals-model.js";
 import "./outcome-seal.js";
 

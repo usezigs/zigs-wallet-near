@@ -121,7 +121,7 @@ class HomepageMotion {
     if (current !== this.current || !current.scene) return;
     try {
       current.scene.resize(current.host.getBoundingClientRect().width, this.win.devicePixelRatio);
-      this.draw(current);
+      if (current.visible && this.permitsMotion()) this.draw(current);
     } catch { this.fail(current); }
   }
 

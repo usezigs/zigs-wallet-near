@@ -280,6 +280,18 @@
     },
     "web/test/proposal-history.mjs": {
       "exit": 0
+    },
+    "web/test/swapflow.mjs": {
+      "exit": 0
+    },
+    "web/test/near-confidential.mjs": {
+      "exit": 0
+    },
+    "web/test/hackathon-swap.mjs": {
+      "exit": 0
+    },
+    "web/test/sol-swap-proposal.mjs": {
+      "exit": 0
     }
   },
   "hashes": {

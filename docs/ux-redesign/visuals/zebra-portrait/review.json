@@ -1,0 +1,126 @@
+{
+  "checks": [
+    {
+      "pass": true,
+      "name": "eyelid texture decoded"
+    },
+    {
+      "pass": true,
+      "name": "one live portrait"
+    },
+    {
+      "pass": true,
+      "name": "no pause button"
+    },
+    {
+      "pass": true,
+      "name": "live animation is bounded below 40 draws per second"
+    },
+    {
+      "pass": true,
+      "name": "blink changes the rendered eye"
+    },
+    {
+      "pass": true,
+      "name": "blink leaves the closed mouth unchanged"
+    },
+    {
+      "pass": true,
+      "name": "ear pivot changes the ear silhouette"
+    },
+    {
+      "pass": true,
+      "name": "mane motion changes the mane tips"
+    },
+    {
+      "pass": true,
+      "name": "breathing visibly expands the chest and neck"
+    },
+    {
+      "pass": true,
+      "name": "breathing keeps the portrait base planted"
+    },
+    {
+      "pass": true,
+      "name": "viewer glance changes the rendered head pose"
+    },
+    {
+      "pass": true,
+      "name": "head turn keeps the portrait base planted"
+    },
+    {
+      "pass": true,
+      "name": "portrait renders a subdivided 3D surface"
+    },
+    {
+      "pass": true,
+      "name": "wallet entry remains interactive after redraw"
+    },
+    {
+      "pass": true,
+      "name": "hidden page stops drawing"
+    },
+    {
+      "pass": true,
+      "name": "visible page resumes drawing"
+    },
+    {
+      "pass": true,
+      "name": "context loss restores the resting portrait"
+    },
+    {
+      "pass": true,
+      "name": "no overflow at 320px"
+    },
+    {
+      "pass": true,
+      "name": "no motion button at 320px"
+    },
+    {
+      "pass": true,
+      "name": "no overflow at 390px"
+    },
+    {
+      "pass": true,
+      "name": "no motion button at 390px"
+    },
+    {
+      "pass": true,
+      "name": "no overflow at 768px"
+    },
+    {
+      "pass": true,
+      "name": "no motion button at 768px"
+    },
+    {
+      "pass": true,
+      "name": "reduced motion uses the still"
+    },
+    {
+      "pass": true,
+      "name": "reduced motion avoids the eyelid download"
+    },
+    {
+      "pass": true,
+      "name": "unavailable WebGL keeps the still"
+    }
+  ],
+  "errors": [],
+  "facts": [
+    {
+      "liveDraws": 682,
+      "recordedSeconds": 22.5
+    },
+    {
+      "eyeChange": 321357,
+      "mouthChange": 0,
+      "earChange": 616723,
+      "maneChange": 810279,
+      "chestChange": 5216565,
+      "anchoredBaseChange": 0,
+      "headTurnChange": 6904864,
+      "headTurnBaseChange": 0,
+      "indexBytes": 196608
+    }
+  ]
+}
