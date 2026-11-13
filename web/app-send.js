@@ -11,7 +11,7 @@ import { gkeys } from "./app-keystore.js";
 import { DRAFT_MS, draftLive, draftOf, emptyForm, reviewFresh } from "./payment-model.js";
 import { addrHidden, curChain, curNet, netName } from "./app-chain.js";
 import {
-  act, addrGroups, copyBtn, el, groupName, memoRow, money, normalized, noteFor, onNetwork,
+  act, addrGroups, copyBtn, dialogForm, el, groupName, memoRow, money, normalized, noteFor, onNetwork,
   payeeOnNetwork, qrBox, receiveAddress, setNote, transparentOnNetwork,
 } from "./app-dom.js";
 import {
@@ -38,7 +38,7 @@ const TOO_MANY = "A payment can have at most " + MAX_PAYEES + " recipients.";
 // The title of a dialog, with the network of the open wallet under it. The name comes from the
 // wallet, so a mainnet wallet still reads Mainnet (D3).
 const dialogTitle = (id, text, net = "Zcash " + curNet().label) =>
-  el("div", { style: "display:grid;gap:6px;justify-items:start" },
+  el("div", { class: "payment-dialog-context" },
     el("h2", { id }, text),
     el("span", { class: "wallet-context-label small muted" }, walletAvatarFor(state.g),
       el("span", {}, groupName(state.gid))),
@@ -305,8 +305,8 @@ function payRow(r, i, rows, sumUp) {
       to.focus();
     } });
   return el("div", { class: "pay-row" }, el("div", { class: "pay-recipient-field" },
-    labelled(toLabel() + n, to), saved), amount, remove, hint,
-    amountNote, memoBox(r, n));
+    labelled(toLabel() + n, to), hint, saved),
+  el("div", { class: "pay-amount-field" }, amount, amountNote), remove, memoBox(r, n));
 }
 
 // Shows the bytes of a memo once it comes near the limit, and says why a memo cannot be sent.
@@ -722,7 +722,7 @@ export function sendDialog() {
     total.replaceChildren(money(rows.reduce((n, r) => n + (toZat(r.amt) || 0), 0) + f));
   };
   const why = sendBlocker();
-  const f = el("form", { class: "dialog payment-flow payment-compose", role: "dialog", "aria-modal": "true",
+  const f = dialogForm({ class: "dialog payment-flow payment-composer", role: "dialog", "aria-modal": "true",
     "aria-labelledby": "send-title", oninput: typed, onchange: typed, onclick: keepDraft,
     onsubmit: inDialog((ev) => submitSend(rows, spendable, why, ev)) },
     el("div", { class: "card-head" }, dialogTitle("send-title", "Send ZEC"), closeX()),

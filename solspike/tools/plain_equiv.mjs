@@ -20,9 +20,9 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const VECTORS = path.join(ROOT, "wasm-sol/vectors/plain");
 const WASM_DIR = "web/sol/wasm";
 const EXT = ["msg", "intent", "pins", "chain"];
@@ -39,8 +39,8 @@ const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 const S = JSON.stringify;
 const J = JSON.parse;
 
-/** The base of slice 8: the pool group reads its smoke vectors at this commit. */
-export const POOL_REF = "69803a1d";
+/** Slice 8 base in this history; same pinned wasm bytes as the legacy ref 69803a1d. */
+export const POOL_REF = "9688a60bc6bd39c8a6fa2fde38c7c9e386c44a00";
 /** The groups of calls, in the order that they run. */
 export const GROUPS = ["plain", "keyed", "mixed", "pool"];
 const DEVNET_GENESIS = "ce59db5080fc2c6d3bcf7ca90712d3c2e5e6c28f27f0dfbb9953bdb0894c03ab";
@@ -550,6 +550,6 @@ async function main() {
   process.exit(unexpected.length ? 1 : 0);
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === new URL(import.meta.url).pathname) {
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   await main();
 }

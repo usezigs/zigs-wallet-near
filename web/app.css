@@ -413,9 +413,9 @@ a.row-item { text-decoration: none; }
   border-radius: var(--r-sheet); box-shadow: var(--shadow), inset 0 1px 0 var(--edge);
   padding: var(--panel-pad); display: grid; gap: var(--section-gap);
 }
-.dialog>.card-head:has(>.icon-btn:last-child) { display:grid;
+:is(.dialog,.dialog-form)>.card-head:has(>.icon-btn:last-child) { display:grid;
   grid-template-columns:minmax(0,1fr) 48px; align-items:start; }
-.dialog>.card-head:has(>.icon-btn:last-child)>:first-child { min-width:0; }
+:is(.dialog,.dialog-form)>.card-head:has(>.icon-btn:last-child)>:first-child { min-width:0; }
 .dialog h2 { font-size: 24px; line-height: 1.25; letter-spacing: -0.035em; }
 .field { display: grid; gap: 6px; min-width: 0; }
 .field > span { font-size: 13px; font-weight: 550; color: var(--muted); }
@@ -645,8 +645,8 @@ body:has(.drawer-foot) #banner { bottom: calc(104px + env(safe-area-inset-bottom
   .drawer-head, .drawer-body, .drawer-foot { padding-inline: 20px; }
   .drawer-foot { background: var(--sheet); }
   /* The buttons of a long dialog stay in view at the bottom of the sheet. */
-  .dialog:has(> .dialog-actions:last-child) { padding-bottom: 0; }
-  .dialog > .dialog-actions:last-child {
+  .dialog:has(> .dialog-actions:last-child,> .dialog-form > .dialog-actions:last-child) { padding-bottom: 0; }
+  :is(.dialog,.dialog-form) > .dialog-actions:last-child {
     position: sticky; bottom: 0; z-index: 1; background: var(--sheet);
     padding: 12px 0 calc(16px + env(safe-area-inset-bottom, 0px));
     border-top: 1px solid var(--line);
@@ -928,9 +928,9 @@ body { margin:0; background:var(--bg); color:var(--text); font:var(--font-body);
 .btn.ghost { box-shadow:none; }
 .btn.danger { background:var(--bad-soft); color:var(--bad); border-color:var(--bad); }
 .dialog { grid-template-columns:minmax(0,1fr); border-color:var(--line-2); box-shadow:var(--shadow),inset 0 1px 0 var(--edge); }
-.dialog>*,.dialog .card-head>*,.pay-row,.pay-row>* { min-width:0; }
+:is(.dialog,.dialog-form)>*,.dialog .card-head>*,.pay-row,.pay-row>* { min-width:0; }
 .dialog .input { max-width:100%; }
-.dialog>.card-head { padding-bottom:16px; border-bottom:1px solid var(--line); }
+:is(.dialog,.dialog-form)>.card-head { padding-bottom:16px; border-bottom:1px solid var(--line); }
 .input::placeholder { color:var(--muted); opacity:1; }
 .recipient-page,.recipient-book,.recipient-form,.recipient-picker { display:grid; gap:20px; min-width:0; }
 .recipient-toolbar { display:flex; flex-wrap:wrap; align-items:end; gap:12px; }
@@ -1066,7 +1066,7 @@ body { margin:0; background:var(--bg); color:var(--text); font:var(--font-body);
 .device-protection { display:grid; gap:12px; padding:20px; border:1px solid var(--line); border-radius:var(--r); background:var(--panel); }
 .device-protection>.btn { justify-self:start; }
 .dialog.guided-plan { top:0; left:0; transform:none; width:100%; height:var(--visual-height,100dvh); max-height:var(--visual-height,100dvh); border-radius:0; padding:24px max(24px,calc((100vw - 840px)/2)); align-content:start; background:var(--bg); }
-.guided-plan>.card-head { order:0; }
+.guided-plan>.dialog-form>.card-head { order:0; }
 .guided-plan .guide-step { gap:var(--space-5); padding:var(--panel-pad);
   background:var(--panel); border:1px solid var(--line); border-radius:var(--r); }
 .guided-plan .guide-step>h3 { font-size:clamp(24px,3.5vw,32px); line-height:1.25; }
@@ -1190,7 +1190,7 @@ body { margin:0; background:var(--bg); color:var(--text); font:var(--font-body);
 .dialog:is([aria-labelledby="send-title"],[aria-labelledby="review-title"],[aria-labelledby="move-title"])>.security-explanation,
 .dialog[aria-labelledby="recv-title"]>.security-explanation { padding:var(--space-2) 0 var(--space-2) var(--space-3);
   background:var(--panel); border-left:2px solid var(--line-2); border-radius:0; gap:var(--space-2); }
-.dialog>.security-explanation>.symbol { width:24px; height:24px; flex-basis:24px; }
+:is(.dialog,.dialog-form)>.security-explanation>.symbol { width:24px; height:24px; flex-basis:24px; }
 .dialog[aria-labelledby="recv-title"] .addr-full,.dialog[aria-labelledby="review-title"] .review-row .hex,
 .drawer .to-box .hex,.drawer .review-values,
 .sol-review .hex { font-size:.875rem; line-height:1.7; overflow-wrap:anywhere; }
@@ -1424,7 +1424,7 @@ summary { min-height:48px; align-content:center; cursor:pointer; }
 }
 
 /* Motion classes are added only to newly observed presentation states, never to whole pages. */
-@keyframes motion-content-in { from { opacity:.75; transform:translateY(6px); }
+@keyframes motion-content-in { from { opacity:1; transform:translateY(6px); }
   to { opacity:1; transform:translateY(0); } }
 @keyframes utility-in { from { opacity:.9; } to { opacity:1; } }
 @media(max-width:760px) {
@@ -2222,7 +2222,7 @@ h1,h2,h3 { letter-spacing:-.025em; }
   .motion-brand-arrive { animation:none!important; }
 }
 .dialog.guided-plan { padding-inline:max(24px,calc((100vw - 1040px)/2)); gap:16px; }
-.guided-plan>.card-head { padding-bottom:8px; }
+.guided-plan>.dialog-form>.card-head { padding-bottom:8px; }
 .guided-plan .guide-step { gap:10px; padding:16px; }
 .guided-plan .guide-step:has(#create-step-1)>p { max-width:none; }
 .setup-protection-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr);
@@ -2292,8 +2292,7 @@ h1,h2,h3 { letter-spacing:-.025em; }
 .threshold-layout .security-nodes { grid-template-columns:repeat(auto-fit,minmax(100px,1fr)); gap:12px; }
 .threshold-layout .security-node { padding:12px 8px; gap:10px; border-radius:14px;
   background:var(--panel); }
-.threshold-layout .security-node.example-selected { box-shadow:inset 0 0 0 2px var(--accent-text),
-  0 0 16px var(--accent-edge); }
+.threshold-layout .security-node.example-selected { box-shadow:inset 0 0 0 2px var(--accent-text); }
 .threshold-layout .security-node-mark { width:44px; height:44px; border-radius:12px; }
 .threshold-layout .security-node-copy { gap:3px; }
 .threshold-layout .security-node-copy>.small { font-size:13px; }

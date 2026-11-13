@@ -14,7 +14,7 @@ try {
   const page = await context.newPage();
   page.on("pageerror", (e) => report.errors.push(e.message));
   await overviewFixture(context, page);
-  for (const scene of ["payment-progress", "restore-checking", "swap-history", "solana-history"]) {
+  for (const scene of ["payment-progress", "restore-checking", "restore-unloaded", "swap-history", "solana-history"]) {
     await page.evaluate(async (scene) => {
       const { state } = await import("/app-state.js");
       const { el } = await import("/app-dom.js");
@@ -27,10 +27,15 @@ try {
           root.append(el("section", { class: "card" }, outcomePanel({ ...stageHeadline(facts),
             next: paymentNextStep(stage, { proposer: "device 2 (Laptop)", pendingSigners: ["device 1 (Phone)", "device 3 (Reserve)"] }) })));
         }
-      } else if (scene === "restore-checking") {
+      } else if (scene.startsWith("restore-")) {
         const backups = await import("/app-backups.js");
         backups.restoreWatch.set(state.gid + ":2", { gid: state.gid, seat: 2 });
-        root.append(el("h1", {}, "Recovery"), backups.restoreProgressNote());
+        if (scene === "restore-unloaded") {
+          const g = state.g;
+          state.g = null;
+          root.append((await import("/app-wallet.js")).groupView());
+          state.g = g;
+        } else root.append(el("h1", {}, "Recovery"), backups.restoreProgressNote());
         backups.restoreWatch.clear();
       } else if (scene === "swap-history") {
         const { createSwapPreview } = await import("/app-swap-preview.js");
@@ -64,7 +69,7 @@ try {
       document.getElementById("app").replaceChildren(root);
     }, scene);
     await settleOverview(page);
-    if (scene === "restore-checking") await page.locator('[data-restore-progress="checking"]').waitFor();
+    if (scene.startsWith("restore-")) await page.locator('[data-restore-progress="checking"]').waitFor();
     if (scene === "swap-history") {
       await page.getByRole("button", { name: "Done", exact: true }).click();
       const history = page.locator("[data-swap-history]");

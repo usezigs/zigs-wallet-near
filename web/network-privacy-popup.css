@@ -15,7 +15,7 @@ body:has(#privacy-demo-popup[open]) { overflow:hidden; }
 .pp-sr { position:absolute; top:0; left:0; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
 .privacy-demo-popup { box-sizing:border-box; width:min(536px,calc(100% - 32px)); max-height:calc(100dvh - 32px);
   overflow:auto; overscroll-behavior:contain; padding:30px; border:1px solid var(--line-2); border-radius:28px;
-  background:radial-gradient(ellipse at 12% 0%,var(--premium-glow),transparent 58%),var(--sheet);
+  background:var(--sheet);
   color:var(--text); box-shadow:0 32px 100px -24px #0009,inset 0 1px var(--edge);
   font:400 14px/1.6 var(--sans); scrollbar-width:thin; }
 .privacy-demo-popup[open] { animation:pp-modal-arrive var(--motion-dialog) var(--ease) both; }
@@ -26,7 +26,7 @@ body:has(#privacy-demo-popup[open]) { overflow:hidden; }
   letter-spacing:-.045em; font-weight:450; outline:none; text-wrap:balance; }
 .pp-popup-top { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:28px; }
 .pp-kicker { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
-.pp-eyebrow { font-size:13px; font-weight:600; color:var(--muted); }
+.pp-eyebrow { font-size:13px; font-weight:500; color:var(--muted); }
 .pp-preview-label { border:1px solid var(--accent-edge); padding:3px 8px; border-radius:999px;
   background:var(--accent-soft); color:var(--accent-text); font-size:13px; line-height:1.4; }
 .pp-close { display:grid; place-items:center; width:48px; height:48px; flex-shrink:0;

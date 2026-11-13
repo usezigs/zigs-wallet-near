@@ -1,17 +1,14 @@
-// The colour tokens the page uses: web/design-system.css with the tokens of
-// web/site-refinement.css over it, as the page loads them. Every text colour reads at 4.5:1 or
-// more (WCAG AA for normal text) on every surface; the edge of a card, a field or a tick box at
-// 3:1 or more (WCAG 1.4.11), in the dark and in the light palette; and the two copies of each
-// light palette stay the same. Translucent colours are put over the surface below them.
+// The single palette in design-system.css. Text reaches 4.5:1 on every surface; functional
+// field/control boundaries and focus indicators reach 3:1. Decorative card separators are not
+// controls and use the quiet line tokens. Both ways of selecting light mode must agree.
 // Run: node web/test/contrast.mjs   (Node 26)
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const css = readFileSync(new URL("../design-system.css", import.meta.url), "utf8");
-const refined = readFileSync(new URL("../site-refinement.css", import.meta.url), "utf8");
 const appCss = readFileSync(new URL("../app.css", import.meta.url), "utf8");
 const MIN = 4.5, MIN_EDGE = 3;
-const TEXTS = ["text", "muted", "accent-text", "ok", "bad", "info", "warning"];
+const TEXTS = ["text", "muted", "quiet", "accent-text", "ok", "bad", "info", "warning"];
 const SURFACES = ["bg", "side", "panel", "raised", "sunk", "sheet"];
 const MARKS = ["text", "ok", "bad", "accent-text", "warning", "info"];
 const SOFT = { ok: "ok-soft", bad: "bad-soft", info: "info-soft", warning: "warning-soft",
@@ -68,30 +65,37 @@ function pairs(t) {
   }
   out.push(["on-accent on accent", ratio(rgba(t["on-accent"]), rgba(t.accent))]);
   for (const text of ["on-portfolio", "on-portfolio-muted"])
-    out.push([text + " on graphite", ratio(rgba(t[text]), rgba(t["portfolio-bg"]))]);
-  for (const base of ["#000000", "#ffffff", "#ee9d70", "#181c23", t.accent])
-    for (const text of TEXTS.slice(0, 3))
-      out.push([text + " on glass over " + base,
-        ratio(rgba(t[text]), over(rgba(t.glass), rgba(base)))]);
+    out.push([text + " on balance panel", ratio(rgba(t[text]), rgba(t["portfolio-bg"]))]);
+  return out.concat(glassPairs(t));
+}
+
+function glassPairs(t) {
+  const out = [];
+  for (const surface of ["glass", "floating-glass"])
+    for (const base of ["#000000", "#ffffff", "#ee9d70", "#181c23", t.accent])
+      for (const text of ["text", "muted", "quiet", "accent-text"])
+        out.push([text + " on " + surface + " over " + base,
+          ratio(rgba(t[text]), over(rgba(t[surface]), rgba(base)))]);
   return out;
 }
 
-// The edge of a field, a tick box or a button on the surfaces that hold them; the edge of a card
-// (line) or a dialog (line-2) on the page, the side bar and the card itself; and the edge of the
-// graphite hero and portfolio cards on their own fill.
+// Boundaries that identify functional controls, plus keyboard focus. Quiet noninteractive
+// card outlines are decorative; requiring 3:1 there makes every container compete with text.
 function edges(t) {
   const bg = rgba(t.bg).slice(0, 3);
   const on = (line, surfaces) => surfaces.map((s) =>
     [line + " on " + s, ratio(rgba(t[line]), over(rgba(t[s]), bg))]);
   const holders = ["sunk", "panel", "raised", "sheet"];
-  const pages = ["bg", "side", "panel", "sheet"];
   return [...on("line-field", holders), ...on("control-line", holders),
-    ...on("button-line", holders), ...on("line", pages), ...on("line-2", pages),
-    ...on("hero-edge", ["hero-hi", "hero-lo"]), ...on("portfolio-line", ["portfolio-bg"])];
+    ...on("button-line", holders), ...on("focus", SURFACES),
+    ...on("portfolio-control-line", ["portfolio-control"]),
+    ...on("portfolio-focus", ["portfolio-bg"])];
 }
 
 function buttonPairs(t) {
   const result = [];
+  for (const surface of ["primary", "primary-hover"])
+    result.push(["on-primary on " + surface, ratio(rgba(t["on-primary"]), rgba(t[surface]))]);
   for (const surface of ["accent", "accent-hi", "accent-pressed", "raised", "control-hover"]) {
     const text = surface.startsWith("accent") ? "on-accent" : "muted";
     for (const overlay of ["button-sheen", "button-shade"])
@@ -125,16 +129,11 @@ function transientPairs(t, colors, opacity) {
 
 const contentOpacity = initialOpacity("motion-content-in");
 const markOpacity = initialOpacity("motion-mark-in");
-const dark = { ...tokens(css, ":root {"), ...tokens(refined, ":root{") };
-const light = { ...tokens(css, ':root[data-theme="light"] {'),
-  ...tokens(refined, ":root[data-theme=light]{") };
+const dark = tokens(css, ":root {");
+const light = tokens(css, ':root[data-theme="light"] {');
 assert.deepEqual(tokens(css, ':root:not([data-theme="dark"]) {'),
   tokens(css, ':root[data-theme="light"] {'),
   "design-system.css: the light palette of the browser setting is the light palette of the choice");
-assert.deepEqual(tokens(refined, ":root:not([data-theme=dark]){"),
-  tokens(refined, ":root[data-theme=light]{"),
-  "site-refinement.css: the light palette of the browser setting is the light palette of the "
-    + "choice");
 const below = (list, min) =>
   list.filter(([, r]) => r < min).map(([k, r]) => k + " " + r.toFixed(2));
 for (const [name, palette] of [["dark", dark], ["light", { ...dark, ...light }]]) {

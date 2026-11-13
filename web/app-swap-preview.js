@@ -284,8 +284,9 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     el('div', { class: 'swap-topline' }, headTag),
     el('h1', { id: 'swap-page-title' }, 'Swap'), subtitle),
 
-  el('div', { class: 'swap-panel', id: 'swap-panel-private', role: 'tabpanel',
-    'aria-labelledby': 'swap-tab-private', tabindex: '0' },
+  el('div', { class: 'swap-panel', id: 'swap-panel-private', role: source.demo === true ? 'tabpanel' : 'region',
+    'aria-labelledby': source.demo === true ? 'swap-tab-private' : 'swap-page-title',
+    tabindex: source.demo === true ? '0' : null },
   deposit,
   el('div', { class: 'swap-grid' },
     el('section', { class: 'swap-composer', 'aria-label': 'Swap composer' },

@@ -17,7 +17,7 @@
   }
 }
 .dialog.payment-flow {
-  width:min(760px,calc(100vw - 48px)); max-height:calc(100dvh - 48px);
+  width:min(760px,calc(100vw - 48px)); max-height:calc(var(--visual-height,100dvh) - 48px);
   padding:28px; gap:24px; border:1px solid var(--pay-line); border-radius:16px;
   background:var(--pay-ground); box-shadow:0 16px 48px #0002;
 }
@@ -35,7 +35,7 @@
 .payment-flow .field>label,.payment-flow .field>span { font-size:14px; }
 :is(.payment-flow,.approval-review,.payment-inline-form) .input {
   min-height:48px; border:1px solid var(--pay-control-line); border-radius:8px;
-  background:var(--pay-raised); color:var(--pay-ink); box-shadow:none; font-size:14px;
+  background:var(--pay-raised); color:var(--pay-ink); box-shadow:none; font-size:16px;
 }
 :is(.payment-flow,.approval-review,.payment-inline-form) .input:focus {
   box-shadow:none; outline:2px solid var(--focus); outline-offset:2px;
@@ -161,13 +161,19 @@
 .sol-review :is(.privacy-notice,.callout) { border-radius:8px; box-shadow:none; }
 .payment-inline-form { padding-block:16px; }
 @media(max-width:600px) {
-  .dialog.payment-flow { width:100%; max-height:100dvh; padding:20px; border:0; border-radius:0; gap:24px; }
+  .dialog.payment-flow {
+    width:100%; max-height:calc(var(--visual-height,100dvh) - 24px - env(safe-area-inset-top,0px));
+    padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px)); border:0; border-radius:0; gap:24px;
+  }
   .payment-flow h2,.approval-review .review-heading h2 { font-size:24px; }
   .payment-flow .summary { font-size:13px; }
   .payment-flow .summary>div { align-items:flex-start; }
   .payment-flow .summary>div>span:first-child { max-width:60%; }
   .payment-flow .review-hero .money.lg { font-size:32px; }
-  .drawer.approval-review { inset:0; width:100%; max-height:100dvh; border:0; border-radius:0; }
+  .drawer.approval-review {
+    top:auto; right:0; bottom:var(--keyboard-inset,0px); left:0; width:100%;
+    max-height:calc(var(--visual-height,100dvh) - 12px); border:0; border-radius:0;
+  }
   .approval-review :is(.drawer-head,.drawer-body,.drawer-foot) { padding:20px; }
   .approval-review .transaction-receipt .leaves .money.lg { font-size:32px; }
   .approval-review .pay-status[data-outcome-kind] { padding:16px; }

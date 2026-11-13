@@ -42,7 +42,8 @@ const fixtureScript = (
   + " select.value = value;\n  draw();\n}\nselect.addEventListe"
   + "ner('change', () => scene(select.value));\nglobalThis.pr"
   + "ivacyMenuFixture = { state, ui, draw, scene "
-  + "};\nscene('welcome');\ninstallPrivacyPopup();\n"
+  + "};\nwhile (!document.getElementById('app')) await new Promise(requestAnimationFrame);\n"
+  + "scene('welcome');\ninstallPrivacyPopup();\n"
 );
 const fixtureCss = (
   "#privacy-menu-fixture{padding:12px "
@@ -56,10 +57,12 @@ const fixtureCss = (
 
 function previewBody(path, body, privacyDemo) {
   if (path === '/' && !privacyDemo) return body.toString()
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, '')
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/g,
+      (script) => script.includes('/openglass-dist/app.js') ? script : '')
     .replace(/<link[^>]+rel="(?:modulepreload|preload)"[^>]*>/g, '')
     .replace('</head>', '<link rel="stylesheet" href="/privacy-menu-fixture.css"></head>')
     + '<script type="module" src="/privacy-menu-fixture.js"></script>';
+  if (path === '/app.js') return '// UI fixture: no wallet boot.';
   if (path === '/app-loop.js') return body.toString()
     .replace('export function react() {', 'export function react() { return;');
   if (path === '/app-groups.js') return body.toString().replace('dbReady = false',

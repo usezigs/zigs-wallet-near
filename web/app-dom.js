@@ -33,6 +33,12 @@ export const el = (tag, attrs = {}, ...kids) => {
   for (const k of kids.flat()) if (k != null && k !== false) n.append(k instanceof Node ? k : document.createTextNode(String(k)));
   return n;
 };
+// Dialog semantics belong to a neutral host; the inner native form owns its inputs and submit.
+// Submit/input events bubble to the host, preserving existing handlers and native validation.
+export function dialogForm(attrs, ...kids) {
+  const { novalidate, ...host } = attrs;
+  return el("div", host, el("form", { class: "dialog-form", novalidate }, ...kids));
+}
 // One live region outside #app, which every redraw rebuilds: a status node that is new on each
 // redraw is not announced reliably, and an alert node is said again. The region stays; only its
 // text changes. app-approval-visualization.js keeps its own region the same way. The text is
@@ -91,8 +97,8 @@ export function copyBtn(text, label = "Copy", cls = "btn sm", onFailure = null) 
     }
     setTimeout(() => b.replaceChildren(icon("copy"), document.createTextNode(label)), 1500);
   };
-  return el("button", { class: cls, type: "button", onclick: copy },
-    icon("copy"), label);
+  return el("button", { class: cls, type: "button", "aria-live": "polite",
+    "aria-atomic": "true", onclick: copy }, icon("copy"), label);
 }
 
 // One bad document from another signer must not break the page: the item it feeds shows as a

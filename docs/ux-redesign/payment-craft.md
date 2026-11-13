@@ -49,3 +49,7 @@ colors, usable actions and accessible descriptions.
 Build, lint, app, approvals, outcome-seal, Solana payment and plain-account view/review
 checks passed. No live payment, fee funding or physical device authorization was used
 for this presentation review.
+
+Integration with the latest Near retains its native inner form, field-local error
+layout, payment privacy disclosure and conditional signing reminder. Payment fields
+use 16px text and retain the visual-viewport limits used when a phone keyboard opens.

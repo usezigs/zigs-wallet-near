@@ -14,7 +14,7 @@ import { joinWalletLink, openChat } from "./app-links.js";
 import { balOf, MAINNET_ON, netOf } from "./app-chain.js";
 import { canWrite, closeSession, db, dbReady, openGroup, toApprove } from "./app-groups.js";
 import {
-  act, countBadge, el, guard, money, nameField, networkPick, newBadge,
+  act, countBadge, dialogForm, el, guard, money, nameField, networkPick, newBadge,
   ruleText, unreadable, unreadChip,
 } from "./app-dom.js";
 import { contactName, contactOf, joinChat, joinLinks, unreadIn } from "./app-messages.js";
@@ -79,7 +79,9 @@ export function renderSide() {
     : ui.tab === "members" ? "recovery"
     : ui.tab === "solana" ? "overview" : ui.tab;
   nav.replaceChildren(
-    ...sectionNav(sections, selected),
+    sectionGroup("money", "Money", ["overview", "approvals", "activity", "swap"], sections, selected),
+    sectionGroup("contacts", "Contacts", ["recipients", "chats"], sections, selected),
+    sectionGroup("care", "Wallet care", ["recovery", "settings"], sections, selected),
     el("div", { class: "side-head" }, el("span", { class: "label" }, "Wallets"),
       el("button", { class: "icon-btn", type: "button", title: "New wallet", "aria-label": "New wallet", onclick: () => { ui.tab = "overview"; newWallet(); } }, icon("plus"))),
     ...testWalletEntry("sidebar"),
@@ -91,6 +93,11 @@ export function renderSide() {
   document.getElementById("wallet-menu").setAttribute("aria-expanded", ui.menu ? "true" : "false");
   lockPage(!!ui.menu && phone());
 }
+const sectionGroup = (id, title, ids, sections, selected) => el("div", {
+  class: "side-section", role: "group", "aria-labelledby": "nav-group-" + id,
+}, el("h2", { class: "side-section-label", id: "nav-group-" + id }, title),
+el("div", { class: "side-section-items" },
+  ...sectionNav(sections.filter(([key]) => ids.includes(key)), selected)));
 // The open Menu of a phone keeps the page, the skip link and the logo out of reach.
 function lockPage(on) {
   for (const s of [".main", ".skip-link", ".logo"]) document.querySelector(s).inert = on;
@@ -409,9 +416,9 @@ export function lobby() {
   }, "Recover access");
   const listed = state.groups.length > 0;
   const joins = joinLinks.size ? [el("div", { class: "callout", role: "status" },
-    el("span", {}, "A chat invitation is waiting in Chats."),
+    el("span", {}, "A chat invitation is waiting in Messages."),
     el("button", { class: "btn sm", type: "button", disabled: !state.gid,
-      title: "Select a wallet to open its Chats", onclick: () => { ui.tab = "chats"; render(); } }, "Open Chats"))] : [];
+      title: "Select a wallet to open its Messages", onclick: () => { ui.tab = "chats"; render(); } }, "Open Messages"))] : [];
   return el("div", { class: "page lobby-page lobby-home" + (listed ? "" : " lobby-empty"),
     "data-key": "home-page", tabindex: "-1" }, ...joins,
     welcome(offOf({ db: !!db }, "why-create"), restoreBtn("btn ghost")), restoreInput);
@@ -446,7 +453,7 @@ export function chatsWorkspace() {
   return messagingWorkspace();
 }
 
-const WORKSPACE_EXPLANATIONS = { Chats: "chats", Activity: "activity", Approvals: "approvals",
+const WORKSPACE_EXPLANATIONS = { Messages: "chats", Activity: "activity", Approvals: "approvals",
   "Security": "recovery", Settings: "settings" };
 const workspaceHeading = (key, title, eyebrow, text) => el("header",
   { class: "page-head workspace-heading" },
@@ -630,11 +637,11 @@ function welcome(off, restoreLink) {
         el("img", { class: "home-hero-art", src: "/assets/brand/hero-zebra.png?v=e2a70c42c377", alt: "",
           width: "1254", height: "1254", decoding: "async", draggable: "false" })),
       el("div", { class: "welcome-intro" },
-        el("h1", { id: "welcome-title" }, wallets ? "Welcome " : "Private by design. ",
-          el("span", { class: "welcome-title-accent" }, wallets ? "back." : "Secured together.")),
+        el("h1", { id: "welcome-title" }, wallets ? "Shared wallets" : "Your assets",
+          el("span", { class: "welcome-title-accent" }, wallets ? "Your rules" : "Secured together")),
         el("p", { class: "muted welcome-summary" }, wallets
-          ? "Your assets. Your approval rules. One private place to return to."
-          : "Share control of Zcash and supported Solana assets across the people and devices you trust."),
+          ? "Pick a wallet to see its assets, review payments, and coordinate with your devices."
+          : "A shared wallet for Zcash and supported Solana assets. Payments follow the approval rules you choose."),
         wallets ? null : entryPaths)),
     wallets ? el("div", { class: "home-wallet-launcher" + (wallets === 1 ? " home-launcher-single" : "") },
       walletList,
@@ -667,7 +674,7 @@ function joinWallet(heading = "h3") {
   };
   return el("section", { class: "join" }, el(heading, {}, "Join a shared wallet"),
     el("p", { class: "small muted", id: "join-help" },
-      "Paste a private invite link to open the wallet. To approve payments, join an open device slot or restore your existing device’s backup."),
+      "Paste a private invite link to open the wallet in this browser. To approve payments, join an open device slot or restore your existing device’s backup."),
     el("form", { class: "join-row", onsubmit: submit },
       el("label", { class: "field" }, el("span", {}, "Invite link"), input),
       el("button", { class: "btn", type: "submit", ...off.attrs }, "Open wallet"),
@@ -761,7 +768,7 @@ function planningNetworks() {
 const names = (from) => [nameField("my-name", "", from ? undefined : ui.createDraft?.label),
   el("label", { class: "field" }, el("span", {}, from ? "New wallet name" : "Wallet name"),
     el("input", { class: "input", id: "g-name", name: "name", maxlength: "40",
-      placeholder: from ? from.name : "Team treasury", value: from ? "" : ui.createDraft?.name ?? "",
+      placeholder: from ? from.name : "Everyday wallet", value: from ? "" : ui.createDraft?.name ?? "",
       autocomplete: "off" }))];
 // `note`: the id of the line that says what the numbers mean, for a screen reader.
 const number = (label, id, name, value, note) => el("label", { class: "field" },
@@ -790,11 +797,20 @@ function ruleCounter(label, id, name, value, help) {
     el("div", { class: "rule-counter-control" }, less, input, more),
     el("p", { class: "small muted", id: id + "-help" }, help));
 }
-const moveParts = (from, nameParts, ruleParts) => [el("ol", { class: "small muted move-steps" },
+const moveParts = (nameParts, ruleParts) => [el("ol", { class: "small muted move-steps" },
   el("li", {}, "You create a new wallet with the devices and rule you want."),
   el("li", {}, "The new devices join it with an invite link."),
-  el("li", {}, moveFundsText(from))),
+  el("li", {}, "Then move this wallet’s Zcash funds with its existing approval rule." + solStays())),
 ...nameParts, ...ruleParts];
+const replacementIntro = () => el("section", { class: "replacement-intro" },
+  el("h3", {}, "This creates a replacement wallet"),
+  el("p", {}, "The new wallet gets a new address. Devices you leave out keep their viewing access to the old wallet."));
+const replacementConsequences = (from) => el("section", { class: "replacement-consequences callout" },
+  el("h3", {}, "Before you create it"),
+  el("ul", {},
+    el("li", {}, moveFundsText(from)),
+    el("li", {}, "Devices you leave out cannot read the new wallet. They can still read each payment of this old wallet, including later payments and the move payment: the new address, amount, note and new wallet id."),
+    el("li", {}, "With that id, those devices can get the new wallet’s sealed documents from the group server. The server accepts their writes, so they can stop the new wallet with false documents.")));
 // The funds that move: Change devices moves the Zcash funds only, so a wallet with a Solana part
 // is told to check that part on its own.
 const moveFundsText = (from) => "This wallet sends its Zcash funds to the new one, in one payment "
@@ -986,9 +1002,9 @@ const ruleStep = (lines) => step(1,
     setupArrangement(ui.createDraft?.n ?? 3, ui.createDraft?.t ?? 2, "rule", ui.createDraft ?? {}),
     el("div", { class: "threshold-controls" },
       el("div", { class: "threshold-counter-pair" }, ruleCounter("Devices", "g-n", "n", ui.createDraft?.n ?? 3,
-        "Independent devices that share control."),
+        "Devices sharing control."),
       ruleCounter("Approvals needed", "g-t", "t", ui.createDraft?.t ?? 2,
-        "Devices required to approve each payment.")),
+        "Approvals required for each payment.")),
       el("div", { class: "threshold-result" }, lines.rule, lines.margin, lines.ack),
       el("details", { class: "setup-threshold-info" },
         el("summary", {}, icon("info"), el("span", {}, "How approvals work"), icon("chevronDown")),
@@ -1060,7 +1076,7 @@ function stepActions() {
     last || !entryReady ? off.note : null);
 }
 
-const frame = (title, attrs, ...kids) => el("form", { class: "dialog", role: "dialog",
+const frame = (title, attrs, ...kids) => dialogForm({ class: "dialog", role: "dialog",
   "aria-modal": "true", "aria-labelledby": "create-title", novalidate: true, ...attrs },
 el("div", { class: "card-head" }, el("h2", { id: "create-title" }, title),
   el("button", { class: "icon-btn", type: "button", "aria-label": "Close", onclick: closeCreate },
@@ -1089,14 +1105,11 @@ function moveDialog(from) {
   const lines = ruleLines(from.n, from.t);
   const off = offOf({ db: !!db, newSigner: true }, "why-create-submit");
   return frame("Change devices", { oninput: lines.update, onsubmit: moveSubmit(from) },
+    replacementIntro(),
     deviceProtection("move"),
-    ...moveParts(from, names(from), [counts(from.n, from.t, "margin-text"), lines.rule,
+    ...moveParts(names(from), [counts(from.n, from.t, "margin-text"), lines.rule,
       lines.margin, lines.ack]),
-    el("div", { class: "callout" }, "The new wallet gets a new address. Devices that you leave "
-      + "out cannot read the new wallet. They can still read each payment of this old wallet, "
-      + "later ones too, and the move payment: the new address, the amount, the note and the id "
-      + "of the new wallet. With that id, they can get the sealed documents of the new wallet from "
-      + "the group server, and it takes their writes, so they can stop it with false documents."),
+    replacementConsequences(from),
     el("div", { class: "dialog-actions" },
       el("button", { class: "btn", type: "button", onclick: closeCreate }, "Cancel"),
       el("button", { class: "btn primary", type: "submit", ...off.attrs }, "Create new wallet"),
