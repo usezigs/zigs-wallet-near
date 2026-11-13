@@ -16,8 +16,9 @@ Neither target branch is merged or deployed by this checkpoint.
 - Give Swap's main region a valid accessible name when optional demo tabs are absent.
 - Keep financial cards, balances, dialogs and receipts on opaque surfaces within the glass shell.
 - Correct WebKit focus scrolling using measured sticky dialog chrome. At 320px, native focus
-  previously placed the payment field behind a 123.5px heading. Focus now clears the actual heading
-  and actions. Adjustment occurs on field focus or keyboard opening, without overriding reading scroll.
+  previously placed the payment field behind a 123.5px heading. Focus now keeps the field and its
+  label clear of the actual heading and actions. Adjustment occurs on field focus or keyboard
+  opening, without overriding reading scroll.
 - Update browser fixtures for the production OpenGlass entry, current welcome heading and stable
   messaging transport IDs. Wallet boot is suppressed in synthetic renderer fixtures.
 

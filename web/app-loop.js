@@ -565,7 +565,9 @@ function clearLayerFocus(field) {
   };
   const top = Math.max(bounds.top, sticky(".card-head")?.bottom ?? bounds.top) + 8;
   const bottom = Math.min(bounds.bottom, sticky(".dialog-actions")?.top ?? bounds.bottom) - 8;
-  if (box.top < top) sheet.scrollTop += box.top - top;
+  const label = field.closest("label")?.getBoundingClientRect();
+  const start = label && box.bottom - label.top <= bottom - top ? label.top : box.top;
+  if (start < top) sheet.scrollTop += start - top;
   else if (box.bottom > bottom) sheet.scrollTop += box.bottom - bottom;
 }
 // Native textarea focus can reveal only the caret. Keep the message and its actions in view

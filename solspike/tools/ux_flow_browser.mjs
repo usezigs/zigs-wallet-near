@@ -264,7 +264,10 @@ async function scrollAndShortWindow() {
         const box = node.getBoundingClientRect(), sheet = node.closest(".dialog");
         const header = sheet.querySelector(".card-head").getBoundingClientRect();
         const footer = sheet.querySelector(".dialog-actions").getBoundingClientRect();
-        return box.top >= header.bottom - 1 && box.bottom <= footer.top + 1;
+        const label = node.closest("label")?.getBoundingClientRect();
+        const start = label && box.bottom - label.top <= footer.top - header.bottom
+          ? label.top : box.top;
+        return start >= header.bottom - 1 && box.bottom <= footer.top + 1;
       }), flow + ": focused field " + index + " is clear of sticky header and actions");
     }
   }
