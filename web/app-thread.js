@@ -221,6 +221,13 @@ function messageBox(o) {
     class: "input", id: "chat-text-" + o.kind, name: "text", rows: "2", disabled: !!o.why,
     "data-account-scope": o.accountScope,
     onkeydown: o.plan ? null : sendOnEnter, "aria-label": o.to,
+    onfocus: (ev) => {
+      const field = ev.currentTarget;
+      // Invite cards and narrow layouts can settle after native focus scrolling.
+      window.requestAnimationFrame?.(() => {
+        if (document.activeElement === field) field.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+      });
+    },
     placeholder: o.to + (quick ? ". Enter sends, Shift+Enter adds a line" : ""),
   });
 }

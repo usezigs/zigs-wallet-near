@@ -797,7 +797,8 @@ const EXPLORER_NOTE = "A received payment in this list opens testnet.zecblock.co
 function explorerTexts(chain) {
   assert.ok(pageText().includes(EXPLORER_NOTE), "the Activity list says what the explorer sees");
   t.ui.tab = "overview";
-  assert.ok(!pageText().includes(EXPLORER_NOTE), "Overview has no received-history list");
+  assert.ok(pageText().includes(EXPLORER_NOTE),
+    "Overview discloses explorer privacy for its received-history preview");
   assert.match(pageText(), /Open the faucet.*That site is not Zigs: it sees the address that you/,
     "the empty ZEC card says what the faucet sees");
   // The dedicated Activity page keeps the explorer disclosure beyond the former six-row preview.
@@ -1016,11 +1017,11 @@ function activityList(ctl) {
     t.setChain(chain);
   }
 }
-// History lives in Activity; Overview contains assets and approvals, with no recent-history list.
+// The full history lives in Activity; Overview previews the latest activity beside approvals.
 function activityOverview(ctl, at, solRows) {
   t.ui.tab = "overview";
-  assert.equal(findAll(pageTree(), (n) => n.attrs?.["data-key"]?.startsWith("sol-act-")).length, 0,
-    "Overview has no Solana history rows");
+  assert.equal(findAll(pageTree(), (n) => n.attrs?.["data-key"]?.startsWith("sol-act-")).length, 1,
+    "Overview previews the latest Solana history row alongside approvals");
   t.ui.tab = "activity";
   t.ui.chainFilter = "all";
   assert.match(pageText(), /Public SOL withdrawal.*Office rent.*Move legacy funds/,

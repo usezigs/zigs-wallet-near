@@ -80,6 +80,11 @@ check(await page.locator(".portfolio-chart-line").getAttribute("d") !== "",
 check(priceRequests === 1, "one fixed market request, cached across range changes");
 check(await page.locator(".asset-rows .asset-row").count() === 3,
   "layout fixture includes ZEC, SOL and USDC");
+check(await page.locator("#overview-approvals").getByRole("heading", {
+  name: "Approvals", exact: true }).isVisible(),
+"mainnet dashboard has a dedicated Approvals section");
+check(await page.locator(".overview-transactions .recent-transactions").isVisible(),
+  "mainnet dashboard shows approvals and recent transactions together");
 
 async function interactions() {
   const box = await plot.boundingBox();
@@ -189,6 +194,25 @@ async function touchInteraction() {
 }
 await touchInteraction();
 
+async function checkViewportSpace(width, height, theme, pageHeight) {
+  if (width >= 761 && height >= 768) check(pageHeight <= height,
+    width + "x" + height + " " + theme
+    + ": entire desktop overview fits the viewport (page " + pageHeight + "px)");
+  else if (width >= 761) check(await page.evaluate(() =>
+    [".overview-portfolio", "#overview-approvals"].every(selector => {
+      const r = document.querySelector(selector).getBoundingClientRect();
+      return r.top >= 0 && r.bottom <= innerHeight;
+    })), width + ": balance and approval actions stay in view at short desktop heights");
+  else {
+    const action = page.getByRole("button", { name: "View all approvals", exact: true });
+    await action.scrollIntoViewIfNeeded();
+    check(await action.evaluate(node => {
+      const r = node.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight;
+    }), width + " " + theme + ": dashboard approvals are reachable by normal page scrolling");
+    await page.evaluate(() => scrollTo(0, 0));
+  }
+}
+
 async function captureMatrix() {
   const sizes = [[1440, 900], [1366, 768], [1280, 720], [1024, 768],
     [768, 1024], [390, 844], [375, 812], [320, 844]];
@@ -202,8 +226,14 @@ async function captureMatrix() {
       const pageHeight = await page.evaluate(() => document.documentElement.scrollHeight);
       if (pageHeight > height) await page.screenshot({
         path: resolve(output, "overflow-" + width + "-" + theme + ".png"), fullPage: true });
-      check(pageHeight <= height, width + "x" + height + " " + theme
-        + ": entire overview fits the viewport (page " + pageHeight + "px)");
+      await checkViewportSpace(width, height, theme, pageHeight);
+      const order = await page.evaluate(() => {
+        const a = document.querySelector("#overview-approvals").getBoundingClientRect();
+        const t = document.querySelector(".overview-transactions").getBoundingClientRect();
+        return innerWidth >= 761 && innerWidth < 900 ? a.x < t.x && Math.abs(a.y - t.y) < 2
+          : a.bottom <= t.top;
+      });
+      check(order, width + " " + theme + ": approvals keep priority in the responsive layout");
       check(await page.locator(".portfolio-chart-ranges button").evaluateAll((buttons) =>
         buttons.every((b) => b.getBoundingClientRect().height >= 44)), "44px range targets");
       const name = width === 1440 ? "desktop" : width === 390 ? "mobile" : "viewport-" + width;
@@ -216,6 +246,7 @@ await captureMatrix();
 async function detailPopovers() {
   await page.setViewportSize({ width: 390, height: 844 });
   await settleChart();
+  const baseHeight = await page.evaluate(() => document.documentElement.scrollHeight);
   const controls = [page.getByRole("button", { name: "About this chart", exact: true }),
     page.locator("#zec-asset-details>summary"),
     page.locator(".overview-rail .workflow-details>summary"),
@@ -232,8 +263,9 @@ async function detailPopovers() {
       return rect.left >= 0 && rect.right <= innerWidth
         && rect.top >= 0 && rect.bottom <= innerHeight;
     }), "detail " + index + ": expanded content stays inside the viewport");
-    check(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight),
-      "detail " + index + ": details do not add page scrolling");
+    check(await page.evaluate(height => document.documentElement.scrollHeight <= height + 1,
+      baseHeight),
+      "detail " + index + ": details do not increase the existing page height");
     await page.screenshot({ path: resolve(output, "detail-" + index + ".png"), fullPage: true });
     await page.keyboard.press("Escape");
     if (index === 3) {
@@ -262,8 +294,10 @@ async function populatedOverview() {
       "overview previews the latest transaction with full history one action away");
     const pageHeight = await page.evaluate(() => document.documentElement.scrollHeight);
     await page.screenshot({ path: resolve(output, "recent-" + width + ".png"), fullPage: true });
-    check(pageHeight <= height, "populated " + width + ": no page scrolling ("
-      + pageHeight + "px)");
+    if (width >= 761 && height >= 768) check(pageHeight <= height,
+      "populated " + width + ": no desktop page scrolling (" + pageHeight + "px)");
+    else check(await page.locator("#overview-approvals").isVisible(),
+      "populated mobile history retains the independent Approvals section");
   }
   await page.getByRole("button", { name: "View all activity", exact: true }).click();
   await page.locator("#panel-activity").waitFor();
@@ -290,8 +324,11 @@ async function differentNetworkContext() {
     check(await page.getByText("Do not send SOL to the Zcash address.", { exact: true })
       .isVisible(),
       width + ": the existing unsupported-asset warning remains visible");
-    check(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight),
-      width + ": different network context still fits without scrolling");
+    check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      width + ": different network context has no horizontal overflow");
+    if (width >= 761 && height >= 768) check(await page.evaluate(() =>
+      document.documentElement.scrollHeight <= innerHeight),
+      width + ": different network context fits the desktop viewport");
     await page.screenshot({ path: resolve(output, "mixed-network-" + width + ".png"),
       fullPage: true });
   }
@@ -374,8 +411,9 @@ async function componentStates() {
     await settleChart();
     check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
       state + ": no layout overflow");
-    check(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight),
-      state + ": complete overview stays within the viewport");
+    check(await page.locator("#overview-approvals").isVisible()
+      && await page.locator(".overview-transactions").isVisible(),
+      state + ": approvals and transaction history remain available through chart state changes");
     if (["empty", "loading", "error"].includes(state)) check(
       await page.locator(".portfolio-chart-end").evaluate((node) =>
         getComputedStyle(node).display === "none"), state + ": no invented endpoint");

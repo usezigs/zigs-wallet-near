@@ -22,14 +22,16 @@ No merge or deployment is authorized.
   pair. ZEC Shield/Unshield and every USDC action remain unavailable. SOL Shield opens the
   existing Add SOL form using this device's public fee funds; Unshield opens the existing public
   withdrawal requiring wallet approvals. Opening a form does not execute a transaction.
-- Pending is the default transaction view directly below the assets. It reuses the complete
-  approval inbox, including attention states and missing-record holds. The Review shortcut
-  selects Pending before focusing it. Recent shows the five newest rows from the existing
-  combined history, retaining incomplete-history and explorer-privacy notes. View all activity
-  opens the full sidebar Activity destination.
-- HTML disclosure controls and the existing dialog/focus loop provide keyboard behavior.
-  Transaction-view buttons expose their selected state through `aria-pressed`; they require no
-  new routing, persistent preference, custom keyboard model or payment state.
+- Approvals has its own always-visible dashboard section, above Transactions in the right
+  column on desktop. It retains the existing approval previews, waiting/attention counts,
+  missing-record holds and read-failure states. View all approvals opens the full inbox.
+  Transactions independently previews the latest row from the combined history, retaining
+  incomplete-history and explorer-privacy notes. View all activity opens the full Activity
+  destination. Both sections remain visible on narrow layouts; no Pending/Recent selection
+  hides the approval queue.
+- HTML disclosure controls, native navigation buttons and the existing dialog/focus loop
+  provide keyboard behavior. Restoring the independent Approvals section adds no routing,
+  persistent preference, custom keyboard model or payment state.
 
 ## Validation and evidence
 

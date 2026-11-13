@@ -246,7 +246,7 @@ export function lockView() {
     ? "The locked keys in this browser are damaged and cannot be opened."
     : "The key shares in this browser are encrypted with your passkey. "
       + "Your passkey provider may ask for a fingerprint, face, PIN or security key.";
-  return el("div", { class: "card empty lock-card" }, sculptedIcon("lock"),
+  return el("div", { "data-glass": "card", class: "card empty lock-card" }, sculptedIcon("lock"),
     el("h1", {}, "Zigs is locked"), el("p", { class: "small" }, text),
     lockedVault.damaged ? null : securityExplanation("passkey"),
     lockedVault.damaged ? null
@@ -383,7 +383,7 @@ export function deviceProtection(context = "setup", onReady = null) {
 }
 
 export function loadingView() {
-  return el("div", { class: "card empty launch-card" }, sculptedIcon("wallet"),
+  return el("div", { "data-glass": "card", class: "card empty launch-card" }, sculptedIcon("wallet"),
     el("span", { class: "dot busy" }),
     el("h1", {}, Z ? "Connecting to the group server" : "Loading the crypto engine"),
     el("p", { class: "small" }, "Your wallets appear in a moment."));

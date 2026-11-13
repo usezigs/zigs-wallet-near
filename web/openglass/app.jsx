@@ -2,13 +2,14 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { animate } from "motion/mini";
-import { Button, Glass, GlassSystemProvider, GlassThemeProvider } from "open-glass-ui";
+import { Button, Glass, GlassSystemProvider, GlassThemeProvider, IconButton } from "open-glass-ui";
 import "open-glass-ui/styles.css";
 import "./theme.css";
-import { collectPortals, installBridge } from "./bridge.jsx";
+import { collectPortals, installBridge, syncOverlayThemes } from "./bridge.jsx";
 import { installMaterialMotion } from "./material-motion.jsx";
 import { installSidebarMotion } from "./sidebar-motion.js";
 import { SIDEBAR_GLYPHS } from "../sidebar-icons.js";
+import { useButtonHover } from "./use-button-hover.js";
 
 function ShellGlyph({ name }) {
   const glyph = SIDEBAR_GLYPHS[name];
@@ -25,12 +26,11 @@ function ShellGlyph({ name }) {
 }
 
 function AppShell() {
+  useButtonHover();
   return <>
     <a className="skip-link" href="#app">Skip to main content</a>
     <div className="shell">
-      <Glass as="aside" material="frosted" className="side" aria-label="Wallets"
-        style={{ background: "var(--side)", boxShadow: "none", backdropFilter: "none",
-          WebkitBackdropFilter: "none" }}>
+      <Glass as="aside" material="frosted" className="side" aria-label="Wallets">
         <a className="logo" href="#" aria-label="Zigs home">
           <span className="nav-zebra" aria-hidden="true" />
           <span className="logo-word">Zigs</span>
@@ -55,10 +55,10 @@ function AppShell() {
       </main>
     </div>
     <div id="banner" hidden role="status"><span id="banner-text" />
-      <button className="icon-btn" id="banner-close" type="button" aria-label="Close">
+      <IconButton className="icon-btn" id="banner-close" type="button" aria-label="Close">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           strokeWidth="1.5" strokeLinecap="round" aria-hidden="true" focusable="false"><path d="m6 6 12 12M18 6 6 18" /></svg>
-      </button>
+      </IconButton>
     </div>
   </>;
 }
@@ -73,18 +73,19 @@ function refresh() {
   try {
     const portals = collectPortals();
     const appearance = document.documentElement.dataset.theme || "system";
-    const signature = appearance + ":" + portals.map((entry) => entry.id).join(",");
-    if (signature === last) { syncMaterialMotion(); syncSidebarMotion(); return; }
+    const signature = appearance + ":" + window.matchMedia("(prefers-color-scheme: dark)").matches
+      + ":" + portals.map((entry) => entry.id).join(",");
+    if (signature === last) { syncOverlayThemes(); syncMaterialMotion(); syncSidebarMotion(); return; }
     last = signature;
     flushSync(() => root.render(
       <GlassSystemProvider renderer="auto" theme={{ appearance: "system" }}>
-        <GlassThemeProvider appearance={appearance} className="zigs-openglass"
-          style={{ "--ogui-glass-shadow": .15, "--ogui-glass-rim": .35, "--ogui-glass-lensing": .25 }}>
+        <GlassThemeProvider appearance={appearance} theme={{ preset: "neutral", glass: { rim: .65, highlight: .75, lensing: .45, shadow: .7, brightness: 1.25 } }} className="zigs-openglass">
           <AppShell />
           {portals.map((entry) => entry.portal)}
         </GlassThemeProvider>
       </GlassSystemProvider>,
     ));
+    syncOverlayThemes();
     syncMaterialMotion();
     syncSidebarMotion();
   } finally { drawing = false; }
@@ -99,9 +100,15 @@ bridge.flush = refresh;
 // Motion is bundled locally. Native presenters retain ownership of their DOM and focus.
 bridge.animate = animate;
 refresh();
+// The provider resolves system appearance after hydration. Native top-layer dialogs must
+// follow that resolved palette as well as the document's explicit appearance preference.
+new window.MutationObserver(syncOverlayThemes).observe(document.querySelector(".zigs-openglass"), {
+  attributes: true, attributeFilter: ["data-ogui-appearance", "style"],
+});
 // Also cover cached views and overlays mounted outside the usual wallet draw loop.
-new window.MutationObserver(schedule).observe(document.getElementById("openglass-root"), { childList: true, subtree: true });
+new window.MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
 new window.MutationObserver(schedule).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", schedule);
 
 // Keep the existing module graph and crypto workers separate from the presentation bundle.
 // A variable import is intentionally external to esbuild, preserving the CSP/worker URLs.

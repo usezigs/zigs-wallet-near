@@ -1379,6 +1379,10 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
     setAttribute(k, v) { this.attrs[k] = String(v); }
     addEventListener(type, fn) { this.on[type] = fn; }
     replaceChildren(...x) { this.kids = x; }
+    querySelector(selector) {
+      return all(this, (node) => node !== this && selector.startsWith(".")
+        && node.className?.split(" ").includes(selector.slice(1)))[0] ?? null;
+    }
     remove() { this.removed = true; }
     append(...x) {
       this.kids.push(...x);
