@@ -311,7 +311,7 @@ async function createProtection(p) {
     await p.emulateMedia({ reducedMotion: "no-preference" });
     await p.locator(".logo").hover(); await settled(p);
     check(await p.locator(".nav-zebra").evaluate((node) =>
-      new URL(node.querySelector("img").src).pathname === "/logo.png"
+      getComputedStyle(node).maskImage.includes("/logo.png?")
       && node.getAnimations({ subtree: true }).every((a) =>
         a.effect.getTiming().iterations !== Infinity)),
     "navigation keeps the canonical zebra and has no looping decorative animation");

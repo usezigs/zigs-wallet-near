@@ -59,9 +59,10 @@ assert.ok(has(rules(sheets[1]), ".side-privacy", /display:flex/), "the slot is a
 // The chip rules of the wallet header also kept Return home on one line. That rule stays.
 assert.ok(has(rules(sheets[2]), ".wallet-context-header>.wallet-home",
   /max-width:none; white-space:nowrap;/), "Return home stays on one line in a phone wallet header");
-assert.ok(has(app, ".logo-word", /display:\s*none/), "a narrow phone shows the logo mark only");
-assert.ok(read("app.css").includes("@media(max-width:360px) { .logo-word { display:none; } }"),
-  "from 360 px down");
+assert.ok(has(rules(refined), ".side .logo .logo-word", /display:\s*block/),
+  "the complete Zigs wordmark remains available on a narrow phone");
+assert.doesNotMatch(read("app.css"), /\.logo-word\s*\{\s*display:\s*none/,
+  "narrow phones do not hide the brand name");
 
 // On a phone the Send and Receive lists open under the whole action row, inside the screen,
 // not under their own button (the Receive list started 80 px left of the screen at 390 px).

@@ -964,8 +964,6 @@ body { margin:0; background:var(--bg); color:var(--text); font:var(--font-body);
  .overview-hero { padding:24px; }
  .setup-diagram { padding:20px 12px; }
 }
-/* The logo, the Tor chip and Menu share one row: at 360 px and less the logo shows its mark. */
-@media(max-width:360px) { .logo-word { display:none; } }
 @media(prefers-reduced-transparency:reduce) { .side,.surface-chrome,.side.menu-open #side-nav,.action-bar { background:var(--panel); backdrop-filter:none; -webkit-backdrop-filter:none; } }
 @supports not (backdrop-filter:blur(1px)) { .side,.surface-chrome,.side.menu-open #side-nav,.action-bar { background:var(--panel); } }
 @media(forced-colors:active) {
