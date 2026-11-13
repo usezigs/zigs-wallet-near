@@ -3,6 +3,9 @@
 // /near/swap-sol-group one that the plain Solana wallet pays, /near/swap-zec one from ZEC to SOL,
 // and /near/status gives the state. The page never calls NEAR Intents itself.
 import { SWAP_ASSETS } from './swap-preview-model.js';
+import { authenticateNearSwap } from './near-quote-signature.js';
+import { NEAR_REQUIRED_CONFIDENTIALITY, NEAR_CONFIDENTIAL_UNAVAILABLE,
+  NEAR_ROUTING_UNAVAILABLE, nearConfidentiality, nearExecutionMode } from './near-swap-policy.js';
 
 const INTEGER = /^\d{1,40}$/;
 const SOL_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
@@ -21,6 +24,10 @@ const MESSAGES = Object.freeze({
   'busy': 'Too many quote requests from this network. Wait a minute, then refresh the quote.',
   'unavailable': 'NEAR Intents did not give a quote. Refresh the quote to try again.',
   'off': 'Live swaps are off on this server.',
+  'unverified': "The provider quote could not be authenticated. No payment was " +
+    "proposed. Refresh the quote to try again.",
+  'confidential-unavailable': NEAR_CONFIDENTIAL_UNAVAILABLE,
+  'routing-unavailable': NEAR_ROUTING_UNAVAILABLE,
 });
 // A live quote holds the two addresses, so a refusal can come from one of them.
 const SWAP_REFUSED = 'NEAR Intents refused this swap. Check the amount and the refund address.';
@@ -61,9 +68,11 @@ function swapOf(body, ask, route) {
     body?.refundTo === ask.refundTo];
   if (!sound.every(Boolean)) return null;
   return Object.freeze({ ...quote, depositAddress: body.depositAddress, deadline: body.deadline,
+    confidentiality: body.confidentiality,
     timeWhenInactive: optionalText(body.timeWhenInactive), recipient: body.recipient,
     refundTo: body.refundTo, correlationId: optionalText(body.correlationId),
-    signature: optionalText(body.signature) });
+    signature: optionalText(body.signature), ...(body.signedQuote ? {
+       signedQuote: body.signedQuote } : {}) });
 }
 
 const hashes = (list) => (Array.isArray(list) ? list.filter((h) => typeof h === 'string') : []);
@@ -73,6 +82,7 @@ const SWAP_FIELDS = ['from', 'to', 'recipient', 'refundTo', 'amountIn', 'amountO
 // `plain`: the quote request has the form that the Worker sends (cf/src/near.js nearPlainAsk).
 const swapFieldsOf = (swap) => Object.freeze({ ...Object.fromEntries(SWAP_FIELDS
   .filter((k) => typeof swap?.[k] === 'string').map((k) => [k, swap[k]])),
+  confidentiality: nearConfidentiality(swap?.confidentiality),
   plain: swap?.plain === true });
 // The state of a swap of an answer of the Worker, or null when the answer is not a state.
 function statusOf(body) {
@@ -97,13 +107,19 @@ function refusal(res, body) {
 // The error of a refused live swap: 404 says that the server runs no live swaps.
 function swapRefusal(res, body) {
   if (res.status === 404) return new NearQuoteError('off');
+  if (['confidential-unavailable', 'routing-unavailable'].includes(body?.error)) {
+    return new NearQuoteError(body.error);
+  }
   const error = refusal(res, body);
   return error.code === 'no-route' ? new NearQuoteError('no-route', '', SWAP_REFUSED) : error;
 }
 
 export class NearIntentsSwapProvider {
   /** `fetchFn` is for tests; the default is the fetch of the page. */
-  constructor(fetchFn = (...args) => globalThis.fetch(...args)) { this.fetchFn = fetchFn; }
+  constructor(fetchFn = (...args) => globalThis.fetch(...args),
+     authenticate = authenticateNearSwap) {
+    this.fetchFn = fetchFn; this.authenticate = authenticate;
+  }
   async supportedAssets() { return SWAP_ASSETS; }
   // { res, body } of a call to the Worker (body is null when it is no JSON).
   async call(url, ask) {
@@ -130,13 +146,14 @@ export class NearIntentsSwapProvider {
    * A live swap from `from` ('sol' to ZEC, or 'zec' to SOL): the quote with its deposit address,
    * deadline and addresses. `group` asks for a swap from SOL that the plain Solana wallet pays.
    */
-  async openSwap({ from = 'sol', group, amountAtomic, slippageBps, recipient, refundTo }) {
+  async openSwap({ from = 'sol', group, amountAtomic, slippageBps, recipient, refundTo,
+    confidentiality = NEAR_REQUIRED_CONFIDENTIALITY }) {
     const route = LIVE_ROUTES[group ? from + 'Group' : from];
     if (!route) throw new NearQuoteError('no-route');
-    const ask = { amount: amountAtomic, recipient, refundTo, slippageBps };
+    const ask = { amount: amountAtomic, recipient, refundTo, slippageBps, confidentiality };
     const { res, body } = await this.call(route.path, ask);
     const swap = res.status === 200 ? swapOf(body, ask, route) : null;
-    if (swap) return swap;
+    if (swap) return verifiedOpen(this, body, swap, { from, slippageBps, confidentiality });
     throw res.status === 200 ? new NearQuoteError('unavailable') : swapRefusal(res, body);
   }
   /** The state of a live swap. A swap that NEAR Intents does not list yet is 'unknown'. */
@@ -145,7 +162,23 @@ export class NearIntentsSwapProvider {
       + encodeURIComponent(depositAddress));
     if (res.status === 404 && body?.error === 'unknown') return statusOf({ status: 'unknown' });
     const status = res.status === 200 ? statusOf(body) : null;
-    if (status) return status;
+    if (status && await this.authenticate(body, { ...status.swap, depositAddress,
+      ...assetPair(status.swap.from, status.swap.to) })) return status;
     throw new NearQuoteError(res.status === 429 ? 'busy' : 'unavailable');
   }
+}
+
+function assetPair(from, to) {
+  const id = (key) => SWAP_ASSETS.find((a) => a.key === key)?.id;
+  return { originAsset: id(from), destinationAsset: id(to) };
+}
+
+async function verifiedOpen(provider, body, swap, { from, slippageBps, confidentiality }) {
+  if (!nearExecutionMode(confidentiality) || body.confidentiality !== confidentiality) {
+    throw new NearQuoteError(confidentiality === 'public'
+      ? 'routing-unavailable' : 'confidential-unavailable');
+  }
+  const expected = { ...swap, slippageBps, ...assetPair(from, from === 'sol' ? 'zec' : 'sol') };
+  if (!await provider.authenticate(body, expected)) throw new NearQuoteError('unverified');
+  return swap;
 }

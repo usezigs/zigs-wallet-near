@@ -369,7 +369,7 @@ What stays visible:
   leave the simulation with **Back to swap**.
 - A real swap from ZEC leaves the shielded pool. NEAR Intents takes ZEC only at a transparent
   deposit address, which is public. NEAR Intents accepts a shielded address as the recipient of a
-  swap to ZEC, but no real swap has tested this. The page says this next to the quote.
+  swap to ZEC, but this Zigs route has not had a funded payout test. The page says this next to the quote.
 - The basis of the shielded claim: a live dry quote accepted an Orchard-only unified address as
   recipient, and the Zodl wallet pays swaps to shielded addresses. A dry quote only checks the
   address, so no payout was made. The chain-support page of NEAR Intents still lists Zcash as
@@ -390,7 +390,7 @@ What stays visible:
 **Status:** live on staging.zigs.app only (`NEAR_LIVE` is "1" there and "0" in production). You
 pay SOL from a Solana wallet outside Zigs to a deposit address of NEAR Intents. NEAR Intents pays
 ZEC to the address of the open mainnet wallet. Zigs signs nothing and holds no SOL. **The payout
-to a shielded address is untested:** no real swap has paid one yet. The page says this next to
+to a shielded address is untested in Zigs:** this integration has not had a funded payout test. The page says this next to
 the deposit address.
 
 How a live swap works:
@@ -404,10 +404,13 @@ How a live swap works:
   is a Solana address with no memo. The deadline is the earlier of the deadline of the deposit
   address and the refund time of the request, and it must be at least 5 minutes away. The Worker
   answers with the deposit address, the amounts, the deadline, the two addresses, the quote id
-  and the quote signature.
+  and the quote signature. Updated web clients also receive the original signed quote envelope
+  and verify its financial fields against the pinned 1Click manager key before using the deposit.
 - The deposit screen shows the deposit address, the exact amount, the deadline, the refund
-  address, the payout address, the quote id and the quote signature. It stays in memory only: after a reload the page
-  cannot show the swap again, but the swap goes on.
+  address, the payout address, the quote id and the quote signature. Updated web clients save
+  recovery receipts encrypted with the wallet key in this browser's IndexedDB. An active receipt
+  resumes after a reload; a hidden receipt remains in Saved swaps. Other devices have their own
+  local history. A failed save pauses funding. Hiding tracking does not cancel provider execution.
 - While the screen shows, the page reads `/near/status` every 10 seconds (up to 60 seconds after
   errors and after the deadline) until the state is final. The Worker passes only the state, its
   time, the transaction hashes, the amounts and the refund reason. It drops the explorer links of NEAR Intents.
@@ -447,8 +450,9 @@ How it works:
 - Each device that reviews or approves the send reads `/near/status` for the deposit address. It
   approves only when NEAR Intents waits for a deposit of the exact amount, for a swap from SOL to
   ZEC that pays the ZEC address of this wallet, refunds to the plain Solana address
-  of this wallet and ends at the deadline of the field, with 30 minutes left. This check trusts the
-  Worker and NEAR Intents. It does not check the signature of the quote.
+  of this wallet and ends at the deadline of the field, with 30 minutes left. Updated web clients
+  authenticate the quote's signed financial fields. Execution status still depends on the Worker
+  and NEAR Intents; a signature on the quote does not prove payout or wallet receipt.
 - No device approves or sends the deposit in the last 30 minutes before the deadline. The signed
   transaction uses a durable nonce, so it does not expire, and every device of the group can still
   send it. A late deposit should go back to the plain Solana address, less a refund fee of NEAR
@@ -471,6 +475,76 @@ What stays visible:
 - A refund lands at the plain Solana address, where the chain shows it to everyone. No refund
   to this address has been tested yet.
 
+### Paid from the private Solana balance
+
+Each fresh visit defaults to **Hackathon preview**: real sample-address price quotes, followed
+by explicitly simulated wallet approvals, deposits, delivery and recovery. No deposit address is
+requested, no receipt is written and no funds move. The standalone preview server exposes only
+the dry quote endpoint, with neither a real wallet nor a live swap endpoint.
+
+Real execution requires an explicit choice. **Standard mainnet** sets `confidentiality` to
+`"public"` and can work without a partner key. Its consent explains public route visibility.
+**Confidential mainnet** requests `confidentiality: "basic"`, the mode in NEAR's documented
+foreign-to-foreign example, and requires the server's `NEAR_API_KEY`. Missing credentials or a
+different returned mode stop new funding; there is no automatic public-route fallback. The
+encrypted recovery receipt preserves the explicit choice, and the author-signed withdrawal
+mark includes the mode. Each approving device and executor checks it. Old public receipts
+without the explicit route choice remain trackable but cannot be funded through the updated
+interface. Four-field legacy API clients retain the Basic requirement.
+
+Public sample-address price estimates remain separate: they do not request confidential
+execution and may differ from the execution quote. The deposit screen displays the new quote's
+actual minimum before any wallet payment is proposed.
+
+The quote signature authenticates financial terms. NEAR's published signing format does **not**
+include `confidentiality`: checking the mode echo is a separate assertion that trusts NEAR and
+the authenticated connection through the Zigs Worker. It is not a cryptographic proof of privacy.
+The Zigs status proxy currently returns route addresses to a caller with access to the app who
+knows the deposit address. Receipt-based status access and the provider's own explorer/status
+visibility need further work and verification before claiming public route unlinkability.
+
+An unfunded diagnostic is available at `solspike/tools/near-confidential-probe.mjs`. It reads the
+partner JWT from `~/.config/zigs/near-api-key` (mode 600), `NEAR_API_KEY`, or a specified private
+file. `--unauthenticated --mode public` runs without a credential. It uses fixed public test
+addresses and only `dry: true` requests, refuses redirects and never logs the credential.
+Authenticated Basic/Advanced routing and funded settlement remain unverified in this checkout.
+Anonymous confidential requests returned HTTP 401; a public dry
+quote to an Orchard-only address was accepted and its signature verified on 13 November 2026.
+
+NEAR documents confidential external-chain swaps, and Zodl documents direct fresh shielded ZEC
+payouts. Those are provider capabilities, not proof that this integration delivers them:
+[NEAR integration guide](https://docs.near-intents.org/integration/distribution-channels/1click-api/quickstart/confidential-swaps),
+[Zodl receiving flow](https://support.zodl.com/article/26-swapping-into-zec).
+NEAR's [API terms](https://docs.near-intents.org/security-compliance/terms-of-service) retain
+provider access to confidential transaction information. Confidential routing is not privacy
+from NEAR itself.
+
+The swapflow implementation also connects a mainnet private Solana wallet to the SOL-to-ZEC
+route. It withdraws the exact deposit amount through the existing threshold approval system.
+The path is **private SOL balance → public SOL deposit → chosen NEAR route → requested shielded
+ZEC**. Standard routing is public; Basic routing depends on provider access and confirmation.
+This does not establish an end-to-end private swap. The withdrawal recipient, amount, fee
+addresses and timing are public. NEAR Intents links the deposit, Zcash recipient and refund
+address. Shielded payout and refund settlement still require a funded integration test; offline
+tests establish neither.
+
+The proposing device's existing public fee address receives any SOL refund. That device alone
+controls returned SOL until it adds the funds back to the wallet's private balance; refund control
+does not inherit the wallet's threshold rule. The review and consent identify this exception.
+The fee key follows from that device's Solana share and is recovered with its Solana backup.
+
+The author-signed proposal marks the deposit and deadline. The proof commits to an on-chain
+expiry no later than 30 minutes before that deadline, so an already-approved withdrawal cannot
+remain executable after the swap closes. Each approving device and executor checks the provider's
+authenticated quote against the actual withdrawal, this wallet's Zcash recipient and the
+proposing device's published fee address. Malformed, duplicate and late proposals are refused.
+The existing checker, local proving, fee and recipient rules continue to apply.
+
+Provider SUCCESS is displayed as a reported payout. Confirmed shielded receipt is shown only
+when this wallet's scanner finds matching destination transactions, confirms them and observes
+at least the quoted minimum. The provider's report alone cannot establish that final state.
+Testnet wallets display a mainnet price preview and cannot fund a real cross-chain swap.
+
 ## Live swap from ZEC to SOL (staging only)
 
 **Status:** built for staging.zigs.app, behind `NEAR_LIVE`. No real swap from ZEC has run yet. A
@@ -487,7 +561,7 @@ How a live swap from ZEC works:
 - The Worker asks for a live quote from ZEC to SOL with a deadline 6 hours later, and checks the
   answer as for a swap from SOL. The deposit address must be a transparent address with no memo,
   and at least 4 hours must be left.
-- **Propose the payment** opens Send with the deposit address, the exact amount and a note that
+- **Review deposit payment** opens Send with the deposit address, the exact amount and a note that
   marks the payment as this swap. The person proposes it as any other payment.
 - Each device that approves the payment reads `/near/status` for the deposit address. The Worker
   now also passes the swap of that address: the assets, the two addresses, the amount in, the
@@ -495,8 +569,9 @@ How a live swap from ZEC works:
   amount, and the SOL amount and the Solana address of the quote. The device approves only when
   NEAR Intents waits for a deposit of the exact amount, for a swap from ZEC to SOL that pays the
   Solana address of this wallet, refunds to its transparent address and ends at the deadline in
-  the note, with 30 minutes left. This check trusts the Worker and NEAR Intents. It does not check
-  the signature of the quote.
+  the note, with 30 minutes left. Updated web clients verify the quote's signature and bind its
+  financial fields to the displayed route. Status and execution still depend on the Worker and
+  NEAR Intents.
 - No device sends the payment in the last 30 minutes before the deadline: a late deposit can be
   lost.
 

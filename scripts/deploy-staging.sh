@@ -16,8 +16,8 @@
 #   ~/.config/zigs/helius-mainnet.url when that file exists (mode 600). Its key allows only
 #   staging.zigs.app. The page gets it only when the var SOL_MAINNET is "1" (cf/wrangler.jsonc).
 # - NEAR_API_KEY is the partner key (a JWT) of NEAR Intents, read from ~/.config/zigs/near-api-key
-#   when that file exists (mode 600). The owner gets it at partners.near-intents.org. Without it
-#   the swap routes still work, at the higher fee of NEAR Intents for calls with no key.
+#   when that file exists (mode 600). The owner gets it at partners.near-intents.org. Live swap
+#   confidential quotes require it. Explicit Standard quotes and public price estimates do not.
 # - LWD_KEY is the secret that the app Worker sends to our testnet node (infra/lwd). Staging uses
 #   the value of production, from ~/.config/zigs/lwd-key (mode 600, 64 hex characters). The script
 #   never makes it: it must match the file .env.lwd-key on the node host.

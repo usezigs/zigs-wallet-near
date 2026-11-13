@@ -53,6 +53,10 @@ JS=(solspike/harness/*.mjs solspike/tools/*.mjs solspike/build.mjs solspike/vend
   web/test/payment-model.mjs web/wallet-identity.js web/wallet-avatar-svg.js
   cf/src/gate.js cf/test/gate.mjs cf/src/near.js web/near-intents-swap-provider.js
   web/swap-preview-model.js web/test/near-quote.mjs)
+JS+=(web/sol/swap.js web/sol/swap-source.js web/swap-records.js web/near-quote-signature.js
+  web/near-swap-policy.js
+  web/test/swapflow.mjs web/test/sol-swap-proposal.mjs web/test/near-confidential.mjs
+  web/test/hackathon-swap.mjs)
 PY=(solspike/tools/*.py)
 # The page modules first: no unbound name, no assignment of an import, no missing named import.
 # This is the only check for an import that a function body needs and that no test runs. The full

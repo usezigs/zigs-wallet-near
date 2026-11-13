@@ -86,10 +86,13 @@ export function checkTyped({ asset, recipient, amount }) {
  * deadline `deadline` (an ISO time). A value of another form, or less than 30 minutes left,
  * throws.
  */
-export function swapTyped({ deposit, lamports, deadline }) {
+function swapIso(deadline) {
   const at = typeof deadline === "string" ? Date.parse(deadline) : NaN;
-  const iso = Number.isFinite(at) ? new Date(at).toISOString() : "";
-  const swap = swapMark(deposit, iso);
+  return Number.isFinite(at) ? new Date(at).toISOString() : "";
+}
+
+export function swapTyped({ deposit, lamports, deadline, confidentiality = 'basic' }) {
+  const swap = swapMark(deposit, swapIso(deadline), confidentiality);
   const sound = typeof lamports === "string" && LAMPORTS.test(lamports)
     && swapOf({ swap })?.deposit === deposit;
   if (!sound) throw new Error(NO_SWAP);
