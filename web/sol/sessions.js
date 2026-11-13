@@ -37,6 +37,7 @@ export const PARTS = {
       "account",
       "body",
       "createTx",
+      "swap",
       "createdAt",
     ],
   },

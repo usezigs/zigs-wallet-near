@@ -38,7 +38,8 @@ import { currentSection, moveWord, solStays, walletShown } from "./app-wallet.js
 import { icon, sculptedIcon } from "./app-icons.js";
 import { createSwapPreview } from "./app-swap-preview.js";
 import { createSwapRecovery } from "./swap-recovery.js";
-import { solSwapSource, swapPayout } from "./app-swap-sol.js";
+import { shieldedSwapReceipt, solSwapSource, swapPayout } from "./app-swap-sol.js";
+import { swapJournal } from "./app-swap-store.js";
 import { zecSwapSource } from "./app-swap-zec.js";
 import { generalSettings, settingsDisclosure, settingsGroup, settingsRow } from "./app-settings-ui.js";
 import { walletMark } from "./app-wallet-art.js";
@@ -509,6 +510,8 @@ let swapPreview;
 export function swapWorkspace() {
   const context = { id: state.g?.id, name: state.g?.name, live: nearLive(), payout: swapPayout(),
     recovery: createSwapRecovery(Z, gkeys[state.gid], state.gid),
+    network: state.g?.network || 'testnet', preferredFrom: 'sol', journal: swapJournal,
+    receipt: shieldedSwapReceipt,
     zec: zecSwapSource(), solGroup: solSwapSource(),
     networks: state.g && state.g.network === "mainnet" ? 'Zcash ' + netOf(state.g).label
       : 'Zcash Testnet · Solana Devnet',

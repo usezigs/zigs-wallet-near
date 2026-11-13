@@ -14,7 +14,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
-  copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync,
+  copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -57,10 +57,16 @@ class Rewriter {
 
 /** The default export of cf/src/index.js, loaded as an ES module from a temporary copy. */
 async function loadWorker() {
-  const dir = mkdtempSync(join(tmpdir(), "zigs-policy-"));
-  process.on("exit", () => rmSync(dir, { recursive: true, force: true }));
+  const temporary = mkdtempSync(join(tmpdir(), "zigs-policy-"));
+  process.on("exit", () => rmSync(temporary, { recursive: true, force: true }));
+  const dir = join(temporary, "cf/src"), shared = join(temporary, "web");
+  mkdirSync(dir, { recursive: true });
+  mkdirSync(shared);
   const src = join(ROOT, "cf/src");
   for (const name of readdirSync(src)) copyFileSync(join(src, name), join(dir, name));
+  for (const name of ["near-quote-signature.js", "near-swap-policy.js"]) {
+    copyFileSync(join(ROOT, "web", name), join(shared, name));
+  }
   writeFileSync(join(dir, "package.json"), '{"type":"module"}');
   writeFileSync(join(dir, "cf-stub.js"), "export class DurableObject {}\n");
   const file = join(dir, "index.js");

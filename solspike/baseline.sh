@@ -84,7 +84,7 @@ TESTS=(messaging-presentation messaging-cost-review messaging-account-view premi
   homepage-motion
   outcome-seal passkey-setup optional-passkey guided-create wallet-description
   backup-check guided-setup
-  recipients swap-preview swap-recovery
+  recipients swap-preview swap-recovery swapflow near-confidential hackathon-swap sol-swap-proposal
   chat signed app
   requests account personal payees
   vault util qr shim shim-status

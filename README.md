@@ -1,5 +1,66 @@
 # Zigs
 
+## Swapflow hackathon preview
+
+This branch adds an unfunded walkthrough of **private SOL → shielded ZEC**, using real,
+key-free mainnet price quotes from NEAR Intents. The wallet, approvals, deposits, delivery and
+recovery shown in the simulation are examples. They do not establish funded settlement or
+end-to-end privacy.
+
+With Node 22 or later, build the current interface and run from the repository root:
+
+```sh
+npm ci --prefix web
+npm run build --prefix web
+node solspike/tools/swap_preview_server.mjs
+```
+
+Open <http://127.0.0.1:8856/__swap_preview__?scenario=hackathon>. Enter `0.1` SOL, review the
+quote, then choose **Simulate swap flow** and advance through the steps. The price quote is live;
+the wallet and subsequent steps are simulated. No partner key, wallet setup or funds are needed.
+If the provider cannot quote the amount, the screen shows the error and can refresh. No synthetic
+price silently replaces a failed live quote. This local server exposes only the dry quote route
+and rejects live swap creation. It does not load a wallet or require the WASM engine.
+
+The privacy explainer follows the source, public deposit, provider and destination in an animated
+20-second tutorial. The setup and deposit take four seconds each; provider and destination
+visibility get six seconds each. Visual actions resolve early, with a short hold for reading.
+It autoplays once when visible, pauses offscreen and offers pause/resume or
+direct chapter selection; reduced motion uses manual steps. It adapts to the selected
+direction and routing mode, with quote, refund and recovery disclosures. Quote details and
+slippage stay beside the form. On desktop, the form and tutorial use equal panels that fit the
+viewport. The compact mode selector uses Zigs’ sculpted 3D icons and supports keyboard selection.
+Full privacy information opens in a dialog. The explainer is an illustration, never
+live transaction progress.
+
+For a terminal check of a real, unfunded quote and its provider signature:
+
+```sh
+node solspike/tools/near-confidential-probe.mjs --unauthenticated --mode public
+```
+
+For offline verification:
+
+```sh
+node web/test/near-confidential.mjs
+node web/test/hackathon-swap.mjs
+node web/test/swapflow.mjs
+node web/test/swap-preview.mjs
+```
+
+In the full wallet app, **Hackathon preview** is the default. **Standard mainnet** is a separate,
+explicit choice with public-route consent; it needs no partner key. **Confidential mainnet**
+requires provider access and never falls back to Standard. Real execution remains behind the
+server's existing live/mainnet gates. Funded shielded delivery and refunds have not been verified
+in Zigs. Solana deposits, group identifiers and fee payers can remain public, and NEAR sees the
+route. See [PRIVACY.md](PRIVACY.md#paid-from-the-private-solana-balance).
+
+The organizers recommend key-free 1Click use and unfunded quotes in
+[Q-006/Q-007](https://nearhackathon.com/HACKATHON.md). No API key, transaction or funded test is
+created by the commands above.
+
+## Shared wallet
+
 **Shared wallets for shielded Zcash.** A team creates one private address together, and any *t* of
 its *n* devices must approve each payment. Nobody ever holds the whole key, and the server cannot
 read the wallet. On chain a payment has the shape of a shielded payment from a standard wallet,

@@ -3,9 +3,10 @@
 // refund goes to the transparent address of the group (app-taddress.js). The note of the payment
 // marks it as a swap. Each device that approves it reads the swap of the deposit address from NEAR
 // Intents and approves only a swap that pays this wallet. This check trusts the Worker and NEAR
-// Intents: it does not check the signature of the quote. No device sends the payment in the last
-// 30 minutes before the deadline, because a late deposit can be lost.
+// Intents for execution status; the provider adapter authenticates the quote. No device sends
+// in the last 30 minutes before the deadline, because a late deposit can be lost.
 import { NearIntentsSwapProvider } from "./near-intents-swap-provider.js";
+import { nearExecutionMode } from "./near-swap-policy.js";
 import { netName } from "./app-chain.js";
 import { render } from "./app-loop.js";
 import { openSend } from "./app-send.js";
@@ -26,14 +27,25 @@ const LATE = "The deposit address of this swap closes in less than 30 minutes. A
 const LATE_SEND = LATE + " This browser does not send the payment. The wallet can send again when "
   + "the payment expires.";
 
-/** The note of the payment of a swap with the deadline `iso`: 74 characters (the field takes
- * 80). */
-export const swapNote = (iso) => NOTE_HEAD + new Date(iso).toISOString() + ".";
+/** The note pins the route and deadline within the payment field's 80-character limit. */
+export const swapNote = (iso, mode = 'basic') =>
+  `Zigs swap ZEC-SOL ${mode} until ${new Date(iso).toISOString()}.`;
+
+function swapPolicy(note) {
+  if (typeof note !== 'string') return null;
+  const m = /^Zigs swap ZEC-SOL (public|basic) until (.+)\.$/.exec(note);
+  if (m) return { confidentiality: m[1], iso: m[2] };
+  if (note.startsWith(NOTE_HEAD) && note.endsWith('.')) {
+    return { confidentiality: 'basic', iso: note.slice(NOTE_HEAD.length, -1) };
+  }
+  return null;
+}
 
 /** The deadline (ms) of a payment whose note marks a swap, else null. */
 export function swapDeadline(note) {
-  if (typeof note !== "string" || !note.startsWith(NOTE_HEAD) || !note.endsWith(".")) return null;
-  const iso = note.slice(NOTE_HEAD.length, -1), at = Date.parse(iso);
+  const policy = swapPolicy(note);
+  if (!policy) return null;
+  const iso = policy.iso, at = Date.parse(iso);
   return Number.isFinite(at) && new Date(at).toISOString() === iso ? at : null;
 }
 
@@ -110,7 +122,7 @@ function depositProposal(swap) {
 function proposeDeposit(swap) {
   const rows = payeeRows([{ to: swap.depositAddress, amount: Number(swap.amountIn) }],
     () => ++ui.payKey);
-  openSend({ pay: rows, listError: "", note: swapNote(swap.deadline), priority: false,
+  openSend({ pay: rows, listError: "", note: swapNote(swap.deadline, swap.confidentiality), priority: false,
     sendFor: null, after: null });
   render();
 }
@@ -130,9 +142,11 @@ function payeeOf(ss) {
 }
 
 // The first difference between the swap that NEAR Intents lists and this payment, or null.
-function mismatch(status, own, p, payBy) {
+function mismatch(status, own, p, payBy, mode) {
   const s = status.swap ?? {};
   const wrong = [
+    [!nearExecutionMode(s.confidentiality) || s.confidentiality !== mode,
+      "The requested routing mode could not be confirmed."],
     [status.status !== "PENDING_DEPOSIT",
       "NEAR Intents does not wait for a deposit at this address."],
     [s.from !== "zec" || s.to !== "sol", "This address is not for a swap from ZEC to SOL."],
@@ -178,7 +192,7 @@ async function swapRefusal(ss, payBy, provider, given) {
   }
   const status = await provider.swapStatus(p.to).catch(() => null);
   if (!status) return "NEAR Intents did not give the state of the swap. Try again.";
-  return mismatch(status, own, p, payBy);
+  return mismatch(status, own, p, payBy, swapPolicy(ss.note).confidentiality);
 }
 
 /**
