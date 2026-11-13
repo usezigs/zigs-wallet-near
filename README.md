@@ -196,6 +196,29 @@ flowchart LR
 | Helius and its key host (private Solana wallet, mainnet, staging only) | Helius: IP address, the app origin, the PDA and the group key, the fee addresses of this browser, and which notes each payment spends. The devices make the proofs, so Helius gets no witness. The key host: your IP address and the app origin when it sends a proving key. Never a key share |
 | ZNS resolver (testnet names) | That the app Worker downloads the whole name registry. Never which name a person pays, never a key |
 
+## Building the web interface
+
+The wallet uses a React shell with OpenGlass UI. `web/openglass/app.jsx` installs the system
+provider and stylesheet; `bridge.jsx` connects the existing native renderers to OpenGlass cards,
+buttons, badges, fields and stats. Native form inputs keep their references and event handlers.
+Dialogs keep the wallet's existing focus and dismissal logic, with OpenGlass materials.
+
+```sh
+npm ci --prefix web
+npm run build --prefix web
+```
+
+Wrangler runs this build automatically before local development and deployment. To run the full
+local Worker, install its dependencies with `npm ci --prefix cf`, then run `npx wrangler dev`
+from `cf/`. Opening the HTML through a plain static server omits the Worker's store-client shim.
+
+`npm run test:openglass --prefix web` checks the interface with isolated wallet fixtures, then
+boots the real app under its strict content security policy. It checks desktop and mobile
+layouts, both themes, navigation, keyboard dismissal, labels, input persistence and cached views.
+It uses local Chrome on macOS, or Playwright Chromium (`npx playwright install chromium` from
+`web/`); `CHROME_EXECUTABLE` can select another installed Chromium browser. Screenshots go to the
+temporary directory, or to `OPENGLASS_OUTPUT` when set.
+
 ## Creating a wallet
 
 The signers run a FROST distributed key generation over RedPallas. No device and no server ever

@@ -10,7 +10,10 @@ const read = (file) => readFileSync(new URL("../" + file, import.meta.url), "utf
 // The innermost rules of a sheet (also inside @media), as selector text and declarations.
 const rules = (sheet) => [...sheet.replace(/\/\*[\s\S]*?\*\//g, "")
   .matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1].trim(), body: m[2] }));
-const app = rules(read("app.css")), html = read("index.html");
+const app = rules(read("app.css"));
+// The shell now lives in React; normalize JSX spelling for these structural assertions.
+const html = read("openglass/app.jsx").replaceAll("className=", "class=")
+  .replace(/<(nav|div) ([^>]+) \/>/g, "<$1 $2></$1>");
 const refined = read("site-refinement.css");
 const has = (list, sel, decl) => list.some((r) => r.sel.split(/,\s*/).includes(sel)
   && decl.test(r.body));

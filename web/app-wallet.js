@@ -295,7 +295,7 @@ function balanceOverview() {
       el("span", { class: "portfolio-currency" }, isMainnet() ? "USD" : "ZEC")),
     isMainnet() ? liveTotal(view) : testnetTotal())),
     el("div", { class: "overview-actions" }, assetActionPicker("send"), assetActionPicker("receive"),
-      el("button", { class: "btn", type: "button", "data-key": "overview-swap",
+      el("button", { "data-glass": "button", class: "btn", type: "button", "data-key": "overview-swap",
         title: "Open Swap", onclick: () => { ui.tab = "swap"; render(); } },
       icon("swap"), "Swap")));
 }
@@ -303,6 +303,9 @@ function balanceOverview() {
 // Testnet uses its actual native balance; test assets have no USD valuation.
 function testnetTotal() {
   const total = zecTotal(zecBal(curChain()));
+  if (globalThis.zigsGlass) return globalThis.zigsGlass.stat({
+    "data-valuation-state": total === null ? "unknown" : "known",
+  }, { label: "Wallet balance in ZEC", value: total === null ? "—" : fmtZec(total), change: "Zcash Testnet" });
   return [el("p", { class: "portfolio-value", "data-valuation-state": total === null ? "unknown" : "known" },
     total === null ? "—" : fmtZec(total)),
   el("p", { class: "portfolio-network-note" }, "Zcash Testnet")];
@@ -314,6 +317,11 @@ function testnetTotal() {
 const TOTAL_ZEC_ONLY = " SOL and USDC are not in this total.";
 function liveTotal(view) {
   const { value } = view;
+  if (globalThis.zigsGlass) return globalThis.zigsGlass.stat({
+    "data-valuation-state": value ? "known" : "unknown", "aria-label": view.label,
+  }, { label: "ZEC value in USD", value: value ? value.whole + value.fraction : "—",
+    change: view.note + (view.facts ? ". " + view.facts : "")
+      + (plainShown() ? (view.facts ? "" : ".") + TOTAL_ZEC_ONLY : "") });
   return [el("p", { class: "portfolio-value", role: "img", "aria-label": view.label,
     "data-valuation-state": value ? "known" : "unknown", "aria-describedby": "usd-note" },
   value ? [el("span", { "aria-hidden": "true" }, value.whole),

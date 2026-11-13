@@ -7,6 +7,10 @@
   // No request logs: the server must not keep IP addresses or timing.
   "observability": { "enabled": false },
   "preview_urls": false,
+  "build": {
+    "command": "npm ci --prefix ../web --no-audit --no-fund && npm run build --prefix ../web",
+    "watch_dir": "../web/openglass"
+  },
   // The Solana beta: "1" serves web/sol (ZOLANA.md). The Helius Devnet URL is the secret
   // HELIUS_DEVNET_URL: set it with `wrangler secret put`, never here.
   // The plain wallet on mainnet: SOL_MAINNET "1" serves /sol/config-mainnet.json and, with SOL

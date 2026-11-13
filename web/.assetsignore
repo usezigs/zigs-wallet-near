@@ -3,3 +3,8 @@ sim.mjs
 bundle.mjs
 .assetsignore
 test
+node_modules
+openglass
+package.json
+package-lock.json
+build.mjs
