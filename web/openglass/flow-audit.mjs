@@ -1,21 +1,20 @@
 // Full presentation audit. Isolated stores, real renderers, no network submissions or funds.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { chromium } from "playwright";
+import { browserName, browserOutput, launchTestBrowser } from "../../solspike/harness/browser-test.mjs";
 import { overviewFixture, settleOverview, OVERVIEW_ORIGIN } from "../../solspike/harness/overview-redesign-fixture.mjs";
 import { installMessagingFixture } from "../../solspike/harness/messaging-redesign.mjs";
 import { SWAP_DEMO_STEPS } from "../swap-preview-model.js";
 
 process.chdir(fileURLToPath(new URL("../../", import.meta.url)));
-const output = resolve(process.env.OPENGLASS_AUDIT_OUTPUT || "/tmp/zigs-glass-audit/flows");
-mkdirSync(output, { recursive: true });
+const output = browserOutput("matrix", process.env.OPENGLASS_AUDIT_OUTPUT);
+const widths = process.env.ZIGS_BROWSER_SMOKE === "1" ? [320, 1024, 1440]
+  : [320, 375, 390, 768, 1024, 1440, 1920];
 const records = [], errors = [], scenes = [], failures = [];
 const sceneFilter = process.env.OPENGLASS_AUDIT_SCENES ? new RegExp(process.env.OPENGLASS_AUDIT_SCENES) : null;
-const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_EXECUTABLE
-  || (existsSync("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
-    ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" : undefined) });
+const browser = await launchTestBrowser();
 const context = await browser.newContext({ reducedMotion: "reduce", viewport: { width: 1440, height: 1000 } });
 await context.addInitScript(() => {
   globalThis.qaSol = { setup: { status: "ready" }, rows: [] };
@@ -119,7 +118,8 @@ function facts() {
 }
 
 async function inspect(scene, width, theme) {
-  await page.setViewportSize({ width, height: width < 600 ? 844 : 1000 });
+  await page.setViewportSize({ width, height: ({ 320: 800, 375: 812, 390: 844,
+    768: 1024, 1024: 768, 1440: 900, 1920: 1080 })[width] });
   await page.evaluate((value) => { document.documentElement.dataset.theme = value; globalThis.zigsGlass.flush(); }, theme);
   await settleOverview(page);
   const value = await page.evaluate(facts);
@@ -128,7 +128,8 @@ async function inspect(scene, width, theme) {
   if (value.nativeDialogs.some((dialog) => !dialog.scoped || dialog.theme && dialog.theme !== theme)) issues.push("overlayTheme");
   const record = { scene, width, theme, ...value, issues };
   records.push(record);
-  if ((width === 1440 && theme === "dark") || (width === 390 && theme === "light")) {
+  if (issues.length || process.env.ZIGS_CAPTURE_MATRIX === "1"
+    && ((width === 1440 && theme === "dark") || (width === 390 && theme === "light"))) {
     await page.screenshot({ path: resolve(output, `${scene}-${theme}-${width}.png`), fullPage: true,
       animations: "disabled", mask: [page.locator(".safety,.qr,.secret-link,input[type=password],.addr-full")],
       maskColor: "#343b45" });
@@ -143,7 +144,7 @@ async function matrix(name, prepare, { fresh = true, staticView = true } = {}) {
     if (fresh) await seed();
     await prepare();
     if (name.startsWith("dialog-")) assert.ok(await page.locator('[role="dialog"],dialog[open]').count(), name + ": actual dialog rendered");
-    for (const width of [1440, 768, 390, 320]) for (const theme of ["dark", "light"])
+    for (const width of widths) for (const theme of ["dark", "light"])
       await inspect(name, width, theme);
     console.log(`Audited ${name}`);
   } catch (error) {
@@ -173,7 +174,7 @@ try {
   for (const mode of ["saved", "editor", "invalid", "edit", "delete-confirmation", "no-results"])
     await matrix("recipients-" + mode, async () => {
       await page.evaluate(async (mode) => {
-        const { recipients } = await import("/app-keystore.js"), { state, ui, address } = globalThis.__glassAudit;
+        const { recipients } = await import("/app-keystore.js"), { ui, address } = globalThis.__glassAudit;
         ui.tab = "recipients";
         if (["saved", "edit", "delete-confirmation", "no-results"].includes(mode)) recipients.entries.push({
           id: "cd".repeat(10), name: "Studio address", address, asset: "ZEC", network: "testnet", type: "shielded" });
@@ -386,7 +387,7 @@ try {
 } finally {
   await browser.close();
   const issues = records.filter(record => record.issues.length);
-  writeFileSync(resolve(output, "report.json"), JSON.stringify({ scenes, cases: records.length, records, failures, errors,
+  writeFileSync(resolve(output, "report.json"), JSON.stringify({ browser: browserName, scenes, cases: records.length, records, failures, errors,
     passed: !issues.length && !failures.length && !errors.length,
     scope: "Production presentation renderers with disposable synthetic states. No transaction signing, funding, external requests, or transaction submission." }, null, 2));
   console.log(JSON.stringify({ scenes: scenes.length, cases: records.length, issueCases: issues.length, failures: failures.length,

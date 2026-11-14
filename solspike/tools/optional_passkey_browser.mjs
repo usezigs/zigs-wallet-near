@@ -1,24 +1,22 @@
 // No user browser profile or wallet store is opened by this optional-protection matrix.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { entryReady } from "../harness/entry-flow.mjs";
 import { acknowledge, button, confirmationChecks, createUnprotected, finishUnprotected,
-  joinUnprotected, laterProtection, NEXT, protectionFacts, protectionMatrix,
-  protectionPreferences, replacementAndReload } from "../harness/optional-passkey.mjs";
+  joinUnprotected, laterProtection, protectionFacts, protectionMatrix,
+  protectionPreferences, replacementAndReload, continuationBlocked,
+} from "../harness/optional-passkey.mjs";
 import { settled, WIDTHS } from "../harness/premium-visuals.mjs";
+import { browserOutput, launchTestBrowser } from "../harness/browser-test.mjs";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const phase = process.env.ZIGS_UI_PHASE || "after";
 if (!["before", "after"].includes(phase)) throw Error("Choose before or after");
-const origin = "http://localhost:" + (phase === "before" ? "8795" : "8794");
-const evidence = process.env.ZIGS_UI_V3 === "1" ? "web-v3" : "web-optional-passkey";
-const output = join(ROOT, "docs/ux-redesign/visuals", evidence, phase);
+const origin = process.env.ZIGS_OPTIONAL_ORIGIN
+  || "http://localhost:" + (phase === "before" ? "8795" : "8794");
+const output = browserOutput("optional-protection");
 mkdirSync(output, { recursive: true });
 const checks = [], errors = [], notes = [], screens = [];
-const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || "playwright");
-const browser = await chromium.launch({ headless: true,
-  executablePath: process.env.CHROME_EXECUTABLE });
+const browser = await launchTestBrowser();
 const contexts = [], pages = [];
 const qa = { after: phase === "after", check(ok, label) {
   checks.push({ label, pass: !!ok });
@@ -29,7 +27,7 @@ const qa = { after: phase === "after", check(ok, label) {
   await page.screenshot({ path: join(output, file), animations: "disabled",
     mask: [page.locator(".safety,.qr,.secret-link,input[type=password],input[type=file]")] });
   qa.check(noMetadata(join(output, file)), file + " has no identifying PNG metadata");
-  screens.push("visuals/" + evidence + "/" + phase + "/" + file);
+  screens.push(file);
 } };
 
 function noMetadata(file) {
@@ -48,6 +46,8 @@ async function page(unsupported = false) {
   contexts.push(context);
   await context.route("**/*", (route) => new URL(route.request().url()).origin === origin
     ? route.continue() : route.abort());
+  await context.route(/\/(lwd|near)\//, (route) => route.fulfill({ status: 503,
+    body: "No chain or provider service in this unfunded browser test." }));
   if (unsupported) await context.addInitScript(() => {
     Object.defineProperty(window, "PublicKeyCredential", { value: undefined });
   });
@@ -60,7 +60,7 @@ async function unsupportedChoice() {
   const current = await page(true); await entryReady(current, origin);
   await button(current, "Create wallet").click();
   qa.check(await button(current, "Protect this browser").isDisabled()
-    && await button(current, NEXT).isDisabled(),
+    && await continuationBlocked(current),
   "unsupported provider neither creates protection nor acknowledges automatically");
   await acknowledge(current, qa);
   qa.check(await current.getByRole("heading", {
@@ -103,8 +103,7 @@ try {
   limitations: ["Virtual WebAuthn provider only; no physical biometrics, device or screen reader.",
     "Real unfunded Zcash ceremony; no funded transaction, live RPC or live Solana proving.",
     "200% text and expanded explanations can scroll internally; content is never clipped."] };
-  writeFileSync(join(ROOT, "docs/ux-redesign/" + evidence + "-" + phase
-    + "-entry-validation.json"), JSON.stringify(report, null, 2) + "\n");
+  writeFileSync(join(output, "report.json"), JSON.stringify(report, null, 2) + "\n");
   console.log(JSON.stringify({ phase, checks: checks.length,
     screenshots: screens.length, errors }));
   if (errors.length) process.exitCode = 1;

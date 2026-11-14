@@ -623,11 +623,13 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
       if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); closeModal(); }
       if (ev.key === 'Tab') {
         const stops = [...modal.querySelectorAll('button,input,select,summary,[tabindex="0"]')]
-          .filter((n) => !n.disabled && n.getClientRects().length);
+          .filter((n) => !n.disabled && n.getClientRects().length && n.checkVisibility());
         const at = stops.indexOf(document.activeElement), last = stops.length - 1;
-        if (at < 0 || (ev.shiftKey ? at === 0 : at === last)) {
-          ev.preventDefault(); stops[ev.shiftKey ? last : 0]?.focus();
-        }
+        // Some WebKit configurations skip buttons during native Tab traversal. Own each step.
+        ev.preventDefault(); ev.stopPropagation();
+        const next = at < 0 ? (ev.shiftKey ? last : 0)
+          : (at + (ev.shiftKey ? -1 : 1) + stops.length) % stops.length;
+        stops[next]?.focus();
       }
     });
     modal.addEventListener('click', (ev) => { if (ev.target === modal) {

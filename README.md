@@ -152,6 +152,12 @@ payments by itself. They do not provide separate-device protection. Keep each sh
 file and passphrase safe. The configured approval threshold and per-device approval actions
 still apply.
 
+Mainnet first asks you to **Review single-browser mainnet setup**, then **Enable for this wallet**.
+This choice belongs to that wallet in this browser and is separate from passkey protection.
+The wallet header and Zcash payment reviews keep a warning visible whenever multiple signing
+shares are held here, including after reload or restore. The warning says this browser can approve
+Zcash payments by itself only when enough local shares have passed the existing checks.
+
 **Zcash testnet**
 
 1. Open https://app.zigs.app.
@@ -323,14 +329,34 @@ are blocked, and the check never funds, proposes, approves or broadcasts a payme
 browser stores leave existing wallets untouched. Reports and masked screenshots go to
 `/tmp/zigs-glass-audit/single-browser`, or `OPENGLASS_SINGLE_BROWSER_OUTPUT`.
 
-`npm run audit:openglass --prefix web` expands this to 120 presentation states across 320, 390,
-768 and 1440px in both themes, followed by keyboard, theme, motion and input-persistence checks.
+`npm run audit:openglass --prefix web` expands this to 120 presentation states across 320, 375,
+390, 768, 1024, 1440 and 1920px in both themes, followed by keyboard, theme, motion and input-persistence checks.
 It uses disposable synthetic wallet data and stops before wallet creation or transaction
 submission. Reports and masked screenshots go to `/tmp/zigs-glass-audit/flows`, or
 `OPENGLASS_AUDIT_OUTPUT`. The [OpenGlass flow audit](docs/ux-redesign/openglass-flow-audit.md)
 records coverage, fixes and validation limits.
 The [Near Swap integration review](docs/ux-redesign/near-swap-glass.md) covers the updated
 routing controls, walkthrough, saved history and six-step simulation from `Near`.
+
+`npm run test:browser --prefix web` is the portable presentation gate used by
+`.github/workflows/browser.yml`. It adds rendered welcome contrast (including negative controls),
+visible zebra artwork, mainnet local-share warnings, opt-in behavior and enlarged Security metrics to the interaction and
+120-state layout checks. Choose `ZIGS_BROWSER=chromium` (default) or `ZIGS_BROWSER=webkit`.
+Install the matching engine with `npm exec --prefix web -- playwright install <engine>`;
+Linux CI also installs its system dependencies. `CHROME_EXECUTABLE` or `WEBKIT_EXECUTABLE`
+can select a local executable. `npm run test:browser:smoke --prefix web` omits the full layout
+matrix and uses three welcome widths. JSON and masked PNG evidence goes to the system temporary
+directory under `zigs-browser`, or to `ZIGS_BROWSER_OUTPUT`.
+
+`npm run test:browser:ceremonies --prefix web` starts and removes an isolated local Worker,
+then checks real unfunded single-browser formation, encrypted recovery, independent browser
+stores, optional protection and virtual-passkey reload/unlock. It needs Node 26, dependencies
+in both `web/` and `cf/`, the built web assets and Playwright Chromium. No production configuration,
+existing browser profile, live chain service or funded transaction is used. CI keeps only JSON
+and masked PNG artifacts for seven days; it does not upload backup downloads or browser profiles.
+WebKit cannot emulate reduced transparency through CDP, so that preference is explicitly reported
+as unverified there. These checks do not replace physical-device, biometric, screen-reader or
+live-payment testing.
 
 ## Creating a wallet
 

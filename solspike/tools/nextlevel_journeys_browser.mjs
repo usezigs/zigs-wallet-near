@@ -1,21 +1,17 @@
 // Actual presentation modules, isolated synthetic facts, no server or payment execution.
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { overviewFixture, settleOverview } from "../harness/overview-redesign-fixture.mjs";
+import { browserOutput, launchTestBrowser } from "../harness/browser-test.mjs";
 
 process.chdir(fileURLToPath(new URL("../../", import.meta.url)));
-const { chromium } = createRequire(new URL("../../web/package.json",
-   import.meta.url))("playwright");
-const out = resolve(process.env.ZIGS_JOURNEYS_OUTPUT || "/private/tmp/zigs-nextlevel-journeys");
+const out = browserOutput("journeys", process.env.ZIGS_JOURNEYS_OUTPUT);
 mkdirSync(out, { recursive: true });
 const checks = [], errors = [];
 const check = (pass, name) => { checks.push({ pass: !!pass, name }); assert.ok(pass, name); };
-const browser = await chromium.launch({ headless: true,
-  executablePath: process.env.CHROME_EXECUTABLE ||
-     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" });
+const browser = await launchTestBrowser();
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion:
    "reduce" });
 const page = await context.newPage();
@@ -246,10 +242,15 @@ async function welcome() {
 
 try {
   await overviewFixture(context, page, { messaging: true });
+  // The user retained the collapsed rule in the audit-fixes scope; exercise its real disclosure.
+  check(await page.locator(".shared-control").isHidden(),
+     "configured rule starts in the retained disclosure");
+  await page.getByText("Wallet approval rule", { exact: true }).click();
   check(await page.locator(".shared-control").isVisible(),
-     "shared control is visible without opening a disclosure");
+     "opening the configured-rule disclosure exposes the full summary");
   check(await page.locator(".shared-control-medallion").count() === 3,
      "configured devices are shown as neutral, separate medallions");
+  await page.getByText("Wallet approval rule", { exact: true }).click();
   await paymentFlow(); await walkthrough(); await swapGuide(); await welcome();
   check(errors.length === 0, "no browser runtime errors");
   writeFileSync(resolve(out, "validation.json"), JSON.stringify({ checks, errors }, null, 2));

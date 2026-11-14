@@ -1,0 +1,75 @@
+name: browser
+
+on:
+  push:
+    branches: [Near, nextlevelvisuals]
+    paths: ['web/**', 'cf/**', 'solspike/harness/**', 'solspike/tools/**', '.github/workflows/browser.yml']
+  pull_request:
+    paths: ['web/**', 'cf/**', 'solspike/harness/**', 'solspike/tools/**', '.github/workflows/browser.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/Near' }}
+
+jobs:
+  presentation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    env:
+      CI: '1'
+      ZIGS_BROWSER: ${{ matrix.browser }}
+      ZIGS_BROWSER_OUTPUT: ${{ runner.temp }}/zigs-browser
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+      - run: npm ci --prefix web --no-audit --no-fund
+      - run: npm exec --prefix web -- playwright install --with-deps ${{ matrix.browser }}
+      - run: npm run build --prefix web
+      - run: npm run test:browser --prefix web
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: browser-${{ matrix.browser }}
+          path: |
+            ${{ runner.temp }}/zigs-browser/**/*.json
+            ${{ runner.temp }}/zigs-browser/**/*.png
+          retention-days: 7
+
+  ceremonies:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: '1'
+      ZIGS_BROWSER_OUTPUT: ${{ runner.temp }}/zigs-browser
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+      - run: npm ci --prefix web --no-audit --no-fund
+      - run: npm ci --prefix cf --no-audit --no-fund
+      - run: npm exec --prefix web -- playwright install --with-deps chromium
+      - run: npm run build --prefix web
+      - run: npm run test:browser:ceremonies --prefix web
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: unfunded-ceremonies
+          path: |
+            ${{ runner.temp }}/zigs-browser/**/*.json
+            ${{ runner.temp }}/zigs-browser/**/*.png
+          retention-days: 7
