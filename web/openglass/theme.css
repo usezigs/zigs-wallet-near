@@ -193,6 +193,22 @@
   }
 }
 
+/* A persistent fact about held shares, independent of the optional setup acknowledgement. */
+.local-devices-warning {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 16px;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 20px;
+}
+.local-devices-warning p { margin: 0; color: var(--muted); }
+.wallet-context-header > .local-devices-warning { grid-column: 1 / -1; }
+.local-devices-choice { display: grid; gap: 12px; padding-block: 16px; }
+
 /* Library actions and native actions held by wallet code share one material hierarchy. */
 :is(.zigs-openglass, .openglass-overlay) :is(.ogui-button, .openglass-control) {
   min-height: 44px;

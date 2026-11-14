@@ -1,5 +1,6 @@
 // Receive and send dialogs.
 import { icon } from "./app-icons.js";
+import { localDevicesWarning } from "./app-local-devices.js";
 import {
   MEMO_BYTES, memoBytes, memoError, parsePayeeList, toZat, zatText,
 } from "./payees.js";
@@ -796,6 +797,7 @@ function reviewDialog() {
     "aria-labelledby": "review-title" },
   el("div", { class: "card-head" }, dialogTitle("review-title", "Review the payment"), closeX()),
   paymentJourney(el, "review"),
+  localDevicesWarning(),
   sendNotice(),
   !ok ? privacyNotice(el, "unknown", "Privacy not verified",
     "Privacy cannot be verified because the transaction check did not pass.")

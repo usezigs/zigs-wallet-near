@@ -26,6 +26,7 @@ import { RESEND_MS, stageHeadline, paymentNextStep } from "./payment-model.js";
 import { outcomePanel } from "./outcome-seal.js";
 import { privacyNotice } from "./privacy-language.js";
 import { icon } from "./app-icons.js";
+import { localDevicesWarning } from "./app-local-devices.js";
 import { solStays } from "./app-wallet.js";
 import { swapDeadline, swapReview } from "./app-swap-zec.js";
 import { zecApprovalMotionValue } from "./app-motion.js";
@@ -342,6 +343,7 @@ function sessionDrawer(ss) {
       closeBtn()),
     el("div", { class: "drawer-body" },
       paymentJourney(el, paymentView),
+      localDevicesWarning(),
       el("div", { class: "review-warnings", "data-review": "warnings" },
         ...notes(ss, refused, rc)),
       guard(headline, ss, refused, rc),

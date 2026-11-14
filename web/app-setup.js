@@ -33,6 +33,8 @@ import { openGroup } from "./app-groups.js";
 import { outcomeSeal } from "./outcome-seal.js";
 import { openBackup, openBackupCheck } from "./app-backups.js";
 import { icon } from "./app-icons.js";
+import { mainnetLocalDevicesChoice } from "./app-local-devices.js";
+import { mainnetLocalDevicesAllowed } from "./local-devices.js";
 import { walletMark, walletReveal } from "./app-wallet-art.js";
 
 // Only an open overlay's wallet id is kept in memory; never persist an invitation capability.
@@ -890,15 +892,25 @@ function progressCard() {
 
 function demoDevices(open) {
   const off = offOf({ pending: state.pending, newSigner: true }, "why-play");
+  const mainnet = netName(state.g) === "mainnet";
+  const allowed = !mainnet || mainnetLocalDevicesAllowed(state.g);
   return localSeats().length && open.length
     ? el("details", { class: "testing" }, el("summary", {}, "Trying Zigs alone? Play the other devices in this browser"),
       el("p", { class: "small muted" }, netName(state.g) === "mainnet"
         ? "Played devices keep their separate signing shares in this browser. With enough shares here, this browser can approve real mainnet payments by itself. These slots do not provide separate-device protection. Keep each share’s recovery file and passphrase safe."
         : "For a demo or a review only. In real use, each key share sits on its own device."),
       deviceProtection("demo:" + state.gid),
+      mainnet ? mainnetLocalDevicesChoice(state.g, !!off.attrs.disabled, open[0]) : null,
       el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, open.map((i) => el("button", {
         class: "btn sm", type: "button", ...off.attrs,
-        onclick: act(() => { requireSetupProtection(); return takeSeat(i); }),
+        "data-key": "play-device-" + i, disabled: !allowed || !!off.attrs.disabled,
+        onclick: act(() => {
+          requireSetupProtection();
+          if (mainnet && !mainnetLocalDevicesAllowed(state.g)) {
+            throw new Error("Review and enable single-browser setup for this mainnet wallet first.");
+          }
+          return takeSeat(i);
+        }),
       }, "Play device " + i)), off.note))
     : null;
 }

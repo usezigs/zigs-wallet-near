@@ -50,6 +50,7 @@ import {
   zecTotal,
 } from "./overview-model.js";
 import { icon, sculptedIcon } from "./app-icons.js";
+import { localDevicesWarning } from "./app-local-devices.js";
 import { beginGuided, guidedEnabled, guidedState } from "./app-guided-setup.js";
 import { descriptionOf, setWalletDescription } from "./wallet-description.js";
 import { securityExplanation } from "./app-tutorial.js";
@@ -246,7 +247,8 @@ function groupHead(g, ready, why, persistent = false) {
           ? el("span", {}, "Replaces " + ((old || {}).name || "an older wallet")) : null),
       el("button", { class: "btn ghost wallet-home", type: "button", "data-key": "wallet-home",
         onclick: () => { ui.tab = "overview"; focusAfter("home-page", true); openGroup(null); } },
-        icon("home"), "Return home"));
+        icon("home"), "Return home"),
+      persistent ? localDevicesWarning(g) : null);
 }
 
 const isMainnet = () => netName(state.g) === "mainnet";

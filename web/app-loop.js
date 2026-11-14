@@ -251,7 +251,7 @@ function pageView() {
 
 // The global privacy status mounts independently and must not invalidate the wallet identity.
 const walletHeaderText = (header) => Array.from(
-  header.querySelectorAll(".wallet-identity,.wallet-meta,.wallet-home"),
+  header.querySelectorAll(".wallet-identity,.wallet-meta,.wallet-home,[data-local-devices-warning]"),
   (part) => part.textContent).join("\n");
 
 // A header is navigation context only. Direct chats keep their existing independent lifecycle.

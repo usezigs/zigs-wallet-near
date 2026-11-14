@@ -81,7 +81,7 @@ stop_server() { [ ! -f "$HERE/.state/serve.pid" ] || "$HERE/serve.sh" stop; }
 trap stop_server EXIT
 
 TESTS=(messaging-presentation messaging-cost-review messaging-account-view premium-motion
-  homepage-motion
+  homepage-motion local-devices
   outcome-seal passkey-setup optional-passkey guided-create wallet-description
   backup-check guided-setup
   recipients swap-preview swap-recovery swapflow near-confidential hackathon-swap sol-swap-proposal

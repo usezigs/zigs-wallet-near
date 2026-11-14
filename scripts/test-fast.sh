@@ -15,7 +15,7 @@ esac
 FAST="optional-passkey demo-check chain-fallback chat backup-check graph personal sol-rent
   sol-config sol-receive sol-errors sol-sdk sol-addsol sol-pool-mainnet guided-create
   messaging-presentation messaging-cost-review messaging-account-view premium-motion homepage-motion
-  outcome-seal passkey-setup wallet-description guided-setup
+  outcome-seal passkey-setup wallet-description guided-setup local-devices
   recipients swap-preview swap-recovery swapflow near-confidential hackathon-swap
   payees vault lwd zns near-quote
   requests shim shim-status
