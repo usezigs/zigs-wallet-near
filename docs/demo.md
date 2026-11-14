@@ -1,5 +1,7 @@
 # Zigs demo runbook
 
+> This is the wider wallet's historical testnet/Devnet runbook. For the current NEAR hackathon entry, use [the unfunded judge demo](near-demo.md).
+
 **Status: 20 October 2026, main a4d9022.** Sources: section 3 of
 [hackathon-release.md](hackathon-release.md) (the owner decisions) and the page code on main
 a4d9022. The packages that this runbook waited for (M3, M5, M10 and SOL-4) are on main. Two steps

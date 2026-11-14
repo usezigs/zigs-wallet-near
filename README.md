@@ -1,5 +1,152 @@
 # Zigs
 
+**Shared approval. Cross-chain execution.**
+
+Zigs is a shared wallet for Zcash and Solana. For **NEAR HACKATHON**, we integrated
+**NEAR Intents through the 1Click Swap API** so a group can review a cross-chain route,
+understand what it exposes, and use its wallet approval flow to authorize the source payment.
+
+**[Try the demo](#try-the-hackathon-demo) · [What we built](docs/near-hackathon.md) ·
+[Judge walkthrough](docs/near-demo.md) · [Privacy model](PRIVACY.md)**
+
+![Zigs Swap: live SOL-to-ZEC price quote beside the source, deposit, provider and destination privacy explainer](docs/images/near-swap-preview.png)
+
+*Actual hackathon preview: a live mainnet price quote, an example wallet and simulated settlement.
+No funds move in this walkthrough. The displayed price is a capture, not a current quote.*
+
+## The problem
+
+A shared treasury should not have to give one person all the keys to move between chains.
+A cross-chain swap should also explain its privacy boundaries before anyone pays: a shielded
+source balance does not make a public deposit or a provider's route invisible.
+
+Zigs brings the quote, approval, deposit, status and recovery journey into one wallet interface.
+The NEAR integration builds on the existing wallet; it does not claim that NEAR supplies
+Zigs' threshold signatures or Zcash proofs.
+
+## What we built for NEAR
+
+| Capability | What is implemented |
+| --- | --- |
+| Live price discovery | Real, unfunded 1Click quotes for ZEC, SOL and USDC on Solana. Failed requests show an error instead of substituting an invented rate. |
+| Cross-chain wallet integration | SOL → ZEC and ZEC → SOL execution paths, including the wallet's approval flow for supported group-funded deposits. Live execution is separate from the judge preview and depends on server configuration. |
+| Explicit routing choices | **Hackathon preview**, **Standard mainnet** and **Confidential mainnet** are distinct choices. Confidential routing never silently retries as Standard. |
+| Quote and payment checks | Provider signature verification plus validation of assets, amounts, destinations, refund addresses, deadlines, slippage and the requested routing mode. |
+| Receipt and recovery | Encrypted receipts in the full wallet preserve the selected route and deposit details, support status refresh, and track pending or uncertain payments. |
+| Privacy explanation | An interactive source → deposit → NEAR → destination walkthrough, with disclosures for each boundary and refunds. Keyboard controls and reduced motion are supported. |
+
+**Demonstrated here:** real mainnet price quotes and the complete unfunded simulation.
+**Not established:** funded end-to-end swap settlement, shielded ZEC delivery or refunds in Zigs.
+The live execution paths are implemented and tested with fixtures; they are not evidence of a
+completed funded transaction.
+
+## Try the hackathon demo
+
+Use **Node.js 26** (the CI version), npm and a desktop browser. From a checkout:
+
+```sh
+npm ci --prefix web
+npm run build --prefix web
+node solspike/tools/swap_preview_server.mjs
+```
+
+Open **<http://127.0.0.1:8856/__swap_preview__?scenario=hackathon>**.
+
+1. Enter **0.1 SOL**. See a live NEAR price estimate, minimum received and slippage.
+2. Explore the **Source**, **Deposit**, **NEAR** and **Receive** chapters beside the form.
+3. Open the swap review using the primary action, then choose **Simulate swap flow**.
+4. Advance through the six steps. The last screen explicitly confirms that the steps were
+   simulated and no funds moved.
+
+No wallet setup, funded account, partner key or Rust build is needed. The preview server accepts
+only dry quote requests; it exposes no live swap, payment or status routes. Provider availability
+and minimum amounts still apply. A failed quote can be refreshed and is never replaced by a fake
+price. See the [demo guide](docs/near-demo.md) for expected results and troubleshooting.
+
+The [hosted wallet](https://app.zigs.app) is a separate deployment; its enabled features may differ
+from this checkout. Use the local preview above to reproduce this entry.
+
+## How NEAR fits
+
+NEAR Intents supplies the cross-chain routing and settlement service through 1Click.
+Zigs supplies the wallet, approval rules, quote checks, privacy disclosures and receipt handling.
+This integration uses the 1Click API; it does not deploy a new NEAR contract or use NEAR Chain
+Signatures for Zigs' wallet keys.
+
+```mermaid
+flowchart LR
+    Browser[Zigs browser wallet] <-->|Quotes and swap status| Worker[Zigs Worker]
+    Worker <-->|1Click API| NEAR[NEAR Intents]
+    Browser <-->|Shared payment approvals| Devices[Signer devices · Rust / WASM]
+    Devices -->|Approved source payment| Source[Source chain]
+    Source -->|Swap deposit| NEAR
+    NEAR -->|Destination transfer| Destination[Destination chain]
+```
+
+*The diagram describes the full-wallet execution architecture. The isolated judge preview uses
+only dry quotes and illustrates the remaining steps.*
+
+## Routing and privacy
+
+| Mode | What it does | Requirement |
+| --- | --- | --- |
+| Hackathon preview | Live public-sample price estimate; simulated approvals, funding, delivery and recovery. | No partner key or funds. Default demo mode. |
+| Standard mainnet | Requests a public route for real execution. | Explicit public-route consent, a configured live server and a suitable funded wallet. No partner key is required by this path. |
+| Confidential mainnet | Requests NEAR's Basic confidential routing. | Configured provider access and a live server. Unavailable or mismatched routing fails closed. |
+
+Confidential routing is a provider capability, not a claim of end-to-end anonymity. Public
+source-chain deposits, group identifiers and fee payers can remain linkable; the provider sees
+the route. A mode echo is not a cryptographic privacy guarantee. See the
+[NEAR scope and limitations](docs/near-hackathon.md#privacy-and-security-boundaries) and
+[full privacy model](PRIVACY.md). The wallet is beta software and has not received an independent
+security audit.
+
+## Review the implementation
+
+- [NEAR hackathon scope, source map and comparison](docs/near-hackathon.md).
+- [Reproducible judge demo and video walkthrough](docs/near-demo.md).
+- [NEAR submission draft and release checklist](docs/hackathon-submission.md).
+- [Wallet protocol](PROTOCOL.md), [privacy](PRIVACY.md) and [Solana integration](ZOLANA.md).
+- [Wallet and engineering reference](#wallet-and-engineering-reference), including full setup,
+  test commands, native clients and historical testnet/Devnet evidence.
+
+Run the focused offline checks from the repository root:
+
+```sh
+node web/test/near-quote.mjs
+node web/test/near-confidential.mjs
+node web/test/hackathon-swap.mjs
+node web/test/swapflow.mjs
+node web/test/swap-preview.mjs
+node web/test/swap-recovery.mjs
+```
+
+These checks use fixtures and do not move funds. An optional real dry-quote/signature diagnostic
+is in the [demo guide](docs/near-demo.md#optional-live-quote-diagnostic).
+
+## Foundation and credits
+
+The threshold wallet, Zcash engine, Solana integration and messaging are the existing foundation.
+The [scope document](docs/near-hackathon.md#existing-foundation-and-integration-scope) separates
+that work from the NEAR integration and links the code comparison. Commit metadata has been
+normalized for contributor privacy; it is not used as proof of the integration's development dates.
+
+Built with Rust/WebAssembly, FROST, Cloudflare Workers and Durable Objects, the Zolana/Helius
+Solana tooling, React, OpenGlass UI and Motion. The broader interface also uses
+[Radiant artwork/code](web/vendor/radiant-LICENSE.txt). Dependency licenses and third-party
+credits remain with the source. Asset marks identify the assets. The trademarks belong to their
+owners; see [asset attribution](web/assets/README.md).
+
+Licensed under **[AGPL-3.0-only](LICENSE)**; bundled third-party material retains its own terms.
+
+## Wallet and engineering reference
+
+<details>
+<summary>Open the full wallet, setup, build and testing reference</summary>
+
+This reference covers the wider wallet, including testnet/Devnet demonstrations and native
+clients. For the NEAR entry's scope and current judge walkthrough, use the documents above.
+
 ## Swapflow hackathon preview
 
 This branch adds an unfunded walkthrough of **private SOL → shielded ZEC**, using real,
@@ -233,7 +380,7 @@ To see device changes, open **Devices**, then **Change devices**. To see the pri
 | **Privacy** | On chain, the transaction shape matches the standard wallet library: same builder, padding, standard fee and anchor depth. A group payment expires after one day instead of about 50 minutes, because its approvals take hours, so the expiry marks it, and so does a priority fee ([comparison](PRIVACY.md#on-chain)). The server stores only encrypted values, padded so that even their length hides amounts. On the device, key shares can be locked with a passkey ([how](PRIVACY.md#lock-with-a-passkey-or-face-id)). Key share backups are encrypted with a passphrase (Argon2id and XChaCha20-Poly1305) ([how](PRIVACY.md#key-share-backups)). The page can connect only to its own host (the group server and the testnet light-wallet relay) and two ChainSafe light-wallet servers (Content-Security-Policy). For testnet wallets, the Solana Worker of the page also connects to the Helius Devnet host ([how](PRIVACY.md#solana-beta-helius-devnet)). Once the server turns on the plain Solana wallet, a mainnet wallet with that part connects to the Helius mainnet host and never to the Devnet host ([how](PRIVACY.md#solana-mainnet-plain-wallet)). With local proving on, it also fetches the proving keys from one CloudFront folder (`d3gbdb0egjwcw9.cloudfront.net/proving-keys/3a1c88f90f609eb1/`, `SOL_KEYS` in `cf/src/index.js`). It is prepared for Tor Browser, but not yet tested end to end ([how](PRIVACY.md#use-zigs-over-tor)). The Zigs server code keeps no logs; its host, Cloudflare, can see connection data. Every remaining leak is listed in [PRIVACY.md](PRIVACY.md). |
 | **Usefulness** | Designed for team treasuries, DAOs and families. Usable today in the web app, on Zcash testnet and Solana Devnet: invite links and QR codes; batch payments for payroll and grants (up to 8 recipients, one approval round, pasted from a spreadsheet); device changes; encrypted key share backups. |
 | **Execution** | The live app works end to end. The testnet and Devnet transactions that the apps made, a payment to a ZNS name among them, are [listed below](#proof-on-testnet-and-devnet). The engine has 131 tests, and a command-line suite runs adversarial cases. |
-| **Originality** | An end-user app for re-randomized FROST: no command line, no trusted dealer, and no server that can read the wallet. Each device decodes the PCZT and checks every output before it approves, and binds its approval to the transaction's sighash. Device changes and batch payments are included. The iPhone and Mac code in `ios/` is not part of this release. Built during the Zecathon window: the first commit is from October 15, 2026. |
+| **Originality** | An end-user app for re-randomized FROST: no command line, no trusted dealer, and no server that can read the wallet. Each device decodes the PCZT and checks every output before it approves, and binds its approval to the transaction's sighash. Device changes and batch payments are included. The iPhone and Mac code in `ios/` is not part of this release. The wallet is the existing foundation; the NEAR integration is described in the [hackathon scope](docs/near-hackathon.md). |
 
 ## Architecture
 
@@ -1084,3 +1231,6 @@ Third-party parts keep their own licences:
 | Zcash, Solana and USDC marks in `web/assets/` | The marks identify the assets. The trademarks belong to their owners and are not under the AGPL, see [web/assets/README.md](web/assets/README.md) |
 
 The apps serve the fonts from `web/fonts/`, so users never contact Google.
+
+
+</details>

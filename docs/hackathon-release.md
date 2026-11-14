@@ -1,4 +1,6 @@
-# Zigs hackathon release checklist
+# Wallet engineering release notes
+
+> This is a historical wallet engineering checklist for the earlier testnet/Devnet demo. It is not the NEAR entry release checklist. Use [the NEAR submission checklist](hackathon-submission.md#release-and-submission-checklist) and [integration scope](near-hackathon.md) for the current entry.
 
 Release scope: Zcash testnet and Solana Devnet. Mainnet is out. Base: main 950a88b. Sources: five audits of the demo flows (setup, Zcash, Solana, devices, polish), 18 October 2026.
 

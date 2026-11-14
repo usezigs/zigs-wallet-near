@@ -1,125 +1,62 @@
-# Zecathon submission
+# NEAR HACKATHON · Zigs submission draft
 
-**Status: draft of 20 October 2026.** The owner submits it. Deadline: 28 October 2026, 23:59 UTC.
-Sources: [hackathon-release.md](hackathon-release.md) (the live records),
-[PRIVACY.md](../PRIVACY.md), the judge walkthrough of the [README](../README.md) and
-[demo.md](demo.md).
+Working submission material for the NEAR integration. The repository remains private until its
+owner explicitly approves publication. This file is a draft, not a submitted application.
 
-## 1. Form fields
+[README](../README.md) · [Implementation scope](near-hackathon.md) · [Judge demo](near-demo.md)
 
-| Field | Value |
-|---|---|
-| Project name | Zigs |
-| Track | Cross-Chain or Shielded Payments: the owner chooses (section 2) |
-| Description | Section 3 (at most 2,000 characters) |
-| Public repository | https://github.com/devzigs/zigs (public since 26 October 2026) |
-| Demo URL | https://app.zigs.app |
-| Demo video | A two-minute video (section 5). The owner uploads it and pastes the URL |
+## Project summary
 
-## 2. Which track
+**Zigs — shared approval, cross-chain execution.**
 
-**Cross-Chain.** One group of devices controls a shielded Zcash wallet and a private SOL balance in
-the Zolana pool on Solana Devnet. One setup makes both keys on the same devices, and the same
-approval rule (any t of n devices) holds on both chains. Each chain keeps its own keys and its own
-privacy model, and the app says what each chain hides and what it shows. The live Devnet runs
-cover the setup, the restore of every device, private payments and a withdrawal.
+Zigs connects an existing shared Zcash/Solana wallet to NEAR Intents through the 1Click Swap API.
+A group can review a cross-chain quote, understand the privacy boundaries, and use its wallet
+approval flow for a supported source payment. The interface includes explicit public/confidential
+routing choices, provider quote authentication, status tracking and encrypted receipt recovery.
 
-**Shielded Payments.** A shielded Zcash payment that a group approves has the shape of a payment
-from a standard Zcash wallet, except for its one-day expiry and an optional priority fee, which can
-mark it. Zigs needs no trusted dealer and no server that can read the wallet.
-Each device decodes the transaction itself before it approves, and payments can go to a ZNS name
-with no server learning which name. The Solana part is a second, weaker privacy rail, so the
-Zcash part carries the case.
+The reproducible judge demo gets real mainnet price quotes without a partner key, then simulates
+the approval, deposit, settlement and recovery journey. It cannot create a live swap or move funds.
+Funded end-to-end settlement, shielded ZEC delivery and refunds have not been verified in Zigs.
+The existing wallet and its dependencies are disclosed as the foundation rather than new NEAR work.
 
-## 3. Description
+## Draft application description
 
-Character count: 1,976 (the text between the two lines below, with its 14 line breaks; 1,990 if the
-form counts each line break as two characters).
+The following is a project-description draft only; it contains no contact or payout details.
 
----
-Zigs is a shared wallet for shielded Zcash and for private SOL in the Zolana pool on Solana Devnet. Each device of a group holds one key share of FROST threshold keys. Nobody holds the whole key. Any t of n devices approve each payment. One setup makes both keys on the same devices.
+> Shared treasuries should be able to move between chains without giving one person all the keys
+> or hiding what a swap exposes. Zigs integrates NEAR Intents through the 1Click Swap API into an
+> existing shared Zcash/Solana wallet. We built live price quotes, validated swap creation paths,
+> explicit public and Basic confidential routing, provider quote verification, group-funded
+> payment proposals, encrypted receipts and recovery, and an interactive privacy walkthrough.
+>
+> Judges can run a key-free local demo: enter SOL, receive a real mainnet price quote, inspect
+> slippage and visibility at each boundary, then simulate the six-step swap journey. The preview
+> cannot create a live swap or move funds. Full-wallet execution paths are implemented and tested
+> with fixtures; funded settlement, shielded ZEC delivery and refunds in Zigs are not verified.
+> The README separates the existing wallet foundation from the NEAR integration and links the
+> implementation and reproducible checks.
 
-Real and live (web app, testnet and Devnet):
-- Zcash: re-randomized FROST (ZIP 312) on the Ironwood pool. Each device decodes the transaction itself and binds its approval to the sighash. On chain, a Zigs payment has the shape of a payment from a standard Zcash wallet, except for its one-day expiry and an optional priority fee, which can mark it. Nothing shows that a group signed it, who the devices are, or which of them approved.
-- Pay to a ZNS name: a testnet payment to craftsoldier.zec landed on 19 October 2026 (block 4,518,023); each approving device checked the name again. No server learns which name you pay.
-- Solana: a Zigs program owns the funds of the group. Live Devnet runs on 18 and 19 October 2026 made a 3-device wallet in one setup, restored every device from backup files, and sent two private payments and a withdrawal. A device restored before the Solana setup still joined it.
-- The group server relays and stores encrypted data. It cannot read names, addresses, amounts, notes or transactions, but it sees which IP addresses open which wallet, and when.
+## Review links
 
-Not done or not hidden:
-- Testnet and Devnet only: the web app makes no mainnet wallets. Not audited.
-- On Solana, a private payment hides its amount, but the owner key of the payee is public. The chain also links the group key, the program address and the fee addresses in public.
-- The hosted prover of Helius sees the witness of each Solana spend: owners, assets, amounts, blindings and the nullifier secret. With local proving on, nobody: the proof runs on the device.
-- Mock: only the illustration screens on zigs.app. Each payment above is a real testnet or Devnet transaction.
+| Item | Location |
+| --- | --- |
+| Repository | This repository; keep private until publication is approved. |
+| Reproducible demo | [near-demo.md](near-demo.md), including commands and visible results. |
+| Integration and baseline | [near-hackathon.md](near-hackathon.md#existing-foundation-and-integration-scope). |
+| Full wallet deployment | [app.zigs.app](https://app.zigs.app); its configuration can differ from this checkout. |
+| Demo recording | Use the [recording outline](near-demo.md#two-minute-recording-outline); add the actual public demo-post URL only after it exists. |
+| Track candidates | `defi` for cross-chain execution; `privacy` for the explicit privacy boundaries. The owner chooses the submitted tracks. |
 
-Licence: AGPL-3.0-only.
----
+## Release and submission checklist
 
-Sources of each claim:
+- [ ] Run the focused offline checks in the README and build the web interface.
+- [ ] Reproduce the unfunded judge walkthrough; retain the real error if the provider is unavailable.
+- [ ] Resolve the remaining release/privacy checks and approve repository publication separately.
+- [ ] Record the demo with the simulation clearly labeled, and publish the required demo post.
+- [ ] Review the current [organizer instructions](https://nearhackathon.com/HACKATHON.md), eligibility, deadlines and submission requirements.
+- [ ] Keep the lead's name, contact email, payout account, consent and complete submission payload outside Git.
+- [ ] Let the owner review the exact submission before it is sent. Do not assume this draft was submitted.
 
-| Claim | Source |
-|---|---|
-| On chain, nothing shows a group; the expiry and an optional priority fee can mark it | PRIVACY.md, Summary and On chain; README, judging criteria |
-| Each device decodes the transaction and binds its approval to the sighash | README, judging criteria (Originality) |
-| The ZNS payment, block 4,518,023; no server learns the name | hackathon-release.md M10 status; PRIVACY.md, Summary |
-| The Devnet runs: one setup, restore of every device, two payments, a withdrawal | hackathon-release.md M3 and the nonce lock record (18 and 19 October) |
-| A device restored before the Solana setup joined it | hackathon-release.md M4 (`scenario-e.mjs`) |
-| The group server sentence | PRIVACY.md, Summary and the table of the group server |
-| The Solana sentences and the hosted prover | PRIVACY.md, Solana beta: approvals program, the Zolana table, Local proving |
-| AGPL-3.0-only | LICENSE and README, License |
-
-## 4. Judge access
-
-Put this in the form:
-
-```text
-Demo: https://app.zigs.app
-No password and no account: the app opens in a desktop browser.
-```
-
-Try it alone, from one desktop browser (the README has every step):
-
-1. Open https://app.zigs.app. Click **Set up a wallet**, then **Set up my
-   wallet**. Open **Advanced approval rule**, set **Devices** to 2 and **Approvals needed** to 2,
-   tick the box under the warning and click **Next**. Keep **Also set up Solana Devnet** ticked.
-   Click **Review wallet**, then **Create wallet**.
-2. Open **Trying Zigs alone? Play the other devices in this browser** and click **Play device 2**.
-   Within half a minute the wallet opens, and the Solana key follows by itself.
-3. Click **Receive** and get test coins from the faucet link (if it does not pay, step 4 of the
-   README gives other ways). Click **Send**, paste a `utest1` address and an amount, then click
-   **Review payment** and **Propose payment**. Click **Approve as device 1** and **Approve as
-   device 2**, then **Build proof** and **Send to network**. For Solana, click **Open Solana** and
-   follow steps 9 to 12 of the README.
-
-## 5. Video script: 2 minutes
-
-Record only the browser window, in a clean profile, with no menu bar, notifications or real names
-(docs/demo.md section 3, "First recording"). The scenes follow section 4 of
-docs/demo.md, cut to 2:00. **Prepared** marks a scene that needs the funded wallets of
-docs/demo.md section 3 (Demo A, Payee, the fee addresses and Add SOL) before the recording.
-
-| Time | Show | Say | Prepared |
-|---|---|---|---|
-| 0:00 | The start screen of app.zigs.app | "Zigs is a shared wallet for shielded Zcash and private SOL. It runs on Zcash testnet and Solana Devnet, and it is not audited." | |
-| 0:10 | **Set up a wallet**, the rule any 2 of 3 devices, **Also set up Solana Devnet**, **Create wallet**. Cut to the other devices that join and click **It matches** | "Each device makes its own key share. One setup makes the Zcash key and the Solana key. Nobody holds the whole key." | |
-| 0:30 | Demo A: the Zcash balance. **Send**: type the demo name, or paste the Payee address. **Review payment** | "The review is what this device decoded from the transaction itself." | Yes |
-| 0:45 | **Propose payment**. Device 1 and a second device each click **Approve payment**. **Build proof** (cut the wait) | "Any 2 of 3 devices approve. Each one checks the payee and the amount before it signs." | Yes |
-| 1:00 | **Send to network**, **View in explorer** | "On chain, this has the shape of a payment from a standard Zcash wallet, except its one-day expiry and an optional priority fee, which can mark it. Nothing shows that a group signed it." | Yes |
-| 1:10 | **Open Solana** on Demo A: the private balance. **Send privately** to the Payee address. Two devices approve | "The same devices approve a private SOL payment in the Zolana pool." | Yes |
-| 1:30 | The status **Executed** and its explorer link | "The amount is hidden. The owner key of the payee, the group and the fee address that pays are public." | Yes |
-| 1:40 | The card **Local proving** | "By default the hosted prover of Helius sees each Solana spend. With local proving on, the proof runs on the device." | |
-| 1:50 | The README and the repository | "Testnet and Devnet only, not audited, open source under AGPL-3.0." | |
-
-Do not show a real name, the seed of an account or a backup passphrase.
-
-## 6. Owner checklist
-
-1. Register on the Zecathon site. The form asks for a real-name profile that only the organisers
-   and the judges see. Check it against the pseudonymous identity rule before you register.
-2. Done on 26 October 2026: the repository is public. The website repository stays private.
-3. Pick the track: Cross-Chain or Shielded Payments (section 2).
-4. Prepare the wallets of docs/demo.md section 3, record the video of section 5, upload it, and
-   keep its URL.
-5. Paste the description of section 3, the repository URL, the demo URL and the video URL.
-6. The day before the deadline, run `sh solspike/demo-check.sh` and fix every FAIL. The judges use
-   app.zigs.app.
-7. Submit before 28 October 2026, 23:59 UTC.
+No contact details, payout account, invented demo URL or complete application payload belong in
+this repository. A documentation update does not authorize publication, social posts, a
+submission, deployment or any funded transaction.
