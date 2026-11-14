@@ -1,28 +1,29 @@
 // Interactions on isolated UI fixtures. No wallet creation, transaction signing, or submissions.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { chromium } from "playwright";
+import { browserName, browserOutput, launchTestBrowser } from "../../solspike/harness/browser-test.mjs";
 import { overviewFixture, settleOverview } from "../../solspike/harness/overview-redesign-fixture.mjs";
 import { installMessagingFixture } from "../../solspike/harness/messaging-redesign.mjs";
 
 process.chdir(fileURLToPath(new URL("../../", import.meta.url)));
-const output = resolve(process.env.OPENGLASS_AUDIT_OUTPUT || "/tmp/zigs-glass-audit/flows");
-mkdirSync(output, { recursive: true });
-const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_EXECUTABLE
-  || (existsSync("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
-    ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" : undefined) });
+const output = browserOutput("interactions", process.env.OPENGLASS_AUDIT_OUTPUT);
+const browser = await launchTestBrowser();
 const context = await browser.newContext({ reducedMotion: "reduce", viewport: { width: 1440, height: 1000 } });
 const page = await context.newPage(); page.setDefaultTimeout(5000);
-const checks = [], errors = [];
+const checks = [], errors = [], limitations = [];
 page.on("pageerror", error => errors.push(error.message));
-const check = (value, label) => { assert.ok(value, label); checks.push(label); };
+const check = (value, label) => { checks.push({ pass: !!value, label }); assert.ok(value, label); };
 async function keyboardDialog() {
   for (const key of ["Tab", "Shift+Tab"]) for (let i = 0; i < 8; i++) {
     await page.keyboard.press(key);
-    check(await page.evaluate(() => !!document.activeElement.closest('dialog[open],[role="dialog"]')),
-      `Dialog contains ${key} ${i + 1}`);
+    const focus = await page.evaluate(() => ({
+      contained: !!document.activeElement.closest('dialog[open],[role="dialog"]'),
+      active: document.activeElement.tagName + "#" + document.activeElement.id,
+      modalOpen: !!document.querySelector("dialog[open]"),
+    }));
+    check(focus.contained, `Dialog contains ${key} ${i + 1}: ${JSON.stringify(focus)}`);
   }
 }
 try {
@@ -30,7 +31,8 @@ try {
   await page.evaluate(async () => {
     (await import("/app-engine.js")).setZ({ normalizeAddress: a => a, payeeAddress: a => a });
     Object.defineProperty(navigator, "clipboard", { configurable: true,
-      value: { writeText: async value => { globalThis.__auditClipboard = value; } } });
+      value: { writeText: async value => { globalThis.__auditClipboard = value;
+        globalThis.__auditCopyWrites = (globalThis.__auditCopyWrites || 0) + 1; } } });
   });
   await page.getByRole("button", { name: "New wallet", exact: true }).click();
   await page.getByRole("heading", { name: "Protect this browser", exact: true }).waitFor();
@@ -63,7 +65,8 @@ try {
   await page.evaluate(async () => {
     (await import("/app-engine.js")).setZ({ normalizeAddress: a => a, payeeAddress: a => a });
     Object.defineProperty(navigator, "clipboard", { configurable: true,
-      value: { writeText: async value => { globalThis.__auditClipboard = value; } } });
+      value: { writeText: async value => { globalThis.__auditClipboard = value;
+        globalThis.__auditCopyWrites = (globalThis.__auditCopyWrites || 0) + 1; } } });
     (await import("/app-send.js")).openSend();
     (await import("/app-loop.js")).draw();
   });
@@ -82,14 +85,21 @@ try {
   check(await page.locator("#app > .page").first().evaluate(node => node.inert),
     "Receive keeps the underlying wallet view inert");
   check(await page.evaluate(() => globalThis.__auditClipboard === "utest1" + "q".repeat(180)), "Receive copies the exact synthetic address");
-  check(await page.locator(".receive-dialog .ogui-button .openglass-native").count() > 0,
-    "Copy feedback preserves React's component structure");
+  check(await page.locator('.receive-copy[data-result="copied"]').isEnabled()
+    && await page.locator(".receive-feedback").textContent() === "Full address copied",
+    "Copy reports success and leaves its native owner usable");
+  check(await page.evaluate(() => globalThis.__auditCopyWrites === 1),
+    "One activation writes the complete address exactly once");
   await keyboardDialog(); await page.keyboard.press("Escape");
+  await page.getByRole("dialog").waitFor({ state: "detached" });
+  await settleOverview(page);
 
   await page.evaluate(async () => {
     const { el } = await import("/app-dom.js"); globalThis.__auditClicks = 0;
-    document.getElementById("app").append(el("button", { "data-glass": "button", id: "listener-audit",
+    const view = document.querySelector("#app > .page");
+    view.append(el("button", { "data-glass": "button", id: "listener-audit",
       onclick: () => globalThis.__auditClicks++ }, "Check listener"));
+    globalThis.__messagingView = () => view;
     globalThis.zigsGlass.flush();
   });
   for (const theme of ["dark", "light", "dark", "light"]) await page.evaluate(value => {
@@ -129,13 +139,16 @@ try {
   await settleOverview(page);
   check(await page.locator("body > dialog > .openglass-backdrop-slot .openglass-edge-shine")
     .evaluate(node => getComputedStyle(node).animationName === "none"), "Reduced motion stops native dialog reflections");
-  const cdp = await context.newCDPSession(page);
-  await cdp.send("Emulation.setEmulatedMedia", { features: [
-    { name: "prefers-reduced-transparency", value: "reduce" }, { name: "prefers-reduced-motion", value: "reduce" },
-  ] });
-  await settleOverview(page);
-  check(await page.locator("body > dialog .openglass-sheet-material").first()
-    .evaluate(node => getComputedStyle(node).backdropFilter === "none"), "External dialog has an opaque reduced-transparency fallback");
+  let cdp = null;
+  if (browserName === "chromium") {
+    cdp = await context.newCDPSession(page);
+    await cdp.send("Emulation.setEmulatedMedia", { features: [
+      { name: "prefers-reduced-transparency", value: "reduce" }, { name: "prefers-reduced-motion", value: "reduce" },
+    ] });
+    await settleOverview(page);
+    check(await page.locator("body > dialog .openglass-sheet-material").first()
+      .evaluate(node => getComputedStyle(node).backdropFilter === "none"), "External dialog has an opaque reduced-transparency fallback");
+  } else limitations.push("Reduced-transparency emulation needs Chromium CDP; not verified in WebKit.");
   await page.emulateMedia({ forcedColors: "active" });
   await settleOverview(page);
   check(await page.locator("body > dialog .openglass-sheet-material").first()
@@ -143,7 +156,7 @@ try {
   await page.keyboard.press("Escape"); await page.locator("body > dialog").waitFor({ state: "detached" });
   check(await page.getByRole("button", { name: "Choose asset to pay", exact: true }).evaluate(node => node === document.activeElement),
     "Swap Escape dismissal returns focus to its opener");
-  await cdp.send("Emulation.setEmulatedMedia", { features: [] });
+  if (cdp) await cdp.send("Emulation.setEmulatedMedia", { features: [] });
   await page.emulateMedia({ forcedColors: "none", colorScheme: "dark", reducedMotion: "reduce" });
   await page.reload();
   await page.locator("#app").waitFor({ state: "attached" });
@@ -166,7 +179,7 @@ try {
   assert.deepEqual(errors, [], "No runtime errors during audited interactions");
   console.log(`OpenGlass interactions: ${checks.length} checks passed`);
 } finally {
-  writeFileSync(resolve(output, "interactions.json"), JSON.stringify({ checks, errors,
+  writeFileSync(resolve(output, "interactions.json"), JSON.stringify({ checks, errors, limitations,
     scope: "Disposable UI fixtures; setup stopped at review; no wallet creation or payment submission." }, null, 2));
   await browser.close();
 }

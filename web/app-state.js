@@ -51,6 +51,7 @@ export const ui = {
   create: false, receive: false, move: false, net: "testnet", notify: false,
   createStep: 0, createDraft: null, marginAck: false,
   newChat: false, leave: false, backup: null, restore: null, menu: false,
+  localDevicesReview: null, localDevicesError: "",
   request: null, note: "", priority: false, sendFor: null, contactAdd: false,
   joinBad: "", joinOpen: false, join: {},
   personal: { net: "testnet", fund: "0.003", drop: false },

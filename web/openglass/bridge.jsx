@@ -129,8 +129,6 @@ const surfaces = [
   ".approval-visualization", ".home-hero",
   ".swap-execution", ".swap-execution-option", ".swap-pane", ".swap-payer", ".swap-payout",
   ".swap-history", ".swap-history-row", ".swap-privacy-explainer", ".privacy-film",
-  ".privacy-film-note", ".privacy-film-ledger", ".privacy-film-provider", ".privacy-film-address",
-  ".privacy-film-receipt", ".privacy-film-seal",
   ".browser-status > summary", ".side.menu-open #side-nav",
 ].join(", ");
 

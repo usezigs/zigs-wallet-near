@@ -132,7 +132,6 @@ function emptyConversation(newChatWhy) {
   }, guard(zcashAccountSetup, pickRestore));
   return el("section", { class: "messages-thread messages-empty", "aria-label": "Choose a conversation" },
     el("div", { class: "messages-empty-art", "aria-hidden": "true" }, sculptedIcon("chat")),
-    el("span", { class: "label" }, transport === "relay" ? "Private coordination" : "Messages on Zcash"),
     el("h2", {}, "Choose a conversation"),
     el("p", {}, transport === "relay"
       ? "Open a wallet conversation or a direct chat. Text messages use the encrypted relay and have no blockchain fee."

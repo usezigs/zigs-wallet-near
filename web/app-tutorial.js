@@ -241,6 +241,8 @@ export function setupArrangement(n, t, kind = "rule", labels = {}) {
   diagram.className += " setup-arrangement";
   diagram.setAttribute("data-preview", kind);
   diagram.setAttribute("data-rule", n + ":" + t);
+  diagram.setAttribute("data-device-count", String(n));
+  diagram.setAttribute("style", "--setup-device-count:" + n);
   return diagram;
 }
 

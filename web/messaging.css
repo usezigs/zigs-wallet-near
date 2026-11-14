@@ -69,7 +69,7 @@
   font:400 13px/18px var(--sans); text-align:right; }
 .messages-row-meta .badge { min-width:20px; padding:0 5px; }
 .messages-thread { min-width:0; min-height:0; display:flex; flex-direction:column;
-  background:var(--messages-surface); overflow:hidden; }
+  background:var(--messages-surface); overflow-y:auto; overscroll-behavior:contain; }
 .messages-thread-header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between;
   gap:12px; flex:none; min-height:72px; padding:12px 16px; border-bottom:1px solid var(--line); }
 .messages-thread-title { display:grid; gap:3px; min-width:0; flex:1; }
@@ -152,8 +152,12 @@
   padding:12px 14px; border:1px solid var(--line-2); border-radius:12px;
   background:var(--messages-inset); color:var(--muted); font:400 13px/19px var(--sans); }
 .messages-offline .symbol { flex:none; width:18px; height:18px; }
-.messages-empty { flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center;
-  gap:12px; min-height:260px; padding:40px 32px; text-align:center; color:var(--muted); }
+.messages-empty { flex:1; display:flex; flex-direction:column; justify-content:safe center; align-items:center;
+  gap:12px; min-height:0; padding:24px 32px; text-align:center; color:var(--muted);
+  overflow-y:auto; scrollbar-color:var(--line-2) transparent; }
+.messages-empty>* { flex-shrink:0; }
+.messages-workspace .messages-empty-art { width:88px; height:88px; margin-bottom:4px; }
+.messages-workspace .messages-empty-art>.icon-object { width:88px; height:88px; }
 .messages-empty>.symbol { width:36px; height:36px; margin-bottom:6px; color:var(--muted); }
 .messages-empty h2,.messages-empty h3 { color:var(--text); font:500 21px/28px var(--sans); letter-spacing:-.03em; }
 .messages-empty p { max-width:42ch; font:400 14px/23px var(--sans); }
@@ -357,6 +361,11 @@
   .messages-workspace>:not(.messages-layout) { flex:none; }
   .messages-workspace>.messages-tabs { align-self:flex-start; }
   .messages-layout { flex:1; min-height:320px; }
+  /* Headers/notices may grow. The pane can scroll instead of hiding its composer. */
+  .messages-workspace .messages-thread>.chat,
+  .messages-workspace .messages-thread-body>.chat { min-height:320px; overflow:visible; }
+  .messages-workspace .chat-log { min-height:80px; }
+  .messages-workspace .messages-thread-body:has(>.chat) { overflow-y:auto; }
   #app:has(>.messages-workspace .messages-setup-thread) {
     height:auto; min-height:calc(var(--visual-height,100dvh) - 56px); }
   .messages-workspace:has(.messages-setup-thread) { flex:1 0 auto; }

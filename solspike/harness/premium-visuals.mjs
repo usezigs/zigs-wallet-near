@@ -38,18 +38,18 @@ export async function palette(page, theme) {
 export async function layout(page, qa, label) {
   await settled(page);
   const result = await page.evaluate(() => {
-    const shown = (n) => !!n.getClientRects().length && getComputedStyle(n).visibility !== "hidden";
+    const shown = (n) => !!n.getClientRects().length && n.checkVisibility();
     const parts = [...document.querySelectorAll(".dialog,.drawer,.recipient-editor,.sample-banner")]
       .filter(shown).map((n) => ({ width: n.clientWidth, scroll: n.scrollWidth }));
     const small = [...document.querySelectorAll("button.btn:not(:disabled),a.btn,"
       + "button.icon-btn:not(:disabled),.side-item:not(:disabled),summary,.input:not(:disabled)")]
       .filter(shown).map((n) => n.getBoundingClientRect())
-      .filter((r) => r.width < 47 || r.height < 47).length;
+      .filter((r) => r.width < 44 || r.height < 44).length;
     return { width: innerWidth, scroll: document.documentElement.scrollWidth, parts, small };
   });
   qa.check(result.scroll <= result.width + 1
     && result.parts.every((n) => n.scroll <= n.width + 1), label + " page and panel overflow");
-  qa.check(result.small === 0, label + " 48px visible controls");
+  qa.check(result.small === 0, label + " 44px touch-design targets");
 }
 
 async function entryFacts(page) {

@@ -88,7 +88,7 @@ function refreshPortfolio() {
   if (document.visibilityState !== "hidden") active.store.record(current.observation);
   const history = active.store.read();
   const props = { ...history, current, now, range: selectedRange(), storageNote: history.note,
-    loading: read.loading, failed: read.failed, retryAfterMs: read.retryAfterMs,
+    loading: read.loading, failed: read.failed, priceError: read.error, retryAfterMs: read.retryAfterMs,
     onRange: selectRange, onRetry: () => { void prices.ask(); refreshPortfolio(); },
     onInteractionEnd: () => {
       if (active?.deferred) { active.deferred = false; render(); }

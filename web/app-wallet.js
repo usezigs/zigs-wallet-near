@@ -50,6 +50,7 @@ import {
   zecTotal,
 } from "./overview-model.js";
 import { icon, sculptedIcon } from "./app-icons.js";
+import { localDevicesWarning } from "./app-local-devices.js";
 import { beginGuided, guidedEnabled, guidedState } from "./app-guided-setup.js";
 import { descriptionOf, setWalletDescription } from "./wallet-description.js";
 import { securityExplanation } from "./app-tutorial.js";
@@ -233,7 +234,9 @@ function groupHead(g, ready, why, persistent = false) {
     ...(persistent ? { "data-wallet-context": g.id, "aria-label": "Selected wallet" } : {}) },
     el("div", { class: "ph-left wallet-identity" },
       walletHeadingMarble(g),
-      el("div", { class: "wallet-name-block" }, el("h1", {}, g.name),
+      el("div", { class: "wallet-name-block" },
+        el("div", { class: "wallet-name-line" }, el("h1", {}, g.name),
+          persistent ? localDevicesWarning(g, { compact: true }) : null),
         descriptionOf(g.id).text
           ? el("p", { class: "small wallet-description" }, descriptionOf(g.id).text) : null)),
       el("div", { class: "ph-meta wallet-meta" },

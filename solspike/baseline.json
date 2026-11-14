@@ -292,6 +292,9 @@
     },
     "web/test/sol-swap-proposal.mjs": {
       "exit": 0
+    },
+    "web/test/local-devices.mjs": {
+      "exit": 0
     }
   },
   "hashes": {

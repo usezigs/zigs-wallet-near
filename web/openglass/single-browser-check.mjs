@@ -1,10 +1,10 @@
 // Real unfunded Testnet/Mainnet formation in fresh browser stores. No chain services or payments.
 // Requires the local Worker relay (npm run build, then wrangler dev on port 8788).
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { chromium } from "playwright";
+import { browserOutput, launchTestBrowser } from "../../solspike/harness/browser-test.mjs";
 import { installAuthenticator } from "../../solspike/harness/passkey-ui.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -12,17 +12,15 @@ const web = resolve(root, "web");
 const origin = new URL(process.env.ZIGS_SINGLE_BROWSER_ORIGIN || "http://localhost:8788").origin;
 assert.equal(new URL(origin).hostname, "localhost",
   "Use http://localhost:<port> for this local relay check; the passkey flow cannot use a numeric IP address");
-const out = resolve(process.env.OPENGLASS_SINGLE_BROWSER_OUTPUT || "/tmp/zigs-glass-audit/single-browser");
-mkdirSync(out, { recursive: true });
-const chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_EXECUTABLE
-  || (existsSync(chrome) ? chrome : undefined) });
+const out = browserOutput("formation", process.env.OPENGLASS_SINGLE_BROWSER_OUTPUT);
+const browser = await launchTestBrowser();
 const checks = [], errors = [];
 const check = (value, label) => { assert.ok(value, label); checks.push(label); };
 const button = (page, name) => page.getByRole("button", { name, exact: true });
 const demoLabel = "Trying Zigs alone? Play the other devices in this browser";
 const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
-  ".wasm": "application/wasm", ".woff2": "font/woff2", ".png": "image/png", ".svg": "image/svg+xml" };
+  ".wasm": "application/wasm", ".woff2": "font/woff2", ".png": "image/png", ".svg": "image/svg+xml",
+  ".webp": "image/webp" };
 
 async function bindModules(page) {
   await page.evaluate(async () => {
@@ -106,6 +104,13 @@ async function formWallet(network, n, protectedBrowser) {
       check((await demo.innerText()).includes("real mainnet payments by itself")
         && !(await demo.innerText()).includes("For a demo or a review only"),
       `${label}: mainnet explains that local shares can authorize real payments`);
+      check(await button(page, "Play device 2").isDisabled(),
+        `${label}: passkey/skip alone does not acknowledge mainnet local devices`);
+      await button(page, "Review single-browser mainnet setup").click();
+      await button(page, "Keep devices separate").click();
+      check(await button(page, "Play device 2").isDisabled(), `${label}: cancellation keeps gate`);
+      await button(page, "Review single-browser mainnet setup").click();
+      await button(page, "Enable for this wallet").click();
     }
 
     // Check the actual disclosure/controls across both palettes and the narrowest layout.
@@ -156,6 +161,8 @@ async function formWallet(network, n, protectedBrowser) {
     await page.locator(".overview-hero").waitFor();
     check(await page.locator(".overview-hero").isVisible(),
       `${label}: solo setup reaches the normal wallet Overview`);
+    if (network === "mainnet") check(await page.locator('[data-local-devices-warning="threshold"]')
+      .isVisible(), `${label}: a persistent warning identifies the held approval threshold`);
 
     // No proposal is made. Exercise the actual approval renderer against the verified local
     // seats, then test recovery of those same seats from the browser's saved store on reload.
@@ -180,6 +187,8 @@ async function formWallet(network, n, protectedBrowser) {
       return localSeats().length === expected && localSeats().every(seat => seatCheck(seat) === true);
     }, n, { timeout: 30000 });
     check(true, `${label}: all local devices survive reload${protectedBrowser ? " and passkey unlock" : ""}`);
+    if (network === "mainnet") check(await page.locator('[data-local-devices-warning="threshold"]')
+      .isVisible(), `${label}: warning survives reload and unlock`);
   } catch (error) {
     const facts = await page.evaluate(async () => {
       const { state, ui, banner } = await import("/app-state.js");

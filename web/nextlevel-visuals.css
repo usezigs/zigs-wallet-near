@@ -315,7 +315,7 @@
   box-shadow:inset 0 1px 0 var(--studio-rim); gap:20px; }
 .guided-setup .setup-status-wallet { gap:12px; padding-bottom:20px; border-bottom:1px solid var(--line); }
 .guided-setup .setup-status-wallet h3 { font:500 22px/30px var(--sans); letter-spacing:-.03em; }
-.setup-waiting-label { padding-left:12px; border-left:2px solid var(--accent-edge); font-size:13px; line-height:22px; }
+.setup-waiting-label { font-size:13px; line-height:22px; }
 .guided-setup .setup-device-list { gap:12px; }
 .guided-setup .setup-device-row { grid-template-columns:44px minmax(0,1fr); padding:16px;
   gap:4px 12px; border-radius:14px; background:var(--sunk); }
@@ -440,10 +440,10 @@
   .security-dashboard { gap:24px; }
   .security-dashboard .security-overview { padding:20px; }
   .security-dashboard .security-metrics { grid-template-columns:minmax(0,1fr); gap:0; margin:20px 0; }
-  .security-dashboard .security-metrics>div { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);
+  .security-dashboard .security-metrics>div { display:grid; grid-template-columns:minmax(0,1fr);
     gap:4px 12px; padding:16px 0; border-left:0; }
   .security-dashboard .security-metrics>div+div { padding-left:0; border-top:1px solid var(--line); }
-  .security-dashboard .security-metrics dd { font-size:20px; line-height:28px; text-align:right; }
+  .security-dashboard .security-metrics dd { font-size:20px; line-height:28px; text-align:start; }
   .security-dashboard .security-metrics>div:first-child dd { font-size:24px; line-height:32px; }
   .security-metrics p { grid-column:1/-1; margin:0; }
   .security-overview-footer { display:grid; gap:20px; }

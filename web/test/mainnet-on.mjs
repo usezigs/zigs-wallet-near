@@ -174,8 +174,16 @@ console.log("ok  a chat reads testnet and mainnet requests");
   await waitFor("first mainnet device", () => t.state.seats[1]);
   const setup = () => drawn(() => t.groupView());
   assert.ok(button(setup(), "Play device 2"), "mainnet exposes the existing local-device flow");
+  assert.equal(Object.hasOwn(button(setup(), "Play device 2").attrs, "disabled"), true,
+    "mainnet requires its own explicit local-device acknowledgement");
   assert.match(textOf(setup()), /real mainnet payments by itself/);
   assert.doesNotMatch(textOf(setup()), /For a demo or a review only/);
+  button(setup(), "Review single-browser mainnet setup").on.click(EV);
+  button(setup(), "Keep devices separate").on.click(EV);
+  assert.equal(Object.hasOwn(button(setup(), "Play device 2").attrs, "disabled"), true);
+  button(setup(), "Review single-browser mainnet setup").on.click(EV);
+  button(setup(), "Enable for this wallet").on.click(EV);
+  assert.equal(button(setup(), "Play device 2").attrs.disabled, undefined);
   await button(setup(), "Play device 2").on.click(EV);
   await waitFor("second local mainnet device", () => t.state.seats[2]);
   await button(setup(), "Play device 3").on.click(EV);

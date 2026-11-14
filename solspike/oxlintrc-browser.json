@@ -1,0 +1,11 @@
+{
+  "plugins": ["import"],
+  "categories": { "correctness": "error" },
+  "env": { "es2024": true, "node": true, "browser": true },
+  "rules": {
+    "no-undef": "error",
+    "no-unused-vars": "error",
+    "no-import-assign": "error",
+    "import/named": "error"
+  }
+}

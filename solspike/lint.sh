@@ -51,6 +51,7 @@ JS=(solspike/harness/*.mjs solspike/tools/*.mjs solspike/build.mjs solspike/vend
   web/test/overview.mjs web/setup-model.js web/test/setup-stage.mjs web/approvals-model.js
   web/test/approvals.mjs web/recovery-model.js web/test/recovery.mjs
   web/security-dashboard-model.js web/test/security-dashboard.mjs web/payment-model.js
+  web/local-devices.js web/test/local-devices.mjs
   web/test/payment-model.mjs web/error-feedback.js web/test/error-feedback.mjs
   web/sol/proposal-history.js web/test/proposal-history.mjs
   web/wallet-identity.js web/wallet-avatar-svg.js
@@ -66,6 +67,8 @@ PY=(solspike/tools/*.py)
 # rules below do not apply to the page modules yet: they keep the findings of the old app.js.
 "$OX" -c solspike/oxlintrc-page.json --deny-warnings web/app.js web/app-*.js \
   web/openglass/*.jsx web/build.mjs web/openglass/browser-check.mjs || exit 1
+# Browser tests contain both Node orchestration and callbacks evaluated in the page.
+"$OX" -c solspike/oxlintrc-browser.json --deny-warnings web/openglass/*.mjs || exit 1
 "$OX" -c solspike/oxlintrc.json --deny-warnings "${JS[@]}" || exit 1
 python3 -I solspike/tools/check_py.py "${PY[@]}" || exit 1
 long=$(awk 'length($0)>100 {print FILENAME":"FNR": "length($0)}' "${JS[@]}" "${PY[@]}" \

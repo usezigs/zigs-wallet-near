@@ -63,6 +63,8 @@ function emptyContent(props, count) {
 
 /** @param {Props} props @param {number} count */
 function coverageContent(props, count) {
+  if (props.priceError === "not_configured") return "Market prices have not been enabled for "
+    + "this app. Saved observations remain available.";
   if (props.failed) return "Price update failed. Showing available observations.";
   const missing = props.current.missing.map((id) => id.toUpperCase()).join(", ");
   if (missing) return missing + " balance or price unavailable · excluded from the current value.";
@@ -73,7 +75,11 @@ function coverageContent(props, count) {
 
 /** @param {Props} props @param {number} count */
 export function portfolioStateContent(props, count) {
-  return { ...emptyContent(props, count), coverage: coverageContent(props, count),
+  const empty = props.priceError === "not_configured" ? {
+    title: count > 1 ? "" : "Your history starts here",
+    text: "Market prices have not been enabled. Your balances and saved history are unchanged.",
+  } : emptyContent(props, count);
+  return { ...empty, coverage: coverageContent(props, count),
     partial: props.current.missing.length > 0 && props.current.value !== null,
     loading: props.loading && count === 0 && props.current.value === null };
 }

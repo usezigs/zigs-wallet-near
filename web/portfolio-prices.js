@@ -21,21 +21,28 @@ export function createPortfolioPrices({ fetcher = globalThis.fetch,
   /** @type {Partial<Record<Asset, Price>>} */
   let prices = {};
   let fetchedAt = -Infinity, retryAt = -Infinity, failed = false;
+  /** @type {""|"not_configured"|"unavailable"} */
+  let error = "";
   /** @type {Promise<void>|null} */
   let pending = null;
   async function load() {
+    /** @type {"not_configured"|"unavailable"} */
+    let nextError = "unavailable";
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 10_000);
     try {
       const response = await fetcher("/portfolio/prices", {
         signal: controller.signal, credentials: "same-origin", cache: "no-store" });
-      if (!response.ok) throw new Error("Prices unavailable");
       const body = await response.json();
+      if (!response.ok) {
+        nextError = body.error === "prices_not_configured" ? "not_configured" : "unavailable";
+        throw new Error("Prices unavailable");
+      }
       if (body.source !== "coingecko" || !body.prices) throw new Error("Invalid prices");
       const next = cleanPrices(body.prices, now());
       if (!Object.keys(next).length) throw new Error("No fresh prices");
-      prices = next; fetchedAt = now(); failed = false;
-    } catch { failed = true; retryAt = now() + 60_000; }
+      prices = next; fetchedAt = now(); failed = false; error = "";
+    } catch { failed = true; error = nextError; retryAt = now() + 60_000; }
     finally { clearTimeout(timer); pending = null; settled(); }
   }
   return {
@@ -45,7 +52,7 @@ export function createPortfolioPrices({ fetcher = globalThis.fetch,
       pending = load();
       return pending;
     },
-    read() { return { prices, failed, loading: !!pending,
+    read() { return { prices, failed, error, loading: !!pending,
       retryAfterMs: failed ? Math.max(0, retryAt - now()) : 0 }; },
   };
 }

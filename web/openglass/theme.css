@@ -104,6 +104,27 @@
 
 /* The welcome scene sits behind the glass, with its text and controls above it. */
 .zigs-openglass .lobby-home .welcome .home-hero.openglass-sheet {
+  --text: #f1f4f7;
+  --muted: #c6d0dd;
+  --home-ink: var(--text);
+  --home-muted: var(--muted);
+  --home-accent: #a8c7ea;
+  --home-dark: #10151d;
+  --on-accent: #101821;
+  --raised: #28313e;
+  --sunk: #141b25;
+  --panel: #1c2430;
+  --line-2: #7c8b9e;
+  --control-line: #7c8b9e;
+  --accent-border: var(--home-accent);
+  --focus: var(--home-accent);
+  --ogui-color-text: var(--text);
+  --ogui-color-muted: var(--muted);
+  --ogui-color-accent: var(--home-accent);
+  --ogui-color-accent-ink: #101821;
+  --ogui-material-text: var(--text);
+  --ogui-material-muted: var(--muted);
+  color: var(--text);
   border: 1px solid rgb(196 215 237 / .38);
   background: linear-gradient(135deg, #151c26, #090c10 62%, #151b24) !important;
   box-shadow: 0 24px 64px -32px rgb(0 0 0 / .7),
@@ -125,10 +146,18 @@
   opacity: .85;
 }
 .zigs-openglass .home-hero .welcome-secondary-actions :is(.ogui-button, .openglass-control) {
-  color: #d4dbe5;
+  color: var(--home-muted);
   background: transparent;
   border-color: transparent;
   box-shadow: none;
+}
+.zigs-openglass .home-hero :is(.ogui-button, .openglass-control):disabled {
+  background: var(--raised) !important;
+  color: var(--muted);
+  opacity: 1;
+}
+.zigs-openglass .home-hero :is(.ogui-button, .openglass-control):disabled > .openglass-backdrop-slot {
+  display: none;
 }
 /* Keep the brand scene dark and legible in either app appearance. */
 @supports not (backdrop-filter: blur(1px)) {
@@ -147,6 +176,12 @@
   }
 }
 @media (forced-colors: active) {
+  .zigs-openglass .lobby-home .welcome .home-hero.openglass-sheet {
+    --text: CanvasText;
+    --muted: CanvasText;
+    --home-accent: Highlight;
+    --ogui-color-accent-ink: HighlightText;
+  }
   .zigs-openglass .lobby-home .welcome .home-hero.openglass-sheet,
   .zigs-openglass .home-hero.openglass-sheet > .openglass-backdrop-slot > [data-ogui-glass] {
     background: Canvas !important;
@@ -157,6 +192,22 @@
     color: ButtonText;
   }
 }
+
+/* A persistent fact about held shares, independent of the optional setup acknowledgement. */
+.local-devices-warning {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 16px;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 20px;
+}
+.local-devices-warning p { margin: 0; color: var(--muted); }
+.wallet-context-header > .local-devices-warning { grid-column: 1 / -1; }
+.local-devices-choice { display: grid; gap: 12px; padding-block: 16px; }
 
 /* Library actions and native actions held by wallet code share one material hierarchy. */
 :is(.zigs-openglass, .openglass-overlay) :is(.ogui-button, .openglass-control) {
@@ -381,10 +432,15 @@
   border: 1px solid var(--glass-hairline);
   box-shadow: inset 0 1px 0 var(--glass-rim), 0 32px 96px -32px rgb(0 0 0 / .65);
 }
-:is(.zigs-openglass, .openglass-overlay) :is(.messages-conversation-row, .row-item):not(.wallet-vault-card).openglass-control {
+:is(.zigs-openglass, .openglass-overlay) .row-item:not(.wallet-vault-card).openglass-control {
   border-radius: 0;
   box-shadow: none;
 }
+.zigs-openglass .messages-workspace .messages-conversation-row.openglass-control {
+  border-radius:12px; border-color:transparent; box-shadow:none;
+}
+.messages-conversation-row:not(.active)>.openglass-backdrop-slot { opacity:0; }
+.messages-conversation-row:is(.active,:hover,:focus-visible)>.openglass-backdrop-slot { opacity:1; }
 :is(.zigs-openglass, .openglass-overlay) :is(.swap-search, .swap-modal select, .pq-form select) {
   min-height: 48px;
   border: 1px solid var(--line-field);
