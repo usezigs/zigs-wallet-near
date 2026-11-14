@@ -42,10 +42,14 @@
 .swap-page .swap-privacy-node { box-shadow:inset 0 1px 0 var(--studio-rim); }
 .swap-page .privacy-film { background:var(--sunk); border-color:var(--line); }
 .swap-preview-tag>.interface-symbol { width:14px; height:14px; }
-.swap-page .swap-execution-art { display:grid; place-items:center; border:1px solid var(--line);
-  border-radius:10px; background:var(--panel); color:var(--muted); }
-.swap-execution-art>.interface-symbol { width:24px; height:24px; }
-.swap-execution-option:has(input:checked) .swap-execution-art { color:var(--accent-text); }
+.swap-page .swap-execution-art { display:grid; place-items:center; width:44px; height:44px;
+  border:0; border-radius:0; background:none; }
+.swap-execution .swap-execution-option { grid-template-columns:44px minmax(0,1fr) 16px;
+  min-height:64px; padding:8px 12px; gap:12px; border-radius:12px; }
+.swap-execution .swap-execution-indicator { width:16px; height:16px; }
+.swap-execution .swap-execution-option:has(input:disabled) { opacity:1; }
+.swap-execution-option:has(input:disabled) :is(.swap-execution-copy,.swap-execution-art) { opacity:.6; }
+.swap-execution-option:has(input:checked) :is(.swap-execution-copy,.swap-execution-art) { opacity:1; }
 .swap-asset-privacy>.interface-symbol { width:16px; height:16px; }
 .swap-choice-mark { display:grid; place-items:center; }
 .swap-choice-mark>.interface-symbol { width:20px; height:20px; }

@@ -64,19 +64,6 @@
 .activity-empty { display:grid; justify-items:center; text-align:center; gap:12px; padding:var(--empty-pad); min-width:0; }
 .activity-empty h3 { margin-top:8px; font-size:21px; font-weight:500; letter-spacing:-.025em; line-height:1.4; }
 .activity-empty p { max-width:34em; font-size:14px; line-height:1.8; }
-.activity-timeline {
-  display:grid; gap:12px; width:112px; padding:12px 0; position:relative;
-  color:var(--metal); filter:drop-shadow(0 1px 0 var(--edge));
-}
-.activity-timeline::before { content:""; position:absolute; left:7px; top:20px; bottom:20px; width:1px; background:var(--line-2); }
-.activity-timeline-track { display:flex; align-items:center; gap:12px; height:14px; position:relative; }
-.activity-timeline-track>i { width:15px; height:15px; border:1px solid var(--metal-mid); border-radius:5px; background:var(--panel); }
-.activity-timeline-track>span { width:46px; height:3px; border-radius:2px; background:var(--metal); opacity:.5; }
-.activity-timeline-track>b { width:14px; height:3px; border-radius:2px; background:var(--metal); opacity:.3; }
-.activity-timeline-track.track-1>i { border-color:var(--accent); box-shadow:inset 0 0 0 4px var(--panel); background:var(--accent); }
-.activity-timeline-track.track-1>span { width:30px; }
-.activity-timeline-track.track-2>span { width:39px; }
-.activity-unavailable .activity-timeline-track.track-1>i { border-color:var(--metal); background:var(--metal); }
 @media (hover:hover) and (pointer:fine) {
   .activity-filter-chip:hover { color:var(--text); background:var(--raised); }
   .activity-filter-chip[aria-pressed=true]:hover { color:var(--accent-text); background:var(--accent-soft); }
@@ -118,6 +105,4 @@
 @media (forced-colors:active) {
   .activity-ledger,.activity-filters,.activity-limitation { background:Canvas; color:CanvasText; border:1px solid CanvasText; box-shadow:none; }
   .activity-filter-chip[aria-pressed=true] { border-color:Highlight; color:Highlight; }
-  .activity-timeline { filter:none; }
-  .activity-timeline-track>i { border-color:CanvasText; }
 }

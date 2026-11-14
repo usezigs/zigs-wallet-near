@@ -1276,18 +1276,13 @@ function datedActivityRows(list, pick) {
     activityRows(group.rows, pick, "", flying)));
 }
 
-// Decorative ledger engraving, not sample transactions or a transaction-status indicator.
-const activityTimeline = () => el("span", { class: "activity-timeline", "aria-hidden": "true" },
-  [0, 1, 2].map((i) => el("span", { class: "activity-timeline-track track-" + i },
-    el("i", {}), el("span", {}), el("b", {}))));
-
 function activityEmpty(pick, filtered) {
   const [head, text] = solModuleUnread(pick) && (pick === "sol" || historyState() === "ready")
     ? [solError ? "Solana history unavailable" : "Loading Solana activity", solModuleNote()]
     : emptyText(pick);
   const complete = head === "No activity yet";
   return el("div", { class: "activity-empty" + (complete ? "" : " activity-unavailable"), role: "status" },
-    activityTimeline(),
+    el("span", { class: "activity-empty-art", "aria-hidden": "true" }, sculptedIcon("activity")),
     el("h3", {}, complete ? filtered ? "No matching activity" : "Your activity starts here" : head),
     el("p", { class: "small muted" }, complete && filtered
       ? "No recorded activity matches this network. Choose All activity to see the other records." : text),

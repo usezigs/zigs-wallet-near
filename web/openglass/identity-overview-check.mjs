@@ -128,6 +128,12 @@ async function swap() {
   });
   await settle();
   check(await page.locator('.swap-wallet-provider').isVisible(), 'Helius Privacy Rings identifies the private SOL wallet even before funding is selected');
+  check(await page.locator('.swap-pane .swap-helius-credit').isVisible(),
+    'the unfunded private-wallet credit stays in the SOL field');
+  check(await page.locator('.swap-heading .swap-helius-credit').count() === 0,
+    'the provider credit has one location rather than a duplicate header row');
+  check(await page.locator('.swap-execution-art > .icon-object').count() === 3,
+    'all three swap modes use the shared sculpted icon family');
   for (const [width, height] of [[1440, 900], [1366, 768], [390, 844], [320, 844]]) {
     await page.setViewportSize({ width, height }); await settle();
     for (let i = 0; i < 4; i++) {

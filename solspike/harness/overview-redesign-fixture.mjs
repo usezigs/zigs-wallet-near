@@ -60,7 +60,12 @@ export async function overviewFixture(context, page, { messaging = false } = {})
     const bytes = readFileSync(file);
     const body = relative.endsWith(".js")
       ? fixtureModule(relative, bytes.toString(), messaging) : bytes;
-    return route.fulfill({ body, contentType: types[extname(file)] || "application/octet-stream" });
+    // Exercise the deployed inline-style restriction, which can change layout even when
+    // identical fixture markup looks correct in an unrestricted document.
+    return route.fulfill({ body, contentType: types[extname(file)] || "application/octet-stream",
+      headers: relative === "index.html" ? { "Content-Security-Policy":
+        "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; "
+        + "img-src 'self' data:; connect-src 'self'; worker-src 'self' blob:" } : {} });
   });
   await page.goto(OVERVIEW_ORIGIN);
   await page.locator("#app").waitFor({ state: "attached" });
