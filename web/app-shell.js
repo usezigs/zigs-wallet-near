@@ -6,7 +6,7 @@ import { initials } from "./app-kit.js";
 import { offReason } from "./util.js";
 import { engineSettled, Z } from "./app-engine.js";
 import {
-  acknowledgeUnprotectedSetup, canSkipPasskeyProtection, chats, forgetVault, lockedVault,
+  acknowledgeUnprotectedSetup, canSkipPasskeyProtection, chats, forgetVault, gkeys, lockedVault,
   lockWithPasskey, mySeatSecrets, passkeyProtected, protectionUnverified, requireSetupProtection,
   setupProtectionReady, storageOk, unlockVault, vault,
 } from "./app-keystore.js";
@@ -14,13 +14,13 @@ import { joinWalletLink, openChat } from "./app-links.js";
 import { balOf, MAINNET_ON, netOf } from "./app-chain.js";
 import { canWrite, closeSession, db, dbReady, openGroup, toApprove } from "./app-groups.js";
 import {
-  act, countBadge, el, guard, mainnetRisk, money, nameField, networkPick, newBadge, requireAck,
+  act, countBadge, dialogForm, el, guard, money, nameField, networkPick, newBadge,
   ruleText, unreadable, unreadChip,
 } from "./app-dom.js";
 import { contactName, contactOf, joinChat, joinLinks, unreadIn } from "./app-messages.js";
 import { createGroup } from "./app-dkg.js";
 import {
-  newWallet, planPrivate, planSolana, privateDisclosure, privateServed, solPending, solServed,
+  newWallet, planPrivate, planSolana, privateDisclosure, solPending,
 } from "./app-sol.js";
 import { personal, personalError, personalPending } from "./app-account.js";
 import { restore } from "./app-backups.js";
@@ -28,20 +28,23 @@ import { personalCard } from "./app-account-view.js";
 import { messagingWorkspace } from "./app-messaging-workspace.js";
 import { helpView } from "./app-help.js";
 import {
-  browserProtectionExplanation, passkeyIllustration, securityExplanation, setupArrangement, thresholdExplanation, tutorialDiagram,
+  browserProtectionExplanation, passkeyIllustration, securityExplanation, setupArrangement, thresholdExplanation,
   updateSetupIllustrations,
 } from "./app-tutorial.js";
 import { beginGuided, guidedEnabled, resumeGuided } from "./app-guided-setup.js";
 import { setWalletDescription } from "./wallet-description.js";
 import { focusAfter, once, render } from "./app-loop.js";
 import { currentSection, moveWord, solStays, walletShown } from "./app-wallet.js";
-import { icon } from "./app-icons.js";
+import { icon, sculptedIcon } from "./app-icons.js";
 import { createSwapPreview } from "./app-swap-preview.js";
-import { solSwapSource, swapPayout } from "./app-swap-sol.js";
+import { createSwapRecovery } from "./swap-recovery.js";
+import { shieldedSwapReceipt, solSwapSource, swapPayout } from "./app-swap-sol.js";
+import { swapJournal } from "./app-swap-store.js";
 import { zecSwapSource } from "./app-swap-zec.js";
 import { generalSettings, settingsDisclosure, settingsGroup, settingsRow } from "./app-settings-ui.js";
 import { walletMark } from "./app-wallet-art.js";
-import { networkPrivacySettings } from "./app-network-privacy.js";
+import { sidebarIcon } from "./sidebar-icons.js";
+import { labsSettings, networkPrivacySettings } from "./app-network-privacy.js";
 import { openHowZigsWorks } from "./app-how-zigs-works.js";
 
 /**
@@ -64,10 +67,9 @@ export function renderSide() {
   const pending = state.groups.reduce((n, g) => n + toApprove(g.id).length + solPending(g.id), 0);
   const sections = [
     ["overview", "Overview"],
+    ["swap", "Swap"],
     ["approvals", "Approvals", countBadge(pending, "to approve across wallets", "attn")],
     ["activity", "Activity"], ["recipients", "Address book"],
-    ["swap", "Swap", el("span", { class: "badge plain" },
-      el("span", { class: "sr-only" }, ", "), nearLive() ? "Live" : "Quotes")],
     ["chats", "Messages", newBadge(state.groups.reduce((n, g) => n + unreadIn(g.id), 0)
       + Object.keys(chats.list).reduce((n, cid) => n + unreadIn(cid), 0))],
     ["recovery", "Security"],
@@ -78,9 +80,12 @@ export function renderSide() {
     : ui.tab === "members" ? "recovery"
     : ui.tab === "solana" ? "overview" : ui.tab;
   nav.replaceChildren(
-    ...sectionNav(sections, selected),
+    el("span", { class: "sidebar-active-marker", "aria-hidden": "true", hidden: true }),
+    sectionGroup("money", "Money", ["overview", "swap", "approvals", "activity"], sections, selected),
+    sectionGroup("contacts", "Contacts", ["recipients", "chats"], sections, selected),
+    sectionGroup("care", "Wallet care", ["recovery", "settings"], sections, selected),
     el("div", { class: "side-head" }, el("span", { class: "label" }, "Wallets"),
-      el("button", { class: "icon-btn", type: "button", title: "New wallet", "aria-label": "New wallet", onclick: () => { ui.tab = "overview"; newWallet(); } }, "+")),
+      el("button", { class: "icon-btn", type: "button", title: "New wallet", "aria-label": "New wallet", onclick: () => { ui.tab = "overview"; newWallet(); } }, sidebarIcon("plus"))),
     ...testWalletEntry("sidebar"),
     ...(state.groups.length ? state.groups.map((g) => guard(sideItem, g))
       : [el("p", { class: "side-empty" }, sideEmpty())]));
@@ -90,6 +95,11 @@ export function renderSide() {
   document.getElementById("wallet-menu").setAttribute("aria-expanded", ui.menu ? "true" : "false");
   lockPage(!!ui.menu && phone());
 }
+const sectionGroup = (id, title, ids, sections, selected) => el("div", {
+  class: "side-section", role: "group", "aria-labelledby": "nav-group-" + id,
+}, el("h2", { class: "side-section-label", id: "nav-group-" + id }, title),
+el("div", { class: "side-section-items" },
+  ...sectionNav(sections.filter(([key]) => ids.includes(key)), selected)));
 // The open Menu of a phone keeps the page, the skip link and the logo out of reach.
 function lockPage(on) {
   for (const s of [".main", ".skip-link", ".logo"]) document.querySelector(s).inert = on;
@@ -105,14 +115,16 @@ const SECTION_ICONS = {
 export function sectionNav(sections, selected) {
   const [now] = selected === undefined ? currentSection(sections) : [selected];
   const item = ([id, label, count]) => el("button", {
+    "data-glass": "button",
     class: "side-item" + (id === now ? " active" : ""), type: "button", id: "tab-" + id,
+    "data-sidebar-nav": id,
     "data-key": "tab-" + id, "aria-current": id === now ? "page" : null,
     onclick: () => {
       if (selected !== undefined && (state.cid || state.contact != null)) openGroup(null);
       const destination = id;
       ui.tab = destination; focusAfter("panel-" + (id === "chats" ? "messages" : destination), true); render();
     },
-  }, icon(SECTION_ICONS[id]), el("span", { class: "side-name" }, label),
+  }, sidebarIcon(SECTION_ICONS[id]), el("span", { class: "side-name" }, label),
   el("span", { class: "side-tail" }, count));
   return sections.map(item);
 }
@@ -201,7 +213,7 @@ function sideItem(g) {
       if (g.id === state.gid) { closeSession(); render(); return; }
       openGroup(g.id);
     },
-  }, walletMark(g, 32),
+  }, el("span", { class: "sidebar-wallet-symbol", "aria-hidden": "true" }, sidebarIcon("wallet"), walletMark(g, 32)),
   el("span", { class: "side-label" }, el("span", { class: "side-name" }, g.name),
     el("span", { class: "side-network" }, "Zcash " + netOf(g).label), rule,
     g.movedTo ? el("span", { class: "side-meta" }, moveWord(g)) : null),
@@ -233,8 +245,8 @@ export function lockView() {
   const text = lockedVault.damaged
     ? "The locked keys in this browser are damaged and cannot be opened."
     : "The key shares in this browser are encrypted with your passkey. "
-      + "Unlock with Face ID, Touch ID or your security key.";
-  return el("div", { class: "card empty lock-card" }, icon("lock"),
+      + "Your passkey provider may ask for a fingerprint, face, PIN or security key.";
+  return el("div", { "data-glass": "card", class: "card empty lock-card" }, sculptedIcon("lock"),
     el("h1", {}, "Zigs is locked"), el("p", { class: "small" }, text),
     lockedVault.damaged ? null : securityExplanation("passkey"),
     lockedVault.damaged ? null
@@ -371,7 +383,7 @@ export function deviceProtection(context = "setup", onReady = null) {
 }
 
 export function loadingView() {
-  return el("div", { class: "card empty launch-card" }, icon("security"),
+  return el("div", { "data-glass": "card", class: "card empty launch-card" }, sculptedIcon("wallet"),
     el("span", { class: "dot busy" }),
     el("h1", {}, Z ? "Connecting to the group server" : "Loading the crypto engine"),
     el("p", { class: "small" }, "Your wallets appear in a moment."));
@@ -402,13 +414,14 @@ export function lobby() {
     },
   });
   const restoreBtn = (cls) => el("button", {
+    "data-glass": "button",
     class: cls, type: "button", onclick: () => restoreInput.click(),
   }, "Recover access");
   const listed = state.groups.length > 0;
   const joins = joinLinks.size ? [el("div", { class: "callout", role: "status" },
-    el("span", {}, "A chat invitation is waiting in Chats."),
+    el("span", {}, "A chat invitation is waiting in Messages."),
     el("button", { class: "btn sm", type: "button", disabled: !state.gid,
-      title: "Select a wallet to open its Chats", onclick: () => { ui.tab = "chats"; render(); } }, "Open Chats"))] : [];
+      title: "Select a wallet to open its Messages", onclick: () => { ui.tab = "chats"; render(); } }, "Open Messages"))] : [];
   return el("div", { class: "page lobby-page lobby-home" + (listed ? "" : " lobby-empty"),
     "data-key": "home-page", tabindex: "-1" }, ...joins,
     welcome(offOf({ db: !!db }, "why-create"), restoreBtn("btn ghost")), restoreInput);
@@ -443,7 +456,7 @@ export function chatsWorkspace() {
   return messagingWorkspace();
 }
 
-const WORKSPACE_EXPLANATIONS = { Chats: "chats", Activity: "activity", Approvals: "approvals",
+const WORKSPACE_EXPLANATIONS = { Messages: "chats", Activity: "activity", Approvals: "approvals",
   "Security": "recovery", Settings: "settings" };
 const workspaceHeading = (key, title, eyebrow, text) => el("header",
   { class: "page-head workspace-heading" },
@@ -498,8 +511,11 @@ const nearLive = () => document.documentElement?.dataset?.nearLive === "1";
 let swapPreview;
 export function swapWorkspace() {
   const context = { id: state.g?.id, name: state.g?.name, live: nearLive(), payout: swapPayout(),
+    recovery: createSwapRecovery(Z, gkeys[state.gid], state.gid),
+    network: state.g?.network || 'testnet', preferredFrom: 'sol', journal: swapJournal,
+    receipt: shieldedSwapReceipt,
     zec: zecSwapSource(), solGroup: solSwapSource(),
-    networks: state.g && netOf(state.g).cap ? 'Zcash ' + netOf(state.g).label
+    networks: state.g && state.g.network === "mainnet" ? 'Zcash ' + netOf(state.g).label
       : 'Zcash Testnet · Solana Devnet',
     threshold: state.g ? state.g.t + " of " + state.g.n + " device approvals per payment." : "" };
   swapPreview ??= createSwapPreview(context);
@@ -548,7 +564,7 @@ export function settingsWorkspace() {
         : "Open a wallet to see its description, address and approval requirements.",
       el("button", { class: "btn sm", type: "button", onclick: () => { ui.tab = "overview"; render(); } },
         state.g ? "Return to wallet" : "Choose wallet"))),
-    browserSettings(), helpView());
+    browserSettings(), helpView(), labsSettings());
 }
 
 function walletRow(g, tab = "overview") {
@@ -590,14 +606,16 @@ function walletRow(g, tab = "overview") {
 
 function welcome(off, restoreLink) {
   const wallets = state.groups.length;
-  const learn = el("button", { class: "btn ghost home-learn", id: "home-how", "data-key": "home-how",
+  const learn = el("button", { "data-glass": "button", class: "btn ghost home-learn", id: "home-how", "data-key": "home-how",
     type: "button", "aria-haspopup": "dialog", onclick: openHowZigsWorks }, "How Zigs works");
   const create = el("button", {
+    "data-glass": "button",
     class: "btn" + (wallets ? "" : " primary") + " lg", type: "button", ...off.attrs,
     onclick: () => { openCreate(); render(); },
   }, wallets ? "Create another" : "Create wallet",
   el("span", { class: "home-action-arrow", "aria-hidden": "true" }));
   const join = el("button", {
+    "data-glass": "button",
     class: "btn lg", type: "button", "aria-expanded": ui.joinOpen ? "true" : "false",
     onclick: toggleJoin,
   }, "Join a wallet", el("span", { class: "home-action-arrow home-arrow-forward", "aria-hidden": "true" }));
@@ -621,14 +639,14 @@ function welcome(off, restoreLink) {
     el("header", { class: "home-masthead" }),
     el("div", { class: "welcome-main home-hero", "data-home-hero": "" },
       el("div", { class: "welcome-brand", "aria-hidden": "true" },
-        el("img", { class: "home-hero-art", src: "/assets/brand/hero-zebra.png?v=e2a70c42c377", alt: "",
+        el("img", { class: "home-hero-art", src: "/assets/brand/hero-zebra-rest.webp?v=rest-1", alt: "",
           width: "1254", height: "1254", decoding: "async", draggable: "false" })),
       el("div", { class: "welcome-intro" },
-        el("h1", { id: "welcome-title" }, wallets ? "Welcome " : "Private by design. ",
-          el("span", { class: "welcome-title-accent" }, wallets ? "back." : "Secured together.")),
+        el("h1", { id: "welcome-title" }, wallets ? "Shared wallets" : "Your assets",
+          el("span", { class: "welcome-title-accent" }, wallets ? "Your rules" : "Secured together")),
         el("p", { class: "muted welcome-summary" }, wallets
-          ? "Your assets. Your approval rules. One private place to return to."
-          : "Hold your assets privately. Protect them with the people and devices you trust."),
+          ? "Pick a wallet to see its assets, review payments, and coordinate with your devices."
+          : "A shared wallet for Zcash and supported Solana assets. Payments follow the approval rules you choose."),
         wallets ? null : entryPaths)),
     wallets ? el("div", { class: "home-wallet-launcher" + (wallets === 1 ? " home-launcher-single" : "") },
       walletList,
@@ -661,7 +679,7 @@ function joinWallet(heading = "h3") {
   };
   return el("section", { class: "join" }, el(heading, {}, "Join a shared wallet"),
     el("p", { class: "small muted", id: "join-help" },
-      "Did someone send you an invite link? Paste it here to open the wallet."),
+      "Paste a private invite link to open the wallet in this browser. To approve payments, join an open device slot or restore your existing device’s backup."),
     el("form", { class: "join-row", onsubmit: submit },
       el("label", { class: "field" }, el("span", {}, "Invite link"), input),
       el("button", { class: "btn", type: "submit", ...off.attrs }, "Open wallet"),
@@ -688,74 +706,20 @@ function joinTyped(ev) {
 }
 
 
-// A new testnet wallet can get its Solana Devnet part in the same setup, on a server that serves
-// Solana. Keep the existing setup choice in the form even when the review omits network details;
-// only the current final-review checkbox reaches planSolana.
-const solChosen = (from, network, sol) => !from && network === "testnet" && sol === true;
-const reviewSolIncluded = (draft = ui.createDraft) => ui.net === "testnet"
-  && (typeof ui.sol === "boolean" ? ui.sol : draft?.sol !== false);
-function solChoice() {
-  if (ui.net !== "testnet") return null;
-  return el("label", { class: "ack" },
-    el("input", { type: "checkbox", id: "g-sol", name: "sol", checked: reviewSolIncluded(),
-      onchange: (ev) => {
-        ui.sol = ev.target.checked;
-        if (ui.createDraft) {
-          ui.createDraft.sol = ev.target.checked;
-          ui.createDraft.solExpected = ev.target.checked;
-        }
-        render();
-      } }),
-    el("span", {}, el("b", {}, "Set up Solana Devnet with this wallet. "),
-      el("span", { class: "small muted" }, "Included after the Zcash address checks, when service is available. Clear this option for a Zcash-only wallet.")));
-}
-
-// A new mainnet wallet can be a private Solana wallet (slice 8, design 2.4 Create), on a server
-// that serves the private Worker. The choice is off by default and lives in the draft only.
-const PRIVATE_CHOICE = "Private Solana on mainnet (staging test, at most 0.5 SOL).";
-const PRIVATE_GONE = "This server does not serve the private Solana wallet now. Clear the private "
-  + "Solana choice, or try again later.";
-const privateDrafted = () => ui.net === "mainnet" && ui.createDraft?.solPrivate === true;
-function privateChoice() {
-  const texts = ui.net === "mainnet" && privateServed() ? privateDisclosure() : null;
-  if (!texts) return null;
-  const pick = (ev) => {
-    ui.createDraft = { ...ui.createDraft, solPrivate: ev.target.checked };
-    render();
-  };
-  return el("div", { class: "surface-quiet" },
-    el("label", { class: "ack" },
-      el("input", { type: "checkbox", id: "g-private", name: "private",
-        checked: privateDrafted(), onchange: pick }),
-      el("span", {}, el("b", {}, PRIVATE_CHOICE))),
-    texts.map((line) => el("p", { class: "small muted" }, line)));
-}
-const solSummary = (includeSol) => includeSol
-  ? solServed() ? "+ Solana Devnet" : "Solana Devnet · waiting for service"
-  : privateDrafted() ? "+ private Solana on mainnet" : "Zcash only";
-// The Solana part that a new wallet plans: Devnet for a testnet wallet, or the private wallet for a
-// mainnet wallet on a server that serves it. A replacement wallet plans none.
-function chainPlan(from, network, sol, solPrivate) {
-  if (solChosen(from, network, sol)) return planSolana;
-  if (from || network !== "mainnet" || solPrivate !== true) return null;
-  if (!privateServed()) throw new Error(PRIVATE_GONE);
-  return planPrivate;
-}
-
-function planningNetworks() {
-  if (ui.net !== "testnet") return null;
-  const served = solServed();
-  return el("p", { class: "small muted" }, served
-    ? "When included, Solana Devnet starts after the Zcash address checks."
-    : ui.solServed === null ? "Checking Solana service availability; Zcash setup can continue."
-      : "Zcash can start now. If included, Solana setup resumes when service is available.");
+// New wallets include private Solana on their matching network. A replacement wallet
+// keeps the existing explicit migration behavior and does not plan a new Solana part.
+const solSummary = () => ui.net === "mainnet"
+  ? "+ private Solana on mainnet" : "+ private Solana on devnet";
+function chainPlan(from, network) {
+  if (from) return null;
+  return network === "mainnet" ? planPrivate : planSolana;
 }
 
 // The parts of the dialog. The ids are the ones that the tests and the harness fill.
 const names = (from) => [nameField("my-name", "", from ? undefined : ui.createDraft?.label),
   el("label", { class: "field" }, el("span", {}, from ? "New wallet name" : "Wallet name"),
     el("input", { class: "input", id: "g-name", name: "name", maxlength: "40",
-      placeholder: from ? from.name : "Team treasury", value: from ? "" : ui.createDraft?.name ?? "",
+      placeholder: from ? from.name : "Everyday wallet", value: from ? "" : ui.createDraft?.name ?? "",
       autocomplete: "off" }))];
 // `note`: the id of the line that says what the numbers mean, for a screen reader.
 const number = (label, id, name, value, note) => el("label", { class: "field" },
@@ -774,21 +738,30 @@ function ruleCounter(label, id, name, value, help) {
   const less = el("button", { class: "btn rule-adjust", type: "button",
     id: id + "-less",
     "aria-label": "Fewer " + label.toLowerCase(), "aria-controls": id,
-    disabled: value <= 2, onclick: adjust(-1) }, el("span", { "aria-hidden": "true" }, "−"));
+    disabled: value <= 2, onclick: adjust(-1) }, icon("minus"));
   const more = el("button", { class: "btn rule-adjust", type: "button",
     id: id + "-more",
     "aria-label": "More " + label.toLowerCase(), "aria-controls": id,
     disabled: value >= (name === "t" ? ui.createDraft?.n ?? 3 : 7),
-    onclick: adjust(1) }, el("span", { "aria-hidden": "true" }, "+"));
+    onclick: adjust(1) }, icon("plus"));
   return el("div", { class: "rule-counter" }, el("label", { for: id }, label),
     el("div", { class: "rule-counter-control" }, less, input, more),
     el("p", { class: "small muted", id: id + "-help" }, help));
 }
-const moveParts = (from, nameParts, ruleParts) => [el("ol", { class: "small muted move-steps" },
+const moveParts = (nameParts, ruleParts) => [el("ol", { class: "small muted move-steps" },
   el("li", {}, "You create a new wallet with the devices and rule you want."),
   el("li", {}, "The new devices join it with an invite link."),
-  el("li", {}, moveFundsText(from))),
+  el("li", {}, "Then move this wallet’s Zcash funds with its existing approval rule." + solStays())),
 ...nameParts, ...ruleParts];
+const replacementIntro = () => el("section", { class: "replacement-intro" },
+  el("h3", {}, "This creates a replacement wallet"),
+  el("p", {}, "The new wallet gets a new address. Devices you leave out keep their viewing access to the old wallet."));
+const replacementConsequences = (from) => el("section", { class: "replacement-consequences callout" },
+  el("h3", {}, "Before you create it"),
+  el("ul", {},
+    el("li", {}, moveFundsText(from)),
+    el("li", {}, "Devices you leave out cannot read the new wallet. They can still read each payment of this old wallet, including later payments and the move payment: the new address, amount, note and new wallet id."),
+    el("li", {}, "With that id, those devices can get the new wallet’s sealed documents from the group server. The server accepts their writes, so they can stop the new wallet with false documents.")));
 // The funds that move: Change devices moves the Zcash funds only, so a wallet with a Solana part
 // is told to check that part on its own.
 const moveFundsText = (from) => "This wallet sends its Zcash funds to the new one, in one payment "
@@ -868,22 +841,18 @@ export function endCreate() {
 const closeCreate = () => { endCreate(); render(); };
 
 // A replacement wallet stays on its predecessor's network: funds cannot move between networks.
-async function submitWallet({ name, n, t, sol, solExpected = false, description = "",
-  solPrivate }, from) {
+async function submitWallet({ name, n, t, description = "" }, from) {
   requireSetupProtection();
   checkRule(n, t);
   const network = from ? from.network || "testnet" : ui.net;
-  // A replacement wallet has no tick: the person ticked when the old wallet was made.
-  if (!from && network === "mainnet" && !ui.ack) throw new Error("Confirm that you understand "
-    + "Zigs is not audited before you create a mainnet wallet.");
-  const plan = chainPlan(from, network, sol, solPrivate);
+  const plan = chainPlan(from, network);
   endCreate();
   const gid = await createGroup(name, n, t, from && from.id, network);
   if (!from && description) {
     try { setWalletDescription(gid, description); } catch (e) { showBanner("bad", e.message); }
   }
   if (!from) {
-    try { beginGuided(gid, { solExpected: network === "testnet" && solExpected }); }
+    try { beginGuided(gid, { solExpected: !!plan }); }
     catch (e) { showBanner("bad", e.message); }
   }
   if (plan) await plan(gid);
@@ -908,6 +877,7 @@ function moveSubmit(from) {
 // them, and the last submit creates the wallet from them.
 const STEPS = ["Protect this browser", "Set the approval threshold", "Set up this device",
   "Review your wallet"];
+const STEP_ICONS = ["key", "devices", "laptop", "wallet"];
 const NEXT = ["Continue to approval rule", "Use this arrangement", "Continue", "Create wallet"];
 function takeRule() {
   const n = Number(fieldValue("g-n")), t = Number(fieldValue("g-t"));
@@ -916,14 +886,12 @@ function takeRule() {
   ui.createDraft = { ...ui.createDraft, n, t };
 }
 function takeNames() {
-  requireAck(ui, ui.net, "create a mainnet wallet");
-  // The explicit consent control is on the final review. Naming keeps the current opt-out
-  // or the default included intent; an absent review control cannot silently opt out here.
-  const sol = ui.net === "testnet" && ui.sol !== false;
+  const sol = true;
   const field = document.getElementById("g-description");
   const description = typeof field?.value === "string" ? field.value.trim() : "";
   ui.createDraft = { ...ui.createDraft, name: fieldValue("g-name").trim(),
-    label: fieldValue("my-name").trim(), description, sol, solExpected: sol };
+    label: fieldValue("my-name").trim(), description, sol, solExpected: true,
+    solPrivate: ui.net === "mainnet" };
 }
 const TAKE = [() => {}, takeRule, takeNames];
 let stepAt = 0;
@@ -946,11 +914,8 @@ async function createFromDraft() {
   requireSetupProtection();
   const d = ui.createDraft;
   if (d.t === d.n && !ui.marginAck) throw new Error(ACK_FIRST);
-  const box = document.getElementById("g-sol");
-  const sol = !!box && box.checked;
-  const solExpected = ui.net === "testnet" && (box ? box.checked : ui.sol !== false);
   try { localStorage.setItem("zf-name", d.label ?? ""); } catch { /* no storage: as typed */ }
-  await submitWallet({ ...d, name: d.name || "Treasury", sol, solExpected }, null);
+  await submitWallet({ ...d, name: d.name || "Treasury" }, null);
 }
 const stepSubmit = (ev) => (ui.createStep < STEPS.length - 1 ? nextStep(ev)
   : act(createFromDraft)(ev));
@@ -984,30 +949,27 @@ const ruleStep = (lines) => step(1,
     setupArrangement(ui.createDraft?.n ?? 3, ui.createDraft?.t ?? 2, "rule", ui.createDraft ?? {}),
     el("div", { class: "threshold-controls" },
       el("div", { class: "threshold-counter-pair" }, ruleCounter("Devices", "g-n", "n", ui.createDraft?.n ?? 3,
-        "Independent devices that share control."),
+        "Devices sharing control."),
       ruleCounter("Approvals needed", "g-t", "t", ui.createDraft?.t ?? 2,
-        "Devices required to approve each payment.")),
-      el("div", { class: "threshold-result" }, lines.rule, lines.margin, lines.ack))),
-  el("details", { class: "setup-threshold-details" }, el("summary", {}, "How the approval threshold works"),
-    thresholdExplanation(ui.createDraft?.n ?? 3, ui.createDraft?.t ?? 2)));
+        "Approvals required for each payment.")),
+      el("div", { class: "threshold-result" }, lines.rule, lines.margin, lines.ack),
+      el("details", { class: "setup-threshold-info" },
+        el("summary", {}, icon("info"), el("span", {}, "How approvals work"), icon("chevronDown")),
+        el("div", { class: "threshold-info-body" },
+          el("p", {}, "Each device keeps its own signing share. No single device holds the complete spending key for Zcash."),
+          el("p", {}, "All chosen devices must join and stay open for initial setup. After setup, the required number can approve a payment."),
+          el("p", {}, "The illustration shows proposed devices and example groups, not connected devices or real approvals."),
+          el("details", { class: "setup-threshold-details" }, el("summary", {}, "Technical details"),
+            thresholdExplanation(ui.createDraft?.n ?? 3, ui.createDraft?.t ?? 2)))))));
 const namesStep = () => step(2,
-  el("div", { class: "setup-device-layout" },
-    el("div", { class: "setup-device-visual" },
-      setupArrangement(ui.createDraft?.n ?? 3, ui.createDraft?.t ?? 2, "names", ui.createDraft ?? {}),
-      el("p", { class: "small muted" }, "This device creates and keeps its own signing share. Give it a label you’ll recognize; a label is not proof of identity or physical independence.")),
+  el("div", { class: "setup-device-layout setup-labels-layout" },
     el("div", { class: "setup-device-fields" },
   ...names(null),
-  el("label", { class: "field" }, el("span", {}, "Description (optional, private to this browser)"),
-    el("textarea", { class: "input", id: "g-description", name: "description", rows: "2", maxlength: "280",
-      autocomplete: "off", "aria-describedby": "g-description-help" }, ui.createDraft?.description || ""),
-    el("span", { class: "small muted", id: "g-description-help" }, "Stored only in this browser, outside the passkey vault and recovery files. Do not put secrets here.")),
   el("div", { class: "setup-network-choice" }, networkPick(), !MAINNET_ON
     ? el("div", { class: "net-opt setup-network-unavailable", "aria-disabled": "true" },
-      el("strong", {}, "Mainnet"), el("span", { class: "small muted" }, "Unavailable in this release")) : null),
-  planningNetworks())));
+      el("strong", {}, "Mainnet"), el("span", { class: "small muted" }, "Unavailable in this release")) : null))));
 function reviewStep() {
   const d = ui.createDraft ?? { n: 3, t: 2 };
-  const includeSol = reviewSolIncluded(d);
   const row = (k, v) => [el("dt", {}, k), el("dd", {}, v)];
   const full = d.t === d.n;
   return step(3,
@@ -1016,7 +978,7 @@ function reviewStep() {
         el("section", { class: "setup-review-devices surface-quiet", "aria-label": "Proposed participating devices" },
           el("span", { class: "label" }, "Devices at setup · proposed arrangement"),
           el("div", { class: "setup-review-device-list" }, Array.from({ length: d.n }, (_, i) =>
-            el("div", {}, icon(i === 0 ? "laptop" : "phone"),
+            el("div", {}, sculptedIcon(i === 0 ? "laptop" : "phone"),
               el("span", {}, i === 0 ? d.label || "This device" : "Device " + (i + 1)))))),
         el("dl", { class: "kv" }, row("Wallet name", d.name || "Treasury"),
           d.description ? row("Private description", d.description) : null,
@@ -1029,13 +991,13 @@ function reviewStep() {
           el("div", {}, el("strong", {}, String(d.n)), el("span", {}, "devices at setup")),
           el("div", {}, el("strong", {}, String(d.t) + " of " + d.n), el("span", {}, "approvals per payment")),
           el("div", {}, el("strong", {}, "Zcash " + curNetLabel()),
-            el("span", {}, solSummary(includeSol)))),
-        ui.net === "mainnet" ? el("p", { class: "callout bad" }, mainnetRisk()) : null,
-        privateChoice(),
-        el("p", { class: "small muted" }, "All " + d.n + " devices join and check the wallet before use. Initial formation needs no fee funding or on-chain deployment. Later Deposit and Send operations show their own costs."),
-        el("p", { class: "small muted" }, "Recovery files are recommended and optional. Each copies one device’s share and needs its separate passphrase. You can save or check files later."))),
-    // Preserve the existing setup submission value without displaying the network section.
-    ui.net === "testnet" ? el("div", { hidden: true }, solChoice()) : null);
+            el("span", {}, solSummary()))),
+        el("details", { class: "setup-threshold-info setup-review-information" },
+          el("summary", {}, icon("info"), el("span", {}, "Setup details"), icon("chevronDown")),
+          ...(ui.net === "mainnet" ? (privateDisclosure() || []).map(line =>
+            el("p", { class: "small muted" }, line)) : []),
+          el("p", { class: "small muted" }, "All " + d.n + " devices join and check the wallet before use. Initial formation needs no fee funding or on-chain deployment. Later Deposit and Send operations show their own costs."),
+          el("p", { class: "small muted" }, "Recovery files are recommended and optional. Each copies one device’s share and needs its separate passphrase. You can save or check files later.")))));
 }
 const curNetLabel = () => (ui.net === "mainnet" ? "mainnet" : "testnet");
 const protectionLabel = () => passkeyProtected() ? "Passkey protected"
@@ -1060,7 +1022,7 @@ function stepActions() {
     last || !entryReady ? off.note : null);
 }
 
-const frame = (title, attrs, ...kids) => el("form", { class: "dialog", role: "dialog",
+const frame = (title, attrs, ...kids) => dialogForm({ class: "dialog", role: "dialog",
   "aria-modal": "true", "aria-labelledby": "create-title", novalidate: true, ...attrs },
 el("div", { class: "card-head" }, el("h2", { id: "create-title" }, title),
   el("button", { class: "icon-btn", type: "button", "aria-label": "Close", onclick: closeCreate },
@@ -1072,14 +1034,20 @@ function newDialog() {
   const lines = ruleLines(ui.createDraft?.n ?? 3, ui.createDraft?.t ?? 2,
     (n, t, valid) => updateSetupIllustrations(form, n, t, valid)), at = ui.createStep;
   const submit = (ev) => (at === ui.createStep ? stepSubmit(ev) : ev.preventDefault());
-  const form = frame("Set up your wallet", { class: "dialog guided-plan", oninput: lines.update, onsubmit: submit },
-    el("nav", { class: "setup-plan-progress", "aria-label": "Wallet setup plan" },
+  const form = frame("Set up your wallet", { class: "dialog guided-plan", "data-setup-step": String(at),
+    oninput: lines.update, onsubmit: submit },
+    el("nav", { class: "setup-plan-progress", "aria-label": "Wallet setup plan",
+      "data-setup-navigation": "plan", "data-active-step": String(at),
+      style: "--setup-step-count:4;--setup-active:" + at },
       el("p", { class: "sr-only", role: "status" }, "Step " + (at + 1) + " of " + STEPS.length
         + ": " + STEPS[at]),
+      el("span", { class: "setup-progress-active", "aria-hidden": "true" }),
       el("ol", {}, STEPS.map((label, i) => el("li", {
         class: i < at ? "done" : i === at ? "current" : "",
         "aria-current": i === at ? "step" : null,
-      }, el("span", { "aria-hidden": "true" }, String(i + 1)), el("span", {}, label))))),
+      }, el("span", { class: "setup-stage-mark", "aria-hidden": "true" }, sculptedIcon(STEP_ICONS[i]),
+        el("span", { class: "setup-stage-number" }, i < at ? icon("check") : String(i + 1))),
+      el("span", { class: "setup-stage-label" }, label))))),
     introStep(), ruleStep(lines), namesStep(), reviewStep());
   return form;
 }
@@ -1088,14 +1056,11 @@ function moveDialog(from) {
   const lines = ruleLines(from.n, from.t);
   const off = offOf({ db: !!db, newSigner: true }, "why-create-submit");
   return frame("Change devices", { oninput: lines.update, onsubmit: moveSubmit(from) },
+    replacementIntro(),
     deviceProtection("move"),
-    ...moveParts(from, names(from), [counts(from.n, from.t, "margin-text"), lines.rule,
+    ...moveParts(names(from), [counts(from.n, from.t, "margin-text"), lines.rule,
       lines.margin, lines.ack]),
-    el("div", { class: "callout" }, "The new wallet gets a new address. Devices that you leave "
-      + "out cannot read the new wallet. They can still read each payment of this old wallet, "
-      + "later ones too, and the move payment: the new address, the amount, the note and the id "
-      + "of the new wallet. With that id, they can get the sealed documents of the new wallet from "
-      + "the group server, and it takes their writes, so they can stop it with false documents."),
+    replacementConsequences(from),
     el("div", { class: "dialog-actions" },
       el("button", { class: "btn", type: "button", onclick: closeCreate }, "Cancel"),
       el("button", { class: "btn primary", type: "submit", ...off.attrs }, "Create new wallet"),

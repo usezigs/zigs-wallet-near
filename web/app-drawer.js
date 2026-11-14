@@ -22,15 +22,17 @@ import {
 import { discussion } from "./app-thread.js";
 import { nameOf, zecName } from "./zns.js";
 import { render } from "./app-loop.js";
-import { RESEND_MS, stageHeadline } from "./payment-model.js";
+import { RESEND_MS, stageHeadline, paymentNextStep } from "./payment-model.js";
 import { outcomePanel } from "./outcome-seal.js";
-import { privacyNotice, ZEC_EXPOSURE } from "./privacy-language.js";
+import { privacyNotice } from "./privacy-language.js";
 import { icon } from "./app-icons.js";
+import { localDevicesWarning } from "./app-local-devices.js";
 import { solStays } from "./app-wallet.js";
 import { swapDeadline, swapReview } from "./app-swap-zec.js";
 import { zecApprovalMotionValue } from "./app-motion.js";
 import { ApprovalVisualization } from "./app-approval-visualization.js";
 import { walletAvatarFor } from "./app-wallet-identity.js";
+import { paymentJourney } from "./payment-experience.js";
 
 // The expiry of an open payment, or why an expired one ends here. The engine counts from the
 // last sync, so the time since that sync comes off. A height from saved state gives no time.
@@ -213,9 +215,9 @@ export function finishButtons(ss) {
   if (step !== "send" && step !== "resend") return [];
   const why = sendRefusal(ss), note = why ? [el("p", { class: "send-why" }, why)] : [];
   if (step === "resend") {
-    return [bigButton("Send again", act(() => resendTx(ss)), { disabled: !!why }, "send"), ...note];
+    return [bigButton("Resend transaction", act(() => resendTx(ss)), { disabled: !!why }, "send"), ...note];
   }
-  return [bigButton(ss.broadcastError ? "Send again" : "Send to network",
+  return [bigButton(ss.broadcastError ? "Resend transaction" : "Send to network",
     act(() => broadcastTx(ss)), { disabled: !curChain() || !!why }, "send"), ...note];
 }
 
@@ -237,8 +239,8 @@ const canApprove = (ss, rc) => approvers(ss).length > 0 && rc.match === true
   && rc.intoNew !== false && !enoughApprovals();
 const enoughApprovals = () => Object.keys(state.commits).length >= state.g.t;
 
-const CANCEL_ASK = "Cancel this payment? No device can approve it after this. Anyone can propose "
-  + "it again.";
+const CANCEL_ASK = "Cancel this proposal for the wallet? Zigs asks its devices to stop. "
+  + "Cancellation cannot revoke signed data already held elsewhere. Check Activity and any Send hold before proposing a replacement.";
 // Until the signatures are combined, any signer can withdraw a payment, for example one that lost
 // an approval. A signature share alone cannot move funds.
 // A document that lost the signing parts that this browser saw gets no Cancel: one seat reset it.
@@ -248,7 +250,7 @@ export const cancelAction = (ss) => noCancel(ss) || !localSeats().length || !may
   el("button", {
     class: "btn lg danger", type: "button",
     onclick: act(() => confirm(CANCEL_ASK) && cancelPayment(ss)),
-  }, "Cancel payment"),
+  }, "Cancel proposal"),
 ];
 
 // The devices that sign: those that the package names, else the first t approvals by device
@@ -313,7 +315,7 @@ function holdCard(ss) {
   return el("div", { class: "callout", "data-key": "hold-" + ss.id },
     el("p", {}, "This browser approved this payment, and the other devices can still sign and "
       + "send it. Send stays off until block " + fmtInt(end) + holdLeft(end) + ". Release Send "
-      + "only if you are sure that nobody will send it."),
+      + "only if you are sure that nobody will send it. Releasing this hold does not cancel the transaction. A new proposal could pay again."),
     el("div", { class: "dialog-actions" }, actions));
 }
 
@@ -331,38 +333,57 @@ function holdLeft(end) {
 function sessionDrawer(ss) {
   const ins = inspectOf(ss), refused = ins && ins.error, rc = recipientCheck(ss, ins);
   const read = refused ? null : ins;
-  return el("aside", { class: "drawer approval-review", role: "dialog", "aria-modal": "true", "aria-label": "Payment details" },
+  const paymentView = ui.tab === "activity" ? "record" : "approve";
+  return el("div", { class: "drawer approval-review payment-surface", "data-payment-view": paymentView,
+    role: "dialog", "aria-modal": "true", "aria-label": "Payment details" },
     el("div", { class: "drawer-head" }, el("div", { class: "review-heading" },
-    el("span", { class: "label" }, "Transaction review"),
-    el("h2", {}, "Review payment"),
+    el("span", { class: "label" }, paymentView === "record" ? "Activity record" : "Transaction review"),
+    el("h2", {}, paymentView === "record" ? "Payment record" : "Review payment"),
     statusChip(ss, enoughApprovals())),
       closeBtn()),
     el("div", { class: "drawer-body" },
+      paymentJourney(el, paymentView),
+      localDevicesWarning(),
       el("div", { class: "review-warnings", "data-review": "warnings" },
         ...notes(ss, refused, rc)),
+      guard(headline, ss, refused, rc),
       el("section", { class: "transaction-receipt", "aria-label": "Transaction record" },
       el("div", { class: "review-context", "data-review": "context" },
         el("div", { class: "wallet-context-label" }, walletAvatarFor(state.g),
           el("strong", {}, groupName(state.gid))), netBadge(state.g),
         el("span", { class: "small muted" }, "Zcash payment")),
-      ui.tab === "activity" ? guard(headline, ss, refused, rc) : null,
       leavesHead(ss, read),
       guard(recipientBox, ss, rc),
       read ? guard(breakdown, read, ss) : null,
-      privacyNotice(el, read && rc.match ? "shielded" : "unknown",
-        read && rc.match ? "Shielded · Zcash " + curNet().label : "Privacy not verified",
-        read && rc.match ? ZEC_EXPOSURE
-          : "Privacy is not verified until this device checks the transaction and recipients.")),
-      el("section", { class: "approval-verify", "aria-label": "Verify before signing" },
-        icon("approvals"), el("div", {}, el("h3", {}, "Verify before signing"),
-          el("p", {}, "Check the complete recipient address, amount, network and applicable fees. Only approve transactions you recognise."))),
-      ui.tab !== "activity" ? guard(headline, ss, refused, rc) : null,
+      paymentPrivacy(read, rc)),
+      guard(approvalReminder, ss),
       guard(timeline, ss, refused, rc),
       guard(discussion, ss),
       ss.final ? guard(txDetails, ss) : null,
       ss.broadcastTxid ? chainSees() : null,
       read ? technical(read) : null),
     drawerFoot(ss, ins, rc));
+}
+
+function approvalReminder(ss) {
+  if (signingSeen(ss) || ss.broadcastTxid || landed(ss) || ended(ss) || expired(ss) || ss.error)
+    return null;
+  return el("section", { class: "approval-verify", "aria-label": "Verify before signing" },
+    icon("approvals"), el("div", {}, el("h3", {}, "Verify before signing"),
+      el("p", {}, "Check the complete recipient address, amount, network and applicable fees. Only approve transactions you recognise.")));
+}
+
+function paymentPrivacy(read, rc) {
+  const checked = read && rc.match;
+  return el("div", { class: "review-privacy" },
+    privacyNotice(el, checked ? "shielded" : "unknown",
+      checked ? "Shielded · Zcash " + curNet().label : "Privacy not verified",
+      checked ? "Recipient addresses and amounts are shielded on chain. Action counts, fees and expiry are public."
+        : "Privacy is not verified until this device checks the transaction and recipients."),
+    el("details", { class: "review-privacy-details", "data-key": "payment-privacy-details" },
+      el("summary", {}, "What remains visible"),
+      el("p", { class: "small muted" }, ON_CHAIN_PUBLIC),
+      el("p", { class: "small muted" }, "Wallet devices and invite-link holders can read this wallet’s balance and history.")));
 }
 
 // Preserve every existing warning and condition, ahead of the financial decision.
@@ -402,7 +423,7 @@ function drawerFoot(ss, ins, rc) {
 export function sessionLayer(ss) {
   try { return sessionDrawer(ss); }
   catch (e) { log("unreadable payment: " + (e && e.message ? e.message : e)); }
-  return el("aside", {
+  return el("div", {
     class: "drawer", role: "dialog", "aria-modal": "true", "aria-label": "Payment details",
   },
   el("div", { class: "drawer-head" }, el("h2", { style: "font-size:15px" }, "Payment"), closeBtn()),
@@ -472,14 +493,14 @@ function breakdown(ins, ss) {
       ins.lines.filter(isPayee).map((l) => row(payeeLabel(l), l.value)),
       row(feeLabel(ins), t.fee, "neg"),
       el("div", { class: "total" }, el("span", {}, "Leaves the wallet"),
-        el("span", { class: "mono" }, zecText(t.leaves))),
-      el("div", { class: "group" }, "Funds used"),
-      spent.map((l) => row("Spent from this wallet", l.value, "neg")),
-      ins.lines.filter(own).map((l) => row("Change back to this wallet", l.value, "neg"))),
+        el("span", { class: "mono" }, zecText(t.leaves)))),
+    el("details", { class: "review-funding-details" }, el("summary", {}, "Funds used and change"),
+      el("div", { class: "lines" },
+        spent.map((l) => row("Spent from this wallet", l.value, "neg")),
+        ins.lines.filter(own).map((l) => row("Change back to this wallet", l.value, "neg")))),
     el("p", { class: "small faint" }, "Your browser decoded this from the transaction itself, "
       + "not from the proposer's description."),
-    transparentNote(ins, ss), swapBlock(ss),
-    ss.broadcastTxid ? null : el("p", { class: "small faint" }, ON_CHAIN_PUBLIC));
+    transparentNote(ins, ss), swapBlock(ss));
 }
 
 // Each seat with its name and seat number, and a check mark when it approved.
@@ -501,6 +522,7 @@ const approvalConstellation = (ss, refused, rc) => ApprovalVisualization({
   error: approvalsStep(ss, refused, rc) === "bad" || !!ss.error || expired(ss)
     || tooLate(ss) || approvalsHeld(ss, rc) || sendRefused(ss),
   isBusy: state.pending || !!ss.checking,
+  showStage: false,
   context: JSON.stringify([state.gid, ss.id]),
   participants: seatIds().map((i) => ({ id: i, name: named(i),
     confirmed: !!state.commits[i], motionValue: approvalMotion(ss, !!state.commits[i]) })),
@@ -530,7 +552,16 @@ function signatureText(ss, approvals, shared, wait) {
 // `rejected`: this browser refuses the transaction itself (its decode). No live region: the page
 // draws it anew on each redraw.
 function headline(ss, rejected, rc) {
-  return outcomePanel(stageHeadline({ ...endFacts(ss, rejected), ...stepFacts(ss, rc) }));
+  const selected = stageHeadline({ ...endFacts(ss, rejected), ...stepFacts(ss, rc) });
+  const device = (id) => "device " + id + (state.seats[id]?.name ? " (" + state.seats[id].name + ")" : "");
+  const guidance = paymentNextStep(selected.stage, {
+    checking: state.pending || ss.checking,
+    proposer: Number.isInteger(ss.by) ? device(ss.by) : "the proposing device",
+    pendingSigners: signersOf(ss).filter((id) => seatIds().includes(id) && !state.shares[id]).map(device),
+    remaining: displayedApprovalCount() === null ? null
+      : Math.max(0, state.g.t - Object.keys(state.commits).length),
+  });
+  return outcomePanel({ ...selected, next: guidance });
 }
 // The facts that end, stop or block a payment. `stopped`: before a sync, or once signing started
 // here, the page cannot tell that no device sent it.
@@ -733,7 +764,6 @@ function chainSees() {
     el("dl", { class: "kv", style: "grid-template-columns:110px minmax(0,1fr)" },
       ["Recipients", "Amounts", "Devices", "Approval rule"].flatMap(row)),
     el("p", { class: "small faint" }, "The number of actions is public. So is the fee."));
-  sees.append(el("p", { class: "small faint" }, EXPIRY_PUBLIC));
   return sees;
 }
 // The expiry window of the engine (wasm/src/expiry.rs) against the 50 minutes of the standard

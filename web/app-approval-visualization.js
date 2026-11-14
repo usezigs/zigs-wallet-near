@@ -10,6 +10,33 @@ const el = (tag, attrs = {}, ...children) => {
   return node;
 };
 
+const svg = (tag, attrs, ...children) => {
+  const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
+  node.append(...children);
+  return node;
+};
+
+// Path-based light treatment inspired by Magic UI's Animated Beam. It runs only on an
+// observed approval event; the static check and existing count carry all operational meaning.
+const approvalBeam = () => svg("svg", { class: "approval-medallion", viewBox: "0 0 64 64",
+  "aria-hidden": "true", focusable: "false" },
+  svg("circle", { class: "approval-node-beam", cx: "32", cy: "32", r: "29",
+    pathLength: "100", fill: "none", "stroke-dasharray": "22 78" }));
+
+function approvalQuorum(confirmed, required, known) {
+  const ratio = known && Number.isInteger(required) && required > 0
+    ? Math.min(1, confirmed / required) : 0;
+  return el("span", { class: "approval-quorum", "aria-hidden": "true" },
+    svg("svg", { viewBox: "0 0 80 80", focusable: "false" },
+      svg("circle", { class: "approval-quorum-track", cx: "40", cy: "40", r: "34", fill: "none" }),
+      svg("circle", { class: "approval-quorum-value", cx: "40", cy: "40", r: "34", fill: "none",
+        pathLength: "100", visibility: ratio > 0 ? "visible" : "hidden",
+        "stroke-dasharray": `${ratio * 100} 100` })),
+    el("span", { class: "approval-quorum-fraction" }, known ? String(confirmed) : "—",
+      el("span", {}, "/ " + required)));
+}
+
 // Neutral hardware geometry denotes a configured participant, never online presence.
 export const SignerConnection = () => el("span", { class: "signer-connection", "aria-hidden": "true" });
 export function SignerNode({ id, name, detail, received = false, joined = true, motionValue }) {
@@ -19,6 +46,7 @@ export function SignerNode({ id, name, detail, received = false, joined = true, 
     "data-motion-value": motionValue },
     SignerConnection(),
     el("span", { class: "approval-node signer-hardware", "aria-hidden": "true", "data-motion-mark": "" },
+      approvalBeam(),
       el("span", { class: "signer-hardware-face" }, received ? "✓" : String(id))),
     el("span", { class: "signer-node-name approval-device-name" }, name),
     el("span", { class: "signer-node-state approval-device-state" }, detail));
@@ -52,7 +80,7 @@ export function SharedControlVisual({ required, total, participants = [], loaded
  * Without those facts the component renders an aggregate, never invented device statuses.
  */
 export function ApprovalVisualization({ required, total, confirmed, stage, participants,
-  error = false, isBusy = false, context = "" }) {
+  error = false, isBusy = false, context = "", showStage = true }) {
   const known = Number.isInteger(confirmed) && confirmed >= 0 && confirmed <= total;
   const count = known ? confirmed + " of " + required : "Count unavailable";
   const summary = (known ? confirmed + " of " + required + " required approvals received. "
@@ -68,9 +96,10 @@ export function ApprovalVisualization({ required, total, confirmed, stage, parti
   el("div", { class: "approval-policy" },
     el("span", {}, "Approval rule"), el("strong", {}, required + " of " + total + " devices")),
   el("div", { class: "approval-stage" },
+    approvalQuorum(confirmed, required, known),
     el("div", { class: "approval-count" }, el("strong", {}, count),
       el("span", {}, known ? "required approvals received" : "Approval records not available")),
-    el("p", { class: "approval-current" }, stage.title),
+    showStage ? el("p", { class: "approval-current" }, stage.title) : null,
     isBusy ? el("p", { class: "small muted" }, "Checking approval records…") : null),
   individual ? el("ol", { class: "approval-constellation", "aria-label": "Device approval records" },
     participants.map((p) => SignerNode({ ...p, received: p.confirmed,

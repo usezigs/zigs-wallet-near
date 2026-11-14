@@ -10,7 +10,10 @@ const read = (file) => readFileSync(new URL("../" + file, import.meta.url), "utf
 // The innermost rules of a sheet (also inside @media), as selector text and declarations.
 const rules = (sheet) => [...sheet.replace(/\/\*[\s\S]*?\*\//g, "")
   .matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1].trim(), body: m[2] }));
-const app = rules(read("app.css")), html = read("index.html");
+const app = rules(read("app.css"));
+// The shell now lives in React; normalize JSX spelling for these structural assertions.
+const html = read("openglass/app.jsx").replaceAll("className=", "class=")
+  .replace(/<(nav|div) ([^>]+) \/>/g, "<$1 $2></$1>");
 const refined = read("site-refinement.css");
 const has = (list, sel, decl) => list.some((r) => r.sel.split(/,\s*/).includes(sel)
   && decl.test(r.body));
@@ -27,14 +30,15 @@ assert.match(html, /<nav id="side-nav" aria-label="Sections">/, "the side list i
 assert.match(html, /<a class="skip-link" href="#app">Skip to main content<\/a>/,
   "the skip link names its target");
 
-// One page title: --font-page at weight 700, 32/40 px and 26/32 px on a phone. No later rule
-// gives a page h1 another weight or the Messages h1 another size.
-assert.match(refined, /^ --font-page:700 2rem\/2\.5rem var\(--sans\);/m, "the title token");
-assert.match(refined,
-  /@media\(max-width:760px\)\{:root\{--font-page:700 1\.625rem\/2rem var\(--sans\)\}\}/,
+// Page titles share the design-system token: 28/36 px, 26/32 px on phones, medium weight.
+// Large home copy has a separate display treatment; working page titles stay consistent.
+const system = read("design-system.css");
+assert.match(system, /--font-page:500 1\.75rem\/2\.25rem var\(--sans\);/, "the title token");
+assert.match(system, /--font-page:500 1\.625rem\/2rem var\(--sans\);/,
   "the title token of a phone");
-assert.deepEqual(rules(refined).filter((r) => /\bh1\b/.test(r.sel) && /font-weight/.test(r.body))
-  .map((r) => r.sel), [".lobby-home .home-hero h1"], "only the home hero sets an h1 weight");
+assert.ok(rules(refined).filter((r) => /\bh1\b/.test(r.sel))
+  .every((r) => !/font-weight:\s*[6-9]\d\d/.test(r.body)),
+  "page headings use size and colour rather than heavy weights");
 assert.doesNotMatch(bodyOf(rules(read("messaging.css")), ".messages-heading h1"), /font-size/,
   "the Messages title takes its size from the token");
 // Approvals, Activity, Security and the Address book share the width of Settings. The wallet
@@ -55,9 +59,10 @@ assert.ok(has(rules(sheets[1]), ".side-privacy", /display:flex/), "the slot is a
 // The chip rules of the wallet header also kept Return home on one line. That rule stays.
 assert.ok(has(rules(sheets[2]), ".wallet-context-header>.wallet-home",
   /max-width:none; white-space:nowrap;/), "Return home stays on one line in a phone wallet header");
-assert.ok(has(app, ".logo-word", /display:\s*none/), "a narrow phone shows the logo mark only");
-assert.ok(read("app.css").includes("@media(max-width:360px) { .logo-word { display:none; } }"),
-  "from 360 px down");
+assert.ok(has(rules(refined), ".side .logo .logo-word", /display:\s*block/),
+  "the complete Zigs wordmark remains available on a narrow phone");
+assert.doesNotMatch(read("app.css"), /\.logo-word\s*\{\s*display:\s*none/,
+  "narrow phones do not hide the brand name");
 
 // On a phone the Send and Receive lists open under the whole action row, inside the screen,
 // not under their own button (the Receive list started 80 px left of the screen at 390 px).

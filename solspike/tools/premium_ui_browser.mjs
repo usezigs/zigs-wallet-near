@@ -99,13 +99,14 @@ async function hoverReview() {
 async function artworkReview() {
   await choose("chats"); await page.waitForTimeout(1300);
   check(await page.locator(".messages-empty-art .symbol-sculpted").count() === 1,
-    "Messages uses a layered 64-unit relief object");
+    "Messages uses a dimensional vector object");
   const object = page.locator(".messages-empty-art");
-  const before = await object.locator(".relief-face .relief-part-1").evaluate(
-    (node) => getComputedStyle(node).translate);
+  const before = await object.boundingBox();
   await object.hover(); await page.waitForTimeout(650);
-  check(before !== await object.locator(".relief-face .relief-part-1").evaluate(
-    (node) => getComputedStyle(node).translate), "message relief separates its physical layers");
+  check(JSON.stringify(before) === JSON.stringify(await object.boundingBox()),
+    "message artwork remains stationary on hover");
+  check(await object.locator(".object-depth").count() > 0,
+    "dimensional artwork carries its depth inside the silhouette");
   check(await page.evaluate(() => ![...document.querySelectorAll(".premium-empty-art")]
     .some((node) => node.getAnimations().some((a) =>
       a.effect.getTiming().iterations === Infinity))),

@@ -1,5 +1,66 @@
 # Zigs
 
+## Swapflow hackathon preview
+
+This branch adds an unfunded walkthrough of **private SOL → shielded ZEC**, using real,
+key-free mainnet price quotes from NEAR Intents. The wallet, approvals, deposits, delivery and
+recovery shown in the simulation are examples. They do not establish funded settlement or
+end-to-end privacy.
+
+With Node 22 or later, build the current interface and run from the repository root:
+
+```sh
+npm ci --prefix web
+npm run build --prefix web
+node solspike/tools/swap_preview_server.mjs
+```
+
+Open <http://127.0.0.1:8856/__swap_preview__?scenario=hackathon>. Enter `0.1` SOL, review the
+quote, then choose **Simulate swap flow** and advance through the steps. The price quote is live;
+the wallet and subsequent steps are simulated. No partner key, wallet setup or funds are needed.
+If the provider cannot quote the amount, the screen shows the error and can refresh. No synthetic
+price silently replaces a failed live quote. This local server exposes only the dry quote route
+and rejects live swap creation. It does not load a wallet or require the WASM engine.
+
+The privacy explainer follows the source, public deposit, provider and destination in an animated
+20-second tutorial. The setup and deposit take four seconds each; provider and destination
+visibility get six seconds each. Visual actions resolve early, with a short hold for reading.
+It autoplays once when visible, pauses offscreen and offers pause/resume or
+direct chapter selection; reduced motion uses manual steps. It adapts to the selected
+direction and routing mode, with quote, refund and recovery disclosures. Quote details and
+slippage stay beside the form. On desktop, the form and tutorial use equal panels that fit the
+viewport. The compact mode selector uses Zigs’ sculpted 3D icons and supports keyboard selection.
+Full privacy information opens in a dialog. The explainer is an illustration, never
+live transaction progress.
+
+For a terminal check of a real, unfunded quote and its provider signature:
+
+```sh
+node solspike/tools/near-confidential-probe.mjs --unauthenticated --mode public
+```
+
+For offline verification:
+
+```sh
+node web/test/near-confidential.mjs
+node web/test/hackathon-swap.mjs
+node web/test/swapflow.mjs
+node web/test/swap-preview.mjs
+```
+
+In the full wallet app, **Hackathon preview** is the default. **Standard mainnet** is a separate,
+explicit choice with public-route consent; it needs no partner key. **Confidential mainnet**
+requires provider access and never falls back to Standard. Real execution remains behind the
+server's existing live/mainnet gates. Funded shielded delivery and refunds have not been verified
+in Zigs. Solana deposits, group identifiers and fee payers can remain public, and NEAR sees the
+route. See [PRIVACY.md](PRIVACY.md#paid-from-the-private-solana-balance).
+
+The organizers recommend key-free 1Click use and unfunded quotes in
+[Q-006/Q-007](https://nearhackathon.com/HACKATHON.md). No API key, transaction or funded test is
+created by the commands above.
+
+## Shared wallet
+
 **Shared wallets for shielded Zcash.** A team creates one private address together, and any *t* of
 its *n* devices must approve each payment. Nobody ever holds the whole key, and the server cannot
 read the wallet. On chain a payment has the shape of a shielded payment from a standard wallet,
@@ -64,8 +125,8 @@ proposer chooses one ([comparison](PRIVACY.md#on-chain)).
   wallet in Zolana v1 on mainnet, when every device accepts the private mode at setup. It uses
   real SOL. It is a test on staging, and no one audited it. One upgrade key, which the Zigs owner
   holds, can replace the Zigs approvals program and then move the funds of every private wallet.
-  The app caps the private balance at 0.5 SOL at each Add SOL, but only in this app: deposits by
-  other people and private payments in can take a group above it. Never send public SOL to the
+  The app imposes no private balance cap. Add SOL still checks the deployed program and
+  tracks uncertain sends to avoid duplicate deposits. Never send public SOL to the
   PDA address: no code can move it. Do not expect anonymity: the mainnet pool is small. The
   devices make the proofs. The server serves it only where `SOL_POOL_MAINNET` is `"1"`: it is
   `"1"` on staging and `"0"` on production ([ZOLANA.md](ZOLANA.md) 6.15
@@ -77,8 +138,7 @@ proposer chooses one ([comparison](PRIVACY.md#on-chain)).
 Zigs uses re-randomized FROST threshold signatures ([ZIP 312](https://zips.z.cash/zip-0312)) on
 the Ironwood shielded pool. It is a **beta** and **not audited**. The web app makes Zcash wallets on
 **testnet** (free test coins) or on **mainnet** (real ZEC, which you can lose). Solana Devnet is for
-testnet wallets only. In a mainnet wallet, at **0.5 ZEC** the app warns and hides the address. It
-cannot block deposits. The iPhone and Mac apps do not support mainnet wallets yet: use the web app.
+testnet wallets only. Verified mainnet receive addresses remain available regardless of balance. The iPhone and Mac apps do not support mainnet wallets yet: use the web app.
 
 ## For judges: try it alone
 
@@ -86,17 +146,31 @@ You can play every device from one browser. Use a desktop browser with Zigs in o
 private window. The steps below use Zcash testnet and Solana Devnet, so every coin is a free test
 coin. Keep Testnet chosen in the network choice. The runbook of a demo with three devices is in [docs/demo.md](docs/demo.md).
 
+The same **Play device** controls are available during mainnet setup. Played devices keep
+separate signing shares in this browser, so enough local shares let it authorize real mainnet
+payments by itself. They do not provide separate-device protection. Keep each share’s recovery
+file and passphrase safe. The configured approval threshold and per-device approval actions
+still apply.
+
+Mainnet first asks you to **Review single-browser mainnet setup**, then **Enable for this wallet**.
+This choice belongs to that wallet in this browser and is separate from passkey protection.
+The wallet header and Zcash payment reviews keep a warning visible whenever multiple signing
+shares are held here, including after reload or restore. The warning says this browser can approve
+Zcash payments by itself only when enough local shares have passed the existing checks.
+
 **Zcash testnet**
 
 1. Open https://app.zigs.app.
-2. Click **Set up a wallet**, then **Set up my wallet**. Open **Advanced approval rule**, set
-   **Devices** to 2 and **Approvals needed** to 2, tick the box under the warning, and click
-   **Next**. The network is **Testnet**, the only choice. Keep **Also set up Solana Devnet**
-   ticked (it is on by default). Click **Review wallet**, then **Create wallet**. This browser
-   is now device 1.
+2. Click **Create wallet**. Protect this browser with a passkey, or explicitly confirm
+   **Skip for now**. Continue to the approval rule: keep the recommended **2 of 3**, or set
+   **Devices** to 2 and **Approvals needed** to 2 and acknowledge the warning. Click
+   **Use this arrangement**, name the wallet and this device, and choose **Testnet**.
+   Click **Continue**, review the wallet, then **Create wallet**. Solana Devnet is included
+   by default and starts when service is available. This browser is now device 1.
 3. Open **Trying Zigs alone? Play the other devices in this browser** and click
-   **Play device 2**. The two devices create the key together. Within half a minute the wallet
-   opens, and both devices show **Address checked**.
+   **Play device 2** (and **Play device 3** for the recommended rule). The same browser now
+   holds every demo device and creates their keys together. Continue through the wallet reveal
+   and optional backup options, then click **Open Overview**.
 4. In the **Fund this wallet** card on the Overview, click **Copy address**. Then click **Open the
    faucet**: it opens the Valar faucet, which pays 0.125 TAZ to a `utest1…` address, once for each
    IP address and once for each address every 24 hours. On a shared network, such as a venue or an
@@ -196,6 +270,94 @@ flowchart LR
 | Helius and the explorer (plain Solana wallet, mainnet) | Helius: IP address, the app origin, the group address, the fee addresses and the nonce accounts that the page reads, and each signed transaction that the page sends, with its recipient and amount. The explorer: the address that you open, and your IP address. Balances and payments are public on chain anyway. Never a key share |
 | Helius and its key host (private Solana wallet, mainnet, staging only) | Helius: IP address, the app origin, the PDA and the group key, the fee addresses of this browser, and which notes each payment spends. The devices make the proofs, so Helius gets no witness. The key host: your IP address and the app origin when it sends a proving key. Never a key share |
 | ZNS resolver (testnet names) | That the app Worker downloads the whole name registry. Never which name a person pays, never a key |
+
+## Building the web interface
+
+The wallet uses a React shell with OpenGlass UI. `web/openglass/app.jsx` installs the system
+provider and stylesheet; `bridge.jsx` connects the existing native renderers to OpenGlass cards,
+buttons, badges, fields and stats. Existing panels keep their native layout and receive an
+OpenGlass background; standalone loading and lock screens use Card. Native form inputs keep
+their references and event handlers.
+Dialogs keep the wallet's existing focus and dismissal logic, with frosted OpenGlass materials.
+The shared bridge also covers the welcome hero, guided setup, device rows, invitation actions, asset pickers,
+preferences, tabs, and controls held by native wallet code. Regular glass distinguishes raised
+panels from inset rows; text fields stay solid for readability. Restrained rim reflections
+complement the cursor treatment described below. Reduced motion, reduced transparency, high contrast
+and forced colors have explicit fallbacks.
+
+`web/openglass/use-button-hover.js` exports `useButtonHover(scopeRef?, { magnet? })` and its
+native adapter `installButtonHover(scope, options)`. The app shell installs the hook once for
+all buttons, including cached views and native dialogs. It uses Motion springs and CSS
+variables for a clipped cursor highlight and less than one pixel of magnetic travel; no
+React state is updated on pointer movement. Pass a ref to limit it to a group in another app,
+or set `data-button-hover="off"` on an element or ancestor to opt out. Touch, reduced motion,
+reduced transparency and high contrast retain the existing controls without cursor effects.
+Idle/hidden/detached controls release their springs and decorative layers.
+Native control surfaces such as Swap's radio-card labels opt in with `data-button-surface`;
+their radio inputs, labels and disabled states remain native.
+
+```sh
+npm ci --prefix web
+npm run build --prefix web
+```
+
+Wrangler runs this build automatically before local development and deployment. To run the full
+local Worker, install its dependencies with `npm ci --prefix cf`, then run `npm run dev`
+from `cf/`. This local command enables Solana mainnet; configure its RPC URL as described below.
+Opening the HTML through a plain static server omits the Worker's store-client shim.
+
+`npm run test:openglass --prefix web` checks the interface with isolated wallet fixtures, then
+boots the real app under its strict content security policy. It checks desktop and mobile
+layouts, both themes, all eight wallet destinations, the guided Connect screen, QR dialog
+keyboard containment, forced colors, labels, input persistence and cached views.
+It uses local Chrome on macOS, or Playwright Chromium (`npx playwright install chromium` from
+`web/`); `CHROME_EXECUTABLE` can select another installed Chromium browser. Screenshots go to the
+temporary directory, or to `OPENGLASS_OUTPUT` when set.
+
+`npm run test:button-hover --prefix web` checks actual mouse/touch input, spring settling,
+layout and label preservation, native actions/dialogs, preference changes and cleanup. It
+also records a frame-paced cursor-path measurement in `button-hover.json` under
+`OPENGLASS_AUDIT_OUTPUT` (default `/tmp/zigs-glass-audit/flows`). Frame timings describe the
+local Chromium run; they are not a physical-device performance guarantee.
+
+`npm run test:single-browser --prefix web` verifies real, unfunded Zcash Testnet and Mainnet formation
+with all devices in one browser tab for both 2-of-2 and 2-of-3 rules. It checks the solo-device
+controls in both themes at 320 and 1440px, per-device approval availability, and saved shares
+after reload and virtual-passkey unlock. Start the local Worker relay on port 8788 first;
+`ZIGS_SINGLE_BROWSER_ORIGIN` can select another `http://localhost:<port>` origin (passkey
+creation requires the hostname rather than a numeric IP address). HTTP chain/provider services
+are blocked, and the check never funds, proposes, approves or broadcasts a payment. Fresh
+browser stores leave existing wallets untouched. Reports and masked screenshots go to
+`/tmp/zigs-glass-audit/single-browser`, or `OPENGLASS_SINGLE_BROWSER_OUTPUT`.
+
+`npm run audit:openglass --prefix web` expands this to 120 presentation states across 320, 375,
+390, 768, 1024, 1440 and 1920px in both themes, followed by keyboard, theme, motion and input-persistence checks.
+It uses disposable synthetic wallet data and stops before wallet creation or transaction
+submission. Reports and masked screenshots go to `/tmp/zigs-glass-audit/flows`, or
+`OPENGLASS_AUDIT_OUTPUT`. The [OpenGlass flow audit](docs/ux-redesign/openglass-flow-audit.md)
+records coverage, fixes and validation limits.
+The [Near Swap integration review](docs/ux-redesign/near-swap-glass.md) covers the updated
+routing controls, walkthrough, saved history and six-step simulation from `Near`.
+
+`npm run test:browser --prefix web` is the portable presentation gate used by
+`.github/workflows/browser.yml`. It adds rendered welcome contrast (including negative controls),
+visible zebra artwork, mainnet local-share warnings, opt-in behavior and enlarged Security metrics to the interaction and
+120-state layout checks. Choose `ZIGS_BROWSER=chromium` (default) or `ZIGS_BROWSER=webkit`.
+Install the matching engine with `npm exec --prefix web -- playwright install <engine>`;
+Linux CI also installs its system dependencies. `CHROME_EXECUTABLE` or `WEBKIT_EXECUTABLE`
+can select a local executable. `npm run test:browser:smoke --prefix web` omits the full layout
+matrix and uses three welcome widths. JSON and masked PNG evidence goes to the system temporary
+directory under `zigs-browser`, or to `ZIGS_BROWSER_OUTPUT`.
+
+`npm run test:browser:ceremonies --prefix web` starts and removes an isolated local Worker,
+then checks real unfunded single-browser formation, encrypted recovery, independent browser
+stores, optional protection and virtual-passkey reload/unlock. It needs Node 26, dependencies
+in both `web/` and `cf/`, the built web assets and Playwright Chromium. No production configuration,
+existing browser profile, live chain service or funded transaction is used. CI keeps only JSON
+and masked PNG artifacts for seven days; it does not upload backup downloads or browser profiles.
+WebKit cannot emulate reduced transparency through CDP, so that preference is explicitly reported
+as unverified there. These checks do not replace physical-device, biometric, screen-reader or
+live-payment testing.
 
 ## Creating a wallet
 
@@ -454,9 +616,18 @@ wasm-bindgen --target web --out-dir ../web/pkg \
 ```bash
 cd cf
 npm install
-echo DEV_NO_AUTH=1 > .dev.vars
-npx wrangler dev --port 8787
+cp -n .dev.vars.example .dev.vars
+npm run dev -- --port 8787
 ```
+
+The local command binds to loopback and enables `SOL`, `SOL_MAINNET` and `SOL_POOL_MAINNET` for
+this development session. It leaves the deployed settings in `wrangler.jsonc` unchanged. Set
+`HELIUS_MAINNET_URL` in `cf/.dev.vars` to your Helius mainnet RPC URL and allow
+`http://localhost:8787` in that key's Allowed Domains (use your actual port if different).
+Without this URL, the private mainnet Worker is available but the mainnet configuration route
+answers 503, so Solana cannot connect. Existing wallets still need their safety-number checks
+and private-mode acceptance; enabling the server never changes a wallet's mode. The local
+mainnet service uses real SOL.
 
 A testnet wallet reaches our light-wallet node through the Worker, at `/lwd` of the page origin. The
 Worker adds the secret `LWD_KEY` (64 lowercase hex characters), which the node checks, and the page
@@ -797,7 +968,7 @@ folder path.
   or link before the first paint, and no notice for an image or style, or after the first paint.
 - `node web/test/mempool.mjs`: the payments that wait in the mempool, with a fake engine and the
   real page modules: the line "Not in a block yet" and the row "Receiving · not in a block yet" for
-  a listed note, and no change of the balance numbers or the 0.5 ZEC level; the row goes away when
+  a listed note, and no change of the balance numbers or address availability; the row goes away when
   a block holds the payment or the mempool drops it; one redraw when a good answer changes the
   list, and none when it does not; no call for a hidden tab or a closed wallet; one call at a time
   for each wallet; a failed call, or one that takes 20 seconds, shows no error and the list stays
@@ -854,8 +1025,7 @@ folder path.
 ## Known limits
 
 - **Not audited.** The web app makes Zcash testnet wallets and mainnet wallets. A mainnet wallet
-  holds real ZEC. At 0.5 ZEC the app hides its address and warns. It cannot stop someone from
-  sending more. The iPhone and Mac apps read a mainnet wallet but do not create, join, approve for
+  holds real ZEC and has no app-imposed balance limit. The iPhone and Mac apps read a mainnet wallet but do not create, join, approve for
   or send from one yet.
 - **ZIP 2005 is Proposed, and every signer holds `qsk`.** New wallets are built to it so that funds
   can be recovered if quantum computers break today's keys. A quantum attacker who has `qsk` may
@@ -887,8 +1057,7 @@ folder path.
   send real SOL and USDC in a public account. It is not audited, and it has no privacy. A signed
   send cannot be cancelled yet.
 - **The private Solana wallet on mainnet is a staging test.** Real SOL, no audit, and one upgrade
-  key that the Zigs owner holds can replace its program and then move its funds. The 0.5 SOL cap
-  is a check of this app only. The mainnet pool is small, so do not expect anonymity. The server
+  key that the Zigs owner holds can replace its program and then move its funds. There is no app-imposed private balance cap. The mainnet pool is small, so do not expect anonymity. The server
   keeps it off on production.
 
 ## License

@@ -13,7 +13,8 @@ export const settingsLabel = (title, description) => el("span", { class: "prefer
   el("span", { class: "preference-title" }, title),
   description ? el("span", { class: "preference-description" }, description) : null);
 
-export const settingsRow = (title, description, control) => el("div", { class: "preference-row" },
+export const settingsRow = (title, description, control, symbol = null) => el("div", { class: "preference-row" },
+  symbol ? el("span", { class: "preference-symbol", "aria-hidden": "true" }, icon(symbol)) : null,
   settingsLabel(title, description), el("div", { class: "preference-control" }, control));
 
 export const settingsDisclosure = (title, description, ...content) => el("details", {
@@ -41,17 +42,17 @@ function notificationSetting() {
   return settingsRow("Notifications", description,
     el("div", { class: "preference-notifications" },
       el("span", { class: "preference-state", role: "status" }, status),
-      supported ? el("button", { class: "btn sm", type: "button", onclick: toggle,
+      supported ? el("button", { "data-glass": "button", class: "btn sm", type: "button", onclick: toggle,
         disabled: notificationPending || permission === "denied" && !ui.notify,
         "aria-label": ui.notify ? "Turn off notifications in Zigs" : "Enable notifications",
         "aria-describedby": notificationError ? "settings-notification-error" : null,
       }, notificationPending ? "Updating…" : ui.notify ? "Turn off" : "Enable") : null,
       notificationError ? el("p", { class: "preference-error", id: "settings-notification-error",
-        role: "alert" }, notificationError) : null));
+        role: "alert" }, notificationError) : null), "bell");
 }
 
 export function generalSettings(...extra) {
   return settingsGroup("General",
-    settingsRow("Appearance", "Choose how Zigs looks on this browser.", themeChoice()),
+    settingsRow("Appearance", "Choose how Zigs looks on this browser.", themeChoice(), "theme"),
     notificationSetting(), ...extra);
 }

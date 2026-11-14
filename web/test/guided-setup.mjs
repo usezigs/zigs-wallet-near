@@ -2,6 +2,7 @@
 // Run: node web/test/guided-setup.mjs (Node 26)
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { setTimeout as waitTick } from "node:timers/promises";
 import * as Z from "../pkg/zigs_engine.js";
 import { newSignKey, signMsg, verifyMsg } from "../chat.js";
 import { filterWallet, writerOf } from "../signed.js";
@@ -183,9 +184,9 @@ page.state.confirm = Object.fromEntries([1, 2, 3].map((i) => [i, { number: actua
 const snapshots = [], writes = [];
 let holdNextWrite = false, releaseWrite = null;
 async function waitFor(test) {
-  for (let attempt = 0; attempt < 200; attempt++) {
+  for (const end = Date.now() + 5000; Date.now() < end;) {
     if (test()) return;
-    await new Promise(setImmediate);
+    await waitTick(5);
   }
   assert.fail("the expected asynchronous report did not arrive");
 }

@@ -3,6 +3,8 @@ import { el } from "./app-dom.js";
 import { ready, state } from "./app-state.js";
 import { describeOrb } from "./wallet-identity.js";
 import { fallbackUrl } from "./wallet-avatar-svg.js";
+import { walletArtFacts } from "./app-wallet-art.js";
+import { walletMarble } from "./wallet-marble.js";
 
 const neutral = "data:image/svg+xml," + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">'
@@ -23,6 +25,12 @@ function imageFor(chain, address) {
 
 /** Reserve geometry immediately. Each async result belongs only to its original image node. */
 export function walletAvatarFor(g, size = 32) {
+  const verified = walletArtFacts(g);
+  if (verified) {
+    const image = walletMarble(verified, { size });
+    image.classList.add("wallet-avatar");
+    return image;
+  }
   const image = el("img", { class: "wallet-avatar", width: size, height: size,
     alt: "", "aria-hidden": "true", decoding: "async", src: neutral });
   if (!g) return image;

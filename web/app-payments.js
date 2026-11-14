@@ -443,7 +443,7 @@ export async function broadcastTx(ss) {
     await broadcastAnywhere(ss.final.tx_hex);
     await ref.update({ ...sent, ...sig, broadcastError: null, status: "broadcast" });
     log("transaction broadcast: " + ss.final.txid);
-    showBanner("ok", "Sent to the network. It confirms with the next block.");
+    showBanner("ok", "Submitted to the network. Wait for block confirmation in Activity.");
     // The person may have opened the lobby or another wallet while the transaction went out.
     const c = curChain();
     if (c?.gid === gid) runSync(c);
@@ -595,7 +595,7 @@ export async function resendTx(ss) {
   // A seat writes the final part: a value that is not text would trap in the engine.
   if (!isStr(ss.final?.tx_hex)) throw new Error("The finished transaction cannot be read.");
   await broadcastAnywhere(ss.final.tx_hex);
-  showBanner("ok", "Sent again. It confirms with the next block.");
+  showBanner("ok", "The same transaction was submitted again. Wait for block confirmation in Activity.");
 }
 
 export async function cancelPayment(ss) {

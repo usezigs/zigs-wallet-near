@@ -32,8 +32,7 @@ const ACCEPT_INTRO = "Device 1 started a private Solana wallet on mainnet.";
 const UNSERVED = "This server does not serve the private Solana wallet, so it does not open here.";
 const ACCEPT_ROW = "This browser takes part only after you accept it in the Solana tab.";
 const UNSERVED_ROW = "This server does not serve it, so it does not open here.";
-const NO_ANONYMITY = MAINNET_DISCLOSURE.at(-1);
-assert.match(NO_ANONYMITY, /anonymity/, "control: the last line of the disclosure");
+assert.doesNotMatch(MAINNET_DISCLOSURE.join(" "), /audited|staging|0\.5 SOL/);
 
 // The private Worker (D14): HEAD /sol/worker-mainnet.js answers `probe.status`.
 const probe = { status: 200 };
@@ -174,7 +173,7 @@ const testnet = await rig.wallet({ name: "Testnet" });
   assert.equal(parts.identity, "Shared wallet · Solana Devnet");
   assert.match(parts.sol, /^SOLSolana Devnet/);
   assert.ok(parts.sol.includes(SOL_EXPOSURE), "the SOL row says what Devnet shows");
-  assert.match(parts.usdc, /^USDCSolana DevnetDemo/, "the USDC row is a demo");
+  assert.equal(parts.usdc, "", "unsupported USDC is omitted");
   assert.ok(parts.pickers.includes("Solana Devnet · opens this wallet’s Solana tools"));
   assert.match(parts.activity, /^Received SOLSolana Devnet · slot/);
 }
@@ -198,13 +197,12 @@ const priv = await rig.wallet({ name: "Private", network: "mainnet" });
   assert.match(parts.sol, /^SOLSolana Mainnet/);
   assert.ok(!parts.sol.includes(SOL_EXPOSURE), "not the Devnet exposure");
   for (const line of ["Solana Mainnet hides the amount of a private payment on chain",
-    "Add SOL and withdrawals show amounts and addresses.", NO_ANONYMITY]) {
+    "Add SOL and withdrawals show amounts and addresses."]) {
     assert.ok(parts.sol.includes(line), "the SOL row says: " + line);
   }
-  assert.match(parts.usdc, /^USDCSolana MainnetDemo/, "the pool has no USDC: the demo row");
-  assert.match(parts.usdc, /Do not deposit USDC to this wallet/);
+  assert.equal(parts.usdc, "", "the private wallet omits unsupported USDC");
   assert.ok(parts.pickers.includes("Solana Mainnet · opens this wallet’s Solana tools"));
-  assert.ok(parts.pickers.includes("Demo row · unavailable; do not deposit"));
+  assert.ok(!parts.pickers.includes("Demo row"));
   assert.match(parts.activity, /^Received SOLSolana Mainnet · slot/);
 }
 step("a private wallet says Solana Mainnet in its tab, rows, pickers and activity");
@@ -261,6 +259,21 @@ step("the SOL row of an unserved private wallet opens the tab with the unserved 
   assert.equal(solMode(bare), "plain");
   assert.equal(solTabOn(bare), false);
   assert.ok(!sections().includes("solana"), "no Solana tab without the plain server");
+  const unavailableText = () => textOf(one(panel("overview"),
+    (n) => n.attrs?.id === "sol-unavailable"));
+  assert.match(unavailableText(), /Solana mainnet is unavailable on this server/);
+  assert.doesNotMatch(unavailableText(), /testnet wallets/,
+    "a disabled mainnet service never claims that Solana is testnet only");
+  const confirmedKey = "confirmednet:" + bare;
+  const confirmed = t.signPins[confirmedKey];
+  delete t.signPins[confirmedKey];
+  assert.match(unavailableText(), /Complete this wallet’s safety-number checks/,
+    "an unconfirmed wallet explains its own blocker");
+  t.signPins[confirmedKey] = confirmed;
+  const version = t.state.g.version;
+  t.state.g.version = 2;
+  assert.match(unavailableText(), /Solana needs a version 3 wallet/);
+  t.state.g.version = version;
   mainnetConfig.status = 200;
   delete t.ui.plainServed;
   const plain = await rig.wallet({ name: "Plain", network: "mainnet" });

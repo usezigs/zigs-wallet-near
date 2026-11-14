@@ -29,8 +29,10 @@ import { holdsShare, solOf } from "./secrets.js";
 import { solText } from "./session.js";
 import { beforeFee, heldLamports, heldNotes, isPayment, spentLamports } from "./sessions.js";
 import { labelOf } from "./wallet.js";
+import { HISTORY_PAGE_SIZE, proposalPage } from "./proposal-history.js";
+import { poolSwapOf } from "./swap.js";
 
-export const SHOWN = 12;
+export const SHOWN = HISTORY_PAGE_SIZE;
 const clusterOf = (c) => c.wallet?.cluster ?? CLUSTER;
 const netOfWallet = (c) => netOf(clusterOf(c));
 /** "Solana Devnet" or "Solana Mainnet": the network of the wallet, for the labels of the cards. */
@@ -42,15 +44,16 @@ const FAUCET_TEXT =
   "address that you paste and your IP address.";
 const TITLES = {
   createNonce: "Create the nonce account for the move",
-  transfer: "Move the beta funds to the program address",
+  transfer: "Move legacy funds to the program address",
   approve: "Private SOL payment",
   withdraw: "Public SOL withdrawal",
 };
 /** The title of a proposal, from its intent bytes. */
-export const titleOf = (ss) => TITLES[decodeIntent(ss.intent)?.kind] ?? "Unknown proposal";
+export const titleOf = (ss) => poolSwapOf(ss) ? "Private SOL to shielded ZEC · public withdrawal"
+  : TITLES[decodeIntent(ss.intent)?.kind] ?? "Unknown proposal";
 const WHAT = {
   createNonce:
-    "Creates the account that the move of the beta funds needs. The proposing device pays its " +
+    "Creates the account that the legacy funds transfer needs. The proposing device pays its " +
     "rent, and the group key owns the account.",
   transfer:
     "Moves private SOL of the group key to the program address of the group, with a nonce. One " +
@@ -178,7 +181,7 @@ function faucetLink(c) {
   return c.host.el("a", attrs, "Get Devnet SOL ↗");
 }
 
-function fundCard(c, act, actions) {
+export function fundCard(c, act, actions) {
   const { el } = c.host,
     { coin, faucet } = netOfWallet(c);
   const seats = c.host.localSeats().filter((i) => holdsShare(solOf(c.host, c.gid, i)));
@@ -240,22 +243,6 @@ function addedLine(c) {
   return [c.host.el("p", { class: "small", "data-sol": "added" }, said, link), explorerNote(c)];
 }
 
-/**
- * The cap of a wallet that has one (mainnet), and how much SOL still fits by the last sync of both
- * identities. Add SOL checks it again with a fresh sync before any signature (addsol.js).
- */
-function capLine(c) {
-  if (c.wallet?.cap == null) return null;
-  const cap = BigInt(c.wallet.cap),
-    { lamports, oldBalance } = c.sync;
-  let text = "Private balance cap: " + solText(cap) + ".";
-  if (lamports !== undefined) {
-    const held = BigInt(lamports) + BigInt(oldBalance ?? "0");
-    text += " You can add up to " + solText(held < cap ? cap - held : 0n) + " now.";
-  }
-  return c.host.el("p", { class: "small", "data-sol": "cap" }, text);
-}
-
 function addSolCard(c, act, actions) {
   const { el } = c.host;
   const amount = el("input", {
@@ -269,7 +256,7 @@ function addSolCard(c, act, actions) {
   const run = () => actions.addSol({ amount: amount.value });
   return el(
     "div",
-    { class: "sol-send-fields" },
+    { class: "sol-send-fields payment-inline-form" },
     el("h3", {}, "Add SOL"),
     privacyNotice(el, "public", "Public deposit · " + solanaOf(c),
       (
@@ -277,7 +264,6 @@ function addSolCard(c, act, actions) {
         + "this device’s fee address to the group."
       )),
     el("p", { class: "small", "data-sol": "add-sol-text" }, ADD_TEXT),
-    capLine(c),
     seatLine(c, "add-sol-seat", "adds this SOL, from its fee address."),
     el(
       "div",
@@ -468,7 +454,7 @@ function moveCard(c, act, actions) {
   return el(
     "div",
     { class: "callout", style: "display:grid;gap:8px", "data-sol": "move" },
-    el("h3", {}, "Move the beta funds (one time)"),
+    el("h3", {}, "Move legacy funds (one time)"),
     el("p", { class: "small" }, MOVE_TEXT),
     el(
       "p",
@@ -632,6 +618,17 @@ function reviewBlock(c, ss, review) {
     return el("div", { class: "callout bad", role: "alert", "data-sol": "refusal" }, review.why);
   }
   const rows = rowsOf(c, review);
+  const swap = poolSwapOf(ss);
+  if (swap) rows.unshift(
+    ["Swap route", "Private SOL balance → public SOL deposit → NEAR Intents → this " +
+      "wallet's shielded Zcash address."],
+    ["Provider verification", "Each device verifies the destination, refund and amount with NEAR " +
+      "Intents when approving. Shielded payout remains untested."],
+    ["Refund control", "Any refund goes to the proposing device's public fee address. That " +
+      "device alone controls it until it adds the SOL back to the private " +
+      "wallet."],
+    ["Approval deadline", new Date(swap.cutoff).toLocaleString()
+      + ". The on-chain withdrawal expires by this time."]);
   if (PAYMENT_KINDS.has(review.intent.kind)) return paymentReview(c, ss, review, rows);
   return reviewList(c, rows, { "data-sol": "review-" + ss.id });
 }
@@ -934,19 +931,35 @@ function sessionCard(c, ss, act, actions) {
   );
 }
 
+function historyNavigation(c, act, page, actions) {
+  if (page.pages <= 1 || !actions.historyPage) return null;
+  const turn = (mark, label, delta, disabled) => c.host.el("button", {
+    class: "btn", type: "button", "data-sol": mark, disabled: disabled ? "" : undefined,
+    onclick: act(() => actions.historyPage(page.page + delta)),
+  }, label);
+  return c.host.el("div", { class: "row-actions", role: "group",
+    "aria-label": "Solana proposal history" },
+  turn("history-newer", "Newer proposals", -1, page.page === 0),
+  turn("history-older", "Older proposals", 1, page.page === page.pages - 1));
+}
+
 function sessionList(c, act, actions) {
   const { el } = c.host;
-  const shown = (c.sessions ?? []).slice(0, SHOWN), older = (c.sessions ?? []).length - SHOWN;
+  const page = proposalPage(c.sessions ?? [], c.sessionPage);
+  const shown = page.items, older = page.total - shown.length;
   if (!shown.length) return el("p", { class: "small" }, "No Solana proposals yet.");
-  const olderNote = older > 0 ? el("p", { class: "small", "data-sol": "older" }, "Zigs shows the "
-    + "newest " + SHOWN + " proposals. " + older + " older " + (older === 1 ? "one is" : "ones are")
-    + " not shown.") : null;
+  const olderNote = older > 0 ? el("p", { class: "small", "data-sol": "older", role: "status" },
+    "Showing proposals " + (page.start + 1) +
+      "–" + (page.start + shown.length) + " of " + page.total
+      + ". Page " + (page.page + 1) +
+        " of " + page.pages + ". Browse older pages to find earlier payments.") : null;
+  const navigation = historyNavigation(c, act, page, actions);
   const list = el(
     "div",
     { class: "list" },
     shown.map((ss) => sessionCard(c, ss, act, actions)),
   );
-  return el("div", {}, explorerNote(c), list, olderNote);
+  return el("div", {}, explorerNote(c), olderNote, navigation, list);
 }
 
 const RENT_TEXT =
@@ -1000,7 +1013,6 @@ function rentCard(c, act) {
 /** The cards of a ready wallet: fund, Add SOL, the move of the beta funds, pay, the sessions. */
 export function payCards(c, act, actions) {
   return [
-    fundCard(c, act, actions),
     addSolCard(c, act, actions),
     moveCard(c, act, actions),
     intentCard(c, act, actions),

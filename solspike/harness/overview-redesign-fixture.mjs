@@ -4,18 +4,26 @@ import { resolve, extname } from "node:path";
 
 export const OVERVIEW_ORIGIN = "http://127.0.0.1:55846";
 const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
-  ".svg": "image/svg+xml", ".png": "image/png", ".woff2": "font/woff2" };
+  ".svg": "image/svg+xml", ".png": "image/png", ".webp": "image/webp",
+  ".wasm": "application/wasm", ".woff2": "font/woff2" };
 const solFixture = (
-  "\nexport function overviewFixtureSol(mode = 'synced') "
+  "\nexport function overviewFixtureSol(mode = 'synced', rows = []) "
   + "{\n  collections=[]; setupSummary=()=>({status:'ready'})"
   + "; pendingCount=()=>0;\n  pendingRows=()=>[]; "
   + "loadingCount=()=>0; olderCount=()=>0; "
-  + "activityRows=()=>[];\n  activityWaits=()=>false;\n  "
+  + "activityRows=()=>rows;\n  activityWaits=()=>false;\n  "
   + "sol={ctl:{gid:state.gid,loaded:{},wait:0,sync:{\n    "
   + "balance:mode==='unsynced'?null:'0 SOL',\n    "
   + "text:mode==='stale'?'failed: synthetic "
   + "offline':'',busy:mode==='resync'}},observe(){},close(){"
   + "}};\n}\n"
+  + "export function overviewFixturePlain(enabled=true) {\n"
+  + "if(!enabled){plainSol=null;ui.plainServed=false;return;}\n"
+  + "ui.plainServed=true; plainSol={ctl:{gid:state.gid,loaded:{solstart:true},"
+  + "docs:{solstart:{}}},observe(){},close(){},setup:()=>({status:'ready'}),"
+  + "pending:()=>0,pendingRows:()=>[],read:()=>({at:Date.now(),error:'',rows:{"
+  + "sol:{state:'ready',amount:'0',unit:'SOL',text:'0 SOL'},"
+  + "usdc:{state:'ready',amount:'0',unit:'USDC',text:'0 USDC'}},fees:{},nonces:null})};\n}\n"
 );
 
 function fixtureModule(relative, content, messaging) {
@@ -52,9 +60,15 @@ export async function overviewFixture(context, page, { messaging = false } = {})
     const bytes = readFileSync(file);
     const body = relative.endsWith(".js")
       ? fixtureModule(relative, bytes.toString(), messaging) : bytes;
-    return route.fulfill({ body, contentType: types[extname(file)] || "application/octet-stream" });
+    // Exercise the deployed inline-style restriction, which can change layout even when
+    // identical fixture markup looks correct in an unrestricted document.
+    return route.fulfill({ body, contentType: types[extname(file)] || "application/octet-stream",
+      headers: relative === "index.html" ? { "Content-Security-Policy":
+        "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; "
+        + "img-src 'self' data:; connect-src 'self'; worker-src 'self' blob:" } : {} });
   });
   await page.goto(OVERVIEW_ORIGIN);
+  await page.locator("#app").waitFor({ state: "attached" });
   await page.evaluate(async () => {
     const { state, ui } = await import("/app-state.js");
     const { signPins } = await import("/app-filter.js");

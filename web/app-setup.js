@@ -2,14 +2,14 @@
 import { numberClash, usesV2 } from "./util.js";
 import { showBanner, state, ui } from "./app-state.js";
 import { linkView } from "./app-engine.js";
-import { mySeatSecrets, requireSetupProtection, sec } from "./app-keystore.js";
+import { mySeatSecrets, requireSetupProtection, sec, setupProtectionReady } from "./app-keystore.js";
 import {
   allDone, allSeated, keysDiffer, localSeats, seatIds, seatMine, seatStage, STAGE_LABEL,
 } from "./app-seats.js";
 import { BROWSER_NOTE, inviteLink, senderNote } from "./app-links.js";
 import { signedMode } from "./app-filter.js";
 import {
-  ackTick, act, avatar, copyBtn, el, guard, mainnetRisk, nameField, netBadge, qrBox, requireAck,
+  act, avatar, copyBtn, el, guard, nameField, netBadge, qrBox,
   seatLabel, secretQr,
 } from "./app-dom.js";
 import { netName } from "./app-chain.js";
@@ -32,8 +32,9 @@ import { beginGuided, completeGuided, guidedState, pauseGuided,
 import { openGroup } from "./app-groups.js";
 import { outcomeSeal } from "./outcome-seal.js";
 import { openBackup, openBackupCheck } from "./app-backups.js";
-import { icon } from "./app-icons.js";
-import { openFundingPreview } from "./app-funding-preview.js";
+import { icon, sculptedIcon } from "./app-icons.js";
+import { mainnetLocalDevicesChoice } from "./app-local-devices.js";
+import { mainnetLocalDevicesAllowed } from "./local-devices.js";
 import { walletMark, walletReveal } from "./app-wallet-art.js";
 
 // Only an open overlay's wallet id is kept in memory; never persist an invitation capability.
@@ -72,32 +73,49 @@ export function setupQrDialog() {
 /** Compact presentation of the same seat/check facts used by the existing setup cards. */
 function setupDeviceStatus(f, phase = "connect", joining = false) {
   const mine = localSeats(), open = seatIds().find((i) => !state.seats[i]);
+  const sharedBrowser = mine.length > 1;
   const confirmed = confirmedBy(safetyNo()), complete = f.protocolReady && !f.blocked;
-  return el("section", { class: "setup-wallet-status surface-quiet" },
+  const known = state.seatsLoaded && (!signedMode(state.gid) || state.seatsSettled);
+  const waiting = f.blocked || complete ? [] : seatIds().filter((i) => phase === "verify"
+    ? !confirmed.includes(i) : phase === "prepare" ? seatStage(i) < 5 : !state.seats[i]);
+  return el("section", { class: "setup-wallet-status surface-quiet", "data-setup-phase": phase,
+    "data-device-count": String(f.n) },
     el("div", { class: "setup-status-wallet" }, walletMark(state.g),
       el("div", {}, el("span", { class: "label" }, "Shared wallet"),
         el("h3", {}, state.g.name), el("p", { class: "small muted" },
           "Any " + state.g.t + " of " + f.n + " devices · Zcash " + (state.g.network || "testnet")
             + (f.solWanted ? " · Solana Devnet" : "")))),
+    !known || waiting.length ? el("p", { class: "setup-waiting-label small muted" },
+      !known ? "Reading device records…" : "Waiting for " + waiting.map((i) =>
+        "Device " + i + (state.seats[i]?.name ? " (" + state.seats[i].name + ")" : "")).join(", ")) : null,
     el("ul", { class: "setup-device-list", "aria-label": "Participating devices" }, seatIds().map((i) => {
       const here = mine.includes(i), target = joining && i === open, seated = !!state.seats[i];
       const pending = !f.blocked && !complete && (target || here && (phase === "connect"
         || phase === "verify" && !confirmed.includes(i) || phase === "prepare" && seatStage(i) < 5));
-      const status = !seated ? target ? "This device · Not joined" : "Awaiting connection"
+      const status = !known ? "Reading device details…"
+        : !seated ? target ? "This device · Not joined" : "Awaiting connection"
         : phase === "verify" ? confirmed.includes(i) ? "Matching code confirmed" : "Awaiting code comparison"
           : complete ? "Wallet checked" : STAGE_LABEL[seatStage(i)];
       return el("li", { class: "setup-device-row" + (here || target ? " active-device" : "")
         + (pending ? " setup-device-pending" : ""),
-      "data-device-seat": String(i), "data-device-role": i === 1 ? "initiator" : "joiner" },
-      el("span", { class: "setup-device-mark", "aria-hidden": "true" }, icon(i === 1 ? "laptop" : "phone")),
+      "data-device-seat": String(i), "data-device-role": i === 1 ? "initiator" : "joiner",
+      "data-motion-watch": "setup-device:" + i, "data-motion-value": known ? seated ? "on" : "off" : "unknown" },
+      el("span", { class: "setup-device-mark", "data-motion-mark": "", "aria-hidden": "true" },
+        sculptedIcon(i === 1 ? "laptop" : "phone")),
       el("div", {}, el("strong", {}, "Device " + i + (here ? " · You" : "")),
-        el("span", { class: "small muted setup-device-label" }, state.seats[i]?.name || "Independent signing share")),
+        el("span", { class: "small muted setup-device-label" + (state.seats[i]?.name ? "" : " setup-device-label-generic"),
+          title: state.seats[i]?.name || null }, state.seats[i]?.name
+          || (here && sharedBrowser ? "Signing share in this browser" : "Independent signing share"))),
       el("span", { class: "small setup-device-state" }, status));
     })),
     el("p", { class: "small muted" }, phase === "verify"
       ? "Confirm on each actual device. A device’s reported confirmation does not replace your comparison."
-      : complete ? "Preparation checks are complete. Each device keeps its own share; payments still need your approval rule."
-        : "Device labels show participation, not identity or live connectivity. Use separate physical devices. Every device must keep Zigs open until setup finishes."
+      : complete ? "Preparation checks are complete. " + (sharedBrowser
+        ? "This browser holds " + mine.length + " of " + f.n + " signing shares. Payments still need your approval rule."
+        : "Each device keeps its own share; payments still need your approval rule.")
+        : (sharedBrowser ? "This browser holds " + mine.length + " of " + f.n
+          + " signing shares. Shares in one browser do not provide separate-device protection. Keep Zigs open until setup finishes."
+          : "Device labels show participation, not identity or live connectivity. Use separate physical devices. Every device must keep Zigs open until setup finishes.")
           + (f.solWanted && bothParts() ? " " + BOTH_OPEN : "")));
 }
 
@@ -133,6 +151,8 @@ export function guidedSetupView(notices = []) {
     : f.complete ? guidedReady(f)
     : at === 1 ? guidedConnect(f) : at === 2 ? guidedVerify(f)
       : at === 3 ? guidedPrepare(f) : at === 4 ? guidedBackups(f) : guidedExplanation(0, f);
+  const sharedStatus = f.review === null && !f.complete && at >= 1 && at <= 4;
+  const phase = ["plan", "connect", "verify", "prepare", "backup"][at];
   return el("div", { class: "page guided-setup", "data-key": "guided-setup",
     "data-motion-watch": "setup", "data-motion-value": f.protocolReady ? "on" : "off" },
     ...notices,
@@ -147,7 +167,10 @@ export function guidedSetupView(notices = []) {
       + "After checking the cause with all devices, create a new wallet if the safety number or address differs."),
       newWalletButton()) : null,
     saveFailedCard(),
-    body,
+    sharedStatus ? el("div", { class: "setup-live-layout" },
+      el("aside", { class: "setup-continuity", "aria-label": "Setup device progress" },
+        setupDeviceStatus(f, phase, phase === "connect" && !localSeats().length)),
+      el("div", { class: "setup-live-actions" }, body)) : body,
     f.complete && f.review === null ? null
       : el("p", { class: "small faint guided-footnote" }, "Device names help recognition. Compare the actual safety number to verify the devices."));
 }
@@ -179,20 +202,17 @@ function guidedConnect(f) {
     ? "Connect your reserve device" : "Connect your second device";
   return el("section", { class: "guided-card setup-connect" },
     el("h2", {}, title),
-    el("div", { class: "setup-two-columns" },
-      el("div", { class: "setup-status-column" }, setupDeviceStatus(f, "connect", joining),
-        demoDevices(open)),
-      el("div", { class: "setup-action-column" },
-        joining && open.length ? joinCard(open[0], true) : open.length ? inviteCard(open.length, true) : null)),
+    el("div", { class: "setup-action-column" },
+      joining && open.length ? joinCard(open[0], true) : open.length ? inviteCard(open.length, true) : null),
+    demoDevices(open),
     f.solWanted && solError ? el("p", { class: "small muted", role: "status" },
       "Solana setup is waiting for service availability. Your Zcash progress is saved.") : null);
 }
 
 function guidedVerify(f) {
   return el("section", { class: "guided-card setup-verification" },
-    el("div", { class: "setup-two-columns" }, setupDeviceStatus(f, "verify"),
-      el("div", { class: "setup-action-column" }, safetyCard(true),
-        f.blocked ? null : el("p", { class: "small muted", role: "status" }, verificationWaiting()))));
+    el("div", { class: "setup-action-column" }, safetyCard(true),
+      f.blocked ? null : el("p", { class: "small muted", role: "status" }, verificationWaiting())));
 }
 
 function verificationWaiting() {
@@ -227,8 +247,7 @@ function guidedPrepare(f) {
     : f.solWanted && f.zecReady && !f.solReady ? "Zcash is checked. The same devices now prepare Solana automatically when the existing local consent and service checks allow it."
       : "Keep Zigs open on every device while they exchange encrypted setup messages and check the shared address.";
   return el("section", { class: "card card-pad guided-card" },
-    el("h2", {}, "Prepare your wallet"), securityExplanation("prepare"),
-    walletDiagram("prepare"), el("p", {}, solText),
+    el("h2", {}, "Prepare your wallet"), el("p", {}, solText),
     f.blocked ? null : el("p", { class: "small muted", role: "status" }, preparationWaiting(c, f)),
     linkLine(),
     el("div", { class: "steps" },
@@ -236,6 +255,8 @@ function guidedPrepare(f) {
       setupStep(addressStage, 2, "Zcash address checks", addressText),
       f.solWanted ? setupStep(f.solReady ? "done" : ["stopped", "differs"].includes(f.solStatus) ? "bad" : "now", 3,
         "Solana preparation", unavailable ? solText : solKeyStep(summary)[1]) : null),
+    el("details", { class: "setup-context" }, el("summary", {}, "How wallet preparation works"),
+      securityExplanation("prepare"), walletDiagram("prepare")),
     f.solWanted ? el("details", { class: "small muted" }, el("summary", {}, "Solana service and privacy details"),
       el("p", {}, SOL_DISCLOSURE)) : null,
     unavailable ? el("p", { class: "small muted" }, "Keep this wallet and its existing keys. Retry when the service is available; do not recreate the wallet or reset its keys.") : null,
@@ -289,9 +310,11 @@ function guidedSolConsent(f) {
 
 function guidedBackups(f) {
   return el("section", { class: "card card-pad guided-card" },
-    el("h2", {}, "Recovery files are optional"), securityExplanation("backup"), walletDiagram("backup"),
+    el("h2", {}, "Recovery files are optional"),
     recoveryExplanation(), recoveryProgress(f),
     el("div", { class: "guided-backup-list" }, f.backups.map(guidedBackupRow)),
+    el("details", { class: "setup-context" }, el("summary", {}, "How recovery files work"),
+      securityExplanation("backup"), walletDiagram("backup")),
     reportIssueCard(f), overviewAfterSetup(f));
 }
 
@@ -333,7 +356,8 @@ function guidedBackupRow(b) {
       b.local ? backupSaveButton(b, chain) : null);
   };
   return el("section", { class: "guided-backup-device surface-quiet" },
-    el("h3", {}, seatLabel(b.seat) + (b.local ? " · This browser" : " · Another device")),
+    el("h3", {}, el("span", { class: "setup-backup-device-mark", "aria-hidden": "true" }, String(b.seat).padStart(2, "0")),
+      seatLabel(b.seat) + (b.local ? " · This browser" : " · Another device")),
     ...chains.map(one),
     b.local ? el("details", { class: "optional-backup-check" },
       el("summary", {}, "Optional: check saved files"),
@@ -365,28 +389,22 @@ function finishSetupPresentation(zcashOnly = false) {
   ui.tab = "overview";
 }
 
-// The funding demo is no step of the setup: only the creator device is offered it, as a labelled
-// extra, and no protocol gate reads it.
 function overviewAfterSetup(f) {
   return el("div", { class: "row-actions" },
     el("button", { class: "btn primary", type: "button", disabled: !f.protocolReady,
-      onclick: guideAct(finishSetupPresentation) }, "Open Overview"),
-    localSeats().includes(1) ? el("button", { class: "btn ghost", type: "button",
-      disabled: !f.protocolReady, "data-key": "funding-demo-entry",
-      onclick: guideAct(() => { finishSetupPresentation(); openFundingPreview(state.gid); }) },
-    "See the funding demo (no payment)") : null);
+      onclick: guideAct(finishSetupPresentation) }, "Open Overview"));
 }
 
 function guidedReady(f) {
   const local = f.backups.filter((b) => b.local);
-  return el("section", { class: "guided-card setup-completion" },
+  return el("section", { class: "guided-card setup-completion", "data-device-count": String(f.n) },
     el("h2", { class: "outcome-heading", "data-key": "setup-completion-title", tabindex: "-1" }, outcomeSeal("setup"),
       el("span", {}, "Your wallet is prepared")),
     el("div", { class: "setup-two-columns" },
       setupDeviceStatus(f, "complete"),
       el("section", { class: "setup-action-column setup-completion-actions surface-quiet" },
         el("h3", {}, "Backup & recovery"),
-        el("p", { class: "small muted" }, "Optional · Keep encrypted files and passphrases apart. Recovery needs " + state.g.t + " usable independent shares."),
+        el("p", { class: "small muted" }, "Optional · Keep encrypted files and passphrases apart. Recovery needs " + state.g.t + " usable independent shares. Without enough working devices or usable recovery files, funds can become inaccessible."),
         el("div", { class: "compact-backup-list", "aria-label": "Backup shares on this browser" }, local.map((b) => compactBackupRow(b))),
         el("div", { class: "setup-completion-details" },
           el("details", { class: "optional-backup-check setup-completion-checks" },
@@ -423,7 +441,7 @@ export function setupView() {
     el("details", { class: "card card-pad setup-education" }, el("summary", {}, "Why these setup steps matter"),
       walletDiagram("shares"),
       el("p", { class: "small muted" }, "First the devices join, then you compare their safety number. They create the wallet key together and each checks the shared address. Save a separate encrypted backup for every device when setup finishes."),
-      bothParts() ? el("p", { class: "small muted" }, "Solana follows the Zcash address check automatically for this wallet. It uses a separate key share and backup file, plus public fee addresses. The existing funding and privacy warnings still apply.") : null),
+      bothParts() ? el("p", { class: "small muted" }, "Solana follows the Zcash address check automatically for this wallet. It uses a separate key share and backup file, plus public fee addresses. Funding and network details are available in the Solana section.") : null),
     safetyCard(),
     el("div", { class: "setup" }, progressCard(), seatsCard(open)),
     localSeats().length ? el("div", { class: "row-actions" },
@@ -486,8 +504,9 @@ function safetyCard(compact = false) {
     el("div", { class: "card-head" }, el("h2", {}, "Check that your devices match"),
       el("span", { class: "badge " + (yes === n ? "ok" : "warn") }, yes + " of " + n + " confirmed")),
     compact ? null : securityExplanation("verify"),
-    el("p", { class: "small" }, "Compare this safety number on every device, on a call or in "
-      + "person. If every device shows it, only your devices joined this wallet."),
+    el("p", { class: "small" }, "Compare the full safety number on each of your devices. "
+      + "If someone else holds a device, compare with them on a call or in person. "
+      + "If every device shows the same number, only your devices joined this wallet."),
     compact ? null : walletDiagram("verify", { number: no, devices: seatIds().map(seatLabel) }),
     el("div", { class: "safety", "aria-label": "30-digit verification code" },
       no.split(" ").map((digits, i) => el("span", { class: "safety-group" }, digits + (i < 5 ? " " : "")))),
@@ -562,8 +581,8 @@ function mismatchPart() {
       "data-key": "they-differ", onclick: ask(true) }, "Codes don’t match"));
   }
   return el("div", { class: "callout bad", role: "alert" },
-    el("p", {}, "Stop setup on this device? Ask the other people to choose “Codes don’t match” "
-      + "on their devices too, then create a new wallet together."),
+    el("p", {}, "Stop setup on this device? Choose “Codes don’t match” on your other devices "
+      + "too, then create a new wallet. If someone else holds a device, ask them to do the same."),
     el("div", { class: "row-actions" },
       el("button", { class: "btn", type: "button", "data-key": "keep-checking",
         onclick: ask(false) }, "Keep checking"),
@@ -594,10 +613,9 @@ export const joinText = () => solPlanned()
     + "key share. It never leaves this browser unless you save a backup. Keep this page open until "
     + "the wallet is ready.";
 
-// A device that joins a mainnet wallet sees the network and the risk, and ticks before it joins.
+// Keep the network explicit when joining a mainnet wallet.
 const mainnetConsent = () => netName(state.g) !== "mainnet" ? []
-  : [netBadge(state.g, true), el("p", { class: "callout bad" }, mainnetRisk()),
-    ...ackTick(ui.join, "wallet", "j")];
+  : [netBadge(state.g)];
 
 // A device that joins a private Solana wallet (the hint of seat 1, design 2.4 Join) reads the
 // disclosure and ticks the accept. The join then pins the private mode in this browser, before it
@@ -627,7 +645,6 @@ function joinCard(seat, compact = false) {
   const take = el("button", {
     class: "btn primary lg", type: "button", "data-key": "join-device-" + seat, ...off.attrs,
     onclick: act(() => {
-      requireAck(ui.join, netName(state.g), "join a mainnet wallet");
       requireSetupProtection();
       if (!(usesV2(groupVersion()) || confirm(NOT_ZIP2005))) return;
       acceptJoin();
@@ -672,7 +689,7 @@ function inviteCard(openCount, guided = false) {
     onclick: () => navigator.share({ title: "Join " + state.g.name + " on Zigs", text: message })
       .catch(() => {}),
   }, "Share") : null;
-  const qr = guided ? el("button", { class: "btn", type: "button", "data-key": "setup-show-qr",
+  const qr = guided ? el("button", { "data-glass": "button", class: "btn", type: "button", "data-key": "setup-show-qr",
     onclick: () => openSetupQr() }, icon("phone"), "Show QR code")
     : secretQr(link, "wallet", true);
   return el("section", { class: "card card-pad hero-card" + (guided ? " guided-invitation" : "") },
@@ -878,13 +895,25 @@ function progressCard() {
 
 function demoDevices(open) {
   const off = offOf({ pending: state.pending, newSigner: true }, "why-play");
+  const mainnet = netName(state.g) === "mainnet";
+  const allowed = !mainnet || mainnetLocalDevicesAllowed(state.g);
   return localSeats().length && open.length
     ? el("details", { class: "testing" }, el("summary", {}, "Trying Zigs alone? Play the other devices in this browser"),
-      el("p", { class: "small faint" }, "For a demo or a review only. In real use, each key share sits on its own device."),
-      deviceProtection("demo:" + state.gid),
-      el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, open.map((i) => el("button", {
+      el("p", { class: "small muted" }, netName(state.g) === "mainnet"
+        ? "Played devices keep their separate signing shares in this browser. With enough shares here, this browser can approve real mainnet payments by itself. These slots do not provide separate-device protection. Keep each share’s recovery file and passphrase safe."
+        : "For a demo or a review only. In real use, each key share sits on its own device."),
+      setupProtectionReady() ? null : deviceProtection("demo:" + state.gid),
+      mainnet ? mainnetLocalDevicesChoice(state.g, !!off.attrs.disabled, open[0]) : null,
+      el("div", { class: "setup-play-actions" }, open.map((i) => el("button", {
         class: "btn sm", type: "button", ...off.attrs,
-        onclick: act(() => { requireSetupProtection(); return takeSeat(i); }),
+        "data-key": "play-device-" + i, disabled: !allowed || !!off.attrs.disabled,
+        onclick: act(() => {
+          requireSetupProtection();
+          if (mainnet && !mainnetLocalDevicesAllowed(state.g)) {
+            throw new Error("Review and enable single-browser setup for this mainnet wallet first.");
+          }
+          return takeSeat(i);
+        }),
       }, "Play device " + i)), off.note))
     : null;
 }

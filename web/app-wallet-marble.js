@@ -2,7 +2,6 @@
 import { ready, state } from "./app-state.js";
 import { myVerified } from "./app-dkg.js";
 import { mySeatSecrets } from "./app-keystore.js";
-import { walletArtImage } from "./wallet-art.js";
 import { walletMarble } from "./wallet-marble.js";
 
 export function walletMarbleFacts(g = state.g) {
@@ -15,5 +14,5 @@ export function walletMarbleFacts(g = state.g) {
 }
 
 export const marbleWalletMark = (g = state.g, size = 48) =>
-  walletArtImage(walletMarbleFacts(g), { size });
+  walletMarble(walletMarbleFacts(g), { size });
 export const walletHeadingMarble = (g = state.g) => walletMarble(walletMarbleFacts(g));

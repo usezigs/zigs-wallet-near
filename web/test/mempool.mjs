@@ -23,7 +23,7 @@ globalThis.setInterval = realInterval;
 assert.equal(every30.length, 1, "the page asks every 30 s, from one place");
 const { t, Z } = rig;
 const chainMod = await import("../app-chain.js");
-const { atCap, addrHidden, balanceNow, capUnknown, mempoolNow, NETWORKS, openTotal, runMempool,
+const { addrHidden, balanceNow, mempoolNow, NETWORKS, openTotal, runMempool,
   runSync } = chainMod;
 const { receiveDialog } = await import("../app-send.js");
 const view = await import("../app-account-view.js");
@@ -367,20 +367,20 @@ console.log("ok  no call for a hidden tab or a closed wallet; the 30 s call asks
   console.log("ok  the Fund card says that a waiting payment is on its way");
 }
 
-// ── The cap and the address hiding of a mainnet wallet do not change ──
+// ── Mempool observations never hide a verified mainnet receiving address ──
 {
   const main = await rig.wallet({ name: "Main", network: "mainnet" });
   const mainCw = new FakeWallet();
   const mc = { gid: main, cw: mainCw, url: NETWORKS.mainnet.servers[0], net: NETWORKS.mainnet,
     birthday: 1, ms: 0, error: null, received: [], sent: new Set(), syncing: false };
-  const states = () => [atCap(), capUnknown(), addrHidden(), openTotal(),
+  const states = () => [addrHidden(), openTotal(),
     textOf(drawn(() => receiveDialog())).includes(t.state.wallet.address.slice(0, 12))];
-  for (const [spendable, atTheCap] of [[4e7, false], [5e7, true]]) {
+  for (const spendable of [4e7, 5e7, 5e8]) {
     mc.bal = { height: 100, tip: 100, spendable, pending: 0 };
     t.setChain(mc);
     mc.mempool = null;
     const none = states();
-    assert.equal(none[0], atTheCap, "the fixture");
+    assert.equal(none[0], false, "the verified address remains available");
     mainCw.reply = [note(T1, 4e7)];   // 0.4 ZEC more would pass the cap if it counted
     await runMempool(mc);
     assert.equal(mempoolNow(mc).length, 1);
@@ -392,13 +392,13 @@ console.log("ok  no call for a hidden tab or a closed wallet; the 30 s call asks
   t.setChain(mc);
   const details = () => textOf(findAll(page("overview"),
     (n) => n.attrs?.id === "zec-asset-details")[0]);
-  assert.match(details(), /This wallet is empty\. Share its address to receive ZEC\. Keep/);
+  assert.match(details(), /This wallet is empty\. Share its address to receive ZEC\./);
   mainCw.reply = [note(T1, 4e6)];
   await runMempool(mc);
   assert.match(details(), /A payment to this wallet is on its way: no block holds it yet\. Share/);
   assert.doesNotMatch(details(), /is empty/);
   console.log("ok  the empty note of a mainnet wallet says that a waiting payment is on its way");
-  console.log("ok  the 0.5 ZEC cap and the hidden address do not change");
+  console.log("ok  mempool observations preserve the verified receiving address");
 }
 
 // ── The personal account shows the line in its balance ──

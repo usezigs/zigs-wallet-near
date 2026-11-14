@@ -1,0 +1,159 @@
+{
+  "node": "v25.6.1",
+  "scope": "Real WASM, stub DOM/in-memory relay/mocked chains; external native fetch denied; clean process environment",
+  "results": [
+    {
+      "name": "sol-fee",
+      "command": "/usr/local/bin/node --import /private/tmp/zigs-production-audit/no-external-fetch.mjs web/test/sol-fee.mjs",
+      "elapsedMs": 6401,
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "log": "/private/tmp/zigs-production-audit/slow-sol-fee.log"
+    },
+    {
+      "name": "sol-limits",
+      "command": "/usr/local/bin/node --import /private/tmp/zigs-production-audit/no-external-fetch.mjs web/test/sol-limits.mjs",
+      "elapsedMs": 16671,
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "log": "/private/tmp/zigs-production-audit/slow-sol-limits.log"
+    },
+    {
+      "name": "app",
+      "command": "/usr/local/bin/node --import /private/tmp/zigs-production-audit/no-external-fetch.mjs web/test/app.mjs",
+      "elapsedMs": 26766,
+      "code": 1,
+      "signal": null,
+      "timedOut": false,
+      "log": "/private/tmp/zigs-production-audit/slow-app.log"
+    },
+    {
+      "name": "sol-app",
+      "command": "/usr/local/bin/node --import /private/tmp/zigs-production-audit/no-external-fetch.mjs web/test/sol-app.mjs",
+      "elapsedMs": 1282,
+      "code": 1,
+      "signal": null,
+      "timedOut": false,
+      "log": "/private/tmp/zigs-production-audit/slow-sol-app.log"
+    },
+    {
+      "name": "sol-ceremony",
+      "command": "/usr/local/bin/node --import /private/tmp/zigs-production-audit/no-external-fetch.mjs web/test/sol-ceremony.mjs",
+      "elapsedMs": 11301,
+      "code": 1,
+      "signal": null,
+      "timedOut": false,
+      "log": "/private/tmp/zigs-production-audit/slow-sol-ceremony.log"
+    },
+    {
+      "name": "sol-sessions",
+      "command": "/usr/local/bin/node --import /private/tmp/zigs-production-audit/no-external-fetch.mjs web/test/sol-sessions.mjs",
+      "elapsedMs": 34564,
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "log": "/private/tmp/zigs-production-audit/slow-sol-sessions.log"
+    },
+    {
+      "name": "sol-pay-exec",
+      "command": "/usr/local/bin/node --import /private/tmp/zigs-production-audit/no-external-fetch.mjs web/test/sol-pay-exec.mjs",
+      "elapsedMs": 51241,
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "log": "/private/tmp/zigs-production-audit/slow-sol-pay-exec.log"
+    },
+    {
+      "name": "sol-pay",
+      "command": "/usr/local/bin/node --import /private/tmp/zigs-production-audit/no-external-fetch.mjs web/test/sol-pay.mjs",
+      "elapsedMs": 64466,
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "log": "/private/tmp/zigs-production-audit/slow-sol-pay.log"
+    },
+    {
+      "name": "sol-pay-seats",
+      "command": "/usr/local/bin/node --import /private/tmp/zigs-production-audit/no-external-fetch.mjs web/test/sol-pay-seats.mjs",
+      "elapsedMs": 59480,
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "log": "/private/tmp/zigs-production-audit/slow-sol-pay-seats.log"
+    },
+    {
+      "name": "sol-pay-end",
+      "command": "/usr/local/bin/node --import /private/tmp/zigs-production-audit/no-external-fetch.mjs web/test/sol-pay-end.mjs",
+      "elapsedMs": 32686,
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "log": "/private/tmp/zigs-production-audit/slow-sol-pay-end.log"
+    },
+    {
+      "name": "sol-pay-lease",
+      "command": "/usr/local/bin/node --import /private/tmp/zigs-production-audit/no-external-fetch.mjs web/test/sol-pay-lease.mjs",
+      "elapsedMs": 54603,
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "log": "/private/tmp/zigs-production-audit/slow-sol-pay-lease.log"
+    },
+    {
+      "name": "sol-pay-look",
+      "command": "/usr/local/bin/node --import /private/tmp/zigs-production-audit/no-external-fetch.mjs web/test/sol-pay-look.mjs",
+      "elapsedMs": 49725,
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "log": "/private/tmp/zigs-production-audit/slow-sol-pay-look.log"
+    },
+    {
+      "name": "sol-prove",
+      "command": "/usr/local/bin/node --import /private/tmp/zigs-production-audit/no-external-fetch.mjs web/test/sol-prove.mjs",
+      "elapsedMs": 3115,
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "log": "/private/tmp/zigs-production-audit/slow-sol-prove.log"
+    },
+    {
+      "name": "unified-setup",
+      "command": "/usr/local/bin/node --import /private/tmp/zigs-production-audit/no-external-fetch.mjs web/test/unified-setup.mjs",
+      "elapsedMs": 23748,
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "log": "/private/tmp/zigs-production-audit/slow-unified-setup.log"
+    },
+    {
+      "name": "sol-swap-proposal",
+      "command": "/usr/local/bin/node --import /private/tmp/zigs-production-audit/no-external-fetch.mjs web/test/sol-swap-proposal.mjs",
+      "elapsedMs": 1301,
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "log": "/private/tmp/zigs-production-audit/slow-sol-swap-proposal.log"
+    },
+    {
+      "name": "sol-plain-ceremony",
+      "command": "/usr/local/bin/node --import /private/tmp/zigs-production-audit/no-external-fetch.mjs web/test/sol-plain-ceremony.mjs",
+      "elapsedMs": 13435,
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "log": "/private/tmp/zigs-production-audit/slow-sol-plain-ceremony.log"
+    },
+    {
+      "name": "sol-plain-sign",
+      "command": "/usr/local/bin/node --import /private/tmp/zigs-production-audit/no-external-fetch.mjs web/test/sol-plain-sign.mjs",
+      "elapsedMs": 116689,
+      "code": 0,
+      "signal": null,
+      "timedOut": false,
+      "log": "/private/tmp/zigs-production-audit/slow-sol-plain-sign.log"
+    }
+  ]
+}

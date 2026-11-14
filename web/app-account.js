@@ -16,7 +16,7 @@ import {
   idb, LOCKED_ELSEWHERE, lockedVault, persist, savesWaiting, vault,
 } from "./app-keystore.js";
 import {
-  capText, dropStalled, NETWORKS, runSync, serverHeight, spanMs, syncAgain,
+  dropStalled, NETWORKS, runSync, serverHeight, spanMs, syncAgain,
 } from "./app-chain.js";
 import { boot, openGroup } from "./app-groups.js";
 import { normalized } from "./app-dom.js";
@@ -242,19 +242,6 @@ export function sentStateOf(rec) {
 export const flightNow = () => (personal ? personal.sent.filter((r) => holdsNotes(sentStateOf(r))) : []);
 export const acctBalance = () => (acct && acct.bal ? accountBalance(acct.bal, flightNow()) : null);
 
-// The address of the account is shown on testnet. On mainnet it is shown while the balance is
-// known and under the cap, as for a wallet. Returns why it is not, or "".
-export function acctAddressWhy() {
-  const cap = NETWORKS[personal.network].cap, b = acctBalance();
-  if (!cap) return "";
-  if (!b) {
-    return "Wait for the first sync to finish. The app shows the address of a mainnet account "
-      + "only when it knows the balance.";
-  }
-  return b.total < cap ? "" : "This account holds " + capText(cap) + ", the warning level for "
-    + "unaudited mainnet accounts. Do not send more to it. The app cannot block deposits.";
-}
-
 // Why the composer is off, or "".
 export function messageWhy(fee = feeFor(1)) {
   if (!acct || !acct.cw) return "Wait for the first sync to finish.";
@@ -296,10 +283,6 @@ async function claimAccount(build, failure) {
 
 export async function createPersonal(network) {
   if (!Z) throw new Error("The crypto engine is not ready.");
-  if (network === "mainnet" && !ui.personal.ack) {
-    throw new Error("Confirm that you understand Zigs is not audited before you make a mainnet "
-      + "account.");
-  }
   await claimAccount(async () => {
     const { height: birthday } = await serverHeight(NETWORKS[network]);
     const made = J(Z.accountNew(network));
@@ -475,7 +458,7 @@ async function deliver(c, rec, txHex) {
   }
   await mark({ broadcast: true }).catch((err) => log("could not save the send: " + err.message));
   log("message sent: " + rec.txid);
-  showBanner("ok", "Sent to the network. It arrives with the next block.");
+  showBanner("ok", "Message submitted to the network. Wait for its on-chain status before sending again.");
   if (c === acct) runSync(c);   // not an account that was removed or replaced meanwhile
 }
 

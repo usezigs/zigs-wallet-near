@@ -1,0 +1,194 @@
+/* Payment presentation follows wallet setup. Values, warnings and status selection still
+   come from the existing decoder, approval records and chain checks. */
+:is(.payment-flow,.approval-review,.approvals-layout,.sol-review,.payment-inline-form) {
+  --pay-ground:#111316; --pay-raised:#1b1e22; --pay-ink:#eceef0;
+  --pay-secondary:#a5aab2; --pay-line:#34373c; --pay-control-line:#747c87;
+  --text:var(--pay-ink); --muted:var(--pay-secondary); --line:var(--pay-line);
+  color:var(--pay-ink);
+}
+:root[data-theme=light] :is(.payment-flow,.approval-review,.approvals-layout,.sol-review,.payment-inline-form) {
+  --pay-ground:#f7f7f5; --pay-raised:#eceeec; --pay-ink:#25292e;
+  --pay-secondary:#60656e; --pay-line:#d3d6d9; --pay-control-line:#7b828b;
+}
+@media(prefers-color-scheme:light) {
+  :root:not([data-theme=dark]) :is(.payment-flow,.approval-review,.approvals-layout,.sol-review,.payment-inline-form) {
+    --pay-ground:#f7f7f5; --pay-raised:#eceeec; --pay-ink:#25292e;
+    --pay-secondary:#60656e; --pay-line:#d3d6d9; --pay-control-line:#7b828b;
+  }
+}
+.dialog.payment-flow {
+  width:min(760px,calc(100vw - 48px)); max-height:calc(var(--visual-height,100dvh) - 48px);
+  padding:28px; gap:24px; border:1px solid var(--pay-line); border-radius:16px;
+  background:var(--pay-ground); box-shadow:0 16px 48px #0002;
+}
+:is(.payment-flow,.approval-review) .openglass-backdrop-slot { display:none; }
+.dialog.payment-flow .card-head {
+  padding:0 0 20px; border:0; border-bottom:1px solid var(--pay-line);
+  background:none; box-shadow:none;
+}
+.payment-flow h2,.approval-review .review-heading h2 {
+  font-size:26px; line-height:1.2; font-weight:500; letter-spacing:-.02em;
+}
+.payment-flow .dialog-wallet-context { font-size:13px; color:var(--pay-secondary); }
+.payment-flow>.small { margin:0; font-size:13px; line-height:1.6; }
+.payment-flow .field { gap:8px; }
+.payment-flow .field>label,.payment-flow .field>span { font-size:14px; }
+:is(.payment-flow,.approval-review,.payment-inline-form) .input {
+  min-height:48px; border:1px solid var(--pay-control-line); border-radius:8px;
+  background:var(--pay-raised); color:var(--pay-ink); box-shadow:none; font-size:16px;
+}
+:is(.payment-flow,.approval-review,.payment-inline-form) .input:focus {
+  box-shadow:none; outline:2px solid var(--focus); outline-offset:2px;
+}
+.payment-flow .summary {
+  padding:20px 0 0; gap:16px; border:0; border-top:1px solid var(--pay-line);
+  border-radius:0; background:none; box-shadow:none; font-size:14px;
+}
+.payment-flow .summary>div { gap:16px; align-items:baseline; }
+.payment-flow .summary .total { padding-top:16px; border-top:1px solid var(--pay-line); }
+.payment-flow .review-hero { gap:12px; padding:0; background:none; border:0; border-radius:0; }
+.payment-flow .review-hero .money.lg {
+  font-size:40px; font-weight:450; line-height:1.2; letter-spacing:-.02em;
+}
+:is(.payment-flow,.approval-review,.sol-review) .money,
+:is(.payment-flow,.approval-review,.sol-review) .mono { font-variant-numeric:tabular-nums; }
+.payment-flow .review-row { gap:12px; padding-bottom:24px; border-bottom:1px solid var(--pay-line); }
+:is(.payment-flow,.approval-review) :is(.addr-full,.payee .hex) {
+  padding:16px; background:var(--pay-raised); border:0; border-radius:8px;
+  font-size:13px; line-height:1.8; overflow-wrap:anywhere;
+}
+.payment-flow .kv { font-size:14px; gap:12px 24px; }
+.payment-flow .workflow-details>summary,
+.approval-review .review-funding-details>summary { min-height:44px; align-content:center; cursor:pointer; font-size:13px; }
+.payment-flow .workflow-details { padding:0; border:0; background:none; }
+.payment-flow .callout.ok { border:0; border-left:2px solid var(--ok); border-radius:0; background:none; padding:0 0 0 16px; }
+:is(.payment-flow,.approval-review) .callout.bad { border-radius:8px; box-shadow:none; }
+.dialog.payment-flow .dialog-actions {
+  padding:20px 0 0; gap:12px; background:var(--pay-ground); border-top:1px solid var(--pay-line);
+}
+:is(.payment-flow,.approval-review,.approvals-layout,.sol-review,.payment-inline-form) .btn {
+  --interaction-rest:var(--pay-raised); --interaction-ink:var(--pay-ink); --interaction-edge:var(--pay-control-line);
+  min-height:44px; border-radius:8px; background:var(--pay-raised); color:var(--pay-ink);
+  border-color:var(--pay-control-line);
+  box-shadow:none; animation:none!important; translate:none!important;
+  transition:background-color 160ms ease-out;
+}
+:is(.payment-flow,.approval-review,.approvals-layout,.sol-review,.payment-inline-form) .btn.primary {
+  --interaction-rest:var(--pay-ink); --interaction-ink:var(--pay-ground); --interaction-edge:var(--pay-ink);
+  border-color:var(--pay-ink); background:var(--pay-ink); color:var(--pay-ground); font-weight:500;
+}
+:is(.payment-flow,.approval-review,.approvals-layout,.sol-review,.payment-inline-form) .btn.ghost {
+  --interaction-rest:transparent; --interaction-edge:transparent; background:none; border-color:transparent;
+}
+:is(.payment-flow,.approval-review,.approvals-layout,.sol-review,.payment-inline-form) .btn.primary:hover:not(:disabled) {
+  background:var(--pay-ink); color:var(--pay-ground); border-color:var(--pay-ink); opacity:.92;
+}
+:is(.payment-flow,.approval-review,.approvals-layout,.sol-review,.payment-inline-form) .btn.danger {
+  --interaction-rest:transparent; --interaction-ink:var(--bad); --interaction-edge:var(--bad);
+  color:var(--bad); border-color:var(--bad); background:none;
+}
+:is(.payment-flow,.approval-review,.approvals-layout,.sol-review,.payment-inline-form) .btn:disabled {
+  background:var(--pay-raised); color:var(--pay-secondary); border-color:var(--pay-line); opacity:.7;
+}
+:is(.payment-flow,.approval-review,.approvals-layout,.sol-review,.payment-inline-form) .btn::before,
+:is(.payment-flow,.approval-review,.approvals-layout,.sol-review,.payment-inline-form) .btn::after { display:none; }
+:is(.payment-flow .dialog-actions,.approval-review .drawer-foot) .btn { min-height:48px; }
+:is(.payment-flow,.approval-review) :is(.icon-btn,.close-x) {
+  width:44px; height:44px; border:0; border-radius:8px; background:none;
+  box-shadow:none; color:var(--pay-secondary);
+}
+:is(.payment-flow,.approval-review,.approvals-layout,.sol-review,.payment-inline-form) :is(button,summary):focus-visible {
+  outline:2px solid var(--focus); outline-offset:3px;
+}
+.drawer.approval-review {
+  width:min(720px,calc(100vw - 24px)); background:var(--pay-ground);
+  border:1px solid var(--pay-line); border-radius:16px; box-shadow:0 16px 48px #0002;
+}
+.drawer.approval-review :is(.drawer-head,.drawer-foot) {
+  padding:24px; background:var(--pay-ground); backdrop-filter:none; box-shadow:none;
+  border-color:var(--pay-line);
+}
+.approval-review .review-heading { gap:8px; }
+.approval-review .drawer-body { padding:24px; gap:24px; }
+.approval-review .review-warnings:empty { display:none; }
+.approval-review .transaction-receipt {
+  padding:0; gap:24px; border:0; border-radius:0; background:none; box-shadow:none;
+}
+.approval-review .transaction-receipt::before { display:none; }
+.approval-review .review-context { padding-bottom:20px; font-size:13px; }
+.approval-review .transaction-receipt .leaves { padding-bottom:24px; }
+.approval-review .transaction-receipt .leaves .money.lg { font-size:40px; line-height:1.2; font-weight:450; }
+.approval-review .review-costs { padding-top:24px; }
+.approval-review .review-costs h3 { font-size:16px; font-weight:500; }
+.approval-review .review-costs .lines { margin:16px 0; font-size:14px; }
+.approval-review .review-funding-details { border-bottom:1px solid var(--pay-line); }
+.approval-review .review-funding-details .lines { margin-top:12px; }
+.approval-review .approval-verify {
+  padding:0 0 0 16px; background:none; border:0; border-left:2px solid var(--pay-line); border-radius:0;
+}
+.approval-review .approval-verify h3 { font-size:14px; font-weight:500; }
+.approval-review .approval-verify p { font-size:13px; }
+.approval-review .pay-status[data-outcome-kind] {
+  padding:20px; gap:16px; border:0; border-radius:8px; background:var(--pay-raised); box-shadow:none;
+}
+.approval-review .pay-status h3 { font-size:20px; line-height:1.35; font-weight:500; }
+.approval-review .pay-status p { font-size:13px; line-height:1.6; }
+.approval-review .outcome-seal {
+  width:32px; height:32px; border:0; border-radius:0; background:none; box-shadow:none;
+}
+.approval-review .outcome-seal::before,.approval-review .outcome-seal::after { display:none; }
+.approval-review .approval-visualization { padding:0; border:0; border-radius:0; background:none; box-shadow:none; }
+.approval-review .stage-panel { background:none; box-shadow:none; border:0; }
+:is(.approval-review,.approvals-layout) .signer-hardware {
+  width:36px; height:36px; border:1px solid var(--pay-line); border-radius:50%;
+  background:none; box-shadow:none; color:var(--pay-secondary);
+}
+:is(.approval-review,.approvals-layout) .signer-hardware-face { width:auto; height:auto; border:0; border-radius:0; }
+:is(.approval-review,.approvals-layout) .signer-hardware::after { display:none; }
+:is(.approval-review,.approvals-layout) .received .signer-hardware { background:none; color:var(--pay-ink); border-color:var(--pay-control-line); }
+.approvals-layout :is(.approval-request,.shared-control,.approval-empty) {
+  border:1px solid var(--pay-line); border-radius:12px; background:var(--pay-ground); box-shadow:none;
+}
+.approvals-layout .approval-request { padding:24px; }
+.approvals-layout .approval-request-amount .money { font-size:32px; font-weight:500; letter-spacing:0; }
+.approvals-layout .shared-control { padding:24px; gap:24px; }
+.approvals-layout .threshold-numeral { border:0; border-radius:0; padding:0; min-width:56px; box-shadow:none; }
+.approvals-layout .shared-control-heading { gap:8px; }
+.approvals-layout .shared-control-heading h3 { font-size:18px; font-weight:500; }
+.approvals-layout .shared-control-nodes { row-gap:24px; }
+.approvals-layout .signer-connection { top:18px; left:calc(50% + 22px); width:calc(100% - 44px); background:var(--pay-line); }
+.sol-review { padding:24px; border:1px solid var(--pay-line); border-radius:12px; background:var(--pay-ground); box-shadow:none; }
+.sol-review :is(.privacy-notice,.callout) { border-radius:8px; box-shadow:none; }
+.payment-inline-form { padding-block:16px; }
+@media(max-width:600px) {
+  .dialog.payment-flow {
+    width:100%; max-height:calc(var(--visual-height,100dvh) - 24px - env(safe-area-inset-top,0px));
+    padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px)); border:0; border-radius:0; gap:24px;
+  }
+  .payment-flow h2,.approval-review .review-heading h2 { font-size:24px; }
+  .payment-flow .summary { font-size:13px; }
+  .payment-flow .summary>div { align-items:flex-start; }
+  .payment-flow .summary>div>span:first-child { max-width:60%; }
+  .payment-flow .review-hero .money.lg { font-size:32px; }
+  .drawer.approval-review {
+    top:auto; right:0; bottom:var(--keyboard-inset,0px); left:0; width:100%;
+    max-height:calc(var(--visual-height,100dvh) - 12px); border:0; border-radius:0;
+  }
+  .approval-review :is(.drawer-head,.drawer-body,.drawer-foot) { padding:20px; }
+  .approval-review .transaction-receipt .leaves .money.lg { font-size:32px; }
+  .approval-review .pay-status[data-outcome-kind] { padding:16px; }
+  .approvals-layout :is(.approval-request,.shared-control) { padding:20px; }
+  .approvals-layout .signer-connection { display:none; }
+  .sol-review { padding:16px; }
+}
+@media(forced-colors:active) {
+  :root[data-theme] :is(.payment-flow,.approval-review,.approvals-layout,.sol-review,.payment-inline-form),
+  :root:not([data-theme]) :is(.payment-flow,.approval-review,.approvals-layout,.sol-review,.payment-inline-form) {
+    --pay-ground:Canvas; --pay-raised:Canvas; --pay-ink:CanvasText;
+    --pay-secondary:CanvasText; --pay-line:CanvasText; --pay-control-line:CanvasText;
+  }
+  :is(.payment-flow,.approval-review,.approvals-layout,.sol-review,.payment-inline-form) .btn.primary {
+    background:ButtonText; color:ButtonFace; border-color:ButtonText;
+  }
+  .approval-review .pay-status[data-outcome-kind] { border:1px solid CanvasText; }
+}

@@ -198,10 +198,10 @@ function sideTree(dataset = {}) {
     assert.equal(note, null, "the side list omits the recurring release warning");
     const swapItem = (dataset) => textOf(findNode(sideTree(dataset),
       (n) => n.attrs?.["data-key"] === "tab-swap"));
-    assert.equal(swapItem(), "Swap, Quotes",
-      "the Swap item of the side list says Quotes on a server with no live swap");
-    assert.equal(swapItem({ nearLive: "1" }), "Swap, Live",
-      "the Swap item of the side list says Live on a server with the live swap");
+    assert.equal(swapItem(), "Swap",
+      "the Swap item keeps the short label on a server with no live swap");
+    assert.equal(swapItem({ nearLive: "1" }), "Swap",
+      "the Swap item keeps the same label on a server with live swap");
     for (const origin of ["https://wallet.example:8792/", "http://localhost:8794/",
       "http://localhost:8795/", "https://localhost/", "not a URL"]) {
       location.href = origin;
@@ -682,24 +682,24 @@ function emptyInbox() {
 }
 // Receive names the network of the open wallet (D3); a received row says what and where.
 // Before the first sync, a mainnet wallet knows no balance, so the dialog shows no address.
-function noAddressBeforeSync() {
+function addressBeforeSync() {
   const gid = t.state.gid, saved = t.balCache[gid];
   delete t.balCache[gid];
   t.setChain(null);
   const unknown = textOf(receiveDialog());
-  assert.match(unknown, /Wait for the first sync to finish\./, "no balance: the dialog waits");
-  assert.doesNotMatch(unknown, /Copy address|Send only/, "and shows no address");
+  assert.match(unknown, /Copy address/, "a checked address is available before balance sync");
+  assert.doesNotMatch(unknown, /warning level|0\.5 ZEC/);
   t.balCache[gid] = saved;
 }
-function receiveTexts() {
+async function receiveTexts() {
   const real = globalThis.document, { g } = t.state, chain = t.chain, { tab } = t.ui;
   const share = Object.getOwnPropertyDescriptor(globalThis, "navigator");
   const rec = { createElement: () => new Rec(), createElementNS: () => new Rec(),
     createTextNode: (text) => ({ text }) };
   // A click shows its banner on the page of the rig.
-  const click = (button) => {
+  const click = async (button) => {
     globalThis.document = real;
-    try { button.on.click(); } finally { globalThis.document = rec; }
+    try { await button.on.click(); } finally { globalThis.document = rec; }
   };
   globalThis.document = rec;
   try {
@@ -721,19 +721,20 @@ function receiveTexts() {
       "Receive starts at the top with Close, preserving initial QR visibility");
     // Web Share gets the address alone. A closed sheet is no error; a failure says so.
     let shared = null, refusal = null;
-    const answer = { catch: (fn) => (refusal ? fn(refusal) : undefined) };
     Object.defineProperty(globalThis, "navigator", { configurable: true,
-      value: { share: (d) => { shared = d; return answer; } } });
-    const shareButton = () => byText(receiveDialog(), "Share address");
+      value: { share: async (d) => { shared = d; if (refusal) throw refusal; } } });
+    // Mounted cards accept async feedback; detached cards ignore it.
+    const shareButton = () => Object.assign(byText(receiveDialog(), "Share address"),
+      { isConnected: true });
     assert.ok(shareButton(), "Web Share adds a Share button");
-    click(shareButton());
+    await click(shareButton());
     assert.deepEqual(shared, { text: t.state.wallet.address }, "it shares the address alone");
     const before = t.banner;
     refusal = { name: "AbortError" };
-    click(shareButton());
+    await click(shareButton());
     assert.equal(t.banner, before, "a closed share sheet shows nothing");
     refusal = { name: "NotAllowedError" };
-    click(shareButton());
+    await click(shareButton());
     assert.match(t.banner?.text ?? "", /could not share the address\. Use Copy address\./);
     t.state.g = { ...g, movedTo: "elsewhere" };
     const moved = textOf(receiveDialog());
@@ -755,13 +756,14 @@ function receiveTexts() {
       t.secrets = secretsWere;
     }
     t.state.g = { ...g, network: "mainnet" };
-    noAddressBeforeSync();
+    addressBeforeSync();
     t.setChain({ gid: t.state.gid, cw: {}, bal: { spendable: 1000000, pending: 0,
       height: 4500100 }, sent: new Set(), received: [] });
     const main = receiveDialog();
     assert.ok(byText(main, "Zcash Mainnet"), "a mainnet wallet reads Mainnet");
     assert.doesNotMatch(textOf(main), /testnet|faucet/i, "and claims no testnet");
-    assert.match(textOf(main), /Send only ZEC on Zcash Mainnet to this address\./);
+    assert.match(textOf(main), /Only ZEC on Zcash Mainnet/);
+    assert.match(textOf(main), /Funds become spendable after 3 confirmations/);
     assert.match(textOf(main), new RegExp("The devices of this wallet and anyone who has the "
       + "invite link can see its balance and history\\. A device that Change devices leaves out "
       + "later can still see them\\."));
@@ -769,7 +771,7 @@ function receiveTexts() {
     t.setChain({ gid: t.state.gid, cw: {}, bal: { spendable: 60000000, pending: 0,
       height: 4500100 }, sent: new Set(), received: [] });
     const full = textOf(receiveDialog());
-    assert.doesNotMatch(full, /Copy address|Send only/, "no address at the cap");
+    assert.match(full, /Copy address/, "a large balance does not hide a verified address");
   } finally {
     globalThis.document = real;
     Object.defineProperty(globalThis, "navigator", share);
@@ -795,7 +797,8 @@ const EXPLORER_NOTE = "A received payment in this list opens testnet.zecblock.co
 function explorerTexts(chain) {
   assert.ok(pageText().includes(EXPLORER_NOTE), "the Activity list says what the explorer sees");
   t.ui.tab = "overview";
-  assert.ok(!pageText().includes(EXPLORER_NOTE), "Overview has no received-history list");
+  assert.ok(pageText().includes(EXPLORER_NOTE),
+    "Overview discloses explorer privacy for its received-history preview");
   assert.match(pageText(), /Open the faucet.*That site is not Zigs: it sees the address that you/,
     "the empty ZEC card says what the faucet sees");
   // The dedicated Activity page keeps the explorer disclosure beyond the former six-row preview.
@@ -929,7 +932,7 @@ function inviteTexts() {
 }
 // The Activity list holds Zcash and Solana rows in one list, newest first. A wallet with a started
 // Solana part gets a "Show activity for" select; any other wallet shows its Zcash rows.
-const TITLES = ["Public SOL withdrawal", "Office rent", "Move the beta funds", "Received ZEC",
+const TITLES = ["Public SOL withdrawal", "Office rent", "Move legacy funds", "Received ZEC",
   "Received SOL"];
 const order = (text, titles) => titles.map((title) => text.indexOf(title));
 const sorted = (list) => list.every((n, i) => n >= 0 && (i === 0 || n > list[i - 1]));
@@ -980,11 +983,11 @@ function activityList(ctl) {
     assert.match(all, /Public SOL withdrawalSolana Devnet · Proposed by .*−0\.002SOL/,
       "a Solana payment row names the coin, the chain and the amount");
     assert.match(all, /Executed/, "a payment that executed says so");
-    assert.match(all, /Move the beta funds.*Failed on chain/, "a transaction that failed on chain");
+    assert.match(all, /Move legacy funds.*Failed on chain/, "a transaction that failed on chain");
     assert.match(all, /Received SOLSolana Devnet · slot\u00a04\D?500\D?123Added by .*\+0\.02SOL/,
       "a received Solana row says what arrived and on which chain");
     assert.match(all, /Office rentZcash Testnet · Proposed by /, "a Zcash row names its chain");
-    assert.match(all, /SOL that other people send to the wallet does not show here/);
+    assert.doesNotMatch(all, /SOL that other people send to the wallet does not show here/);
     assert.equal(select().kids.length, 3, "the select offers All, Zcash and Solana");
     assert.equal(picked(), "All activity");
     findNode(select(), (n) => n.attrs?.["data-key"] === "activity-filter-sol").on.click();
@@ -1014,18 +1017,18 @@ function activityList(ctl) {
     t.setChain(chain);
   }
 }
-// History lives in Activity; Overview contains assets and approvals, with no recent-history list.
+// The full history lives in Activity; Overview previews the latest activity beside approvals.
 function activityOverview(ctl, at, solRows) {
   t.ui.tab = "overview";
-  assert.equal(findAll(pageTree(), (n) => n.attrs?.["data-key"]?.startsWith("sol-act-")).length, 0,
-    "Overview has no Solana history rows");
+  assert.equal(findAll(pageTree(), (n) => n.attrs?.["data-key"]?.startsWith("sol-act-")).length, 1,
+    "Overview previews the latest Solana history row alongside approvals");
   t.ui.tab = "activity";
   t.ui.chainFilter = "all";
-  assert.match(pageText(), /Public SOL withdrawal.*Office rent.*Move the beta funds/,
+  assert.match(pageText(), /Public SOL withdrawal.*Office rent.*Move legacy funds/,
     "Activity keeps the former recent-history rows");
-  assert.match(pageText(),
+  assert.doesNotMatch(pageText(),
     /SOL that other people send to the wallet does not show here/,
-    "Activity says what its history lacks");
+    "the removed Solana notice does not return in Activity");
   const { chain } = t, { sessions } = t.state, { sessions: solSessions, added } = ctl;
   t.setChain({ ...chain, error: "The server did not answer." });
   assert.match(pageText(), /Office rent.*The sync failed\. This list can be incomplete/,
@@ -1033,8 +1036,8 @@ function activityOverview(ctl, at, solRows) {
   t.setChain(null); t.state.sessions = []; ctl.sessions = []; ctl.added = null;
   const none = pageText();
   assert.match(none, /Activity.*Not synced yetSync starts after this device checks the address\./);
-  assert.match(none, /The Solana rows show the/,
-    "empty Activity still says what it lacks");
+  assert.doesNotMatch(none, /The Solana rows show the/,
+    "empty Activity omits the removed Solana notice");
   assert.doesNotMatch(none, /Not synced yet\. Sync starts after/,
     "empty Activity shows its sync state once");
   t.setChain(chain);
@@ -1137,7 +1140,7 @@ function activityChecks(ctl, draw) {
 function activityOlder(ctl, draw) {
   const { sessions, added } = ctl;
   const solRows = () => findAll(pageTree(), (n) => n.attrs?.["data-key"]?.startsWith("sol-act-m"));
-  const older = / Older Solana proposals are not listed\./;
+  const older = /Older Solana proposals are available in Solana’s proposal history\./;
   try {
     ctl.added = null;
     ctl.sessions = Array.from({ length: SHOWN }, (_, i) => proposal("m" + i));
@@ -1238,7 +1241,7 @@ function activityBadges(ctl) {
   assert.match(late, /−0\.002SOLExpired$/, "a payment past its expiry reads Expired");
   assert.match(rowText("pn"), /Expired$/, "so does a nonce proposal past its window");
   assert.match(failed, /Failed$/);
-  assert.match(rowText("pv"), /Move the beta funds.*0\.003SOLFailed on chain$/);
+  assert.match(rowText("pv"), /Move legacy funds.*0\.003SOLFailed on chain$/);
   assert.doesNotMatch(rowText("pv") + rowText("pg"), /[−+]/, "the move of the funds has no sign");
   assert.match(rowText("pg"), /Signed, sending$/);
   // An Add SOL is SOL that arrived only when it is confirmed.
@@ -1300,7 +1303,7 @@ function sideMenu() {
     "the Recovery section shows the file state of each device of this browser");
   assert.match(pageText(), /Backups and file checks are optional/);
   assert.match(pageText(),
-    /Verification reopens a file without restoring shares or changing wallet keys/);
+    /Checking reopens a file without restoring shares or changing wallet keys/);
   assert.match(pageText(),
     /Other devices’ signed reports are reported progress, not file checks performed here/);
   assert.match(pageText(),
@@ -1367,15 +1370,15 @@ async function approvalCount(ctl) {
   Object.assign(ctl, { sessions: two, commits: {} });
   t.state.groups = [t.state.g];
   try {
-    const side = sideTree().kids;
-    const wallet = side.find((n) => n.attrs?.["data-key"] === "wallet-" + t.state.gid);
+    const side = sideTree();
+    const wallet = findNode(side, (n) => n.attrs?.["data-key"] === "wallet-" + t.state.gid);
     assert.ok(labelled(wallet, "2 to approve"), "the side item shows the count");
-    const overview = side.find((n) => n.attrs?.id === "tab-overview");
+    const overview = findNode(side, (n) => n.attrs?.id === "tab-overview");
     assert.ok(overview && !labelled(overview, "2 to approve"),
       "Overview leaves the approval badge on the dedicated inbox");
-    assert.equal(side.find((n) => n.attrs?.id === "tab-solana"), undefined,
+    assert.equal(findNode(side, (n) => n.attrs?.id === "tab-solana"), null,
       "Solana stays under its asset actions");
-    const approvals = side.find((n) => n.attrs?.id === "tab-approvals");
+    const approvals = findNode(side, (n) => n.attrs?.id === "tab-approvals");
     assert.ok(approvals && labelled(approvals, "2 to approve across wallets"),
       "the dedicated Approvals destination shows the existing cross-wallet count");
     overviewWiring(ctl);
@@ -1392,7 +1395,7 @@ async function approvalCount(ctl) {
     Object.assign(ctl, { sessions: [], commits: {} });
     assert.ok(!labelled(sideTree(), "2 to approve"), "no count without a proposal");
     emptyInbox();
-    receiveTexts();
+    await receiveTexts();
     inviteTexts();
     moveWords();
     activityList(ctl);
@@ -1510,23 +1513,12 @@ assert.equal(solPlanned(null), false);
   assert.match(pageText(), /Step 5 of 5: Back up\./, "the setup has five steps");
   assert.doesNotMatch(pageText(), /Funding|of 6/, "the funding demo is no stage of the setup");
   assert.equal(buttonOf("Continue to funding"), null, "no button of the setup says funding");
-  assert.ok(entry(), "the creator device is offered the funding demo");
-  assert.equal(textOf(entry()), "See the funding demo (no payment)",
-    "the funding demo is a labelled extra");
+  assert.equal(entry(), null, "production setup does not offer a funding demo");
   await press("Open Overview");
   assert.equal(guided.guidedEnabled(one), false, "Open Overview ends the guide");
   assert.equal(demoOpen(), null, "and opens the wallet, not the funding demo");
   assert.match(pageText(), /Your assets/, "Overview shows");
   assert.doesNotMatch(pageText(), /Funding checkout demo/, "and no banner of the funding demo");
-  const two = await finished("Finish two");
-  await press("See the funding demo (no payment)");
-  assert.equal(guided.guidedEnabled(two), false, "the funding demo entry ends the guide too");
-  assert.match(pageText(), /Funding checkout demo\..*Demo, no payment/s, "the funding demo opens");
-  assert.doesNotMatch(pageText(), /Back up your key share|This browser can forget it/,
-    "the funding page omits the automatic backup warning");
-  assert.doesNotMatch(pageText(), /guided-progress|Step \d of/, "and draws no stage of the setup");
-  await press("Finish later");
-  assert.match(pageText(), /Funding checkout demo.*Your assets/s, "Finish later opens Overview");
   const three = await finished("Finish three");
   const held = t.secrets[three + ":1"];
   delete t.secrets[three + ":1"];
@@ -1614,26 +1606,23 @@ assert.match(pageText(), /Private setup invitation2 devices to join/, "two open 
   const real = globalThis.document, nav = Object.getOwnPropertyDescriptor(globalThis, "navigator");
   globalThis.document = { createElement: () => new Rec(), createElementNS: () => new Rec(),
     createTextNode: (text) => ({ text }) };
-  let button;
-  try {
-    button = copyBtn(inviteLink(gid), "Copy link");
-  } finally {
-    globalThis.document = real;
-  }
   const opened = [], disclosure = { setAttribute: (k) => opened.push(k) };
   const section = { querySelector: (q) => (q === "details[data-link]" ? disclosure : null) };
-  const target = { textContent: "Copy link", closest: (q) => (q === "section" ? section : null) };
   Object.defineProperty(globalThis, "navigator", { configurable: true,
     value: { clipboard: { writeText: async () => { throw new Error("denied"); } } } });
   try {
-    await button.on.click({ currentTarget: target });
+    const button = copyBtn(inviteLink(gid), "Copy link");
+    button.closest = (q) => (q === "section" ? section : null);
+    await button.on.click({ currentTarget: button });
+    assert.deepEqual(opened, ["open"], "a failed copy opens the link to select");
+    assert.equal(textOf(button), "Select and copy");
   } finally {
+    globalThis.document = real;
     if (nav) Object.defineProperty(globalThis, "navigator", nav);
     else delete globalThis.navigator;
   }
-  assert.deepEqual(opened, ["open"], "a failed copy opens the link to select");
-  assert.equal(target.textContent, "Select and copy");
 }
+
 {
   const cid = "c0ffee00c0ffee00c0ff";
   chats.list[cid] = { key: "ab".repeat(32), member: "m", at: Date.now() };
@@ -1659,7 +1648,7 @@ assert.match(pageText(), /Private setup invitation2 devices to join/, "two open 
     delete chats.list[cid];
   }
 }
-assert.match(SOL_DISCLOSURE, /public program address.*fee address.*Helius.*no audit/);
+assert.match(SOL_DISCLOSURE, /public program address.*fee address.*Helius.*Program upgrades/);
 assert.ok(SOL_DISCLOSURE.includes(PUBLIC_TEXT), "the choice says what the Solana tab says");
 assert.match(SOL_DISCLOSURE, /Every device sees the whole Solana history/);
 // A browser with no seat of the wallet gets the join card, with the disclosure before the seat.
@@ -1853,30 +1842,17 @@ async function walkSteps(fields, times, fresh = true) {
   }
 }
 {
-  const CHOICE = /Set up Solana Devnet with this wallet\./;
-  ui.net = "testnet";
-  delete ui.solServed;
-  assert.match(dialogText(), CHOICE,
-    "the review can record disclosed intent before service answers");
-  await waitFor("the answer", () => ui.solServed === true);
-  assert.match(dialogText(), CHOICE);
-  assert.ok("checked" in byId(dialogTree(), "g-sol").attrs, "the box is on by default");
-  byId(dialogTree(), "g-sol").on.change({ target: { checked: false } }); // the person clears it
-  assert.equal(ui.sol, false, "the box keeps the person's no");
-  assert.ok(!("checked" in byId(dialogTree(), "g-sol").attrs), "a redraw keeps the person's no");
-  ui.sol = undefined;
-  // The Solana choice is for a new testnet wallet (mainnet-on.mjs). Change devices has none.
-  assert.doesNotMatch(textOf(dialogTree({ ...g, network: "mainnet" })), CHOICE, "never for `from`");
-  config.down = true;
-  delete ui.solServed;
-  dialogText();
-  await waitFor("the refusal", () => ui.solServed === false);
-  assert.match(dialogText(), CHOICE, "service availability does not erase the disclosed choice");
-  const review = dialogTree().kids
-    .find((kid) => kid.attrs?.["aria-labelledby"] === "create-step-3");
-  assert.doesNotMatch(textOf(review), /Solana setup is waiting for service availability/,
-    "the review omits the lower network status section");
-  config.down = false;
+  for (const network of ["testnet", "mainnet"]) for (const served of [undefined, false, true]) {
+    ui.net = network; ui.solServed = served; ui.sol = false;
+    const review = findNode(dialogTree(),
+      (kid) => kid.attrs?.["aria-labelledby"] === "create-step-3");
+    assert.match(textOf(review), network === "mainnet"
+      ? /\+ private Solana on mainnet/ : /\+ private Solana on devnet/,
+    "new-wallet review always includes private Solana on its matching network");
+    assert.equal(byId(dialogTree(), "g-sol"), null, "no separate opt-in control");
+    assert.equal(byId(dialogTree(), "g-private"), null, "no private-mode opt-in control");
+  }
+  ui.net = "testnet"; ui.sol = undefined;
   delete ui.solServed;
 }
 
@@ -2126,7 +2102,7 @@ async function walkSteps(fields, times, fresh = true) {
   t.sol.ctl.docs = null;
   const broken = pageText();
   t.sol.ctl.docs = docsKept;
-  assert.match(broken, /Portfolio balance.*Shielded ZEC/s,
+  assert.match(broken, /ZEC balance.*Shielded ZEC/s,
     "the Overview still shows its Zcash asset");
   assert.doesNotMatch(broken, /cannot read/);
   assert.doesNotMatch(pageText(), /Solana is still setting up/,
@@ -2222,9 +2198,11 @@ async function walkSteps(fields, times, fresh = true) {
   await t.sol.add();
   const done = (i) => data.has(`groups/${gidS}/soldone/${i}`);
   await waitFor("every soldone", () => [1, 2, 3].every(done), 30000);
-  // S15: the tab says the status in a sentence.
+  // Receive leads with the address; account setup status remains in Settings.
   ui.tab = "solana";
-  await waitFor("the ready tab", () => /The Solana part is ready\./.test(pageText()));
+  await waitFor("the ready receive screen", () => /Receive SOL/.test(pageText()));
+  ui.tab = "settings";
+  assert.match(pageText(), /Device setupDevice 1: key ready/);
   ui.tab = "overview";
   // The side item and the inbox read the live documents: their checks end first.
   await waitFor("the documents are checked", () => !t.sol.ctl.wait && !t.sol.ctl.sessWait);
@@ -2294,7 +2272,7 @@ async function walkSteps(fields, times, fresh = true) {
   assert.equal(ui.createStep, 3, "the review");
   assert.deepEqual(ui.createDraft,
     { n: 3, t: 2, name: "Steps", label: "Ana", description: "",
-      sol: true, solExpected: true },
+      sol: true, solExpected: true, solPrivate: false },
     "each Next keeps the values of its step");
   let held = 0;
   const click = (detail) => byText(dialogTree(), "Create wallet").on.click({ detail,
@@ -2375,8 +2353,8 @@ async function walkSteps(fields, times, fresh = true) {
   assert.deepEqual(await newWallet(true), { auto: true, hint: true }, "the box on");
   assert.equal(data.get(groupPath(t.state.gid)).name, "Submitted", "the name of the review");
   assert.equal(storage.get("zf-name"), "", "the seat takes the label of the review");
-  assert.deepEqual(await newWallet(false), { auto: false, hint: undefined }, "the box off");
-  assert.deepEqual(await newWallet(null), { auto: false, hint: undefined }, "no box");
+  assert.deepEqual(await newWallet(false), { auto: true, hint: true }, "a stale opt-out does not disable automatic setup");
+  assert.deepEqual(await newWallet(null), { auto: true, hint: true }, "automatic setup needs no checkbox");
   assert.equal(ui.createStep, 0, "a created wallet puts the dialog back at its first step");
   globalThis.FormData = class {
     get(k) {
@@ -2446,7 +2424,7 @@ async function walkSteps(fields, times, fresh = true) {
     /^Set up your wallet.*Protect this browser.*Continue to approval rule$/s);
   assert.match(shown(1),
     new RegExp("Set the approval threshold.*Devices.*Approvals needed.*Any 2 of 3 devices must.*"
-      + "How the approval threshold works.*"
+      + "How approvals work.*Technical details.*"
       + "BackUse this arrangement$", "s"));
   assert.match(shown(2),
     /Set up this device.*This device's label.*Wallet name.*Network.*BackContinue$/s);
@@ -2454,13 +2432,13 @@ async function walkSteps(fields, times, fresh = true) {
   assert.match(shown(3), /Review your wallet.*Wallet nameTeam.*This device's labelAna's phone/s);
   assert.match(shown(3), /1 device can be lost or offline/);
   assert.match(shown(3),
-    /4devices at setup3 of 4approvals per paymentZcash testnet\+ Solana Devnet/);
+    /4devices at setup3 of 4approvals per paymentZcash testnet\+ private Solana on devnet/);
   ui.createDraft = { n: 3, t: 3, name: "", label: "", sol: false };
   assert.match(shown(3),
     /Wallet nameTreasuryThis device's labelNone\. The other devices show Device 1\./);
   assert.match(shown(3), /Each payment needs every device/,
     "the warning of a rule without margin remains visible in review");
-  assert.match(shown(3), /3devices at setup3 of 3approvals per paymentZcash testnetZcash only/);
+  assert.match(shown(3), /3devices at setup3 of 3approvals per paymentZcash testnet\+ private Solana on devnet/);
   ui.createDraft = null;
   const titles = ["Protect this browser", "Set the approval threshold", "Set up this device",
     "Review your wallet"];
@@ -2477,11 +2455,18 @@ async function walkSteps(fields, times, fresh = true) {
     titles.forEach((_label, i) => {
       const section = findNode(tree, (n) => n.attrs?.["aria-labelledby"] === "create-step-" + i);
       assert.equal(section.attrs.hidden === "", i !== at, "other step bodies stay hidden");
+      if (i === 2) {
+        assert.equal(findNode(section, (n) => n.tag === "figure"), null,
+          "the label step does not repeat the device diagram");
+        assert.ok(byId(section, "g-name") && byId(section, "my-name"),
+          "the label step keeps the wallet and device fields");
+        return;
+      }
       const explanation = i === 3
         ? findNode(section, (n) => n.attrs?.["data-security-explanation"] === "review")
         : findNode(section, (n) => n.tag === "figure");
       assert.ok(explanation, "each step has contextual guidance or an educational illustration");
-      const symbol = findNode(explanation, (n) => n.className === "symbol");
+      const symbol = findNode(explanation, (n) => n.className?.split(" ").includes("symbol"));
       assert.equal(symbol?.attrs["aria-hidden"], "true", "the repeated icon is decorative");
       assert.ok(findNode(explanation, (n) => n.tag === (i === 3 ? "strong" : "figcaption")),
         "guidance has visible explanatory text");
@@ -2515,14 +2500,16 @@ assert.match(marginText(3, 3), /Each payment needs every device/);
       assert.equal(devices.length, n, "the proposed rule renders exactly its device count");
       assert.equal(devices.filter((node) => node.className.includes("example-selected")).length,
         approvals, "the static/reduced-motion example highlights exactly the threshold");
-      assert.match(textOf(illustration), /not real approvals/);
+      assert.match(textOf(illustration), /Illustration · proposed arrangement/);
+      const info = findNode(tree, (node) => node.className === "setup-threshold-info");
+      assert.match(textOf(info), /not connected devices or real approvals/);
+      assert.equal(info.attrs.open, undefined, "extra guidance is collapsed by default");
       assert.equal(byId(tree, "g-n").attrs.value, String(n));
       assert.equal(byId(tree, "g-t").attrs.value, String(approvals));
       assert.equal(byId(tree, "g-n-less").attrs.disabled === "", n === 2);
       assert.equal(byId(tree, "g-t-more").attrs.disabled === "", approvals === n);
       const names = findNode(tree, (node) => node.attrs?.["data-preview"] === "names");
-      assert.equal(findNode(names, (node) => node.attrs?.["data-education"] === "approval"), null,
-        "the orange examples are limited to the threshold illustration");
+      assert.equal(names, null, "the diagram is limited to the threshold step");
     }
   } finally { ui.createDraft = draft; }
 }
@@ -2751,8 +2738,8 @@ await plainSetupBrowser();
     // They don't match: a second question, then the stop of every seat of this browser.
     assert.equal(creates(), true, "before a stop, seat 1 may build the wallet");
     button("Codes don’t match").on.click();
-    assert.match(seen(), new RegExp("Stop setup on this device\\? Ask the other people to "
-      + "choose “Codes don’t match”"));
+    assert.match(seen(), new RegExp("Stop setup on this device\\? Choose “Codes don’t match” "
+      + "on your other devices"));
     assert.equal(button("Keep checking").attrs["data-key"], "keep-checking",
       "the question gives the focus to Keep checking");
     assert.ok(seen().lastIndexOf("Keep checking") < seen().lastIndexOf("Stop setup"),
@@ -3064,12 +3051,11 @@ assert.equal(quickCode(null), null);
     t.state.groups = [];
     const welcome = lobbyTree();
     const card = findNode(welcome, (n) => /(?:^|\s)welcome(?:\s|$)/.test(n.className));
-    assert.match(textOf(card), /Private by design\. Secured together\./);
-    assert.deepEqual(findAll(welcome, (n) => n.tag === "h1").map(textOf),
-      ["Private by design. Secured together."],
+    const headings = findAll(welcome, (n) => n.tag === "h1");
+    assert.equal(headings.length, 1,
       "the empty lobby has one primary heading rather than competing Wallets and welcome titles");
-    assert.match(textOf(card),
-      /Hold your assets privately\. Protect them with the people and devices/);
+    assert.match(textOf(headings[0]), /Your assets.*Secured together/);
+    assert.match(textOf(card), /Payments follow the approval rules you choose/);
     assert.doesNotMatch(textOf(card), /Beta ·|Not audited|New wallets use test networks only/i,
       "the welcome card omits the recurring release badge and footer warning");
     assert.equal(findNode(card, (n) => n.className === "welcome-facts"), null,
@@ -3092,8 +3078,8 @@ assert.equal(quickCode(null), null);
     const brand = findNode(card, (n) => n.className === "welcome-brand");
     const mark = findNode(brand, (n) => n.tag === "img");
     assert.equal(brand.attrs["aria-hidden"], "true", "the brand object adds no security claim");
-    assert.equal(mark.attrs.src, "/assets/brand/hero-zebra.png?v=e2a70c42c377",
-      "the original zebra artwork is reused separately from the fingerprint header logo");
+    assert.equal(mark.attrs.src, "/assets/brand/hero-zebra-rest.webp?v=rest-1",
+      "the resting zebra portrait stays separate from the fingerprint header logo");
     assert.equal(mark.attrs.alt, "", "the repeated decorative logo has no spoken label");
     assert.equal(findNode(brand, (n) => n.className === "welcome-object-caption"), null,
       "the zebra stands alone without a repeated shared-wallet caption");
@@ -3133,7 +3119,7 @@ assert.equal(quickCode(null), null);
     assert.equal(savedWallets.tag, "section", "saved wallets are directly discoverable");
     assert.equal(savedWallets.attrs["aria-label"], "Saved wallets");
     assert.equal(textOf(savedWallets.kids[0]), "Your wallets1 wallet in this browser");
-    assert.equal(textOf(findNode(list, (n) => n.tag === "h1")), "Welcome back.");
+    assert.match(textOf(findNode(list, (n) => n.tag === "h1")), /Shared wallets.*Your rules/);
     assert.match(textOf(savedWallets), /W.*Zcash Testnet.*Any 2 of 3 devices.*Open wallet/s,
       "one wallet exposes its actual name, network, rule and existing opening action");
     assert.ok(findNode(list, (n) => n.className === "welcome-brand"),
@@ -3440,8 +3426,7 @@ assert.equal(quickCode(null), null);
     await protectSetupBrowser();
     const fields = { ...RULE_2_OF_3, "g-name": { value: "Disk" }, "my-name": { value: "" },
       "g-sol": { checked: true } };
-    dialogText();
-    await waitFor("the answer", () => (dialogText(), ui.solServed === true));
+    // Automatic planning persists intent without a create-dialog availability probe.
     await walkSteps(fields, 3);
     const [gidD, countD] = [t.state.gid, wallets()];
     localStorage.setItem = (k, v) => {

@@ -8,7 +8,7 @@ import { base58 } from "../sol/docs.js";
 import { forgetBalances } from "../sol/execute.js";
 import { decodeIntent } from "../sol/intent.js";
 import { putSol } from "../sol/secrets.js";
-import { solView } from "../sol/view.js";
+import { solSurfaces as solView } from "./sol-view-rig.mjs";
 import { G, preparedOf, transactOf, useTestGroup, utxoOf } from "./sol-fixture.mjs";
 import {
   W,

@@ -3,3 +3,9 @@ sim.mjs
 bundle.mjs
 .assetsignore
 test
+dev/stageshow
+node_modules
+openglass
+package.json
+package-lock.json
+build.mjs

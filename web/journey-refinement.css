@@ -1,0 +1,150 @@
+/* Journey detail pass, rehearsed in dev/stageshow. Shared production tokens own the look. */
+.payment-dialog-context { display:grid; gap:8px; justify-items:start; }
+.payment-dialog-context h2 { margin-bottom:4px; }
+.payment-dialog-context .wallet-context-label { min-width:0; gap:8px; overflow-wrap:anywhere; }
+.payment-dialog-context .wallet-context-label>span { min-width:0; }
+.payment-dialog-context .badge { align-self:start; white-space:normal; }
+/* Validation travels with its field, including multi-recipient payments. */
+.payment-composer .pay-row { grid-template-columns:minmax(0,1fr) auto; gap:16px 12px; }
+.payment-composer .pay-recipient-field { grid-column:1/-1; gap:8px; }
+.payment-composer .pay-amount-field { display:grid; gap:8px; min-width:0; max-width:360px; }
+.payment-composer .pay-amount-field .hint:empty { display:none; }
+.payment-composer .pay-row>.icon-btn { grid-column:2; align-self:start; margin-top:26px; }
+.payment-composer .pay-row>.memo-row { grid-column:1/-1; }
+.payment-composer .pay-row+.pay-row { padding-top:24px; border-top:1px solid var(--line); }
+.payment-composer .recipient-picker { margin-block:4px 0; gap:6px; }
+.payment-composer .pay-recipient-field>.hint:empty { display:none; }
+.payment-composer .pay-recipient-field>.hint { margin:0; line-height:1.6; }
+.payment-composer .summary { background:var(--sunk); border-radius:12px; padding:20px; }
+.payment-composer .summary .total { font-weight:500; }
+.payment-composer .summary div { align-items:baseline; gap:8px 16px; }
+.payment-composer .summary .money { margin-inline-start:auto; }
+.payment-composer .summary .total>span:first-child { flex:1 1 200px; }
+.payment-composer .summary .total>span:last-child { flex:none; }
+.payment-composer .field>.row-actions { padding-top:8px; }
+/* One review document, with stable exact values on opaque surfaces. */
+.payment-review .review-hero { padding:24px; gap:10px; border-radius:12px;
+  background:var(--sunk); border:1px solid var(--line); }
+.payment-review .review-hero>.money { font-size:32px; line-height:1.35; letter-spacing:-.025em; }
+.payment-review .review-row { padding:20px; gap:12px; border:1px solid var(--line);
+  border-radius:12px; background:var(--panel); }
+.payment-review .review-row>.addr-full { margin:0; }
+.payment-review .review-row>.money { justify-self:end; font-size:22px; }
+.payment-review>.kv { padding:20px 0; border-block:1px solid var(--line); line-height:1.65; }
+.payment-review>.kv dd { overflow-wrap:anywhere; }
+.payment-review .dialog-actions { padding-bottom:0; }
+.drawer .review-amount,.drawer .leaves { font-variant-numeric:tabular-nums; }
+.drawer .to-box { border-radius:12px; background:var(--sunk); }
+.drawer .payee-item { display:grid; gap:12px; min-width:0; }
+.drawer .payee { align-items:start; gap:16px; }
+.drawer .payee-end { flex-shrink:0; }
+.drawer .review-values .hex { user-select:all; }
+.drawer .stage-panel { box-shadow:none; }
+/* The QR and complete address form one destination, distinct from guidance. */
+.receive-destination { display:grid; grid-template-columns:200px minmax(0,1fr); align-items:center;
+  gap:24px; padding:20px; border:1px solid var(--line); border-radius:12px; background:var(--sunk); }
+.receive-destination .qr { width:100%; max-width:240px; border-radius:8px; }
+.receive-destination .addr-full { margin:0; font:400 13px/1.8 var(--mono); overflow-wrap:anywhere; }
+.receive-sheet .dialog-actions { padding-top:0; border-top:0; }
+.receive-sheet .callout { line-height:1.65; }
+/* File, check and passphrase each keep a readable lane. */
+.recovery-sheet .field { gap:8px; }
+.recovery-sheet .field>.hint { font-weight:400; }
+.recovery-sheet input[type=file] { padding:12px; line-height:1.5; white-space:normal; }
+.recovery-sheet input[type=file]::file-selector-button { padding:8px 12px; margin:-4px 12px -4px -4px;
+  font:500 13px/20px var(--sans); color:var(--text); background:var(--raised);
+  border:1px solid var(--line-2); border-radius:6px; cursor:pointer; }
+.recovery-sheet .callout { line-height:1.7; }
+:is(.recovery-sheet,.recovery-sheet>.dialog-form)>.row-actions { gap:8px; }
+/* Supporting journeys share the rhythm; records carry the emphasis. */
+.recipient-card>.card-head { align-items:start; gap:12px; }
+.recipient-card .addr-full { padding:12px 16px; border-radius:8px; background:var(--sunk);
+  font:400 13px/1.75 var(--mono); }
+.recipient-editor { border:1px solid var(--line); border-radius:12px; }
+.recipient-editor .row-actions { padding-top:8px; }
+.messages-conversation-row { transition:background var(--motion-hover) var(--ease); }
+.messages-row-title { line-height:1.5; }
+.messages-row-preview { margin-top:4px; line-height:1.5; }
+.messages-workspace .msg-head { gap:8px; }
+.messages-workspace .msg-text { line-height:1.65; overflow-wrap:anywhere; }
+.messages-workspace .req-card { border-radius:12px; box-shadow:none; background:var(--panel); }
+.messages-workspace .composer { gap:12px; }
+.messages-workspace .composer textarea { background:var(--panel); }
+.messages-account-setup .messages-setup-steps { gap:20px; }
+.messages-account-setup .messages-setup-steps h3 { font-weight:500; }
+.preference-chevron { transform:none; }
+.preference-disclosure[open]>.preference-row>.preference-chevron { transform:none; rotate:90deg; }
+.preference-description { line-height:1.65; }
+.preference-detail>.kv dd { overflow-wrap:anywhere; }
+.security-signer-name { min-width:0; }
+.security-signer-name strong { overflow-wrap:anywhere; }
+.security-signer-body .security-signer-facts dd { overflow-wrap:anywhere; }
+.approval-request-amount,.activity-ledger .ri-end { font-variant-numeric:tabular-nums; }
+.setup-review-configuration .kv dd { overflow-wrap:anywhere; }
+.safety { gap:8px 16px; padding:20px; background:var(--sunk); border:1px solid var(--line);
+  border-radius:12px; font-variant-numeric:tabular-nums; }
+.safety-group { letter-spacing:.015em; }
+@media(max-width:600px) {
+  .dialog:is(.payment-composer,.payment-review,.receive-sheet) .card-head>.payment-dialog-context { grid-template-columns:minmax(0,1fr); gap:6px; }
+  .payment-dialog-context h2 { margin-bottom:6px; }
+  .payment-composer .pay-amount-field { max-width:none; }
+  .payment-composer .summary { padding:16px; }
+  .payment-review .review-hero { padding:20px; }
+  .payment-review .review-hero>.money { font-size:28px; }
+  .payment-review .review-row { padding:16px; }
+  .receive-destination { grid-template-columns:minmax(0,1fr); gap:20px; padding:16px; }
+  .receive-destination .qr { width:min(220px,100%); }
+  .receive-destination .addr-full { font-size:14px; }
+  :is(.recovery-sheet,.recovery-sheet>.dialog-form)>.row-actions>.btn { flex:1 1 100%; }
+  .safety { gap:8px 12px; padding:16px; }
+}
+@media(prefers-reduced-motion:reduce) { .messages-conversation-row { transition:none; } }
+@media(forced-colors:active) {
+  .payment-review .review-hero,.payment-review .review-row,.receive-destination,
+  .payment-composer .summary,.recipient-card .addr-full,.recipient-editor,.safety {
+    background:Canvas; color:CanvasText; border-color:CanvasText; }
+  .recovery-sheet input[type=file]::file-selector-button { background:ButtonFace;
+    color:ButtonText; border-color:ButtonText; }
+}
+.replacement-intro { display:grid; gap:8px; }
+.replacement-intro h3,.replacement-consequences h3 { font:var(--font-control); }
+.replacement-intro p { max-width:70ch; color:var(--muted); line-height:1.6; }
+.replacement-consequences { display:grid; gap:12px; }
+.replacement-consequences ul { display:grid; gap:12px; margin:0; padding-left:20px; }
+.replacement-consequences li { padding-left:4px; line-height:1.6; }
+.review-privacy { display:grid; gap:4px; min-width:0; }
+.review-privacy-details { color:var(--muted); font-size:13px; line-height:1.6; }
+.review-privacy-details summary { min-height:48px; align-content:center; cursor:pointer;
+  color:var(--text); border-radius:var(--r-control); }
+.review-privacy-details summary:focus-visible { outline:2px solid var(--focus); outline-offset:4px; }
+.review-privacy-details p { max-width:70ch; margin:0 0 12px; }
+.recovery-file-picker>.btn { justify-self:start; }
+.recovery-file-name { overflow-wrap:anywhere; margin:0; }
+
+/* Keep native form ownership while the visible dialog owns layout and accessibility. */
+.dialog-form { display:contents; }
+.side-section { display:grid; gap:8px; }
+.side-section+.side-section { margin-top:16px; }
+.side-section-label { margin:0; padding-inline:12px; font:var(--font-caption); color:var(--quiet); }
+.side-section-items { display:grid; gap:4px; }
+.security-overview-tools { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:12px; }
+.security-section-head>.security-status { white-space:nowrap; flex-shrink:0; }
+.security-overview-message p,.security-metrics p,.rule-counter>p { text-wrap:pretty; }
+@media(max-width:760px) {
+  .side-section-items { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .side-section-items>.side-item,.side-section-items>.side-item:has(>.side-tail:empty) {
+    grid-template-columns:18px minmax(0,1fr); gap:4px 8px; padding-inline:8px;
+  }
+  .side-section-items>.side-item>.symbol { width:18px; height:18px; }
+  .side-section-items>.side-item>.side-tail { grid-column:2; justify-self:start; }
+  .side-section+.side-section { margin-top:12px; }
+  #app:has(.messages-workspace .composer:focus-within)>.wallet-context-header {
+    position:static; max-height:none; overflow:visible;
+  }
+}
+@media(max-width:600px) {
+  .security-overview-tools { width:100%; justify-content:space-between; }
+}
+@media(max-height:520px) {
+  .wallet-topbar.wallet-context-header { position:static; max-height:none; overflow:visible; }
+}

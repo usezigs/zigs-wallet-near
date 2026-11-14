@@ -1,6 +1,6 @@
 // Educational diagrams only. Actual setup status and safeguards stay in the existing ceremony.
 import { el } from "./app-dom.js";
-import { icon } from "./app-icons.js";
+import { icon, sculptedIcon } from "./app-icons.js";
 import { SETUP_STAGES } from "./setup-model.js";
 import { presentEducation } from "./app-motion.js";
 import { distributedSecurity } from "./app-security.js";
@@ -141,18 +141,11 @@ export function tutorialDiagram(kind, { number = null, devices = [], rule = null
     el("p", { class: "small muted" }, d.note));
 }
 
-/** Presentation of the caller's existing protection result. Animation never grants protection. */
+/** Neutral credential artwork; only the caller's verified result determines the caption. */
 export function passkeyIllustration(status = "unprotected") {
   const secured = status === "verified";
-  return el("figure", { class: "passkey-illustration", "data-protection-art": status,
-    "data-motion-watch": "passkey:setup-art", "data-motion-value": status },
-    el("div", { class: "passkey-art", "aria-hidden": "true", "data-motion-mark": "" },
-      el("div", { class: "passkey-browser" },
-        el("div", { class: "passkey-browser-bar" }, el("i"), el("i"), el("i")),
-        el("span", { class: "passkey-browser-line" }),
-        el("span", { class: "passkey-fingerprint", "data-passkey-arrival": status === "unprotected" ? "" : null }, icon("fingerprint")),
-        el("span", { class: "passkey-lock" },
-          el("span", { class: "passkey-shackle" }), el("span", { class: "passkey-lock-body" })))),
+  return el("figure", { class: "passkey-illustration", "data-protection-art": status },
+    el("div", { class: "passkey-art", "aria-hidden": "true" }, sculptedIcon("key")),
     el("figcaption", { class: "passkey-art-caption" },
       el("strong", {}, secured ? "Passkey secured" : status === "pending"
         ? "Securing this browser…" : "Not protected yet"),
@@ -238,6 +231,7 @@ export function thresholdExplanation(n = 3, t = 2) {
 /** All labels describe a proposed arrangement, never detected hardware or real approvals. */
 export function setupArrangement(n, t, kind = "rule", labels = {}) {
   const diagram = distributedSecurity({ n, t, preview: true, illustrate: kind === "rule",
+    explain: kind !== "rule",
     walletName: labels.name || "Your shared wallet",
     devices: Array.from({ length: n }, (_, i) => ({
       label: i === 0 ? labels.label || "This device" : "Device " + (i + 1),
@@ -247,6 +241,9 @@ export function setupArrangement(n, t, kind = "rule", labels = {}) {
   diagram.className += " setup-arrangement";
   diagram.setAttribute("data-preview", kind);
   diagram.setAttribute("data-rule", n + ":" + t);
+  diagram.setAttribute("data-device-count", String(n));
+  // style-src 'self' rejects a style attribute; CSSOM writes preserve the live grid.
+  diagram.style.cssText = "--setup-device-count:" + n;
   return diagram;
 }
 

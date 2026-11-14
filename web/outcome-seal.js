@@ -39,12 +39,13 @@ export function outcomeSeal(kind) {
 }
 
 /** Use stageHeadline's winning stage so errors/expiry/refusals keep their existing precedence. */
-export function outcomePanel({ stage, title, detail }) {
+export function outcomePanel({ stage, title, detail, next }) {
   const kind = Object.hasOwn(KINDS, stage) ? KINDS[stage] : "pending";
   const panel = node("div", "pay-status");
   panel.setAttribute("data-outcome-kind", kind);
   const copy = node("div", "outcome-copy");
   copy.append(node("h3", "", title), node("p", "small muted", detail));
+  if (next) copy.append(node("p", "small", next));
   panel.append(outcomeSeal(kind), copy);
   return panel;
 }

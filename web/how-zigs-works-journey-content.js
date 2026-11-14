@@ -19,7 +19,7 @@ export const flows = [
   description:'Set up distinct seats, then use your group on Zcash Testnet and Solana Devnet with separate keys for each chain.',
   steps:[
    {id:'group',title:'Choose your group',copy:'Invite the people or devices that will hold distinct signing seats. Compare all 30 safety-number digits on every device over an independent channel.',caption:'Independent devices. Distinct signing identities.',art:'verify',docs:'key-generation',link:'Set up your signers'},
-   {id:'keys',title:'Separate the keys',copy:'Each seat keeps its own signing share. The same group can control Zcash and the Solana beta, with a separate key ceremony and cryptographic state for each chain.',caption:'The same seats. Separate Zcash and Solana keys.',art:'chains',docs:'solana',link:'Understand the two chains'},
+   {id:'keys',title:'Separate the keys',copy:'Each seat keeps its own signing share. The same group can control Zcash and Solana, with a separate key ceremony and cryptographic state for each chain.',caption:'The same seats. Separate Zcash and Solana keys.',art:'chains',docs:'solana',link:'Understand the two chains'},
    {id:'review',title:'Review together',copy:'Approving devices inspect the actual payment before signing. Enough distinct seats must approve under the wallet’s chosen rule. Two copies of one seat still count as one signer.',caption:'Same payment. Enough distinct shares.',art:'approve',docs:'payments',link:'Follow a payment approval'},
    {id:'execute',title:'Sign on each chain',copy:'Zcash combines signature shares, proves locally and broadcasts. Solana submits the group signature and proof through its approvals program. Both still need chain confirmation.',caption:'The relay holds no spending share. Solana programs have external upgrade authorities.',art:'chains',docs:'solana',link:'Read about Solana execution'}
   ]
@@ -47,14 +47,14 @@ export const flows = [
   ]
  },
  {
-  id:'private-swaps',label:'Private Swaps',summary:'A look at the planned journey',icon:'swaps',status:'Preview · Unavailable',
-  title:'Explore a possible private swap.',
-  description:'A preview of a possible cross-chain journey. The current implementation does not execute swaps.',
+  id:'private-swaps',label:'Swaps',summary:'Routes, approvals and receipts',icon:'swaps',status:'Illustrated guide',
+  title:'Follow a swap across both chains.',
+  description:'Swap offers an unfunded preview and mainnet routes where enabled. This guide explains the steps and privacy boundaries without creating a swap.',
   steps:[
-   {id:'pair',title:'Choose a pair',copy:'The concept begins by choosing the asset to exchange and the asset to receive. Sharing one interface does not itself exchange Zcash and SOL.',caption:'Illustrative selection. No live swap is created.',art:'swap-route',docs:'solana',link:'Understand the chain boundaries'},
-   {id:'route',title:'Review the route',copy:'A future swap would need a supported route, quoted amount, fees and clear expiry conditions before the group commits funds. No live quote, liquidity or route is verified in this preview.',caption:'A planned route, with costs and conditions to review.',art:'swap-review',docs:'trust-limits',link:'Read the trust assumptions'},
-   {id:'authorize',title:'Approve the payment',copy:'A proposed swap would still need the source wallet’s required distinct signers. Each approving device would inspect the actual payment. This illustration does not collect approvals or authorize a swap.',caption:'Design preview. The source wallet’s approval rule would still apply.',art:'create',docs:'payments',link:'Understand shared authorization'},
-   {id:'settle',title:'Verify the result',copy:'A source payment alone would not prove that a swap finished. A future flow would need to verify destination receipt and explain recovery if the route fails. Cross-chain privacy, settlement and refund guarantees are not established here.',caption:'Design preview. Destination receipt must be checked separately.',art:'swap-settlement',docs:'trust-limits',link:'Explore the remaining boundaries'}
+   {id:'pair',title:'Choose a pair and mode',nav:'Pair & mode',copy:'SOL to ZEC and ZEC to SOL have mainnet routes where the server enables them. Start with Hackathon preview to simulate the steps. Real execution needs a supported mainnet wallet.',caption:'Preview creates no deposit address and signs nothing.',art:'swap-route',docs:'solana',link:'Understand the chain boundaries'},
+   {id:'route',title:'Review the route',nav:'Route',copy:'Check the source, minimum received, deadline and refund address. Standard uses public routing. Confidential requests Basic routing with provider access and never falls back to Standard. The deposit and provider visibility remain.',caption:'NEAR can link the deposit, payout and refund addresses.',art:'swap-review',docs:'trust-limits',link:'Read the trust assumptions'},
+   {id:'authorize',title:'Approve the deposit payment',nav:'Approvals',copy:'A deposit funded by the shared wallet needs its usual distinct device approvals. Devices check the swap before approving; funding closes 30 minutes before the deadline. An outside wallet pays its own deposit separately.',caption:'Opening a review does not approve or send a payment.',art:'approve',docs:'payments',link:'Understand shared authorization'},
+   {id:'settle',title:'Check receipt and recovery',nav:'Receipt',copy:'A provider report of success means it reports sending the payout. Confirm receipt in the destination wallet separately. Swap keeps encrypted tracking records in this browser. Refunds return to the route’s stated address; they do not become private automatically.',caption:'A saved receipt helps track a swap; it does not prove delivery.',art:'swap-settlement',docs:'trust-limits',link:'Explore the remaining boundaries'}
   ]
  }
 ];

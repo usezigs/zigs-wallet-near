@@ -13,11 +13,11 @@ import {
   canWriteAs, checkIn, netConfirmed, refilter, signedDoc, signedMode, signPins,
 } from "./app-filter.js";
 import { openGroup, sdb, unsubGroup } from "./app-groups.js";
-import { act, announce, el, guard } from "./app-dom.js";
+import { act, announce, el, guard, qrBox, receiveAddress } from "./app-dom.js";
 import { confirmedNo, groupVersion, safetyNo, seatCheck } from "./app-dkg.js";
 import { openBackupCheck, restore, sealAndSave } from "./app-backups.js";
 import { focusAfter, once, react, render } from "./app-loop.js";
-import { checkSolSwap } from "./app-swap-sol.js";
+import { checkSolSwap, swapPayout } from "./app-swap-sol.js";
 
 // The pool: Devnet, for version 3 wallets on the testnet that the people of the wallet confirmed
 // (SOL-34), and the private wallet on mainnet (solMode). web/sol loads from the Solana tab, a
@@ -193,7 +193,7 @@ export const SOL_DISCLOSURE = "Solana Devnet: a program owns the funds of the gr
   + "With local proving off, a payment is refused and Helius makes no proof. The Zigs server "
   + "operator can link this wallet to these addresses by timing. Each device funds its own fee "
   + "address, and that funding shows who sent the SOL. Every device sees the whole Solana "
-  + "history of the wallet. The program has no audit, and its upgrade key is outside the group.";
+  + "history of the wallet. Program upgrades are managed separately from wallet approvals.";
 // The wallet list with the create dialog open. Inside an open wallet the dialog does not show.
 export const newWallet = () => { openGroup(null); openCreate(); render(); };
 // The seats of this browser with a Solana key share whose backup file was not saved. A stopped
@@ -253,7 +253,14 @@ export function resetSolStart() {
 // host.putSec is the save of a step that holds the lock of the secrets (putSol, shareOnce).
 export const solHost = () => ({
   Z, sdb, state, el, act, log, once, render, refilter, showBanner, sec, putSec: putSecHeld,
-  focusAfter, announce,
+  focusAfter, announce, qrBox, receiveAddress,
+  solanaAction: () => ui.solanaAction?.gid === state.gid ? ui.solanaAction.action : "receive",
+  openSolDetails: (surface) => {
+    ui.tab = surface === "security" ? "recovery" : "settings";
+    ui.solDetailsTarget = { gid: state.gid, surface };
+    focusAfter("sol-" + surface, true);
+    render();
+  },
   signedDoc,
   recipientSelect,
   exclusive, takeStored,
@@ -261,7 +268,8 @@ export const solHost = () => ({
   groupVersion, sealAndSave, network: () => netName(state.g), netConfirmed, mode: "pool", solMode,
   askBackup: (words) => { ui.backup = { words, made: false, busy: false }; render(); },
   newWallet,
-  swapCheck: (ask) => checkSolSwap(ask),
+  swapCheck: (ask) => checkSolSwap(ask, undefined, ask.mode === "private"
+    ? { ...swapPayout(), refundTo: ask.refundTo } : undefined),
 });
 // A server with SOL off does not serve the module (its config answers 503), and the text says so.
 // Any other failure is the connection (SOL-26). view.js is part of the module: it gives the setup
@@ -341,6 +349,18 @@ export const solOlderCount = () =>
 // and the state of that sync: {text, busy}.
 export const solBalance = (gid = state.gid) =>
   solOpenHere(gid) ? fromSol("balance", (c) => c.sync?.balance ?? null, null) : null;
+// Numeric, timestamped balance for portfolio observations. Saved or failed syncs keep their
+// original time; a redraw never makes an old balance into a fresh observation.
+export const solPortfolioHolding = () => {
+  const none = { asset: "sol", amount: null, at: null };
+  if (!solOpenHere()) return none;
+  return fromSol("portfolio balance", (c) => {
+    const read = c.sync;
+    if (!read || read.busy || read.text?.startsWith("failed")) return none;
+    if (read.lamports === undefined) return none;
+    return { asset: "sol", amount: Number(read.lamports) / 1e9, at: read.at ?? null };
+  }, none);
+};
 export const solSync = (gid = state.gid) => solOpenHere(gid)
   ? fromSol("sync", (c) => ({ text: String(c.sync?.text ?? ""), busy: !!c.sync?.busy }), null)
   : null;
@@ -559,6 +579,13 @@ export function plainTab() {
   if (!plainSetup()) return loading;
   plainSol.observe(state.gid);
   return guard(plainSol.view, act, plainActions);
+}
+/** Render already loaded Solana details without starting setup or asking the chain. */
+export function solDetails(surface) {
+  if (plainShown() && plainHere()) return guard(plainSol.details, surface, act, plainActions);
+  if (solOn() && solOpenHere()) return guard(sol.details, surface);
+  if (!plainShown() && !solOn()) return null;
+  return el("p", { class: "small" }, "Open Solana to load the details for this wallet.");
 }
 const NET_UNCONFIRMED = "This browser does not know yet which network the people of this wallet "
   + "confirmed. Open the wallet, wait until your device shows Address checked, then try again.";

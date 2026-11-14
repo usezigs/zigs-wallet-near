@@ -56,15 +56,29 @@ assert.equal(m.reported, 2);
 assert.equal(m.saved, 2);
 assert.equal(m.allChecked, false, "remote reports cannot establish local recovery checks");
 assert.equal(m.concentrated, false);
+assert.equal(m.localTotal, 2, "only this browser’s chain files belong in its denominator");
+assert.equal(m.localComplete, true, "independent devices do not leave local work unfinished");
+assert.equal(m.label, "Local files checked");
+assert.equal(m.next.label, "Review recovery files");
+assert.equal(m.readiness, "Not established", "local checks do not promise wallet recovery");
 assert.equal(recoveryFileStatus(remote.zec, false), "Reported checked");
 assert.deepEqual(signerRecoveryStatus(remote), ["Reported checked", "neutral"]);
 assert.equal(derive(facts({ signers: [signer(1), signer(2, { local: false })] })).critical, "",
   "a remote location or report being unknown does not mean a lost signer");
+const localTodo = derive(facts({ signers: [signer(1), remote] }));
+assert.equal(localTodo.localComplete, false, "remote reports do not complete local work");
+assert.match(localTodo.next.label, /Back up device 1 share · Zcash/);
+const remoteOnly = derive(facts({ signers: [remote, { ...remote, id: 1 }] }));
+assert.equal(remoteOnly.localTotal, 0);
+assert.equal(remoteOnly.localComplete, false, "zero held files is not a completed local check");
+assert.equal(remoteOnly.label, "No files held here");
 
 for (const solScope of ["pending", "unavailable", "stopped"]) {
   m = derive({ ...checked, solScope });
   assert.equal(m.total, null, solScope + ": no invented denominator");
   assert.equal(m.allChecked, false);
+  assert.equal(m.localTotal, null, "unknown chain scope has no invented local denominator");
+  assert.equal(m.localComplete, false);
   assert.equal(m.checked, 2, "known Zcash checks remain visible");
   assert.equal(m.label, "Status unavailable");
 }

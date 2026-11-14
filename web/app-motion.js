@@ -1,5 +1,5 @@
 // Presentation only. These short-lived observations never authorize or advance wallet work.
-import { presentExperience } from "./premium-motion.js";
+import { presentPaymentExperience } from "./payment-experience.js";
 const BRAND_KEY = "zigs-ui-brand-arrived-v1";
 const PASSKEY_ARRIVAL_MS = 1800;
 const CLASSES = ["motion-content-enter", "motion-dialog-enter", "motion-complete-enter",
@@ -79,7 +79,8 @@ function browserStorage() {
 }
 
 function browserMedia() {
-  try { return globalThis.matchMedia?.("(prefers-reduced-motion: reduce)"); }
+  try { return globalThis.matchMedia?.(
+    "(prefers-reduced-motion: reduce),(update:slow),(forced-colors:active)"); }
   catch { return null; }
 }
 
@@ -223,6 +224,30 @@ export function observeWalletPicker(doc) {
   } };
 }
 
+function recordedEffect(node) {
+  const beam = node.querySelector(".approval-node-beam");
+  if (beam) return { target: beam, values: {
+    strokeDashoffset: [100, -100], opacity: [0, 1, 1, 0],
+  }, options: { duration: .72, ease: "linear" } };
+  if (node.matches(".setup-device-mark")) return { target: node,
+    values: { transform: ["scale(.96)", "none"] },
+    options: { duration: .24, ease: [.18, .8, .22, 1] } };
+  return null;
+}
+
+function animateRecordedEffect(node, animations) {
+  const effect = recordedEffect(node), animate = globalThis.zigsGlass?.animate;
+  if (!effect || !animate) return;
+  try {
+    const playback = animate(effect.target, effect.values, effect.options);
+    effect.target.setAttribute("data-motion-library", "motion");
+    const active = { cancel: () => playback.cancel() };
+    animations.add(active);
+    Promise.resolve(playback).then(() => animations.delete(active),
+      () => animations.delete(active));
+  } catch { /* The static recorded state remains readable. */ }
+}
+
 /** Isolated galleries can supply their own document, media query and UI-only memory storage. */
 export function createMotionController({ document, storage = null, media = null,
   now = () => globalThis.performance.now() }) {
@@ -240,6 +265,7 @@ export function createMotionController({ document, storage = null, media = null,
   const add = (node, name) => {
     if (!allowed() || !safeNode(node, document)) return;
     node.classList.add(name); active.add(node);
+    if (name === "motion-complete-enter") animateRecordedEffect(node, animations);
   };
   const visibility = () => {
     document.documentElement?.classList.toggle("motion-document-hidden", !!document.hidden);
@@ -352,6 +378,6 @@ export function presentMotion(parts) {
       storage: browserStorage(), media: browserMedia() });
     controller.present(parts);
     walletPicker?.measure();
-    presentExperience(parts);
+    presentPaymentExperience(parts);
   } catch { /* A presentation effect must never interfere with the wallet render or its focus. */ }
 }

@@ -33,6 +33,7 @@ import { rolesOf, signAsFee } from "./approve.js";
 import { netOf } from "./net.js";
 import { ensureWorker, solText } from "./session.js";
 import { SESSIONS, writePart } from "./sessions.js";
+import { checkPoolSwap, poolSwapProblem } from "./swap.js";
 
 /** Tries of the execute in this tab before the card asks for a click (actions.execute). */
 export const EXECUTE_TRIES = 3;
@@ -279,17 +280,24 @@ async function attempt(c, worker, ss, seat, failSession) {
   const account = await worker.call("account", { account: base58(ss.account) });
   if (!holdsBody(account, ss)) return landedElsewhere(c, worker, ss, seat, failSession);
   if (pastExpiry(ss)) return failSession(c, ss, PAYMENT_EXPIRED);
+  await checkPoolSwap(c, ss);
   const { tx, txId } = await signedExecute(c, worker, ss, seat);
   const sim = await worker.call("simulate", { tx });
   if (sim.err !== null) throw new Error(await poolNote(c, worker, refusalOf(c, sim, seat)));
   // The re-proof may outlast the lease: take it again, or leave the send to the tab that holds it.
   if (!(await leased(ref))) return sleep(3000);
-  await worker.call("send", { tx });
+  await sendCheckedSwap(worker, ss, tx);
   c.sending[ss.id] = { txId, at: Date.now(), seat };
   // The confirm (45 s at most) ends before this lease, so no other tab sends meanwhile.
   await leased(ref);
   const seen = await worker.call("confirm", { signature: txId });
   return afterConfirm(c, ss, seat, txId, seen);
+}
+
+function sendCheckedSwap(worker, ss, tx) {
+  const why = poolSwapProblem(ss);
+  if (why) throw new Error(why);
+  return worker.call("send", { tx });
 }
 
 /**

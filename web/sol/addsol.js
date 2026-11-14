@@ -4,7 +4,7 @@
 // nonce, so it never touches the nonce account of the group. The amount and the sender are
 // public. The wasm runs the checker on the exact bytes before the fee key signs, so the deposit
 // goes to the shielded address of the group and to nobody else. Before that, the approvals
-// program must exist on the network, and a wallet with a cap (mainnet) must stay under it.
+// program must exist on the network. Pending deposits are tracked to avoid duplicate sends.
 import { feeSignature } from "./approve.js";
 import { agreement } from "./ceremony.js";
 import { base58, keyOfBase58 } from "./docs.js";
@@ -13,7 +13,7 @@ import { readyFee } from "./fee.js";
 import { payerSeat, settledBlock } from "./gate.js";
 import { CLUSTERS } from "./guard.js";
 import { bytesOf, hexOf, intentHex, lamportsOf, pinsHex, wireBase64 } from "./intent.js";
-import { ensureWorker, solText } from "./session.js";
+import { ensureWorker } from "./session.js";
 import { programOf } from "./wallet.js";
 
 const LOADER = keyOfBase58("BPFLoaderUpgradeab1e11111111111111111111111");
@@ -21,17 +21,10 @@ const CONFIRMED = new Set(["confirmed", "finalized"]);
 const NOT_DEPLOYED =
   "The Zigs program of this network is not deployed yet, so Add SOL is refused. Nothing was sent.";
 const BUSY = "An Add SOL of this tab is still running. Nothing was sent.";
-const NO_CAP =
-  "The cap of this private wallet is not known, so Add SOL is refused. Nothing was sent.";
 const UNCONFIRMED =
   "The last Add SOL of this tab is not confirmed yet. Try again in 3 minutes. Nothing was sent.";
 // A blockhash lives 150 blocks: an Add SOL with no answer after this time can no longer land.
 const LAND_WINDOW_MS = 150_000;
-
-/** The refusal of the cap, with the most SOL that can still be added (lamports). */
-const capText = (cap, room) =>
-  `The private balance of this test wallet is capped at ${solText(cap)}. ` +
-  `You can add up to ${solText(room)} now. Nothing was sent.`;
 
 /** What the network said to a test run of the deposit, as a text for the page. */
 function refusalOf(c, run, seat) {
@@ -61,25 +54,18 @@ async function requireProgram(c, worker) {
   }
 }
 
-// ponytail: the cap counts what this tab knows. Its ceiling: two devices that add at the same
-// time, deposits by other people and incoming private payments. The upgrade path: count the
-// unconfirmed deposits from a signed log of the group. It fails closed until a reload for an Add
-// SOL that no sync or proof of this tab shows: one with no answer that never landed, or one whose
-// note another tab spent first.
-// Per group PDA, in the memory of this tab only: an Add SOL that runs, each Add SOL that the
-// chain confirmed (or did not answer) and that a sync did not show yet, and the notes that showed
-// one.
+// Per group PDA, remember deposits not yet visible to the indexer. An uncertain send blocks
+// another deposit while its blockhash can still land, even when there is no balance limit.
 const tabs = new Map();
 
 /**
- * The Add SOL state of this tab for the wallet, or null on Devnet (no cap). Any other wallet
- * without a cap is refused.
+ * Track mainnet deposits even without a balance limit, including uncertain network results.
  */
 function tabOf(c) {
   const { done } = agreement(c);
-  if (c.wallet?.cap == null) {
-    if (c.wallet?.cluster === "mainnet" || done.cluster !== "devnet") throw new Error(NO_CAP);
-    return null;
+  if (done.cluster === "devnet") return null;
+  if (c.wallet?.cluster !== "mainnet") {
+    throw new Error("The wallet network is unavailable. Reload before adding SOL.");
   }
   if (!tabs.has(done.pda)) tabs.set(done.pda, { busy: false, sent: [], shown: new Set() });
   return tabs.get(done.pda);
@@ -124,20 +110,14 @@ export function pruneAdded(c, notes) {
   if (tab) drop(tab, notes);
 }
 
-/**
- * The cap check before any signature: `held` is a fresh sync of the PDA identity, plus the
- * group-key identity, plus the Add SOL of this tab that the sync does not show yet. The sync
- * comes first, so an Add SOL with no answer that the sync shows no longer refuses.
- */
-async function underCap(c, worker, tab, amount) {
+/** Fresh balances and notes, with pending deposits counted until the indexer shows them. */
+async function syncDeposits(worker, tab) {
   const synced = await worker.call("sync");
   const old = await worker.call("syncOld");
   drop(tab, synced.utxos);
   await settleLast(worker, tab);
   const unseen = tab.sent.reduce((sum, d) => sum + d.amount, 0n);
   const held = BigInt(synced.balance) + BigInt(old.balance) + unseen;
-  const cap = BigInt(c.wallet.cap);
-  if (held + amount > cap) throw new Error(capText(cap, held < cap ? cap - held : 0n));
   return { held, before: new Set(synced.utxos.map((u) => u.hash)) };
 }
 
@@ -145,7 +125,7 @@ async function underCap(c, worker, tab, amount) {
 async function deposit(c, { seat, amount, fee, tab }) {
   const worker = await ensureWorker(c);
   await requireProgram(c, worker);
-  const { held, before } = tab ? await underCap(c, worker, tab, amount) : { held: 0n };
+  const { held, before } = tab ? await syncDeposits(worker, tab) : { held: 0n };
   const { blockhashHex } = await worker.call("blockhash");
   const intent = intentHex("shield", { blockhash: blockhashHex, amount, held });
   const pins = bytesOf(pinsHex(agreement(c).done, fee.key, c.genesis));

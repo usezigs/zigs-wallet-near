@@ -5,6 +5,12 @@ export const FINISHES = ["Polished chrome", "Dark titanium", "Brushed silver"];
 export const ACCENTS = ["#e78b50", "#cbae91", "#93acb7", "#b6b0c8", "#d6d9da"];
 export const RARE_THRESHOLD = 3277;
 export const isRareDigest = (bytes) => bytes[30] * 256 + bytes[31] < RARE_THRESHOLD;
+// The visual category is deterministic and uses independent digest bytes. Ember stays rare.
+export function identityRarity(bytes) {
+  const rank = (bytes[28] * 256 + bytes[29]) / 65536;
+  return isRareDigest(bytes) ? rank < .2 ? "Epic Identity" : "Rare Identity"
+    : rank < .25 ? "Uncommon Identity" : "Common Identity";
+}
 
 function evmAddress(address) {
   if (!/^0x[0-9a-f]{40}$/i.test(address)) throw new TypeError("Expected a public EVM address");
@@ -48,7 +54,7 @@ export function descriptorFromDigest(identity, bytes) {
   const unit = (i) => bytes[i] / 255;
   const family = bytes[0] % 6, finish = bytes[1] % 3, rare = isRareDigest(bytes);
   const traits = Object.freeze({ sculpture: FAMILIES[family], metal: FINISHES[finish],
-    rare, inlay: rare ? "Ember inlay" : null });
+    rare, rarity: identityRarity(bytes), inlay: rare ? "Ember inlay" : null });
   return Object.freeze({ ...identity, digest, key: `${VERSION}:${digest}`, family: bytes[0] % 6,
     finish, traits, accent: ACCENTS[bytes[2] % ACCENTS.length], lobes: 4 + bytes[3] % 8,
     amplitude: .045 + unit(4) * .105, phase: unit(5) * Math.PI * 2, twist: 1 + bytes[6] % 4,

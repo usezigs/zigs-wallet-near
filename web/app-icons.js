@@ -1,6 +1,7 @@
 // Small interface symbols use fixed stroked paths. Asset marks use the official, locally
 // bundled artwork; sources and trademark terms are recorded in assets/README.md. No artwork
 // comes from a wallet document, a person or a remote request.
+export { sculptedIcon } from "./icon-objects.js";
 const PATHS = Object.freeze({
   home: "M3 10.5 12 3l9 7.5M5 9v12h5v-7h4v7h5V9",
   wallet: "M4 6h15v14H4zM4 6V4h12v2M15 11h6v5h-6zM17 13.5h.01",
@@ -9,11 +10,14 @@ const PATHS = Object.freeze({
   chat: "M21 11a8 8 0 0 1-8 8H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v4Z",
   search: "M10.5 3a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 0 0-15ZM16 16l5 5",
   plus: "M12 5v14M5 12h14",
+  minus: "M5 12h14",
+  info: "M12 11v6M12 7h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z",
   security: "m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Zm-4 9 3 3 5-6",
   unshield: "m9 4 3-1 8 3v6c0 2-1.5 4-3.3 5.6M14 20.1c-1.2.6-2 .9-2 .9s-8-4-8-9V6l2.6-1M3 3l18 18",
   addressBook: "M5 3h15v18H5zM2 7h4M2 12h4M2 17h4M12 7a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z"
     + "m-3 10v-1a3 3 0 0 1 6 0v1",
   swap: "M3 7h17l-4-4m4 4-4 4M21 17H4l4-4m-4 4 4 4",
+  confidentialSwap: "M8.5 10.5h7v7h-7zM10 10.5V8.5a2 2 0 0 1 4 0v2M12 13.5V15",
   settings: "M4 7h16M4 17h16M9 4v6M15 14v6",
   back: "M15 5l-7 7 7 7M8 12h13",
   send: "M7 17 17 7M7 7h10v10",
@@ -31,6 +35,15 @@ const PATHS = Object.freeze({
   chevronRight: "m9 5 7 7-7 7", chevronDown: "m5 9 7 7 7-7",
   forward: "M3 12h16M12 5l7 7-7 7",
   external: "M14 4h6v6M20 4 10 14M10 4H4v16h16v-6",
+  copy: "M9 8V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-3"
+    + "M5 8h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z",
+  check: "m5 12 4 4L19 6",
+  download: "M12 3v12m-5-5 5 5 5-5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4",
+  restore: "M3 4v6h6M3.5 10a9 9 0 1 1 .8 7M12 7v5l3 2",
+  theme: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM12 3v18M15 6v12M18 9v6",
+  bell: "M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4",
+  people: "M9 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6ZM3 21v-3a6 6 0 0 1 12 0v3"
+    + "M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 4v2",
 });
 const ASSETS = Object.freeze({
   zec: "/assets/zcash.svg",
@@ -38,19 +51,6 @@ const ASSETS = Object.freeze({
   usdc: "/assets/usdc.svg",
 });
 const SVG = "http://www.w3.org/2000/svg";
-// Larger educational/empty-state objects follow the site's original 64-unit relief language.
-// They carry no status: adjacent application text remains authoritative.
-const RELIEFS = Object.freeze({
-  chat: ["M10 14h37v27H29L17 51V41h-7Z", "M47 24h7v25H40l-9 7v-9",
-    "M21 23h15m-15 8h10"],
-  devices: ["M10 13h29v22H10zM6 42h31M44 29h13v25H44z", "M15 18h19M49 48h3"],
-  addressBook: ["M16 9h36v46H16zM10 19h10M10 32h10M10 45h10",
-    "M34 20a6 6 0 1 1 0 12 6 6 0 0 1 0-12ZM24 45v-2a10 10 0 0 1 20 0v2"],
-  security: ["M32 8c7 6 14 7 20 8v16c0 13-11 21-20 25-9-4-20-12-20-25V16"
-    + "c6-1 13-2 20-8Z", "M32 16c5 4 10 5 13 6v10c0 9-7 15-13 18"
-    + "-6-3-13-9-13-18V22c3-1 8-2 13-6Z", "m26 33 4 4 9-11"],
-});
-let reliefSequence = 0;
 
 function svgNode(tag, attrs) {
   const node = document.createElementNS(SVG, tag);
@@ -58,37 +58,14 @@ function svgNode(tag, attrs) {
   return node;
 }
 
-/** Fixed decorative artwork, with unique in-document gradient references. */
-export function sculptedIcon(name) {
-  if (!Object.hasOwn(RELIEFS, name)) throw new Error("app-icons: no relief named " + name);
-  const span = document.createElement("span"), id = "ui-relief-" + ++reliefSequence;
-  span.className = "symbol symbol-sculpted";
-  span.setAttribute("aria-hidden", "true"); span.setAttribute("data-icon", name);
-  const svg = svgNode("svg", { viewBox: "0 0 64 64", fill: "none", focusable: "false",
-    "stroke-linecap": "round", "stroke-linejoin": "round" });
-  const defs = svgNode("defs", {}), gradient = svgNode("linearGradient", {
-    id, x1: "0", y1: "0", x2: ".85", y2: "1" });
-  ["#fafafa", "#d8d8d8", "#777", "#c4c4c4", "#888"].forEach((color, index) => {
-    gradient.append(svgNode("stop", { offset: String(index / 4), "stop-color": color }));
-  });
-  defs.append(gradient); svg.append(defs);
-  const back = svgNode("g", { class: "relief-shadow", stroke: "#050607", "stroke-width": "5",
-    transform: "translate(0 1.7)" });
-  const face = svgNode("g", { class: "relief-face", stroke: "url(#" + id + ")",
-    "stroke-width": "2.8" });
-  RELIEFS[name].forEach((path, index) => {
-    back.append(symbolPath(path, "relief-part"));
-    face.append(symbolPath(path, "relief-part relief-part-" + index));
-  });
-  svg.append(back, face); span.append(svg);
-  return span;
-}
 // Separate physical details allow small, purposeful gestures without moving the control.
 const DETAILS = Object.freeze({
   home: "M3 10.5 12 3l9 7.5", approvals: "m9 12 2 2 4-4", activity: "M12 7v5l3 2",
   chat: "M8 8h8M8 12h5", search: "M16 16l5 5", plus: "M12 5v14",
   security: "m8 12 3 3 5-6", addressBook: "M2 7h4M2 12h4M2 17h4",
   swap: "M3 7h17l-4-4m4 4-4 4", settings: "M9 4v6M15 14v6",
+  confidentialSwap: "M3.7 8.5a8.8 8.8 0 0 1 14.6-3.2L21 8M21 3.5V8h-4.5"
+    + "M20.3 15.5a8.8 8.8 0 0 1-14.6 3.2L3 16M3 20.5V16h4.5",
   send: "M7 7h10v10", receive: "M7 7v10h10", lock: "M8 11V8a4 4 0 0 1 8 0v3",
   wallet: "M15 11h6v5h-6zM17 13.5h.01", key: "M16 8h.01", browser: "M3 9h18",
   back: "M15 5l-7 7 7 7", forward: "M12 5l7 7-7 7",
@@ -169,7 +146,7 @@ export function icon(name) {
   span.setAttribute("aria-hidden", "true");
   const svg = document.createElementNS(SVG, "svg");
   const attrs = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor",
-    "stroke-width": "1.6", "stroke-linecap": "round", "stroke-linejoin": "round",
+    "stroke-width": "1.5", "stroke-linecap": "round", "stroke-linejoin": "round",
     focusable: "false" };
   for (const [k, v] of Object.entries(attrs)) svg.setAttribute(k, v);
   if (asset) svg.append(artwork(name));

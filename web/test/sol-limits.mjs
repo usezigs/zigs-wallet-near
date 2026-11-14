@@ -84,6 +84,38 @@ assert.ok(watches("solsessions/") <= 100, "at most 50 sessions, two watches each
 assert.ok(watches("solsessions/") >= 2, "the open sessions are watched");
 step("55 open sessions are watched within the cap");
 
+// Browsing beyond the newest 12 uses the real controller action and makes the selected open
+// sessions observable without increasing the subscription cap or approving anything.
+{
+  const node = (tag, attrs = {}, ...kids) => ({ tag, attrs,
+    kids: kids.flat(Infinity).filter((k) => k != null && k !== false) });
+  const find = (n, pick) => typeof n !== "object" ? []
+    : [...(pick(n) ? [n] : []), ...n.kids.flatMap((k) => find(k, pick))];
+  const previous = { el: c.host.el, act: c.host.act };
+  c.host.el = node; c.host.act = (fn) => fn;
+  try {
+    let tab = t.sol.view();
+    assert.equal(find(tab, (n) => n.attrs["data-sol"] === "history-newer")[0].attrs.disabled, "");
+    const newest = find(tab, (n) => n.attrs["data-session"]).map((n) => n.attrs["data-session"]);
+    for (let i = 0; i < 4; i++) {
+      find(tab, (n) => n.attrs["data-sol"] === "history-older")[0].attrs.onclick();
+      tab = t.sol.view();
+    }
+    assert.equal(c.sessionPage, 4);
+    const selected = find(tab, (n) => n.attrs["data-session"]).map((n) => n.attrs["data-session"]);
+    assert.ok(selected.length > 0 && selected.every((id) => !newest.includes(id)));
+    for (const id of selected.filter((id) => !["sent", "failed"].includes(ssOf(id).status)))
+      assert.ok(c.watching.has(id), "a visible older open proposal is subscribed");
+    assert.ok(c.watching.size <= 50 && watches("solsessions/") <= 100);
+    for (let i = 0; i < 4; i++) {
+      find(tab, (n) => n.attrs["data-sol"] === "history-newer")[0].attrs.onclick();
+      tab = t.sol.view();
+    }
+    assert.equal(c.sessionPage, 0);
+  } finally { Object.assign(c.host, previous); }
+}
+step("older pages are reachable through the controller within the existing watch cap");
+
 // Two moves on one nonce: the landing of one ends the other, and the open register sessions of
 // the beta on that nonce too.
 await useTestGroup(c, { gid, data, notify, waitFor, path, W, chain });

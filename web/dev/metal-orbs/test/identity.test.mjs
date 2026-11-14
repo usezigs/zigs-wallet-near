@@ -1,9 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash } from 'node:crypto';
-import { describeOrb, canonicalIdentity, FAMILIES, radiusAt } from '../identity.js';
+import { describeOrb, canonicalIdentity, FAMILIES, radiusAt, identityRarity } from '../identity.js';
 import { fallbackSvg } from '../fallback.js';
 import { FIXTURES } from '../fixtures.js';
+test('identity rarity has four deterministic tiers without changing its seed or geometry', () => {
+  const digest = new Uint8Array(32).fill(255);
+  assert.equal(identityRarity(digest), 'Common Identity');
+  digest[28] = digest[29] = 0;
+  assert.equal(identityRarity(digest), 'Uncommon Identity');
+  digest[30] = digest[31] = 0;
+  assert.equal(identityRarity(digest), 'Epic Identity');
+  digest[28] = digest[29] = 255;
+  assert.equal(identityRarity(digest), 'Rare Identity');
+});
 test('seed agrees with independent SHA-256 of canonical public tuple', async () => {
   const address = '0xABCDEF0123456789ABCDEF0123456789ABCDEF01';
   const p = await describeOrb(' EIP155:001 ', address);

@@ -124,54 +124,30 @@ async function matrix(p, scene, allowScroll = false) {
 
 async function next(p, label) { await p.waitForTimeout(430); await button(p, label).click(); }
 
-async function arrivalChecks(p) {
-  const fingerprint = p.locator(".passkey-fingerprint");
-  check(await fingerprint.evaluate((n) => n.getAnimations().some((a) =>
-    a.animationName === "setup-arrival-pulse" && a.effect.getTiming().iterations === 1)),
-  "protection arrival plays one finite fingerprint pulse");
+async function credentialArtChecks(p) {
+  const art = p.locator(".passkey-art");
+  check(await art.locator('[data-icon="key"][aria-hidden="true"]').count() === 1,
+    "credential artwork uses the decorative local key object");
+  check(await art.evaluate((n) => n.getAnimations({ subtree: true }).length === 0),
+    "credential artwork is still while protection is unverified");
   check(await p.locator("[data-protection-art=unprotected]").count() === 1
     && await button(p, "Continue to approval rule").count() === 0,
-  "arrival pulse leaves the browser unlocked and continuation gated");
-  const restingColor = await fingerprint.evaluate((n) => getComputedStyle(n).color);
-  await p.waitForTimeout(750);
-  check(await fingerprint.evaluate((n, resting) => {
-    const pulse = n.getAnimations().find((a) => a.animationName === "setup-arrival-pulse");
-    return pulse?.playState === "running" && getComputedStyle(n).color !== resting;
-  }, restingColor), "arrival remains visible through background redraws");
-  await capture(p, "01-protection-arrival", "allow");
-  const before = await fingerprint.evaluate((n) => n.getAnimations()[0]?.currentTime
-    - parseFloat(getComputedStyle(n).animationDelay) * 1000);
+    "credential artwork leaves the browser unprotected and continuation gated");
   await p.evaluate(async () => (await import("/app-loop.js")).render());
   await settled(p);
-  check(await fingerprint.evaluate((n, previous) => {
-    const pulse = n.getAnimations().find((a) => a.animationName === "setup-arrival-pulse");
-    const elapsed = pulse?.currentTime - parseFloat(getComputedStyle(n).animationDelay) * 1000;
-    return elapsed >= previous && elapsed < previous + 300;
-  }, before), "ordinary redraw continues the same arrival clock without replay");
-  await p.waitForTimeout(1900);
-  await p.evaluate(async () => (await import("/app-loop.js")).render()); await settled(p);
-  check(await fingerprint.evaluate((n) => !n.classList.contains("motion-passkey-arrival")),
-    "finished arrival never replays on a later redraw");
+  check(await art.evaluate((n) => n.getAnimations({ subtree: true }).length === 0),
+    "ordinary redraw introduces no credential animation");
   await p.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click();
   await button(p, "Create wallet").click();
-  check(await fingerprint.evaluate((n) => n.classList.contains("motion-passkey-arrival")),
-    "a newly opened creation dialog has its own single arrival");
+  check(await art.evaluate((n) => n.getAnimations({ subtree: true }).length === 0),
+    "reopening creation keeps credential artwork still");
   await p.emulateMedia({ reducedMotion: "reduce" });
-  await p.waitForFunction(() => !document.querySelector(".motion-passkey-arrival"));
-  check(await fingerprint.evaluate((n) => n.getAnimations().length === 0),
-    "reduced motion stops the arrival pulse");
-  await p.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click();
-  await button(p, "Create wallet").click();
-  check(await fingerprint.evaluate((n) => n.getAnimations().length === 0),
-    "reduced-motion arrival stays still from first appearance");
-  await p.emulateMedia({ reducedMotion: "no-preference" });
-  await p.evaluate(async () => (await import("/app-loop.js")).render());
-  check(await fingerprint.evaluate((n) => !n.classList.contains("motion-passkey-arrival")),
-    "changing motion preference does not defer and replay arrival");
-  await p.emulateMedia({ reducedMotion: "reduce" });
+  check(await art.evaluate((n) => n.getAnimations({ subtree: true }).length === 0),
+    "credential artwork also stays still with reduced motion");
 }
 
 async function expandedExplanation(p, kind, diagrams) {
+  if (kind === "threshold") await p.locator(".setup-threshold-info>summary").click();
   const detail = p.locator(".setup-" + kind + "-details");
   await detail.locator("summary").click();
   await forEachCase(diagrams, async ([id, count]) => {
@@ -210,6 +186,7 @@ async function expandedExplanation(p, kind, diagrams) {
     });
   });
   await detail.locator("summary").click();
+  if (kind === "threshold") await p.locator(".setup-threshold-info>summary").click();
   await p.setViewportSize({ width: 1366, height: 768 });
   await p.locator(".dialog").evaluate((n) => { n.scrollTop = 0; });
 }
@@ -334,13 +311,13 @@ async function createProtection(p) {
     await p.emulateMedia({ reducedMotion: "no-preference" });
     await p.locator(".logo").hover(); await settled(p);
     check(await p.locator(".nav-zebra").evaluate((node) =>
-      new URL(node.querySelector("img").src).pathname === "/logo.png"
+      getComputedStyle(node).maskImage.includes("/logo.png?")
       && node.getAnimations({ subtree: true }).every((a) =>
         a.effect.getTiming().iterations !== Infinity)),
     "navigation keeps the canonical zebra and has no looping decorative animation");
   }
   await button(p, "Create wallet").click();
-  if (phase === "after") await arrivalChecks(p);
+  if (phase === "after") await credentialArtChecks(p);
   await matrix(p, "01-protection");
   if (phase === "after") {
     await preferences(p, "01-protection");

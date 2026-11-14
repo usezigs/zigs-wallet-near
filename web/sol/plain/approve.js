@@ -81,7 +81,7 @@ async function swapLook(c, ss, review) {
   if (otherSwap(c.sessions, ss)) return { why: TWICE };
   if (swapLate(ss)) return { why: SWAP_LATE };
   const ask = { deposit: swap.deposit, lamports: value("units"), deadline: swap.iso,
-    refundTo: base58(agreement(c).done.groupKey) };
+    refundTo: base58(agreement(c).done.groupKey), confidentiality: swap.confidentiality };
   try {
     return swapAnswer(await c.host.swapCheck(ask));
   } catch (e) {

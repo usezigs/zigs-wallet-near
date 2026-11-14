@@ -1,0 +1,31 @@
+{
+  "name": "zigs-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test:openglass": "node openglass/browser-check.mjs",
+    "test:final-ui": "node openglass/setup-layout-check.mjs && node openglass/identity-overview-check.mjs && node openglass/messages-layout-check.mjs && node openglass/swap-flow-check.mjs",
+    "test:visuals": "node ../solspike/tools/nextlevel_visuals_browser.mjs",
+    "test:journeys": "node ../solspike/tools/nextlevel_journeys_browser.mjs",
+    "test:receive": "node ../solspike/tools/nextlevel_receive_browser.mjs",
+    "test:wallet-pages": "node ../solspike/tools/nextlevel_security_activity_browser.mjs",
+    "test:sidebar": "node ../solspike/tools/nextlevel_sidebar_browser.mjs",
+    "test:button-hover": "node openglass/button-hover-check.mjs",
+    "test:single-browser": "node openglass/single-browser-check.mjs",
+    "test:browser": "node openglass/run-checks.mjs full",
+    "test:browser:smoke": "node openglass/run-checks.mjs smoke",
+    "test:browser:ceremonies": "node openglass/ceremony-check.mjs",
+    "audit:openglass": "node openglass/flow-audit.mjs && node openglass/interaction-check.mjs && node openglass/button-hover-check.mjs"
+  },
+  "dependencies": {
+    "motion": "14.14.0",
+    "open-glass-ui": "^0.5.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "playwright": "^1.65.0"
+  }
+}

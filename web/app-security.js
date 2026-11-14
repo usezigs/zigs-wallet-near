@@ -1,6 +1,6 @@
 // Presentational grammar only. No subscriptions, persistence or protocol state.
 import { el } from "./app-dom.js";
-import { icon } from "./app-icons.js";
+import { icon, sculptedIcon } from "./app-icons.js";
 
 // SEMANTICS MAP
 // Neutral, separated nodes: supplied device labels, never online/verified/approved status.
@@ -11,7 +11,7 @@ import { icon } from "./app-icons.js";
 // Actual configurations stay static. Explicit setup examples may illustrate possible groups.
 // Zcash spending-key copy is scoped explicitly; viewing access is a separate capability.
 export function distributedSecurity({ n, t, devices = [], walletName = "This wallet",
-  preview = false, illustrate = false }) {
+  preview = false, illustrate = false, explain = true }) {
   const valid = Number.isInteger(n) && Number.isInteger(t) && n >= 2 && n <= 7 && t >= 2 && t <= n;
   if (!valid) return el("figure", { class: "distributed-security" },
     el("figcaption", { class: "small muted" }, "The approval arrangement is unavailable."));
@@ -28,25 +28,26 @@ export function distributedSecurity({ n, t, devices = [], walletName = "This wal
         el("li", { class: "security-node" + (examples && i < t ? " example-selected" : ""),
           "data-education-mark": examples ? String(i) : null },
           el("span", { class: "security-node-mark", "aria-hidden": "true" },
-            icon(preview && i % 2 === 0 ? "phone" : "devices")),
+            examples ? sculptedIcon(i % 2 === 0 ? "phone" : "laptop")
+              : icon(preview && i % 2 === 0 ? "phone" : "devices")),
           el("div", { class: "security-node-copy" },
             el("strong", { "data-preview-device": preview && i === 0 ? "" : null }, label),
             el("span", { class: "small muted" }, detail)))))
         : el("p", { class: "small muted" }, "Device details are not available here. Check the device list below.")),
-    el("div", { class: "security-rule" },
+    explain ? el("div", { class: "security-rule" },
       el("span", { class: "security-rule-ring", "aria-hidden": "true" },
         el("strong", {}, String(t)), el("span", {}, "/ " + n)),
       el("div", {}, el("span", { class: "label" }, "Approval rule"),
         el("strong", {}, "Any " + t + " of " + n + " devices together"),
         examples ? null : el("p", { class: "small muted" },
-          "A rule for authorizing payments, not a live approval status."))),
-    el("div", { class: "security-meaning" },
+          "A rule for authorizing payments, not a live approval status."))) : null,
+    explain ? el("div", { class: "security-meaning" },
       el("p", {}, "No single device holds the complete spending key for Zcash."),
-      el("p", { class: "small muted" }, "Shares stay separate during signing. They contribute to an authorization, without assembling a complete spending key.")),
-    el("p", { class: "security-footnote small muted" }, examples
+      el("p", { class: "small muted" }, "Shares stay separate during signing. They contribute to an authorization, without assembling a complete spending key.")) : null,
+    explain ? el("p", { class: "security-footnote small muted" }, examples
       ? "Highlighted outlines are examples, not real approvals. Any " + t
         + " devices could sign together. All " + n + " join setup."
       : preview
       ? "Proposed device labels are examples, not connected devices or payment approvals. All chosen devices take part in setup."
-      : "Names identify configured devices; they do not verify identity, availability or approval. Viewing wallet activity is separate from spending authorization."));
+      : "Names identify configured devices; they do not verify identity, availability or approval. Viewing wallet activity is separate from spending authorization.") : null);
 }

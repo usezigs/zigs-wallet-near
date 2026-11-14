@@ -1,13 +1,12 @@
-// The Solana tab of a wallet page. It shows the progress of each seat, the owner address and the
-// shielded address, the balances of the last sync, the buttons for the sync, the backup and the
-// restore, and (payview.js) the funding, the proposals and their approvals.
+// The Solana receive surface, with one shielded address. Account diagnostics live in Settings;
+// privacy and custody disclosures live in Security. Payment tools expand when needed.
 // `data-sol` marks each value for the headless checks. `host.el` builds the elements, `act` wraps
 // a button action (act of app-dom.js).
 import { agreement, seatProgress, started, startBlock } from "./ceremony.js";
 import { base58 } from "./docs.js";
 import { checkLine, provesLocally } from "./localprove.js";
 import {
-  PAYMENT_STATES, SHOWN, STATES, approveLater, approveSeats, payCards, titleOf,
+  PAYMENT_STATES, SHOWN, STATES, approveLater, approveSeats, fundCard, payCards, titleOf,
 } from "./payview.js";
 import { feeMismatch, feeOf } from "./fee.js";
 import { signingBlock } from "./gate.js";
@@ -27,8 +26,8 @@ const solanaOf = (c) => "Solana " + netOf(clusterOf(c)).badge;
 const ADD_TEXT =
   "A Solana program owns the funds of the group at a program address, which is public and links " +
   "to the group key. Each device also gets a fee address, which appears on chain next to the " +
-  "group when the device pays. A fee address needs a public SOL funding trail. The program and " +
-  "its upgrade key are outside the group, and the beta has no audit.";
+  "group when the device pays. A fee address needs a public SOL funding trail. " +
+  "Program upgrades are managed separately from your wallet approvals.";
 
 // What is public and what Helius sees (SOL-12). The tab shows it in each state, also while the
 // setup runs: the seats of this browser join the setup with no click.
@@ -205,10 +204,6 @@ function seatList(c) {
   );
 }
 
-const PAY_TO =
-  "Pay this group only to its full shielded address. The program address alone is not enough, " +
-  "and a payment to another key is not counted.";
-
 // ponytail: the upgrade keys of the pool ring1G, read on 10 November 2026 (its ProgramData
 // account, docs/zolana-v1.md), not live. The upgrade key of the Zigs program is the one of the
 // owner decision: the program was not deployed then, so nobody read it on chain. Reading the
@@ -276,7 +271,7 @@ function copyButton(c, text, mark, what) {
     }
   };
   const attrs = {
-    class: "btn sm",
+    class: mark === "copy-shielded" ? "btn primary" : "btn sm",
     type: "button",
     "data-sol": mark,
     "aria-label": "Copy the " + what + " address",
@@ -295,7 +290,9 @@ function copyRow(c, { name, label, value, mark, what }) {
     el(
       "dd",
       { class: "row-actions" },
-      el("span", { class: "hex", "data-sol": name }, value ?? "?"),
+      name === "shielded" && c.host.receiveAddress
+        ? c.host.receiveAddress(value ?? "?", { class: "hex", "data-sol": name }, el)
+        : el("span", { class: "hex", "data-sol": name }, value ?? "?"),
       value ? copyButton(c, value, mark, what) : null,
     ),
   ];
@@ -326,35 +323,69 @@ function ownerRow(c, done) {
 }
 
 function keyBlock(c, done) {
-  const { el } = c.host,
-    row = (name, label, value) => kvRow(c, name, label, value);
+  const { el } = c.host;
   const shielded = shieldedShown(c, done.pdaAddress);
-  const label = "Shielded SOL address · " + netOf(clusterOf(c)).badge;
-  // privacy-language.js is in the plain closure and names Devnet; the network is set here.
-  const exposure = SOL_EXPOSURE.replace("Solana Devnet", solanaOf(c));
-  return el(
-    "dl",
-    { class: "kv", "data-key": "sol-receive", tabindex: "-1",
-      "aria-label": "Receive SOL and wallet details" },
-    ownerRow(c, done),
-    row("group-key", "Group key", done.groupKey),
-    copyRow(c, { name: "shielded", label, value: shielded, mark: "copy-shielded",
-      what: "shielded" }),
-    el("dt", {}, "Privacy on " + solanaOf(c)),
-    el("dd", {}, privacyNotice(el, done.pdaAddress ? "partial" : "unknown",
-      done.pdaAddress ? "Amount hidden · payee public" : "Privacy unknown", exposure)),
-    el("dd", { class: "small", "data-sol": "pay-to" }, PAY_TO,
-      " Use a compatible shielded wallet. This is not a standard Solana "
-      + "account address for an ordinary wallet or faucet. To add public SOL, fund this device’s "
-      + "separate fee address and use Add SOL below."),
-    row("balance-private", "Private balance", c.sync.balance ?? "not synced"),
-    row(
-      "balance-public",
-      "Public balance of the group key",
-      c.chain?.balance ?? "not read yet",
-    ),
-    custodyRows(c),
-  );
+  return el("section", { class: "sol-receive-card", "data-key": "sol-receive", tabindex: "-1",
+    "aria-label": "Receive SOL" },
+    el("div", { class: "sol-receive-heading" }, el("h3", {}, "Receive SOL"),
+      el("span", { class: "small muted" }, solanaOf(c))),
+    el("div", { class: "sol-receive-body" },
+      shielded && c.host.qrBox ? el("div", { class: "sol-receive-code", "data-sol": "receive-qr" },
+        c.host.qrBox(shielded, solanaOf(c) + " shielded receive address QR code", 208)) : null,
+      el("div", { class: "sol-receive-destination" },
+        el("dl", { class: "kv sol-receive-address" },
+          copyRow(c, { name: "shielded",
+            label: "Shielded SOL address · " + netOf(clusterOf(c)).badge,
+            value: shielded, mark: "copy-shielded", what: "shielded" })))),
+    el("p", { class: "small sol-receive-note", "data-sol": "pay-to" },
+      "Use a compatible shielded wallet. This is not a standard Solana account address. "
+      + "For public SOL, use Add SOL."),
+    el("p", { class: "small muted" }, "Private payments hide amounts. The payee is public."));
+}
+
+function accountDetails(c, done) {
+  const { el } = c.host;
+  return el("dl", { class: "kv" }, ownerRow(c, done),
+    kvRow(c, "group-key", "Group key", done.groupKey),
+    kvRow(c, "balance-private", "Private balance", c.sync.balance ?? "not synced"),
+    kvRow(c, "balance-public", "Public balance of the group key",
+      c.chain?.balance ?? "not read yet"));
+}
+
+function securityDetails(c, ready) {
+  const { el } = c.host;
+  return el("div", { class: "sol-detail-body" },
+    el("dl", { class: "kv" }, el("dt", {}, "Privacy on " + solanaOf(c)),
+      el("dd", {}, privacyNotice(el, ready ? "partial" : "unknown",
+        ready ? "Amount hidden · payee public" : "Privacy unknown",
+        provesLocally(c) ? PUBLIC_LOCAL : PUBLIC_TEXT, { "data-sol": "public-text" })),
+      ...(ready ? custodyRows(c) : [])),
+    el("p", { class: "small" }, SOL_EXPOSURE.replace("Solana Devnet", solanaOf(c))));
+}
+
+/** Explicit Settings/Security destinations; no ceremony or read is started by rendering them. */
+export function solDetailsView(c, act, actions, surface) {
+  const { el } = c.host, ag = agreement(c), ready = ag.state === "agree" && !stopOf(c);
+  if (surface === "security") return securityDetails(c, ready);
+  if (!ready) return el("p", { class: "small" }, "Finish Solana setup to manage this account.");
+  const share = c.host.localSeats().some((i) => holdsShare(solOf(c.host, c.gid, i)));
+  return el("div", { class: "sol-detail-body" },
+    el("details", {}, el("summary", {}, "Account identifiers and balances"),
+      accountDetails(c, ag.done)),
+    el("details", {}, el("summary", {}, "Device setup"), seatList(c)),
+    syncCard(c, act, actions),
+    share ? el("details", {}, el("summary", {}, "Transaction fee accounts"),
+      fundCard(c, act, actions)) : null,
+    share ? el("details", {}, el("summary", {}, "Solana recovery files"),
+      backupCard(c, act, actions)) : null);
+}
+
+function detailDestination(c, act, actions, surface, title) {
+  const { el, openSolDetails } = c.host;
+  return openSolDetails
+    ? el("button", { class: "btn ghost sm", type: "button", "data-sol": "open-" + surface,
+      onclick: () => openSolDetails(surface) }, title)
+    : el("details", {}, el("summary", {}, title), solDetailsView(c, act, actions, surface));
 }
 
 const SYNC_TEXT =
@@ -456,8 +487,26 @@ function stopCards(c) {
 function readyCards(c, act, actions, ag) {
   if (ag.state !== "agree" || stopOf(c)) return [];
   const share = c.host.localSeats().some((i) => holdsShare(solOf(c.host, c.gid, i)));
-  if (!share) return [keyBlock(c, ag.done)];
-  return [keyBlock(c, ag.done), syncCard(c, act, actions), ...payCards(c, act, actions)];
+  const { el } = c.host;
+  const tools = share ? el("details", { class: "sol-payment-tools", "data-key":
+    "sol-tools-" + (c.host.solanaAction?.() ?? "receive"),
+    open: c.host.solanaAction?.() === "send" },
+    el("summary", {}, "Send and add SOL"), el("div", { class: "sol-detail-body" },
+      syncCard(c, act, actions), ...payCards(c, act, actions))) : null;
+  return [keyBlock(c, ag.done), tools,
+    el("div", { class: "row-actions sol-detail-links" },
+      detailDestination(c, act, actions, "settings", "Solana settings"),
+      detailDestination(c, act, actions, "security", "Security & privacy"))];
+}
+
+function heading(c, status) {
+  const { el } = c.host;
+  const marker = el("span", { "data-sol": "status", hidden: true }, status);
+  if (status === "ready") return [marker];
+  return [el("div", { class: "card-head" }, el("span", { class: "badge plain" }, solanaOf(c))),
+    el("p", { class: "small" }, marker, STATUS_TEXT[status]),
+    privacyNotice(el, "unknown", "Privacy unknown", provesLocally(c) ? PUBLIC_LOCAL : PUBLIC_TEXT,
+      { "data-sol": "public-text" })];
 }
 
 /**
@@ -465,24 +514,17 @@ function readyCards(c, act, actions, ag) {
  * approve(session, seat) and addSol(args).
  */
 export function solView(c, act, actions) {
-  const { el } = c.host,
-    ag = agreement(c),
-    status = statusOf(c, ag);
+  const { el } = c.host, ag = agreement(c), status = statusOf(c, ag);
   const stopped = !!stopOf(c);
   return el(
     "section",
     { class: "card card-pad sol-view", style: "display:grid;gap:12px" },
-    el("div", { class: "card-head" }, el("span", { class: "badge plain" }, solanaOf(c))),
-    // The word stays readable for the checks; a person reads the sentence.
-    el("p", { class: "small" }, el("span", { "data-sol": "status", hidden: true }, status),
-      STATUS_TEXT[status]),
-    privacyNotice(el, status === "ready" ? "partial" : "unknown",
-      status === "ready" ? "Partial privacy · " + solanaOf(c) : "Privacy unknown",
-      provesLocally(c) ? PUBLIC_LOCAL : PUBLIC_TEXT, { "data-sol": "public-text" }),
+    ...heading(c, status),
     ...stopCards(c),
-    started(c.docs, labelOf(c)) ? seatList(c) : stopped ? null : startCard(c, act, actions),
+    status === "ready" ? null : started(c.docs, labelOf(c)) ? seatList(c)
+      : stopped ? null : startCard(c, act, actions),
     ag.state === "differ" ? el("div", { class: "callout bad", role: "alert" }, ag.why) : null,
     ...readyCards(c, act, actions, ag),
-    stopped ? null : backupCard(c, act, actions),
+    stopped || status === "ready" ? null : backupCard(c, act, actions),
   );
 }

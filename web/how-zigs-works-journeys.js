@@ -2,6 +2,7 @@
 import { flows } from "./how-zigs-works-journey-content.js";
 import { guideDiagram } from "./how-zigs-works-diagrams.js";
 import { icon } from "./how-zigs-works-icons.js";
+import { interfaceIcon } from "./sidebar-icons.js";
 
 const numbers = index => String(index + 1).padStart(2, "0");
 const diagrams = { create: "dkg", verify: "verify", approve: "payment", recover: "recovery" };
@@ -16,16 +17,20 @@ export function reliefIcon(index, prefix) {
 
 export function journeyView(el, openChapter) {
   let selected = 0;
-  const root = el("section", { class: "hw-journeys", id: "hw-journeys", "aria-label": "Animated overview" });
+  const root = el("section", { class: "hw-journeys", id: "hw-journeys", "aria-label": "Explore the journeys" });
   const position = el("span", { class: "hw-position", "aria-live": "polite" });
   const panel = el("section", { class: "hw-journey-panel", id: "hw-journey-panel", tabindex: "-1" });
   const tabs = [];
   const track = el("div", { class: "hw-journey-choices", role: "group", "aria-label": "Choose a journey" });
   const icons = [0, 1, 3, 4, 7];
   const stepPositions = new Map();
+  const picker = el("select", { id: "hw-journey-picker", "aria-label": "Choose a journey",
+    onchange: event => choose(Number(event.target.value)) },
+    flows.map((flow, i) => el("option", { value: String(i) }, flow.label + (flow.status ? " · " + flow.status : ""))));
 
   function choose(index, focus = false) {
     selected = (index + flows.length) % flows.length;
+    picker.value = String(selected);
     tabs.forEach((tab, i) => tab.setAttribute("aria-pressed", String(i === selected)));
     const flow = flows[selected];
     position.textContent = numbers(selected) + " / " + numbers(flows.length - 1);
@@ -42,9 +47,9 @@ export function journeyView(el, openChapter) {
     const stages = el("div", { class: "hw-step-controls", role: "group", "aria-label": flow.label + " steps" });
     const steps = flow.steps;
     const previous = el("button", { type: "button", class: "hw-page-button", "data-key": "hw-step-previous",
-      onclick: () => pick(current - 1) }, "← Previous step");
+      'data-interface-control': '', onclick: () => pick(current - 1) }, interfaceIcon('back'), "Previous step");
     const next = el("button", { type: "button", class: "hw-page-button hw-next", "data-key": "hw-step-next",
-      onclick: () => pick(current + 1) }, "Next step →");
+      'data-interface-control': '', onclick: () => pick(current + 1) }, "Next step", interfaceIcon('forward'));
     let current = progress;
     function pick(index, focusStep = false) {
       current = Math.max(0, Math.min(index, steps.length - 1));
@@ -55,10 +60,10 @@ export function journeyView(el, openChapter) {
       caption.textContent = step.caption;
       const art = diagrams[step.art];
       artHost.replaceChildren(guideDiagram(art || step.art, { flow: !art, phase: step.id, prefix: "journey-" + flow.id + "-" + step.id }));
-      copy.replaceChildren(el("p", { class: "hw-eyebrow" }, numbers(current) + " / " + (flow.status ? "Design preview" : flow.label)),
-        el("h4", {}, step.title + "."), el("p", { class: "hw-step-description" }, step.copy),
-        el("button", { type: "button", class: "hw-read-more", "data-key": "hw-step-reference",
-          onclick: () => openChapter(step.docs) }, step.link, el("span", { "aria-hidden": "true" }, "↗")));
+      copy.replaceChildren(el("p", { class: "hw-eyebrow" }, "Step " + numbers(current) + " / " + numbers(steps.length - 1)),
+        el("h4", {}, step.title), el("p", { class: "hw-step-description" }, step.copy),
+        el("button", { type: "button", class: "hw-read-more", "data-key": "hw-step-reference", 'data-interface-control': '',
+          onclick: () => openChapter(step.docs) }, step.link, interfaceIcon('forward')));
       previous.disabled = current === 0;
       next.disabled = current === steps.length - 1;
       if (focusStep) stageButtons[current].focus({ preventScroll: true });
@@ -71,7 +76,7 @@ export function journeyView(el, openChapter) {
             Home: 0, End: steps.length - 1 };
           if (!(event.key in keys)) return;
           event.preventDefault(); pick(keys[event.key], true);
-        } }, el("span", {}, numbers(i)), step.title);
+        } }, el("span", {}, numbers(i)), step.nav || step.title);
       stageButtons.push(button); stages.append(button);
     });
     panel.replaceChildren(el("header", { class: "hw-journey-heading" },
@@ -80,32 +85,33 @@ export function journeyView(el, openChapter) {
         el("p", {}, flow.description))), stages,
       el("div", { class: "hw-journey-stage" }, illustration,
         el("div", { class: "hw-journey-story" }, copy, el("div", { class: "hw-step-pagination" }, previous, next))),
-      el("p", { class: "hw-journey-disclaimer" }, flow.status
-        ? "Preview · Unavailable. These illustrations do not execute swaps, collect approvals or connect to a wallet."
-        : "Illustration only. These examples never inspect a wallet, collect approvals or change your setup."));
+      el("p", { class: "hw-journey-disclaimer" }, "Illustration only · No wallet access or actions"));
     pick(progress);
     if (focus) tabs[selected].focus({ preventScroll: true });
   }
   flows.forEach((flow, i) => {
     const tab = el("button", { type: "button", class: "hw-journey-choice", "aria-pressed": "false",
-      "aria-controls": "hw-journey-panel", "data-key": "hw-journey-" + flow.id,
+      "aria-controls": "hw-journey-panel", "data-key": "hw-journey-" + flow.id, 'data-interface-control': '',
       onclick: () => choose(i), onkeydown: event => {
-        const keys = { ArrowRight: (i + 1) % flows.length, ArrowLeft: (i + flows.length - 1) % flows.length,
+        const keys = { ArrowRight: (i + 1) % flows.length, ArrowDown: (i + 1) % flows.length,
+          ArrowLeft: (i + flows.length - 1) % flows.length, ArrowUp: (i + flows.length - 1) % flows.length,
           Home: 0, End: flows.length - 1 };
         if (!(event.key in keys)) return;
         event.preventDefault(); choose(keys[event.key], true);
       } }, reliefIcon(icons[i], "journey-icon-" + i),
-      el("span", {}, el("strong", {}, flow.label), el("small", {}, flow.status ? "Preview · Unavailable" : flow.summary)),
+      el("span", {}, el("strong", {}, flow.label), el("small", {}, flow.summary)),
       el("span", { class: "hw-choice-number", "aria-hidden": "true" }, numbers(i)));
     tabs.push(tab); track.append(tab);
   });
+  const navigation = el("nav", { class: "hw-journey-navigation", "aria-label": "Journeys" },
+    el("div", { class: "hw-explore-label" }, el("label", { for: "hw-journey-picker" }, "Choose a journey"), position),
+    el("div", { class: "hw-journey-picker" }, picker), track);
   root.append(el("header", { class: "hw-overview-intro" },
-    el("div", {}, el("p", { class: "hw-eyebrow" }, "The ideas behind your wallet"),
-      el("h3", {}, "Shared control.", el("span", {}, "Step by step."))),
-    el("div", {}, el("p", {}, "From your first signing share to a private conversation. Explore one journey at a time."),
-      el("button", { type: "button", class: "hw-reference-link", "data-key": "hw-open-reference",
-        onclick: () => openChapter("shared-control") }, "Read the complete guide", el("span", { "aria-hidden": "true" }, "→")))),
-    el("div", { class: "hw-explore-label" }, el("span", {}, "Explore the journeys"), position), track, panel);
+    el("div", {}, el("h3", {}, "Shared control, step by step"),
+      el("p", {}, "From your first signing share to a private conversation")),
+    el("button", { type: "button", class: "hw-reference-link", "data-key": "hw-open-reference", 'data-interface-control': '',
+      onclick: () => openChapter("shared-control") }, "Complete guide", interfaceIcon('forward'))),
+    el("div", { class: "hw-journey-workspace" }, navigation, panel));
   choose(0);
   return root;
 }

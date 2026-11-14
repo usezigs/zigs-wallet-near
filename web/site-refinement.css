@@ -1,120 +1,316 @@
-/* Brand presentation from zigs-site main 876e358. Financial surfaces stay opaque. */
-@font-face{font-family:Manrope;src:url('/fonts/manrope-latin.woff2') format('woff2');font-style:normal;font-weight:200 800;font-display:swap}
-@font-face{font-family:Manrope;src:url('/fonts/manrope-latin-ext.woff2') format('woff2');font-style:normal;font-weight:200 800;font-display:swap;unicode-range:U+0100-02FF,U+0304,U+0308,U+0329,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
-:root{
- --sans:Manrope,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
- --bg:#08090b;--side:#0c0e11;--panel:#1d2128;--sheet:#1d2128;--raised:#272c35;--sunk:#15181d;
- /* Borders that outline a card or a control stay at 3:1 or more against the card. */
- --line:#6b7686;--line-2:#8792a2;--control-line:#8792a2;--button-line:#8792a2;--line-field:#8792a2;
- --text:#f5f7fa;--muted:#c9d1dc;
- --accent:#a8c7ea;--accent-text:#a8c7ea;--on-accent:#101821;--accent-hi:#b9d4f1;--accent-pressed:#93b4dc;--accent-border:#a8c7ea;
- --accent-soft:rgba(168,199,234,.14);--accent-edge:rgba(168,199,234,.6);--focus:#a8c7ea;--portfolio-focus:#a8c7ea;
- --control-hi:#2b313b;--control-lo:#272c35;--control-hover:#343b46;--metal:#c9d1dc;
- --metal-light:#eee;--metal-mid:#999;--metal-dark:#383838;
- --portfolio-control:#272c35;--portfolio-control-hover:#343b46;--portfolio-control-line:#8792a2;--portfolio-disabled-line:#5b6472;
- --portfolio-bg:#1d2128;--portfolio-line:#6b7686;--portfolio-decor:#20252c;--on-portfolio:#f5f7fa;--on-portfolio-muted:#c9d1dc;
- --hero-hi:#21262e;--hero-lo:#1a1e24;--hero-edge:#6b7686;--ambient:rgba(168,199,234,.055);
- --glass:#1d2128f5;--glass-fallback:#1d2128;--floating-glass:#1d2128f5;--nav-selected:#272c35;
- --light-surface:#ffffff03;--light-rail:#ffffff02;--light-portfolio:#ffffff04;--portfolio-rim:#ffffff12;
- --surface-rim:#ffffff12;--chrome-hi:#ffffff04;--chrome-lo:#ffffff00;
- --shadow-primary:inset 0 1px #ffffff50,0 1px 2px #0002;
- --font-page:700 2rem/2.5rem var(--sans);--font-section:650 1.25rem/1.75rem var(--sans);
- --font-welcome:700 2.75rem/3.1rem var(--sans);--font-body:450 .9375rem/1.5rem var(--sans);
- --ease:cubic-bezier(.22,.68,.18,1);--entrance:cubic-bezier(.22,.68,.18,1);
- --r-control:11px;--r:18px;--layout-gutter:clamp(20px,2.3vw,36px);
+/* Zigs' shared visual language. Charcoal, chalk, precise type, the original zebra.
+   Process: unslop by Damir Sokolovsky — https://github.com/heydamir/unslop (CC BY 4.0).
+   Colours and geometry live in design-system.css; this sheet applies them across the app. */
+@font-face {
+  font-family:Manrope; src:url('/fonts/manrope-latin.woff2') format('woff2');
+  font-style:normal; font-weight:200 800; font-display:swap;
 }
-/* Every page title uses --font-page: 32/40 px, and 26/32 px on a phone. */
-@media(max-width:760px){:root{--font-page:700 1.625rem/2rem var(--sans)}}
-:root[data-theme=light]{
- --bg:#f3f5f8;--side:#eef1f5;--panel:#fff;--sheet:#fff;--raised:#e9edf2;--sunk:#f3f5f8;
- --line:#7b8592;--line-2:#5f6978;--control-line:#5f6978;--button-line:#5f6978;--line-field:#5f6978;
- --text:#0b0d10;--muted:#3d4652;
- --accent:#a8c7ea;--accent-text:#24508a;--on-accent:#101821;--accent-hi:#b9d4f1;--accent-pressed:#93b4dc;--accent-border:#24508a;
- --accent-soft:rgba(36,80,138,.1);--accent-edge:rgba(36,80,138,.65);--focus:#24508a;--portfolio-focus:#a8c7ea;
- --control-hi:#fff;--control-lo:#f3f5f8;--control-hover:#e2e7ee;--metal:#4a5361;
- --hero-edge:#6b7686;--portfolio-line:#6b7686;
- --glass:#fffffff5;--glass-fallback:#fff;--floating-glass:#fffffff5;--nav-selected:#dde5ef;
- --ambient:rgba(168,199,234,.07);--surface-rim:#fff;--light-surface:#ffffff70;--light-rail:#ffffff55;
- --shadow-primary:inset 0 1px #ffffff20,0 1px 2px #0001;
+@font-face {
+  font-family:Manrope; src:url('/fonts/manrope-latin-ext.woff2') format('woff2');
+  font-style:normal; font-weight:200 800; font-display:swap;
+  unicode-range:U+0100-02FF,U+0304,U+0308,U+0329,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
 }
-@media(prefers-color-scheme:light){:root:not([data-theme=dark]){
- --bg:#f3f5f8;--side:#eef1f5;--panel:#fff;--sheet:#fff;--raised:#e9edf2;--sunk:#f3f5f8;
- --line:#7b8592;--line-2:#5f6978;--control-line:#5f6978;--button-line:#5f6978;--line-field:#5f6978;
- --text:#0b0d10;--muted:#3d4652;
- --accent:#a8c7ea;--accent-text:#24508a;--on-accent:#101821;--accent-hi:#b9d4f1;--accent-pressed:#93b4dc;--accent-border:#24508a;
- --accent-soft:rgba(36,80,138,.1);--accent-edge:rgba(36,80,138,.65);--focus:#24508a;--portfolio-focus:#a8c7ea;
- --control-hi:#fff;--control-lo:#f3f5f8;--control-hover:#e2e7ee;--metal:#4a5361;
- --hero-edge:#6b7686;--portfolio-line:#6b7686;
- --glass:#fffffff5;--glass-fallback:#fff;--floating-glass:#fffffff5;--nav-selected:#dde5ef;
- --ambient:rgba(168,199,234,.07);--surface-rim:#fff;--light-surface:#ffffff70;--light-rail:#ffffff55;
- --shadow-primary:inset 0 1px #ffffff20,0 1px 2px #0001;
-}}
-body{-webkit-font-smoothing:antialiased}
-::selection{background:var(--text);color:var(--bg)}
-h1,h2,h3,h4{letter-spacing:-.02em}
-:is(.money,.asset-balance,.portfolio-usd,.metric-value,.receipt-value){font-variant-numeric:tabular-nums}
-.side{background:var(--side);border-right-color:var(--line)}
-.logo{font-size:24px;font-weight:600;letter-spacing:-.055em}
-.side-item{font-size:15px;font-weight:500;min-height:48px;border-radius:10px}
-.side-item.active{background:var(--nav-selected);border-color:var(--line-2);box-shadow:inset 2px 0 var(--accent-text)}
-.side-item .symbol{color:inherit}
-.side-item.active .symbol{color:var(--accent-text)}
-.side-name{font-weight:450}
-.btn{font-weight:600;transition:var(--transition-control)}
-.btn.primary{background:var(--accent);background-image:none;color:var(--on-accent);border-color:var(--accent-border);box-shadow:var(--shadow-primary)}
-.btn.primary:hover:not(:disabled){background:var(--accent-hi);border-color:var(--accent-hi)}
-.btn.primary:active:not(:disabled){background:var(--accent-pressed)}
-.btn:focus-visible,.icon-btn:focus-visible{outline-color:var(--focus)}
-.input{background:var(--sunk);border-color:var(--line-field)}
-.input:focus{border-color:var(--focus)}
-.card,.panel,.surface{box-shadow:inset 0 1px var(--edge-quiet)}
-.row-item:hover:not(:disabled){background:var(--hw-soft,var(--raised))}
-.dialog:not(.home-how-dialog){background:var(--sheet);border-color:var(--line-2);box-shadow:0 30px 100px #0005,inset 0 1px var(--edge)}
-.dialog:not(.home-how-dialog)>h2{font-weight:700;letter-spacing:-.02em}
-/* Original hero artwork and icy-blue accents, with the refined typography and composition. */
-.lobby-home{--home-ink:#f4f4f4;--home-muted:#b8b8b8;--home-accent:var(--accent)}
-.lobby-home .welcome .welcome-main{background:#090909;border-color:var(--line);box-shadow:inset 0 1px #ffffff06,0 24px 70px -50px #000b}
-.home-hero::before{background:radial-gradient(ellipse at 91% 14%,#a8c7ea26,transparent 53%),radial-gradient(ellipse at 66% 90%,#849db318,transparent 58%);opacity:var(--home-atmosphere,.6)}
-.home-hero::after{background:linear-gradient(90deg,#090909 0%,#090909f5 28%,#090909bd 48%,#09090922 72%,transparent 88%)}
-.lobby-home .home-hero h1{font-weight:400;letter-spacing:-.06em;line-height:1.12}
-.lobby-home .home-hero .welcome-title-accent{color:#aaa}
-.lobby-home .home-hero .welcome-summary{color:#b8b8b8;line-height:1.85}
-.lobby-home .welcome-actions .btn{border-radius:999px;padding-inline:24px;font-weight:550}
-.lobby-home .welcome-actions .btn.primary:not(:disabled){background:var(--accent);color:var(--on-accent);border-color:var(--accent);box-shadow:none}
-.lobby-home .welcome-actions .btn.primary:hover:not(:disabled){background:var(--accent-hi);border-color:var(--accent-hi)}
-.lobby-home .welcome-actions .btn:not(.primary){background:#141414;color:#eee;border-color:#666}
-/* Functional pages share one neutral surface hierarchy; all status tokens retain their meaning. */
-.premium-overview-grid>.overview-hero{background:linear-gradient(135deg,#191919,#101010 75%);border-color:var(--line)}
-.premium-overview-grid .overview-actions .btn{white-space:nowrap;overflow-wrap:normal;font-size:13px;gap:6px;padding-inline:8px}
-.overview-page .overview-actions .btn{background:#222;color:#eee;border-color:#666}
-.overview-page .overview-actions .btn:hover:not(:disabled){background:#303030;border-color:#999}
-.overview-page .overview-actions .btn:disabled{color:#aaa;border-color:#555;background:#1c1c1c}
-.overview-page .section-heading h2,.premium-overview-grid .shared-control h2{font-weight:450;letter-spacing:-.035em}
-.asset-rows.assets-grid{background:var(--panel);border-color:var(--line);box-shadow:inset 0 1px var(--edge)}
-.asset-rows .asset-row .asset-title h3{font-weight:500;letter-spacing:-.025em}
-:is(.approvals-page,.activity-page,.security-page,.settings-page,.address-book-page,.messages-page,.recipients-page,.messages-workspace,#panel-recovery) h2{font-weight:500;letter-spacing:-.035em}
-.settings-page .surface,.security-page .surface,.approvals-page .surface{background:var(--panel);border-color:var(--line)}
-:is(.setup-dialog,.create-dialog,.guided-setup,.onboarding) :is(h2,h3){font-weight:450;letter-spacing:-.035em}
-:is(.privacy-demo-popup,.network-privacy-dialog) :is(h2,h3){font-weight:450;letter-spacing:-.045em}
-@media(max-width:760px){.logo{font-size:22px}.lobby-home .welcome-actions .btn{padding-inline:18px}.lobby-home .home-hero h1{letter-spacing:-.055em}}
-@media(prefers-reduced-motion:reduce){.btn,.icon-btn,.side-item{transition:none}}
-@media(forced-colors:active){.side-item.active{outline:2px solid Highlight;box-shadow:none}.btn.primary{background:ButtonFace;color:ButtonText;border-color:ButtonText}.lobby-home .welcome .welcome-main,.premium-overview-grid>.overview-hero{background:Canvas;color:CanvasText}.home-hero::before,.home-hero::after{display:none}.lobby-home .home-hero :is(h1,.welcome-title-accent,.welcome-summary){color:CanvasText}.lobby-home .welcome-actions .btn{background:ButtonFace;color:ButtonText;border-color:ButtonText}}
+/* Bricolage Grotesque, optical size 32 / weight 650. Only the Zigs wordmark glyphs.
+   Source: Google Fonts (ateliertriay/bricolage), SIL OFL; served locally. */
+@font-face {
+  font-family:"Zigs Wordmark"; src:url('/fonts/zigs-wordmark.woff2') format('woff2');
+  font-style:normal; font-weight:650; font-display:swap;
+  unicode-range:U+005A,U+0067,U+0069,U+0073;
+}
+body { -webkit-font-smoothing:antialiased; }
+::selection { background:var(--accent); color:var(--on-accent); }
+h1,h2,h3,h4 { font-weight:500; letter-spacing:0; }
+h1 { letter-spacing:-.035em; }
+:is(.money,.asset-balance,.portfolio-usd,.metric-value,.receipt-value) { font-variant-numeric:tabular-nums; }
+:is(.label,.small,.hint,.badge,.ri-sub,.side-name,.side-meta) { letter-spacing:0; }
+.label { font:var(--font-label); text-transform:none; }
+.faint { color:var(--quiet); }
 
-/* The supplied white fingerprint mark keeps its original colours in both themes. */
-.logo .nav-zebra{width:42px;height:42px;padding:5px;background:#050505;border:1px solid #333;border-radius:10px}
-.logo .nav-zebra img{display:block;width:30px;height:32px;object-fit:contain;border-radius:0;box-shadow:none;filter:none}
+/* A quiet, compact rail. Wallet context remains distinct from the selected page. */
+.side { padding:24px 16px 16px; gap:24px; background:var(--side); border-right:1px solid var(--line); box-shadow:none; }
+/* The original zebra is the mark, rather than a badge around it. Its alpha mask
+   follows the same theme ink as the wordmark without changing the source artwork. */
+.side .logo { gap:10px; padding:0 4px; min-height:48px; flex-wrap:nowrap;
+  width:fit-content; max-width:100%; color:var(--text); }
+.logo .nav-zebra { display:block; flex:none; width:44px; height:44px; padding:0;
+  border:0; border-radius:0; box-shadow:none; background:currentColor;
+  -webkit-mask:url('/logo.png?v=fingerprint-17dbdecb64d0') center/contain no-repeat;
+  mask:url('/logo.png?v=fingerprint-17dbdecb64d0') center/contain no-repeat; }
+.side .logo .logo-word { display:block; flex:none; font-family:"Zigs Wordmark",var(--sans);
+  font-size:32px; font-weight:650; line-height:1.1; letter-spacing:-.025em; }
+.side .logo:focus-visible { outline:2px solid var(--focus); outline-offset:4px; border-radius:4px; }
+@media(forced-colors:active) {
+  .logo .nav-zebra { forced-color-adjust:none; color:LinkText; }
+}
+#side-nav { gap:4px; }
+.side-item,.side-item[id^=tab-] { grid-template-columns:20px minmax(0,1fr) auto; gap:12px;
+  min-height:36px; padding:8px 12px; border:0; border-radius:8px;
+  color:var(--muted); font:400 13px/20px var(--sans); background:transparent; box-shadow:none; }
+.side-item>.symbol { display:grid; place-items:center; width:20px; height:20px;
+  padding:0; border:0; border-radius:0; background:none; box-shadow:none; color:var(--muted); }
+.side-item>.symbol svg { width:18px; height:18px; stroke-width:1.5; }
+.side-item.active:not(.wallet-context),.side-item[aria-current=page]:not(.wallet-context) {
+  background:var(--nav-selected); color:var(--text); border-color:transparent; box-shadow:none; font-weight:500; }
+.side-item.active:not(.wallet-context)::before { display:none; }
+.side-item.active>.symbol { color:var(--accent-text); background:none; border:0; box-shadow:none; }
+.side-item:hover:not(:disabled) { color:var(--text); background:var(--raised); }
+.side-item.wallet-context { grid-template-columns:24px minmax(0,1fr) auto; padding:12px;
+  min-height:72px; border-radius:8px; }
+.side-item.wallet-context.active { background:var(--sunk); border-color:var(--line); box-shadow:none; }
+.side-head { margin-top:24px; padding:8px 12px 4px; }
+.side-head>.label { color:var(--quiet); font-size:12px; }
+.side-head>.icon-btn { width:48px; min-width:48px; height:48px; border:0; background:transparent; }
+.side-empty { padding:8px 12px; color:var(--quiet); font-size:12px; }
+.side-foot { border-color:var(--line); padding:12px 8px 0; gap:12px; }
+.side .side-note { color:var(--quiet); font-size:12px; line-height:20px; }
+.side .browser-status { font-size:12px; }
+.side .browser-status>summary { min-height:36px; }
+.side .browser-status>summary::after { width:20px; height:20px; background:none; box-shadow:none; font-size:16px; }
+.side .side-privacy { padding-inline:8px; }
+.side-item .badge.plain { padding:0; min-height:0; font:400 11px/16px var(--mono); background:none; color:var(--quiet); }
+.side-item .count { padding:2px 6px; font-size:11px; line-height:16px; border-radius:4px; }
 
-/* Icy-blue presentation accents are shared by the wallet and its educational views. */
-@media(forced-colors:none){
- .hw-experience .hw-view-choices button[aria-pressed=true],.hw-experience .hw-reference-link{background:var(--accent);color:var(--on-accent);border-color:var(--accent-border)}
- .hw-experience .hw-journey-choice[aria-pressed=true]{border-color:var(--accent-text);background:linear-gradient(135deg,var(--accent-soft),var(--panel));box-shadow:inset 0 1px var(--accent-edge)}
- .hw-experience .hw-step-choice[aria-pressed=true]{color:var(--accent-text);border-color:var(--accent-text)}
- .hw-experience .hw-tab[aria-selected=true]{border-color:var(--accent-edge);background:var(--accent-soft);box-shadow:inset 2px 0 var(--accent-text);color:var(--accent-text)}
- .hw-experience .hw-takeaway{border-left-color:var(--accent-text);background:var(--accent-soft)}
- .hw-experience :is(.hw-overview-intro,.hw-chapter-heading,.hw-step-copy)>.hw-eyebrow{color:var(--accent-text)}
- .hw-experience .hw-overview-intro>div>.hw-eyebrow{color:var(--accent-text)}
- .hw-experience .hw-read-more{color:var(--accent-text);text-decoration-color:var(--accent-edge)}
- .hw-figure,.hw-journey-figure{background:radial-gradient(ellipse at 80% 20%,#a8c7ea09,transparent 65%),linear-gradient(135deg,#131313,#080808 70%)}
- .hw-art .dxa-flow{stroke:var(--accent)}
- .hw-art .dxa-overline{fill:var(--accent)}
+/* Surfaces recede. Strong borders belong to fields, focus and meaningful states. */
+.main { padding:32px var(--layout-gutter) 48px; }
+.card,.surface,.assets-grid,.guided-card,.settings-section { background:var(--panel); border-color:var(--line); box-shadow:none; }
+.card,.surface { border-radius:var(--r); }
+.panel { background:transparent; border-radius:0; }
+.btn,.icon-btn { border-radius:var(--r-control); background:var(--raised); border-color:var(--line-2); box-shadow:none; font-weight:500; }
+.btn { padding:12px 16px; transition:var(--transition-control); }
+.btn:hover:not(:disabled),.icon-btn:hover:not(:disabled) { background:var(--control-hover); border-color:var(--control-line); }
+.btn.primary { background:var(--primary); border-color:var(--primary); color:var(--on-primary); box-shadow:none;
+  --interaction-rest:var(--primary); --interaction-ink:var(--on-primary); --interaction-edge:var(--primary); }
+.btn.primary:hover:not(:disabled) { background:var(--primary-hover); border-color:var(--primary-hover); }
+.btn.primary:active:not(:disabled) { background:var(--primary); }
+.btn.ghost { background:transparent; border-color:transparent; box-shadow:none; color:var(--muted); }
+.btn.ghost:hover:not(:disabled) { color:var(--text); background:var(--raised); border-color:transparent; }
+.btn.danger { background:var(--bad-soft); color:var(--bad); border-color:var(--bad); }
+.btn:disabled,.btn.primary:disabled { color:var(--muted); border-color:var(--line); background:var(--sunk); border-style:solid; }
+.btn.ghost:disabled { background:transparent; border-color:transparent; }
+:is(.btn,.icon-btn,.input,select):focus-visible { outline:2px solid var(--focus); outline-offset:3px; }
+.input { background:var(--sunk); color:var(--text); border:1px solid var(--line-field); border-radius:8px; box-shadow:none; }
+.input:focus { border-color:var(--focus); box-shadow:none; }
+.input[aria-invalid=true] { border-color:var(--bad); }
+.badge { border-radius:6px; padding:4px 8px; min-height:24px; font-size:12px; line-height:16px; }
+.badge.plain { background:var(--sunk); }
+.premium-overview-grid .balance-heading .badge { color:var(--on-portfolio-muted); background:transparent; border-color:var(--portfolio-line); }
+.dot.ok { box-shadow:none; }
+.wallet-topbar { min-height:64px; padding:0 0 24px; border-bottom:1px solid var(--line); }
+.wallet-name-block h1,.overview-topbar .wallet-name-block h1 { font:500 20px/28px var(--sans); letter-spacing:-.025em; }
+.wallet-identity { gap:12px; }
+.wallet-identity>.wallet-avatar { width:40px; height:40px; filter:none; }
+.wallet-topbar .back { color:var(--muted); font-size:13px; }
+.page-head,.workspace-heading,.preferences-heading { gap:16px; }
+.ph-left { gap:8px; }
+.ph-left h1,.preferences-heading :is(h1,h2),#panel-settings .preferences-heading :is(h1,h2) { font:var(--font-page); letter-spacing:-.035em; }
+:is(.activity-heading,.approval-page-heading,.security-page-heading,.messages-heading,.swap-heading) :is(h1,h2) { font:var(--font-page); letter-spacing:-.035em; }
+:is(.activity-heading,.approval-page-heading,.security-page-heading,.messages-heading,.swap-heading,.preferences-heading) p { font:var(--font-meta); line-height:1.6; max-width:64ch; }
+.row-item { gap:16px; padding:16px 24px; }
+.row-item:hover:not(:disabled) { background:var(--sunk); }
+.ri-title { font-weight:500; }
+.tx-ico,.av,.coin-mark { background:var(--sunk); border-color:var(--line); box-shadow:none; }
+.callout,.notice,.ux-flow-summary { border-radius:8px; box-shadow:none; }
+
+/* Overview: one strong balance panel, exact asset values, and a quieter supporting rail. */
+.overview-page>.premium-overview-grid { gap:24px; }
+.premium-overview-grid>.overview-hero { padding:28px; gap:24px; border:1px solid var(--portfolio-line);
+  border-radius:16px; background:var(--portfolio-bg); color:var(--on-portfolio); box-shadow:none; }
+.premium-overview-grid .portfolio-summary { gap:12px; }
+.premium-overview-grid .balance-heading>.label { font:400 13px/20px var(--sans); letter-spacing:0; color:var(--on-portfolio-muted); }
+.premium-overview-grid .portfolio-value { font:400 48px/56px var(--sans); letter-spacing:-.045em; color:var(--on-portfolio); }
+.portfolio-decimals { font-size:.65em; color:var(--on-portfolio-muted); }
+.portfolio-currency { font:400 12px/20px var(--mono); letter-spacing:0; color:var(--on-portfolio-muted); }
+.portfolio-network-note,.portfolio-placeholder,.premium-overview-grid .portfolio-details { color:var(--on-portfolio-muted); font-size:12px; line-height:20px; }
+.premium-overview-grid .portfolio-details>summary { min-height:32px; }
+.premium-overview-grid .overview-actions { display:flex; gap:8px; }
+.premium-overview-grid .overview-actions .btn { flex-direction:row; gap:8px; min-height:48px; padding:12px;
+  font:500 13px/20px var(--sans); border-radius:8px; background:var(--portfolio-control);
+  color:var(--on-portfolio); border-color:var(--portfolio-control-line); box-shadow:none; }
+.premium-overview-grid .overview-actions .btn:hover:not(:disabled) { background:var(--portfolio-control-hover); border-color:var(--portfolio-focus); }
+.premium-overview-grid .overview-actions .btn:disabled { color:var(--on-portfolio-muted); background:var(--portfolio-bg); border-color:var(--portfolio-disabled-line); }
+.premium-overview-grid .overview-actions .symbol { width:16px; height:16px; }
+.overview-page .asset-section,.overview-page .overview-transactions { gap:16px; }
+.overview-page .section-heading h2,.premium-overview-grid .shared-control h2 { font:500 16px/24px var(--sans); letter-spacing:0; }
+.asset-rows.assets-grid { border:1px solid var(--line); border-radius:16px; background:var(--panel); box-shadow:none; }
+.asset-rows>.asset-row,.asset-rows>.asset-row+.asset-row { padding:24px; }
+.asset-rows>.asset-row:last-child { border-radius:0 0 16px 16px; }
+.asset-row-main { gap:16px; }
+.asset-rows .asset-row .asset-title { gap:12px; }
+.asset-rows .asset-row .asset-title h3 { font:500 15px/24px var(--sans); letter-spacing:0; }
+.asset-rows .asset-row .asset-title p { font:400 12px/20px var(--sans); }
+.asset-rows .asset-row .coin-mark { width:36px; height:36px; flex-basis:36px; border:0; background:none; border-radius:0; box-shadow:none; }
+.asset-rows .asset-row .coin-mark .symbol { width:28px; height:28px; }
+.asset-rows .asset-row .privacy-badge { padding:0; border:0; border-radius:0; background:none; color:var(--muted); font:400 12px/20px var(--sans); }
+.asset-rows .asset-row .asset-balance-block>.label { font:400 12px/20px var(--sans); color:var(--muted); }
+.asset-rows .asset-row .asset-balance-block>.money.xl { font:500 24px/32px var(--sans); letter-spacing:-.02em; }
+.asset-rows .asset-row .asset-balance-block>.asset-balance.unknown { font:400 15px/24px var(--sans); color:var(--muted); }
+.asset-rows .asset-row .shielding-actions { gap:8px; }
+.asset-rows .asset-row .shielding-actions>.btn { border-radius:8px; padding:12px; background:var(--sunk); border-color:transparent; font-size:12px; }
+.asset-rows .asset-row .shielding-actions>.btn:disabled { color:var(--muted); border-color:transparent; background:transparent; }
+.asset-rows .asset-row .shielding-actions .symbol { width:16px; height:16px; }
+.asset-rows .asset-row .asset-row-status,.asset-rows .asset-row .asset-incoming,.asset-row-warning { font:400 12px/20px var(--sans); }
+.premium-overview-grid .shared-control { gap:16px; padding:24px; border-radius:16px; background:var(--panel); box-shadow:none; }
+.premium-overview-grid .shared-control-rule { gap:8px; }
+.premium-overview-grid .shared-control-rule>strong { font:400 36px/40px var(--sans); letter-spacing:-.025em; }
+.premium-overview-grid .shared-control-participation { margin-top:-8px; font-size:12px; }
+.custody-devices { padding-block:8px; gap:16px 8px; }
+.custody-device { gap:8px; }
+.custody-node { width:36px; height:36px; border-radius:8px; color:var(--text); background:var(--sunk);
+  border:1px solid var(--line-2); box-shadow:none; font:400 12px/20px var(--mono); }
+.custody-device::before { background:var(--line-2); }
+.custody-device-name,.custody-device-state { font-size:12px; line-height:20px; }
+.premium-overview-grid .shared-control-footer { padding-top:16px; gap:8px; }
+.premium-overview-grid .shared-control-footer>p { font-size:12px; line-height:20px; }
+.overview-page .transaction-views { padding:4px; min-width:0; border:0; border-radius:8px; background:var(--sunk); }
+.overview-page .transaction-views>.btn { min-height:48px; padding:8px 12px; font-size:12px; border-radius:6px; }
+.overview-page .transaction-views>.btn[aria-pressed=true] { background:var(--panel); box-shadow:none; }
+.overview-page .overview-inbox-summary { padding:20px; gap:16px; }
+.overview-page .overview-inbox-summary>.card-head>.btn { padding:8px 0; background:none; border-color:transparent; color:var(--accent-text); }
+.overview-page .overview-inbox-summary .transaction-empty { padding:16px 0; border:0; border-radius:0; background:none; box-shadow:none; }
+.transaction-empty-mark { border:0; border-radius:8px; background:var(--sunk); box-shadow:none; color:var(--muted); }
+.transaction-empty-label { font-weight:500; }
+.transaction-empty-detail { margin-top:8px; font-size:13px; line-height:20px; }
+
+/* Approvals and security communicate actual state through type, rules and clear labels. */
+.approvals-page .surface,.security-page .surface,.security-overview,.security-signer { border-color:var(--line); background:var(--panel); box-shadow:none; }
+.security-overview { border-radius:16px; padding:24px; }
+.security-metrics { margin:24px 0; gap:24px; }
+.security-metrics>div+div { padding-left:24px; }
+.security-metrics dd { font-weight:500; letter-spacing:0; }
+.security-emblem,.security-device-avatar,.approval-empty-mark { color:var(--muted); background:var(--sunk); border:1px solid var(--line); border-radius:8px; box-shadow:none; }
+.security-device-avatar { width:40px; height:40px; }
+.security-signer summary { min-height:96px; padding:20px 24px; }
+.security-signer-name strong { font-weight:500; letter-spacing:0; }
+.security-status { border-radius:6px; }
+.security-access-entry,.security-access-entry>summary { border-radius:12px; }
+.approval-rule-panel,.approval-summary,.approval-empty,.approval-custody,.approval-device-card { background:var(--panel); border-color:var(--line); box-shadow:none; border-radius:16px; }
+.approval-rule-number,.approval-rule-value { font-weight:400; }
+.approvals-heading h2 { font:var(--font-page); letter-spacing:-.035em; }
+.shared-control,.approval-request { background:var(--panel); border-radius:16px; box-shadow:none; }
+.approval-request:hover { transform:none; box-shadow:none; }
+.threshold-numeral { padding:12px; border:0; border-radius:8px; background:var(--sunk); box-shadow:none; }
+.signer-node .signer-hardware { background:var(--sunk); border-radius:8px; border-color:var(--line-2); box-shadow:none; }
+.signer-hardware-face { border:0; }
+.signer-hardware::after { display:none; }
+.signer-connection { background:var(--line-2); }
+
+/* Settings and saved recipients read as structured lists rather than stacks of bevels. */
+.preferences-page { gap:32px; }
+.preferences-group { gap:12px; }
+.preferences-group h3 { font-weight:500; letter-spacing:0; }
+.preferences-surface { background:var(--panel); border:1px solid var(--line); border-radius:12px; box-shadow:none; }
+.preference-row { padding:20px 24px; gap:24px; }
+.preference-label strong { font-weight:500; letter-spacing:0; }
+.preference-title { font-weight:500; letter-spacing:0; }
+.preference-row :is(.preference-action,.preference-state) { font-size:13px; }
+.preference-detail { background:var(--sunk); }
+.recipient-empty-art { background:var(--sunk); color:var(--muted); border:1px solid var(--line); box-shadow:none; border-radius:12px; }
+
+/* Messages: a legible workspace with calm conversation lists and restrained bubbles. */
+.messages-workspace { --messages-canvas:var(--bg); --messages-surface:var(--panel);
+  --messages-inset:var(--sunk); --messages-hover:var(--raised); }
+.messages-layout { border-radius:16px; border-color:var(--line); box-shadow:none; }
+.messages-sidebar { background:var(--sunk); }
+.messages-row { border-radius:8px; }
+.messages-row[aria-current=true],.messages-row.active { box-shadow:inset 2px 0 var(--accent-text); }
+.messages-row-title,.messages-thread-title h2,.messages-conversation-title h2 { font-weight:500; letter-spacing:0; }
+.messages-empty-art { background:var(--sunk); border:1px solid var(--line); border-radius:12px; box-shadow:none; }
+.messages-empty h2,.messages-empty h3,.messages-empty-thread h3 { font-weight:500; letter-spacing:0; }
+.messages-workspace .msg-body { padding:12px 16px; gap:8px; box-shadow:none; }
+.messages-workspace .msg.outgoing>.msg-body { background:var(--raised); border-color:var(--line); }
+.messages-workspace .msg-head b { font-weight:500; }
+.messages-workspace .composer textarea { border-radius:8px; padding:12px 16px; }
+.messages-workspace .messages-actions>summary { border-radius:8px; box-shadow:none; }
+.messages-tabs { padding:4px; border:0; border-radius:8px; background:var(--sunk); }
+.messages-tabs>button { border-radius:6px; }
+.messages-tabs>button.active { border-color:transparent; box-shadow:none; }
+
+/* Swap keeps its real quote/execution states; the composition and controls share the app. */
+.swap-composer,.swap-detail-card,.swap-privacy,.swap-quantum-panel { background:var(--panel); border-color:var(--line); border-radius:16px; box-shadow:none; }
+.swap-composer { padding:16px; }
+.swap-composer :is(h2,h3),.swap-detail-card h2,.swap-privacy h2 { font-weight:500; letter-spacing:0; }
+.swap-asset-button { border-radius:8px; background:var(--raised); border-color:var(--line); box-shadow:none; font-weight:500; }
+.swap-reverse { background:var(--panel); border-color:var(--line-2); box-shadow:none; }
+.swap-primary { border-radius:8px; background:var(--primary); color:var(--on-primary); border-color:var(--primary); box-shadow:none; font-weight:500; }
+.swap-primary:hover:not(:disabled) { background:var(--primary-hover); border-color:var(--primary-hover); }
+.swap-secondary { border-radius:8px; box-shadow:none; }
+.swap-amount { font-weight:400; }
+.swap-settings-panel { padding:16px; border-radius:12px; background:var(--sheet); backdrop-filter:none; box-shadow:var(--shadow-floating); }
+.swap-provider-mark { background:var(--sunk); border-color:var(--line); border-radius:8px; box-shadow:none; }
+.swap-primary:disabled { opacity:1; color:var(--muted); background:var(--sunk); border-color:var(--line); }
+.swap-tab-label,.swap-details-open,.swap-eyebrow { font-weight:500; letter-spacing:0; }
+
+/* Forms, payment reviews, recovery and education use the same measured geometry. */
+.dialog:not(.home-how-dialog),.drawer { background:var(--sheet); border:1px solid var(--line-2); box-shadow:var(--shadow); }
+.dialog:not(.home-how-dialog) { border-radius:20px; }
+.dialog:not(.home-how-dialog)>h2,.dialog .card-head h2 { font:var(--font-page); letter-spacing:-.025em; }
+.dialog .field,.dialog .hint { letter-spacing:0; }
+.dialog-actions { gap:12px; padding-block:16px; }
+.dialog .safety,.dialog .qr,.dialog .addr-full { opacity:1; }
+.setup-plan-progress li { border-radius:8px; }
+.setup-plan-progress li.current { background:var(--sunk); }
+.setup-plan-progress li.current>span:first-child { color:var(--accent-text); background:var(--panel); border-color:var(--accent-text); }
+.setup-review-configuration,.setup-network-unavailable,.guided-card { border-radius:12px; box-shadow:none; }
+.hw-experience { --hw-soft:var(--sunk); }
+.hw-figure,.hw-journey-figure { background:var(--sunk); border-color:var(--line); box-shadow:none; }
+.hw-experience .hw-journey-choice[aria-pressed=true] { background:var(--sunk); border-color:var(--accent-text); box-shadow:none; }
+.hw-experience .hw-view-choices button[aria-pressed=true],.hw-experience .hw-reference-link { background:var(--raised); color:var(--text); border-color:var(--line-2); }
+.hw-experience .hw-tab[aria-selected=true] { background:var(--sunk); color:var(--accent-text); box-shadow:inset 2px 0 var(--accent-text); }
+.hw-experience .hw-takeaway { border-left-color:var(--accent-text); background:var(--sunk); }
+.hw-art .dxa-flow { stroke:var(--accent-text); }
+.hw-art .dxa-overline { fill:var(--accent-text); }
+.outcome-seal { border:1px solid var(--line-2); background:var(--sunk); border-radius:12px; }
+.outcome-seal::before,.outcome-seal::after { display:none; }
+.outcome-seal--attention { color:var(--warning); border-color:var(--warning); background:var(--warning-soft); }
+
+@media(min-width:1280px) {
+  .premium-overview-grid>.overview-hero { grid-template-columns:minmax(0,1fr); }
+  .premium-overview-grid .overview-actions { width:100%; }
+  .premium-overview-grid .overview-actions>.btn,.premium-overview-grid .overview-actions>.overview-action-picker { flex:1; }
+}
+@media(min-width:1600px) {
+  .premium-overview-grid>.overview-hero { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+}
+@media(max-width:760px) {
+  .side { padding:12px 20px; gap:12px; }
+  .side .logo { min-height:48px; padding:0; gap:8px; }
+  .side .nav-zebra { width:36px; height:36px; }
+  .side .logo .logo-word { font-size:28px; }
+  .side-item,.side-item[id^=tab-] { min-height:48px; padding:12px; font-size:14px; }
+  .side-head>.icon-btn { width:48px; min-width:48px; height:48px; }
+  .main { padding:24px var(--layout-gutter) 40px; }
+  .wallet-topbar { padding-bottom:20px; }
+  .wallet-name-block h1,.overview-topbar .wallet-name-block h1 { font-size:18px; line-height:28px; }
+  .premium-overview-grid>.overview-hero { padding:24px; gap:20px; }
+  .premium-overview-grid .portfolio-value { font-size:40px; line-height:48px; }
+  .premium-overview-grid .overview-actions .btn { flex-direction:row; gap:8px; min-height:48px; padding:12px 8px; font-size:12px; }
+  .asset-rows>.asset-row,.asset-rows>.asset-row+.asset-row { padding:20px; }
+  .asset-rows .asset-row .asset-title h3 { font-size:14px; }
+  .asset-rows .asset-row .shielding-actions { justify-content:flex-start; }
+  .premium-overview-grid .shared-control,.security-overview { padding:20px; }
+  .overview-page .transaction-views>.btn { min-height:48px; }
+  .preference-row { padding:16px 20px; gap:16px; }
+  .security-signer summary { padding:20px; }
+  .dialog:not(.home-how-dialog) { border-radius:16px; }
+  .dialog-actions { gap:8px; }
+}
+@media(max-width:400px) {
+  :root { --layout-gutter:16px; }
+  .asset-rows .asset-row .asset-position { padding-right:32px; }
+}
+@media(forced-colors:active) {
+  .side,.card,.surface,.panel,.assets-grid,.guided-card,.settings-section,
+  .premium-overview-grid>.overview-hero,.premium-overview-grid .shared-control,
+  .preferences-surface,.security-overview,.security-signer,.swap-composer,.swap-quantum-panel,
+  .dialog:not(.home-how-dialog),.drawer,.hw-figure,.hw-journey-figure {
+    background:Canvas; color:CanvasText; border-color:CanvasText; box-shadow:none; }
+  .side-item.active:not(.wallet-context) { outline:2px solid Highlight; outline-offset:-2px; }
+  .btn.primary,.swap-primary { background:ButtonFace; color:ButtonText; border-color:ButtonText; }
+  .premium-overview-grid .portfolio-value,.portfolio-decimals,.portfolio-currency,
+  .premium-overview-grid .balance-heading>.label,.portfolio-placeholder,.portfolio-network-note {
+    color:CanvasText; }
+  .premium-overview-grid .overview-actions .btn { background:ButtonFace; color:ButtonText; border-color:ButtonText; }
+  .premium-overview-grid .overview-actions .btn:disabled { color:GrayText; border-color:GrayText; }
+  .asset-rows .asset-row .privacy-badge { color:CanvasText; }
+  .custody-node,.security-emblem,.security-device-avatar,.outcome-seal { background:Canvas; color:CanvasText; border-color:CanvasText; }
 }

@@ -1,0 +1,96 @@
+/* Swap action hierarchy and educational controls in the graphite/silver system. */
+.swap-page .swap-composer,.swap-page .swap-privacy-explainer {
+  border-color:var(--line); border-radius:18px; background:var(--panel);
+  box-shadow:inset 0 1px 0 var(--studio-rim); }
+.swap-page .swap-pane { border-radius:14px; background:var(--sunk); }
+.swap-page .swap-primary,.swap-modal .swap-primary {
+  border-radius:12px; background:var(--primary); color:var(--on-primary);
+  border-color:var(--primary); box-shadow:inset 0 1px 0 var(--studio-rim);
+  transition:background-color 160ms var(--ease),border-color 160ms var(--ease),transform 120ms var(--ease); }
+.swap-page .swap-primary:hover:not(:disabled),.swap-modal .swap-primary:hover:not(:disabled) {
+  filter:none; background:var(--primary-hover); }
+.swap-page .swap-secondary,.swap-modal .swap-secondary {
+  padding:10px 14px; color:var(--text); line-height:1.5; }
+.swap-page .swap-primary .symbol,.swap-modal .swap-primary .symbol { width:20px; height:20px; }
+.swap-page .swap-primary>.swap-action-label { font:inherit; }
+.swap-page .swap-max { display:inline-flex; align-items:center; justify-content:center;
+  min-width:48px; min-height:44px; padding:8px 12px; border:1px solid var(--line);
+  border-radius:10px; background:var(--panel); color:var(--text); font:500 12px/1.5 var(--sans); }
+.swap-page .swap-max:not(:disabled) { cursor:pointer; }
+.swap-page .swap-max[hidden] { display:none; }
+.swap-page .swap-switch-row { min-height:44px; height:auto; flex-basis:44px; }
+.swap-page .swap-reverse { min-width:44px; min-height:44px; margin-right:0; padding:8px 12px;
+  border:1px solid var(--line); border-radius:10px; background:var(--panel);
+  font:400 12px/1.5 var(--sans); }
+.swap-page .swap-reverse .symbol { width:16px; height:16px; }
+.swap-page .swap-composer-tools { gap:8px; }
+.swap-page .swap-composer-tools .swap-details-open,.swap-page .swap-settings summary {
+  min-height:44px; border-radius:10px; }
+.swap-page .swap-composer-tools .swap-details-open { padding:8px; }
+.swap-page .swap-settings-panel { background:var(--panel); backdrop-filter:none;
+  border-color:var(--line); box-shadow:0 12px 28px -20px var(--studio-floor); }
+.swap-page .swap-privacy-controls { min-width:0; }
+.swap-page .swap-privacy-play { display:inline-flex; align-items:center; justify-content:center;
+  gap:6px; min-height:44px; min-width:44px; padding:6px 8px; border:1px solid var(--line);
+  border-radius:10px; background:var(--sunk); color:var(--text); font:500 12px/1.5 var(--sans); }
+.swap-privacy-play .symbol { width:16px; height:16px; flex:none; }
+.swap-page .swap-privacy-more { min-height:44px; padding-block:8px; }
+.swap-page :is(.swap-max,.swap-reverse,.swap-details-open,.swap-privacy-play,.swap-privacy-more):hover:not(:disabled) {
+  background:var(--raised); color:var(--text); }
+.swap-page :is(.swap-max,.swap-reverse,.swap-details-open,.swap-privacy-play,.swap-privacy-more):focus-visible {
+  outline:2px solid var(--focus); outline-offset:-3px; }
+.swap-page .swap-privacy-node { box-shadow:inset 0 1px 0 var(--studio-rim); }
+.swap-page .privacy-film { background:var(--sunk); border-color:var(--line); }
+.swap-preview-tag>.interface-symbol { width:14px; height:14px; }
+.swap-page .swap-execution-art { display:grid; place-items:center; width:44px; height:44px;
+  border:0; border-radius:0; background:none; }
+.swap-execution .swap-execution-option { grid-template-columns:44px minmax(0,1fr) 16px;
+  min-height:64px; padding:8px 12px; gap:12px; border-radius:12px; }
+.swap-execution .swap-execution-indicator { width:16px; height:16px; }
+.swap-execution .swap-execution-option:has(input:disabled) { opacity:1; }
+.swap-execution-option:has(input:disabled) :is(.swap-execution-copy,.swap-execution-art) { opacity:.6; }
+.swap-execution-option:has(input:checked) :is(.swap-execution-copy,.swap-execution-art) { opacity:1; }
+.swap-asset-privacy>.interface-symbol { width:16px; height:16px; }
+.swap-choice-mark { display:grid; place-items:center; }
+.swap-choice-mark>.interface-symbol { width:20px; height:20px; }
+.swap-page .swap-settings summary>.interface-symbol { width:18px; height:18px; }
+.hw-step-pagination>.hw-page-button { display:inline-flex; align-items:center; justify-content:center; gap:8px; }
+.hw-read-more>.interface-symbol,.hw-reference-link>.interface-symbol { width:16px; height:16px; }
+.hw-sources a { display:inline-flex; align-items:center; gap:8px; }
+.hw-sources a>.interface-symbol { width:16px; height:16px; }
+.hw-story-network>.interface-symbol { width:24px; height:24px; }
+.hw-view-label-compact { display:none; }
+@media(min-width:1100px) {
+  .swap-page .swap-privacy-explainer { grid-template-columns:minmax(0,1fr) auto;
+    grid-template-rows:auto 44px 2px var(--privacy-art-height) minmax(0,1fr) auto; }
+  /* Live tracking grows as a document; the compact preview must not shrink its recovery controls. */
+  #app>.swap-page:has(>#swap-panel-private .swap-deposit:not([hidden])) { display:grid; flex:none; min-height:auto; }
+  #swap-panel-private:has(>.swap-deposit:not([hidden])) { display:block; flex:none; }
+  #swap-panel-private:has(>.swap-deposit:not([hidden])) .swap-grid { min-height:520px; max-height:none; }
+  #swap-panel-private:has(>.swap-deposit:not([hidden])) :is(.swap-composer,.swap-privacy-explainer) { height:auto; }
+}
+@media(max-width:760px) {
+  .swap-page .swap-max,.swap-page .swap-reverse,.swap-page .swap-composer-tools .swap-details-open,
+  .swap-page .swap-settings summary,.swap-page .swap-privacy-play,.swap-page .swap-privacy-more { min-height:48px; }
+  .swap-page .swap-switch-row { min-height:48px; flex-basis:48px; }
+  .home-how-dialog .hw-toolbar { display:grid; grid-template-columns:minmax(0,1fr); gap:8px; }
+  .home-how-dialog .hw-view-choices { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); min-width:0; width:100%; }
+  .home-how-dialog .hw-toolbar .hw-view-choices>button { min-width:0; min-height:44px; padding:8px 4px;
+    font-size:13px; white-space:nowrap; }
+  .home-how-dialog .hw-view-label { display:none; }
+  .home-how-dialog .hw-view-label-compact { display:inline; }
+  .home-how-dialog .hw-toolbar-motion { justify-content:flex-end; }
+  .home-how-dialog .hw-toolbar .hw-toolbar-motion .hw-reduced-label { max-width:none;
+    font-size:12px; line-height:18px; white-space:nowrap; }
+}
+@media(prefers-reduced-motion:reduce),(update:slow),(forced-colors:active) {
+  .swap-page :is(.swap-primary,.swap-reverse .symbol,.swap-privacy-node,.swap-privacy-map)::after,
+  .swap-page :is(.swap-primary,.swap-reverse .symbol,.swap-privacy-node,.swap-privacy-map),
+  .swap-page .privacy-film-scene { transition:none; }
+  .swap-page .swap-privacy-scene,.swap-modal[open] { animation:none; }
+}
+@media(forced-colors:active) {
+  .swap-page :is(.swap-composer,.swap-privacy-explainer,.swap-pane,.privacy-film) { background:Canvas; color:CanvasText; box-shadow:none; }
+  .swap-page :is(.swap-primary,.swap-max,.swap-reverse,.swap-privacy-play),.swap-modal .swap-primary {
+    background:ButtonFace; color:ButtonText; border-color:ButtonText; box-shadow:none; }
+}

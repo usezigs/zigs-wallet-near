@@ -24,7 +24,7 @@ import {
   pendingRows, rowsOf, startLook, swapPayError,
 } from "./sends.js";
 import { limited, reactSessions } from "./sign.js";
-import { plainSetup, plainView, readTexts } from "./view.js";
+import { plainDetailsView, plainSetup, plainView, readTexts } from "./view.js";
 
 const LOG_MAX = 200;
 // Helius allows few calls: one read job at a time, and one read of a wallet in 30 s, also after a
@@ -447,6 +447,8 @@ export async function attach(host) {
     observe,
     view: (act, actions) => plainView(c, act,
       { ...actions, add: () => addSolana(c), ...directActions(c), ...shown }),
+    details: (surface, act, actions) => plainDetailsView(c, act,
+      { ...actions, add: () => addSolana(c), ...directActions(c), ...shown }, surface),
     pick: shown.pick,
     pending: () => fresh(c, (it) => pendingList(it).length, 0),
     pendingRows: () => fresh(c, pendingRows, []),

@@ -1379,6 +1379,10 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
     setAttribute(k, v) { this.attrs[k] = String(v); }
     addEventListener(type, fn) { this.on[type] = fn; }
     replaceChildren(...x) { this.kids = x; }
+    querySelector(selector) {
+      return all(this, (node) => node !== this && selector.startsWith(".")
+        && node.className?.split(" ").includes(selector.slice(1)))[0] ?? null;
+    }
     remove() { this.removed = true; }
     append(...x) {
       this.kids.push(...x);
@@ -1526,11 +1530,11 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
 
     // A mainnet wallet is offered only when its balance is known and under the cap.
     delete t.balCache[M];
-    assert.deepEqual(ids(), [gid, W2], "an unknown balance on mainnet: no address");
+    assert.deepEqual(ids(), [gid, W2, M], "a checked address needs no balance reading");
     t.balCache[M] = null;
-    assert.deepEqual(ids(), [gid, W2], "an unreadable balance counts as unknown");
+    assert.deepEqual(ids(), [gid, W2, M], "an unreadable balance does not hide a checked address");
     t.balCache[M] = { total: 50000000, at: 0 };
-    assert.deepEqual(ids(), [gid, W2], "at the cap");
+    assert.deepEqual(ids(), [gid, W2, M], "no trial limit on requests");
     t.balCache[M] = { total: 49999999, at: 0 };
     assert.deepEqual(ids(), [gid, W2, M], "under the cap");
 
@@ -1543,10 +1547,10 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
     t.setChain(chainOf(null));
     assert.equal(t.roomRequest().why(), "", "a testnet wallet has no cap");
     t.state.g = { ...live, network: "mainnet" };
-    assert.match(t.roomRequest().why(), /Wait for the first sync to finish\./);
-    assert.deepEqual(t.roomRequest().choices(), []);
+    assert.equal(t.roomRequest().why(), "");
+    assert.equal(t.roomRequest().choices().length, 1);
     t.setChain(chainOf({ spendable: 5e7, pending: 0 }));
-    assert.match(t.roomRequest().why(), /This wallet holds 0\.5 ZEC/);
+    assert.equal(t.roomRequest().why(), "");
     t.setChain(chainOf({ spendable: 1e7, pending: 0 }));
     assert.equal(t.roomRequest().why(), "");
     t.state.g = live;
@@ -1868,14 +1872,12 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
           + "amounts, the memos and the note, in the shared history of the wallet\\. So can "
           + "anyone who has its invite link\\. A memo goes on chain with the payment, and its "
           + "recipient can read it too\\."), "the review says who can read the payment now");
-        assert.match(textOf(shown), new RegExp("A device that a later Change devices leaves out "
-          + "keeps the viewing key and the messages of this wallet\\. It can still read this "
-          + "history and each later payment of this wallet\\. It cannot read the new wallet\\. "
-          + "The move payment gives it the address, the amount and the note of that payment, and "
-          + "the id of the new wallet\\. With the id, the device can get the sealed documents of "
-          + "the new wallet and each later write from the group server\\. The server also accepts "
-          + "writes from it, so the device can stop the new wallet with false documents\\."),
-        "the review says what a device left out later keeps");
+        const privacyDetails = all(shown, (x) => x.tag === "details"
+          && textOf(x).startsWith("Payment privacy details"))[0];
+        assert.ok(privacyDetails, "payment explanations remain available on demand");
+        assert.equal(privacyDetails.attrs.open, undefined, "generic privacy theory starts collapsed");
+        assert.doesNotMatch(textOf(shown), /A device that a later Change devices leaves out/,
+          "device-removal guidance belongs with Change devices");
         assert.ok(named(shown, "button", "Request approvals"), "a match can be proposed");
         const headOf = (d) => textOf(all(d, (x) => x.className === "card-head")[0].kids[0]);
         const testnetG = t.state.g, testnetShown = [headOf(shown), textOf(shown)];
@@ -2062,7 +2064,7 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
     }
 
     // An expired payment: the chip and the drawer say so, the drawer offers "Propose again" and
-    // no Cancel, and the page signs nothing for it. "Send again" comes 10 minutes after a send
+    // no Cancel, and the page signs nothing for it. "Resend transaction" comes 10 minutes after a send
     // that no block holds, and not when a node would refuse it. A move proposes the move again.
     const tipAt = (height, sent = new Set(), balAt = Date.now()) => {
       const c = { gid: t.state.gid, url: "https://lwd.test", bal: { spendable: 1e8, pending: 0,
@@ -2083,7 +2085,7 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
     tipAt(4500000, new Set(), null);
     assert.match(textOf(t.expiryLine(proposal)), /^Expires at block 4,503,456\. The approvals/,
       "a height from saved state gives no time");
-    assert.deepEqual(labels(t.cancelAction(proposal)), ["Cancel payment"]);
+    assert.deepEqual(labels(t.cancelAction(proposal)), ["Cancel proposal"]);
     tipAt(4503453);
     assert.equal(textOf(t.statusChip(proposal)), "Expired");
     assert.match(textOf(t.expiryLine(proposal)), /expired at block 4,503,456/);
@@ -2107,18 +2109,18 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
     const bucket = (ss) =>
       Object.entries(t.inboxRows()).find(([, list]) => list.includes(ss))?.[0] ?? null;
     tipAt(4500000);
-    assert.deepEqual(t.finishButtons(sentOne), [], "no Send again before 10 minutes");
+    assert.deepEqual(t.finishButtons(sentOne), [], "no Resend transaction before 10 minutes");
     assert.equal(bucket(sentOne), "waiting", "the inbox: a sent payment waits for its block");
     sentOne.broadcastAt = Date.now() - 11 * 60 * 1000;
-    assert.deepEqual(labels(t.finishButtons(sentOne)), ["Send again"]);
+    assert.deepEqual(labels(t.finishButtons(sentOne)), ["Resend transaction"]);
     assert.equal(t.finishButtons(sentOne)[0].attrs.disabled, undefined);
-    assert.equal(bucket(sentOne), "ready", "the inbox: Send again is the next step");
-    // A finished transaction whose id is not the id of the proposal: Send again is off with its
+    assert.equal(bucket(sentOne), "ready", "the inbox: Resend transaction is the next step");
+    // A finished transaction whose id is not the id of the proposal: Resend transaction is off with its
     // reason, and the inbox lists the payment under attention, not as ready.
     const otherId = { ...sentOne, id: "x2b", final: { txid: "t5", tx_hex: "00" } };
     t.state.sessions.push(otherId);
     const [again, why] = t.finishButtons(otherId);
-    assert.deepEqual([textOf(again), again.attrs.disabled], ["Send again", ""]);
+    assert.deepEqual([textOf(again), again.attrs.disabled], ["Resend transaction", ""]);
     assert.match(textOf(why), /another id than the proposal/);
     assert.equal(t.refusedSend(otherId), true);
     assert.equal(bucket(otherId), "attention", "the inbox agrees with the drawer");
@@ -2180,12 +2182,12 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
     // Its finished transaction names another id than the proposal: the drawer that shows the
     // false id above sends nothing.
     const [resend, refused] = t.finishButtons(unmarkedOne);
-    assert.deepEqual([textOf(resend), resend.attrs.disabled], ["Send again", ""]);
+    assert.deepEqual([textOf(resend), resend.attrs.disabled], ["Resend transaction", ""]);
     assert.match(textOf(refused), /another id than the proposal/);
     assert.deepEqual(labels(t.finishButtons({ ...unmarkedOne,
-      final: { txid: "realtx", tx_hex: "00" } })), ["Send again"]);
+      final: { txid: "realtx", tx_hex: "00" } })), ["Resend transaction"]);
     tipAt(4500000, new Set(["realtx"]));
-    assert.deepEqual(t.finishButtons(unmarkedOne), [], "no Send again for a payment on chain");
+    assert.deepEqual(t.finishButtons(unmarkedOne), [], "no Resend transaction for a payment on chain");
     t.state.sessions.splice(t.state.sessions.indexOf(sentOne), 1);
 
     // The Fund card tops Overview of an empty testnet wallet that has an address, and only then.
@@ -2232,7 +2234,7 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
     try {
       await copyBtn.on.click({ currentTarget: copyBtn });
       assert.deepEqual(clipboard.text, [wallet.address], "Copy address copies the address");
-      assert.equal(copyBtn.textContent, "Copied");
+      assert.equal(textOf(copyBtn), "Copied");
       clipboard.fail = true;
       t.ui.receive = false;
       await copyBtn.on.click({ currentTarget: copyBtn });
@@ -2772,7 +2774,7 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
       const live = { ...open("zv", "PC"), package: "PK", status: "signing" };
       put(live);
       t.noteSessions();
-      assert.deepEqual(labels(t.cancelAction(live)), ["Cancel payment"]);
+      assert.deepEqual(labels(t.cancelAction(live)), ["Cancel proposal"]);
       const liveReset = open("zv", "PC");
       put(liveReset);
       assert.deepEqual(t.cancelAction(liveReset), [], "no Cancel after a reset, without approval");
@@ -2907,6 +2909,8 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
         .map(textOf);
       assert.match(headline(landedA), /^Transaction in a blockA block that this browser synced holds/,
         "a synced block holds it: the headline says so");
+      assert.doesNotMatch(textOf(t.sessionLayer(landedA)), /Verify before signing|Only approve/,
+        "an included transaction record has no forward-looking approval instruction");
       // The head of the drawer names the network, as the wallet head does. What the chain sees
       // names the public expiry, and the explorer link says what that site sees.
       const drawerHead = (ss) => all(t.sessionLayer(ss), (x) => x.className === "leaves")[0];
@@ -3239,6 +3243,8 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
         const expiryNotes = (text) => text.split("The expiry height is public too.").length - 1;
         assert.deepEqual([expiryNotes(memoOne.text), expiryNotes(look(lateSent()).text)], [1, 1],
         "the drawer says before the send that the expiry height is public, and once after it");
+        assert.doesNotMatch(look(lateSent()).text, /Verify before signing|Only approve/,
+          "a submitted payment has no forward-looking approval instruction");
         // The steps after the approvals.
         const lateA = lateSent();
         put(lateA);
@@ -3330,7 +3336,7 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
           "a block marks the approvals done");
         assert.equal(landedPackage.step("Combined signature").className, "step done",
           "a block marks the signature done");
-        assert.deepEqual([landedPackage.now, landedPackage.buttons.includes("Cancel payment")],
+        assert.deepEqual([landedPackage.now, landedPackage.buttons.includes("Cancel proposal")],
           [[], false], "a landed payment offers no Cancel");
         assert.match(textOf(landedPackage.step("Combined signature")), /A synced block holds/);
         assert.deepEqual(look(open("hdl", "PA")).now, [],
@@ -3346,7 +3352,7 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
         "a send error on a document with no finished transaction is no failed send");
         // The cancel question, as the person reads it.
         const cancelOf = all(t.sessionLayer(open("hdc", "PA")),
-          (x) => x.tag === "button" && textOf(x).includes("Cancel payment"))[0];
+          (x) => x.tag === "button" && textOf(x).includes("Cancel proposal"))[0];
         let asked = null;
         const realConfirm = globalThis.confirm;
         globalThis.confirm = (text) => { asked = text; return false; };
@@ -3358,8 +3364,8 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
         } finally {
           globalThis.confirm = realConfirm;
         }
-        assert.equal(asked, "Cancel this payment? No device can approve it after this. Anyone "
-          + "can propose it again.", "the cancel question says device");
+        assert.match(asked, /Cancellation cannot revoke signed data already held elsewhere/);
+        assert.match(asked, /Check Activity and any Send hold before proposing a replacement/);
         // The status is no signed part: any holder of the invite link can write it.
         const spoofed = look({ ...open("hdp", "PA"), status: "proving", provingAt: Date.now() });
         assert.deepEqual([spoofed.head.startsWith("Your approval is needed"),
@@ -3700,7 +3706,7 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
       assert.deepEqual(t.cancelAction(zal), [], "no Cancel");
       const honest = open("zho", "PC");
       put(honest);
-      assert.deepEqual(labels(t.cancelAction(honest)), ["Cancel payment"],
+      assert.deepEqual(labels(t.cancelAction(honest)), ["Cancel proposal"],
         "an open payment keeps its Cancel");
 
       // A browser without an approval holds a sent payment up to the latest expiry that an
@@ -4317,8 +4323,8 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
           return form;
         };
         const boxOf = (d, n = 0) => all(d, (x) => /^s-to-/.test(x.attrs?.id ?? ""))[n];
-        const hintOf = (d, n = 0) => all(d, (x) => x.className === "pay-row")[n].kids
-          .find((k) => k.tag === "span" && /^hint/.test(k.className));
+        const hintOf = (d, n = 0) => all(all(d, (x) => x.className === "pay-row")[n],
+          (x) => x.tag === "span" && /^s-hint-/.test(x.attrs.id))[0];
         const typeIn = (d, text, n = 0) => {
           boxOf(d, n).on.input({ target: { value: text } });
           return hintOf(d, n);
@@ -5633,8 +5639,7 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
   const downloaded = [];
   t.setDownloads({ save: async (file) => { downloaded.push(file); } });
 
-  // Create. A mainnet account needs the confirmation, and a failed save leaves nothing.
-  await assert.rejects(t.createPersonal("mainnet"), /Confirm that you understand/);
+  // A failed account save leaves no account or recoverable record.
   idbFail.put = true;
   await assert.rejects(t.createPersonal("testnet"), /could not save the account/);
   assert.deepEqual([t.personal, t.acct, [...idbMap.keys()].includes("personal:rec")],
@@ -6522,12 +6527,12 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
     const testnetAccount = t.personal;
     t.personal = { ...testnetAccount, network: "mainnet" };
     t.acct.bal = null;
-    assert.match(t.addressBlock(t.acct).kids.map(textOf).join(), /only when it knows the balance/);
+    assert.match(t.addressBlock(t.acct).kids.map(textOf).join(), /Public address/);
     t.acct.bal = { ...net.bal, spendable: 50000000, pending: 0 };
-    assert.match(textOf(t.addressBlock(t.acct)), /holds 0\.5 ZEC/);
-    assert.equal(t.fundBlock(), null, "no funding request at the cap");
-    assert.match(textOf(t.contactView()), /holds 0\.5 ZEC/);
-    assert.equal(textOf(t.contactView()).includes(t.addressFor(1)), false, "no address at the cap");
+    assert.match(textOf(t.addressBlock(t.acct)), /Public address/);
+    assert.ok(t.fundBlock(), "funding remains available above the former trial limit");
+    assert.doesNotMatch(textOf(t.contactView()), /warning level/);
+    assert.equal(textOf(t.contactView()).includes(t.addressFor(1)), true, "a large balance does not hide the address");
     t.acct.bal = { ...net.bal, spendable: 49999999, pending: 0 };
     assert.match(textOf(t.addressBlock(t.acct)), /Public address/);
     t.personal = testnetAccount;
@@ -6805,7 +6810,17 @@ const sealed = (gid, rel, seat, fields, key, names = ["by", "sig"]) =>
   assert.deepEqual([got.keyPackage, got.backupSaved, got.restored, got.nonces],
     [share, false, true, undefined]);
   assert.equal(t.gkeys[A], "K".repeat(43));
-  assert.match(t.banner.text, /^Restored device 2 of Team\./);
+  assert.match(t.banner.text, /^Backup opened for device 2 of Team\. Checking/);
+  assert.equal(t.banner.kind, "info", "opening a file does not declare a completed restore");
+  const noteDocument = globalThis.document;
+  globalThis.document = { createElement: (tag) => ({ tag, attrs: {}, kids: [],
+    setAttribute(k, v) { this.attrs[k] = v; }, append(...kids) { this.kids.push(...kids); } }),
+    createTextNode: (text) => ({ text }) };
+  try {
+    assert.ok(t.restoreProgressNote(), "the closed file dialog leaves visible checking progress");
+    t.restoreWatch.clear();
+    assert.ok(t.restoreProgressNote(), "an interrupted restore stays pending after its in-memory watch is lost");
+  } finally { globalThis.document = noteDocument; }
   assert.equal(unsaved(A, 2), true);
 }
 
@@ -7181,8 +7196,14 @@ async function runAcctSync() {
 {
   const realWindow = globalThis.window, realDocument = globalThis.document;
   const style = {}, scrolled = [];
+  const layer = {
+    scrollTop: 0,
+    getBoundingClientRect: () => ({ top: 0, bottom: window.visualViewport.height }),
+    querySelector: () => null,
+  };
   const inLayer = (name) => ({
-    closest: (selector) => (selector === ".dialog, .drawer" && name !== "outside" ? {} : null),
+    closest: (selector) => (selector === ".dialog, .drawer" && name !== "outside" ? layer : null),
+    getBoundingClientRect: () => ({ top: 100, bottom: 150 }),
     scrollIntoView: (o) => scrolled.push(name + ":" + o.block),
     getAttribute: (k) => (k === "aria-describedby" ? "other-note field-note" : null),
   });

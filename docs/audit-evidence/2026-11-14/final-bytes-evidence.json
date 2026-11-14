@@ -1,0 +1,10 @@
+{
+  "result": "CONFIRMED boundary defect",
+  "scope": "Actual production approvedTxid/sendRefusal/broadcastTx functions executed unchanged; cryptography, storage and network dependencies are inert fixtures.",
+  "suppliedFinalMetadata": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "mockedNodeReturnedId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "recordedBroadcastId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "acceptedOpaqueBytes": true,
+  "displayedSubmittedMessage": true,
+  "limitation": "This proves missing byte/ID validation and incorrect success identity at the application boundary. It does not demonstrate a forged threshold signature or acceptance of invalid bytes by a real chain."
+}

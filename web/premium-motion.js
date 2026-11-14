@@ -51,9 +51,23 @@ class SurfaceExperience {
   animate(node, frames, duration, delay = 0) {
     if (!node?.animate || !this.allowed() || node.contains(this.doc.activeElement)) return;
     if (node.closest(SENSITIVE) || node.querySelector(SENSITIVE)) return;
-    const animation = node.animate(frames, { duration, delay, easing: EASE });
+    const animation = this.playback(node, frames, duration, delay);
     this.animations.add(animation);
     animation.finished.catch(() => {}).finally(() => this.animations.delete(animation));
+  }
+
+  playback(node, frames, duration, delay) {
+    const motion = this.win.zigsGlass?.animate;
+    let animation;
+    if (motion) {
+      const values = Object.fromEntries(Object.keys(frames[0]).map((key) =>
+        [key, frames.map((frame) => frame[key])]));
+      const playback = motion(node, values, { duration: duration / 1000,
+        delay: delay / 1000, ease: [.18, .8, .22, 1] });
+      animation = { effect: { target: node }, cancel: () => playback.cancel(),
+        finished: Promise.resolve(playback) };
+    } else animation = node.animate(frames, { duration, delay, easing: EASE });
+    return animation;
   }
 
   observeArtwork(root, changed) {
@@ -61,7 +75,7 @@ class SurfaceExperience {
       this.observer?.unobserve(node); this.art.delete(node);
     }
     if (!changed) return;
-    root.querySelectorAll(".transaction-empty-mark,.activity-timeline,.messages-empty-art,"
+    root.querySelectorAll(".transaction-empty-mark,.activity-empty-art,.messages-empty-art,"
       + ".approval-empty-mark,.recipient-empty-art").forEach((node) => {
       node.classList.add("premium-empty-art");
       if (this.art.has(node)) return;

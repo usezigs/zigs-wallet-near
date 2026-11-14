@@ -66,7 +66,7 @@ async function fixture(kind) {
       txid, sighash: "synthetic-hash", expiry_height: 5000100, fee: 10000, standard_fee: 10000,
       tx_version: "v5", lines: [{ kind: "spend", value: amount + 10000 },
         { kind: "output", who: address, value: amount, memo_status: "empty" }] }),
-    normalizeAddress: (address) => address,
+    normalizeAddress: (address) => address, payeeAddress: (address) => address,
     expiryState: () => JSON.stringify({ expired: false, seconds_left: 1000, blocks_left: 100 }) });
     const synced = kind !== "stale";
     setChain({ gid: state.gid, cw: {}, bal: { height: 5000000 },

@@ -1,0 +1,42 @@
+{
+  "buildPath": "comp",
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font",
+        "value": "zigs wordmark",
+        "createdAt": "2026-11-14T06:16:51.143Z",
+        "reason": "Agent: commit f70573c deliberately introduced this locally served Bricolage subset for the four Zigs logo glyphs only; web/site-refinement.css documents the source and unicode range. Intentional wordmark exception; interface typography remains Manrope."
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "web/index.html"
+        ],
+        "createdAt": "2026-11-14T07:46:59.102Z",
+        "reason": "User requested the established liquid-glass lighting in this turn. This entry document contains stylesheet links and no inline box-shadow or text-shadow; material highlights remain in their existing component styles."
+      },
+      {
+        "rule": "pulsing-dot",
+        "value": "*",
+        "files": [
+          "web/index.html"
+        ],
+        "createdAt": "2026-11-14T07:50:34.298Z",
+        "reason": "Agent review: web/index.html contains stylesheet links and module boot only, with no status dot or pulse animation. The actual engine indicator in app-engine.js is tied to engine/connection state and its dot.busy CSS is a static partial border."
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "web/index.html"
+        ],
+        "createdAt": "2026-11-14T07:50:34.367Z",
+        "reason": "Agent review: the entry HTML has no marquee element, scrolling content, or inline animation. Targeted inspection of its homepage entry modules and styles found no auto-scrolling marquee. This is a file-attribution false positive, not an exception for moving page content."
+      }
+    ]
+  }
+}

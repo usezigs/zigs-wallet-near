@@ -132,3 +132,42 @@ export function stageHeadline(f) {
   const hit = HEADLINES.find(([fact]) => f[fact] === true);
   return hit ? { stage: hit[0], title: hit[1], detail: hit[2] } : WAITING;
 }
+
+// Guidance consumes the already-selected stage and verified participant facts. It never
+// authorizes an action, infers connectivity, or treats an unknown outcome as a failure.
+const PAYMENT_NEXT = new Map(Object.entries({
+  signed: "Next: choose Build proof. Building a proof does not send the payment.",
+  proving: "Keep the device building the proof open. Sending to the network is still a "
+    + "separate step.",
+  proved: "Next: choose Send to network. Then check Activity for block inclusion.",
+  sendHere: "Next: choose Send to network. Then check Activity for block inclusion.",
+  resend: "Resending submits the same transaction again. A new proposal would be a separate "
+    + "payment.",
+}));
+const CHECK_PAYMENT = new Set(["sent", "sentUnsynced", "sendFailed", "check", "held",
+  "sentStopped", "error", "late", "signingLost"]);
+const CHECK_NEXT = "Check Activity and the transaction before creating another payment. "
+  + "The original may still reach the chain.";
+const signingReminder = (pending) => pending.length
+  ? "Waiting for " + pending.join(", ") + " to sign. Keep Zigs open on those devices."
+  : "Keep the selected signing devices and the proposing device open until signing finishes.";
+function approvalReminder(remaining) {
+  const count = remaining > 0 ? remaining
+    + (remaining === 1 ? " more device approval is" : " more device approvals are") + " needed. "
+    : "";
+  return count + "Open this wallet on the other devices to review the request. "
+    + "Approval alerts are not guaranteed.";
+}
+const nextFacts = (facts = {}) => ({ checking: facts.checking ?? false,
+  proposer: facts.proposer ?? "the proposing device", pendingSigners: facts.pendingSigners ?? [],
+  remaining: facts.remaining ?? null });
+export function paymentNextStep(stage, facts) {
+  const { checking, proposer, pendingSigners, remaining } = nextFacts(facts);
+  if (checking) return "Checking payment data. Wait for the device checks before taking another "
+    + "step.";
+  if (stage === "approved") return "Keep " + proposer
+    + " open to prepare signing. No further approvals are needed.";
+  if (stage === "signing") return signingReminder(pendingSigners);
+  if (stage === "mine" || stage === "waiting") return approvalReminder(remaining);
+  return PAYMENT_NEXT.get(stage) ?? (CHECK_PAYMENT.has(stage) ? CHECK_NEXT : "");
+}

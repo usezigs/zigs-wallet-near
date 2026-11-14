@@ -1,0 +1,236 @@
+{
+  "auditDate": "2026-11-13",
+  "branch": "codex/near/ux",
+  "baseCommit": "8c0218b76724136d4f1d7e084b91d031042315cf",
+  "flows": 52,
+  "findings": 70,
+  "scope": {
+    "applicationFiles": 14,
+    "displayStrings": 33,
+    "testFiles": 5,
+    "stylesLayoutsComponentsRoutesIdentifiersOrBusinessLogicChanged": false
+  },
+  "copyStructureComparison": {
+    "method": "esbuild syntax normalization, constant string folding, and comparison with string literal values replaced by placeholders; manual review of each changed value as display copy",
+    "passed": true,
+    "files": [
+      {
+        "file": "web/app-account-view.js",
+        "changes": 2,
+        "sha256": "4b644290ec45c0537217a79029aa2ceb3714d516cbf20df6cd3fe7003fef8a8a"
+      },
+      {
+        "file": "web/app-account.js",
+        "changes": 1,
+        "sha256": "1ee4f4866927a24c7cc031c9544ac5ecc40bccc2f5846f557411b344a277ef8a"
+      },
+      {
+        "file": "web/app-dom.js",
+        "changes": 1,
+        "sha256": "43a5c677fd517994013c7e15cd50e7eb869fb3689d64a4fc60336770aa7ae23b"
+      },
+      {
+        "file": "web/app-messaging-workspace.js",
+        "changes": 1,
+        "sha256": "2824b92d23c0a4d7ec54da3fc2563d52fd3af35d995aa70f4f671a7119f2a907"
+      },
+      {
+        "file": "web/app-payments.js",
+        "changes": 2,
+        "sha256": "3067f90fec5e52974a6bf1c1f5e45b9fbec46e581edef7798bc1a07b9aa983f3"
+      },
+      {
+        "file": "web/app-recipients.js",
+        "changes": 1,
+        "sha256": "fc79a342cc9ab76c461d7a479f06b14f307713d66a155a8c9622e6bb96c2907d"
+      },
+      {
+        "file": "web/app-send.js",
+        "changes": 4,
+        "sha256": "2003ebb14c60524d97135aa7d46477c69b1793f6342cd04be496b1a6eea54e27"
+      },
+      {
+        "file": "web/app-shell.js",
+        "changes": 3,
+        "sha256": "dcaa0d48f7a05e961ab2ef63507651ae14e0f9f6821c1cbc67b09e05c957b02a"
+      },
+      {
+        "file": "web/app-swap-preview.js",
+        "changes": 6,
+        "sha256": "b0cb355d56daf8c1539aa955ad9f8b60255f924ac3f34c268c19b5698db29ade"
+      },
+      {
+        "file": "web/app-sweep.js",
+        "changes": 1,
+        "sha256": "978f30ea58a8448690fbc7b5368db6d3be66fc0b9128a3b0b73fd46231d02b8d"
+      },
+      {
+        "file": "web/app-wallet.js",
+        "changes": 2,
+        "sha256": "1e3fe491d7aacc6283d0d1f111a6d09675b9cf09b068900eb01be2e1d82efd11"
+      },
+      {
+        "file": "web/help-model.js",
+        "changes": 6,
+        "sha256": "b98757af111ba011916527097efb8f035f25c0cb4fc1f0c89cc959b8dac0a198"
+      },
+      {
+        "file": "web/how-zigs-works-content.js",
+        "changes": 2,
+        "sha256": "51b52b11ce891de8c416739fb62978352152785a8e1aad70410dbd7ecf9fc8a8"
+      },
+      {
+        "file": "web/how-zigs-works-journey-content.js",
+        "changes": 1,
+        "sha256": "1679fd64f2decc92fbab57fe665a65512ae6d189b02ca64657bac81e56c52652"
+      }
+    ]
+  },
+  "build": {
+    "command": "node web/build.mjs",
+    "passed": true
+  },
+  "syntax": {
+    "command": "node --check <each changed JS file>",
+    "files": 19,
+    "passed": true
+  },
+  "diffWhitespaceCheck": {
+    "command": "git diff --check",
+    "passed": true
+  },
+  "baseline": {
+    "passed": 21,
+    "source": "/private/tmp/zigs-near-ux-evidence/baseline-tests.json"
+  },
+  "tests": {
+    "passed": 24,
+    "failed": 0,
+    "commands": [
+      {
+        "command": "node web/test/help.mjs",
+        "exitCode": 0
+      },
+      {
+        "command": "node web/test/payment-model.mjs",
+        "exitCode": 0
+      },
+      {
+        "command": "node web/test/approvals.mjs",
+        "exitCode": 0
+      },
+      {
+        "command": "node web/test/overview.mjs",
+        "exitCode": 0
+      },
+      {
+        "command": "node web/test/guided-create.mjs",
+        "exitCode": 0
+      },
+      {
+        "command": "node web/test/guided-setup.mjs",
+        "exitCode": 0
+      },
+      {
+        "command": "node web/test/recovery.mjs",
+        "exitCode": 0
+      },
+      {
+        "command": "node web/test/backup-check.mjs",
+        "exitCode": 0
+      },
+      {
+        "command": "node web/test/recipients.mjs",
+        "exitCode": 0
+      },
+      {
+        "command": "node web/test/requests.mjs",
+        "exitCode": 0
+      },
+      {
+        "command": "node web/test/swap-preview.mjs",
+        "exitCode": 0
+      },
+      {
+        "command": "node web/test/near-quote.mjs",
+        "exitCode": 0
+      },
+      {
+        "command": "node web/test/swap-recovery.mjs",
+        "exitCode": 0
+      },
+      {
+        "command": "node web/test/security-dashboard.mjs",
+        "exitCode": 0
+      },
+      {
+        "command": "node web/test/wallet-description.mjs",
+        "exitCode": 0
+      },
+      {
+        "command": "node web/test/messaging-cost-review.mjs",
+        "exitCode": 0
+      },
+      {
+        "command": "node web/test/mainnet-on.mjs",
+        "exitCode": 0
+      },
+      {
+        "command": "node web/test/sol-docs.mjs",
+        "exitCode": 0
+      },
+      {
+        "command": "node web/test/sol-plain-ui.mjs",
+        "exitCode": 0
+      },
+      {
+        "command": "node web/test/sol-plain-review.mjs",
+        "exitCode": 0
+      },
+      {
+        "command": "node web/test/sol-receive.mjs",
+        "exitCode": 0
+      },
+      {
+        "command": "node web/test/app.mjs",
+        "exitCode": 0
+      },
+      {
+        "command": "node web/test/unified-setup.mjs",
+        "exitCode": 0
+      },
+      {
+        "command": "node web/test/personal.mjs",
+        "exitCode": 0
+      }
+    ],
+    "timing": "app and personal rerun after the final four banner changes; other suites passed after the preceding copy pass. No transaction predicates changed."
+  },
+  "browser": {
+    "openGlassRepositoryChecksPassed": true,
+    "mainWalkthroughViews": 28,
+    "changedContextVariants": 18,
+    "uncaughtErrors": 0,
+    "horizontalOverflow": 0,
+    "widths": [
+      320,
+      390,
+      1440
+    ],
+    "themes": "Light and dark in repository checks and 18 changed-context variants",
+    "zoom": "Expanded FAQ also checked with CSS zoom 200%; not a platform browser zoom or assistive-technology certification",
+    "evidenceDirectory": "/private/tmp/zigs-near-ux-evidence",
+    "method": "Disposable browser; real app startup and UI; synthetic unfunded renderer states; all requests intercepted; no live services or transactions",
+    "changedContextMethod": "Real renderers with synthetic display data; app boot and external requests blocked; no authorizing actions"
+  },
+  "unverified": [
+    "Real funds or chain submission",
+    "Live upstream quotes, swap payouts or refunds",
+    "Physical multi-device formation",
+    "Real passkey credentials and loss",
+    "Real file download/restore and platform interoperability",
+    "Native app runtime",
+    "Deployed server flags",
+    "Assistive technology platforms"
+  ]
+}

@@ -95,6 +95,74 @@ async function capture(name) {
   screens.push(name + ".png");
 }
 
+async function dashboardApprovalsReview() {
+  await choose("overview", "dark", 1440);
+  for (const formerView of ["recent", "pending"]) {
+    await page.evaluate(async (value) => {
+      (await import("/app-state.js")).ui.overviewActivity = value;
+      (await import("/app-loop.js")).draw();
+    }, formerView);
+    await settleOverview(page);
+    check(await page.locator("#overview-approvals").getByRole("heading", {
+      name: "Approvals", exact: true }).isVisible(),
+    formerView + ": dashboard approvals remain visible independently of the old transaction view");
+    check(await page.locator(".overview-transactions .recent-transactions").isVisible(),
+      formerView + ": recent transactions remain visible alongside approvals");
+    check(await page.getByRole("button", { name: "View all approvals", exact: true }).isVisible(),
+      formerView + ": the full Approvals destination is available even with an empty queue");
+  }
+  for (const width of [320, 390, 768, 1440]) for (const theme of ["dark", "light"]) {
+    await choose("overview", theme, width);
+    check(await page.evaluate(() => document.querySelector("#overview-approvals")
+      .getBoundingClientRect().bottom
+      <= document.querySelector(".overview-transactions").getBoundingClientRect().top),
+    width + " " + theme + ": dashboard approvals precede transaction history");
+  }
+  await page.getByRole("button", { name: "View all approvals", exact: true }).click();
+  await page.locator("#panel-approvals").waitFor();
+  check(true, "the dashboard approval action opens the existing Approvals inbox");
+  await choose("overview", "dark", 1440);
+  await page.getByRole("button", { name: "View all activity", exact: true }).click();
+  await page.locator("#panel-activity").waitFor();
+  check(true, "the dashboard transaction action opens the existing Activity page");
+  await choose("overview", "dark", 1440);
+  await dashboardApprovalStates();
+  await inspect("restored dashboard approvals");
+  await capture("overview-approvals-restored");
+}
+
+async function dashboardApprovalStates() {
+  for (const kind of ["waiting", "attention", "failed", "loading", "empty"]) {
+    await page.evaluate(async (kind) => {
+      const { state } = await import("/app-state.js");
+      state.sessions = ["waiting", "attention"].includes(kind) ? [{
+        id: "synthetic-dashboard-approval",
+        status: kind === "waiting" ? "collecting" : "unreadable",
+        createdAt: 1792735200000, payees: [], by: 1,
+      }] : [];
+      state.sessionsFailed = kind === "failed";
+      state.sessionsLoaded = kind !== "loading";
+      (await import("/app-loop.js")).draw();
+    }, kind);
+    await settleOverview(page);
+    const approvals = page.locator("#overview-approvals");
+    const content = await approvals.innerText();
+    check(await approvals.isVisible(),
+      kind + ": the dedicated dashboard approval panel stays visible");
+    check(kind === "empty" ? content.includes("No approvals waiting")
+      : !content.includes("No approvals waiting"),
+    kind + ": approval status does not claim a false empty queue");
+    if (kind === "waiting") check(content.includes("Waiting for the other devices or the network"),
+      "the dashboard retains waiting approval counts");
+    if (kind === "attention") check(content.includes("Needs attention"),
+      "the dashboard retains unreadable items needing attention");
+    if (kind === "failed") check(await approvals.getByRole("alert").count() === 1,
+      "failed approval reads retain their alert");
+    if (kind === "loading") check(content.includes("Checking payments"),
+      "unread approvals retain their checking state");
+  }
+}
+
 async function pageMatrix() {
   const variants = [320, 390, 768, 1440].flatMap((width) =>
     ["dark", "light"].map((theme) => ({ width, theme })));
@@ -114,6 +182,19 @@ async function menuReview() {
     .getAttribute("aria-expanded") === "true");
   check(await page.locator(".main").evaluate((node) => node.inert),
     "open mobile menu keeps the underlying page out of keyboard reach");
+  for (const name of ["Money", "Contacts", "Wallet care"]) {
+    check(await page.getByRole("group", { name, exact: true }).count() === 1,
+      "navigation exposes the " + name + " group");
+  }
+  check(await page.locator(".side-section button[id^=tab-]").count() === 8,
+    "grouping preserves all eight direct section actions");
+  check(await page.locator(".side-section .side-name").evaluateAll((nodes) => nodes
+    .filter((n) => !n.textContent.includes(" ")).every((n) => n.getBoundingClientRect().height
+      <= parseFloat(getComputedStyle(n).lineHeight) + 1)),
+  "compact phone navigation keeps whole destination words together");
+  check(await page.locator('.side.menu-open #side-nav > .openglass-backdrop-slot '
+    + '[data-ogui-material="frosted"]').count() === 1,
+    "mobile navigation receives its own frosted Glass material");
   for (let i = 0; i < 16; i++) await page.keyboard.press("Tab");
   check(await page.evaluate(() => document.querySelector(".side").contains(document.activeElement)),
     "mobile menu keyboard loop stays inside navigation");
@@ -123,6 +204,22 @@ async function menuReview() {
   check(await page.locator("#wallet-menu").evaluate((node) => node === document.activeElement
     && node.getAttribute("aria-expanded") === "false"),
   "Escape dismisses mobile navigation and returns focus to Menu");
+}
+
+async function restoreRouteReview() {
+  for (const theme of ["light", "dark"]) {
+    await choose("recovery", theme, 390);
+    const shortcut = page.locator(".security-restore-shortcut");
+    check(await shortcut.evaluate((node) => {
+      const r = node.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight;
+    }), theme + ": Restore is available in the first phone viewport");
+    await shortcut.click();
+    check(await page.locator("#security-restore").evaluate((node) => node.open
+      && node.querySelector("summary") === document.activeElement),
+    theme + ": Restore opens existing guidance and moves keyboard focus there");
+    check(await page.locator('[data-key="security-restore-file"]').isVisible(),
+      theme + ": recovery-file selection remains in the existing restore path");
+  }
 }
 
 async function stressReview() {
@@ -166,7 +263,7 @@ async function messagingReview() {
   for (const scene of ["team", "direct", "contact", "changed-key", "invite", "setup"]) {
     await page.goto(OVERVIEW_ORIGIN);
     await installMessagingFixture(page, scene, "after");
-    if (scene === "setup") await page.getByRole("tab", { name: "Zcash", exact: true }).click();
+    if (scene === "setup") await page.locator("#messages-tab-zcash").click();
     const variants = [320, 390, 1440].flatMap((width) =>
       ["dark", "light"].map((theme) => ({ width, theme })));
     for (const { width, theme } of variants) await messagingVariant(scene, width, theme);
@@ -259,7 +356,8 @@ try {
   await overviewFixture(context, page, { messaging: true });
   await page.evaluate(() => localStorage.setItem("zf-name", ""));
   const before = await page.evaluate(() => JSON.stringify({ ...localStorage }));
-  await pageMatrix(); await menuReview();
+  await pageMatrix(); await dashboardApprovalsReview();
+  await menuReview(); await restoreRouteReview();
   check(before === await page.evaluate(() => JSON.stringify({ ...localStorage })),
     "page audit and navigation leave synthetic browser storage unchanged");
   await stressReview(); await backupReminderReview(); await messagingReview();

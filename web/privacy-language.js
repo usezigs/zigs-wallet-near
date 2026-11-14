@@ -37,3 +37,10 @@ export const SOL_EXPOSURE = "Solana Devnet hides a private payment’s amount on
   + "amounts and addresses. Prover and service disclosures apply in Solana details.";
 export const PLAIN_EXPOSURE = "Solana mainnet shows every balance and payment of this wallet to "
   + "everyone. Helius sees your IP address and the address of this wallet.";
+
+export const DEVICE_CHANGE_PRIVACY = "A device that a later Change devices leaves out keeps the viewing key and "
+  + "the messages of this wallet. It can still read this history and each later payment of this "
+  + "wallet. It cannot read the new wallet. The move payment gives it the address, the amount and "
+  + "the note of that payment, and the id of the new wallet. With the id, the device can get the "
+  + "sealed documents of the new wallet and each later write from the group server. The server "
+  + "also accepts writes from it, so the device can stop the new wallet with false documents.";

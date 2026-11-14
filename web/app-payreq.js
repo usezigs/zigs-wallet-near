@@ -10,7 +10,7 @@ import { S, short } from "./app-kit.js";
 import { Z } from "./app-engine.js";
 import { mySeatSecrets } from "./app-keystore.js";
 import {
-  balOf, capText, curNet, MAINNET_ON, netName, netOf, NETWORKS, openTotal, underCap,
+  curNet, MAINNET_ON, netName, netOf, NETWORKS,
 } from "./app-chain.js";
 import { closeSession, openGroup } from "./app-groups.js";
 import {
@@ -166,20 +166,12 @@ export function proposeRequest(req, o, gid) {
   openGroup(gid);
 }
 
-const NO_BALANCE = "Wait for the first sync to finish. The app offers the address of a mainnet "
-  + "wallet only when it knows the balance.";
-
 // What the "Request a payment" form of a composer needs: the wallets that can receive, and why not.
 function roomRequestWhy() {
   if (!state.wallet) return "The wallet address is not ready yet.";
   if (state.g.movedTo) {
     return "Change devices replaces this wallet with " + groupName(state.g.movedTo)
       + ". Ask for payments to the new wallet.";
-  }
-  const total = openTotal();
-  if (!underCap(state.g, total)) {
-    return total === undefined ? NO_BALANCE : "This wallet holds " + capText(curNet().cap)
-      + ", the warning level for unaudited mainnet wallets. Do not ask for more.";
   }
   return myVerified() ? "" : "Your device is still checking the wallet address.";
 }
@@ -198,8 +190,7 @@ export const roomRequest = () => ({
 // browser's own device checked, never the store's copy.
 export const chatRequest = () => ({
   why: () => dmChoices().length ? "" : "This browser holds no device of a wallet that can receive "
-    + "a request. A wallet needs a checked address" + (MAINNET_ON ? " and, on mainnet, a known "
-    + "balance under the cap" : "") + ".",
+    + "a request. A wallet needs a checked address.",
   choices: dmChoices,
   fine: "Your contact, and anyone else who has the contact link, can read the address, the "
     + "amount and the memo of this request.",
@@ -208,8 +199,7 @@ export const chatRequest = () => ({
 export function dmChoices() {
   return seatWallets().flatMap((g) => {
     const address = moveAddress(g.id);
-    const ok = address && underCap(g, balOf(g.id)?.total);
-    return ok ? [{ id: g.id, name: g.name, address, net: netName(g) }] : [];
+    return address ? [{ id: g.id, name: g.name, address, net: netName(g) }] : [];
   });
 }
 

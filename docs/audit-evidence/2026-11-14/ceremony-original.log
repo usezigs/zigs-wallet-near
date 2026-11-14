@@ -1,0 +1,16 @@
+{"walletSelected":false,"pending":false,"seats":[],"createError":null,"headings":["Money","Contacts","Wallet care","Your assetsSecured together","Set up your wallet"],"demo":false}
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+locator.evaluate: Timeout 15000ms exceeded.
+Call log:
+[2m  - waiting for locator('#g-sol')[22m
+
+    at formWallet (/workspace/zigs/web/openglass/single-browser-check.mjs:97:61)
+    at async file:///workspace/zigs/web/openglass/single-browser-check.mjs:209:5 {
+  log: [ "  - waiting for locator('#g-sol')" ],
+  name: 'TimeoutError'
+}
+
+Node.js v25.6.1

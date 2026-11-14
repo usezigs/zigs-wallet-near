@@ -3,15 +3,16 @@ import { fmtInt, seatBackedUp, usesV2 } from "./util.js";
 import { IGNORED_NOTE } from "./signed.js";
 import { inbox, log, ready, showBanner, state, ui } from "./app-state.js";
 import { fmtZec, short, when } from "./app-kit.js";
+import { groupLedgerDates } from "./activity-dates.js";
 import { gkeys, mySeatSecrets, sec } from "./app-keystore.js";
 import { keysDiffer, localSeats, seatIds, seatMine, seatStage, STAGE_LABEL } from "./app-seats.js";
 import { inviteLink, senderNote } from "./app-links.js";
 import {
-  addrHidden, atCap, balanceNow, balOf, capText, capUnknown, chain, curChain, curNet, explorerText,
+  addrHidden, balanceNow, balOf, chain, curChain, curNet, explorerText,
   inFlight,
   mempoolNow, mempoolTotal, netName, readsMemos, runSync, setMemoReading, spanMs,
 } from "./app-chain.js";
-import { canWriteAs, signedMode } from "./app-filter.js";
+import { canWriteAs, netConfirmed, signedMode } from "./app-filter.js";
 import {
   approvalsDone, needsMyApproval, openGroup, openSession, toApprove,
 } from "./app-groups.js";
@@ -29,46 +30,46 @@ import { finishStep, refusedSend } from "./app-drawer.js";
 import { BUCKETS, bucketOf, emptyState, solLine } from "./approvals-model.js";
 import { teamConversation } from "./app-thread.js";
 import { messagingWorkspace } from "./app-messaging-workspace.js";
-import { openBackup, openBackupCheck, restore, staleRestoreNote } from "./app-backups.js";
+import { openBackup, openBackupCheck, restore, restoreProgressNote, staleRestoreNote } from "./app-backups.js";
 import { browserSettings, loadingView } from "./app-shell.js";
 import { focusAfter, render } from "./app-loop.js";
 import { openSend } from "./app-send.js";
 import { guidedSetupView, setupView, solSetupCard, solUnfinished } from "./app-setup.js";
 import { generalSettings, settingsDisclosure, settingsGroup, settingsLabel, settingsRow } from "./app-settings-ui.js";
-import { networkPrivacySettings } from "./app-network-privacy.js";
+import { labsSettings, networkPrivacySettings } from "./app-network-privacy.js";
 import { helpView } from "./app-help.js";
 import {
   sol, solActivity, solBackup, solBalance, solError, solFile, solLoad, solLoading, solMode,
   solActivityWaits, solLoadingCount, solOlderCount, solOn, solPending, solPendingRows, solSetup,
   solNotAdded, solObserveOverview, solPartError, solPartSetup, solSync, solTab, solTabOn,
   plainAdded, plainLoading, plainNotAdded, plainPick, plainRead, plainSetup, plainShown, plainSol,
-  plainTab,
+  plainTab, solDetails,
 } from "./app-sol.js";
 import {
-  createZecPrice, formatUsdBalance, pendingShortcut, plainRow, portfolioView, solRow, zecInProgress,
+  pendingShortcut, plainRow, solRow, zecInProgress,
   zecTotal,
 } from "./overview-model.js";
-import { NearIntentsSwapProvider } from "./near-intents-swap-provider.js";
 import { icon, sculptedIcon } from "./app-icons.js";
+import { heliusSwapCredit } from "./app-swap-branding.js";
+import { localDevicesWarning } from "./app-local-devices.js";
 import { beginGuided, guidedEnabled, guidedState } from "./app-guided-setup.js";
 import { descriptionOf, setWalletDescription } from "./wallet-description.js";
 import { securityExplanation } from "./app-tutorial.js";
 import {
-  PLAIN_EXPOSURE, privacyBadge, solBalancePrivacy, SOL_EXPOSURE,
+  DEVICE_CHANGE_PRIVACY, PLAIN_EXPOSURE, privacyBadge, solBalancePrivacy, SOL_EXPOSURE,
 } from "./privacy-language.js";
 import { securityDashboard } from "./app-security-dashboard.js";
 import { SharedControlVisual } from "./app-approval-visualization.js";
-import { sharedControl } from "./app-shared-control.js";
 import { walletMark } from "./app-wallet-art.js";
 import { walletHeadingMarble } from "./app-wallet-marble.js";
-import { fundingOverviewCard, fundingSetupView } from "./app-funding-preview.js";
+import { portfolioOverview } from "./app-portfolio.js";
 
 export function groupView({ showHeader = true } = {}) {
   const g = state.g;
   const back = el("button", {
     class: "btn ghost sm", type: "button", onclick: () => openGroup(null),
   }, icon("back"), "Wallets");
-  if (!g) return el("div", { class: "page" }, back, loadingView());
+  if (!g) return el("div", { class: "page" }, back, restoreProgressNote(), loadingView());
   if (g.unreadable) {
     return el("div", { class: "page" }, back, el("div", { class: "card" }, unreadable()));
   }
@@ -83,22 +84,18 @@ export function groupView({ showHeader = true } = {}) {
   }
   const ready = walletReady();
   if (ui.tab === "messages") return messagingWorkspace(teamConversation([
-    staleRestoreNote(), signedNotes(), networkNote(),
+    restoreProgressNote(), staleRestoreNote(), signedNotes(), networkNote(),
     !ready ? el("button", { class: "btn ghost sm", type: "button",
       onclick: () => { ui.tab = "overview"; render(); } }, "Return to wallet setup") : null,
   ]));
   const destination = ui.tab === "approvals" || ui.tab === "recovery";
   if (!destination && ui.tab !== "settings" && ui.tab !== "messages" && (guidedEnabled()
     || !ready && !state.g.movedFrom && groupVersion() >= 2)) {
-    return guidedSetupView([staleRestoreNote(), signedNotes(), networkNote()]);
+    return guidedSetupView([restoreProgressNote(), staleRestoreNote(), signedNotes(), networkNote()]);
   }
-  const funding = ready && ui.tab === "overview" && localSeats().includes(1)
-    ? fundingSetupView(state.gid, g.name) : null;
-  if (funding) return el("div", { class: "page guided-setup funding-setup-page" },
-    staleRestoreNote(), signedNotes(), networkNote(), funding);
   const why = ready ? sendBlocker() : null;
   const head = [showHeader ? groupHead(g, ready, why) : null,
-    staleRestoreNote(), signedNotes(), networkNote()];
+    restoreProgressNote(), staleRestoreNote(), signedNotes(), networkNote()];
   if (!ready && destination) return unfinishedDestination(head, ui.tab);
   return ready ? walletView(head, why) : el("div", { class: "page" }, head, setupView());
 }
@@ -206,7 +203,7 @@ const pageHeading = (id, label) => id === "settings"
   : id === "approvals"
   ? el("div", { class: "page-heading approvals-heading" },
     el("div", {}, el("h2", {}, label),
-      el("p", { class: "small muted" }, "Review together. Authorise with confidence.")))
+      el("p", { class: "small muted" }, "Review payments and collect the approvals your wallet requires")))
   : id === "activity"
   ? el("div", { class: "page-heading activity-heading" }, el("h2", {}, label),
     el("p", { class: "muted" }, "Your wallet’s transactions and payment proposals."))
@@ -237,7 +234,9 @@ function groupHead(g, ready, why, persistent = false) {
     ...(persistent ? { "data-wallet-context": g.id, "aria-label": "Selected wallet" } : {}) },
     el("div", { class: "ph-left wallet-identity" },
       walletHeadingMarble(g),
-      el("div", { class: "wallet-name-block" }, el("h1", {}, g.name),
+      el("div", { class: "wallet-name-block" },
+        el("div", { class: "wallet-name-line" }, el("h1", {}, g.name),
+          persistent ? localDevicesWarning(g, { compact: true }) : null),
         descriptionOf(g.id).text
           ? el("p", { class: "small wallet-description" }, descriptionOf(g.id).text) : null)),
       el("div", { class: "ph-meta wallet-meta" },
@@ -253,27 +252,14 @@ function groupHead(g, ready, why, persistent = false) {
         icon("home"), "Return home"));
 }
 
-// The price of 1 ZEC in USD for the Overview of a mainnet wallet (overview-model.js). One price
-// for the page session, in memory only.
-const zecPrice = createZecPrice({ provider: new NearIntentsSwapProvider(),
-  settled: () => render() });
 const isMainnet = () => netName(state.g) === "mainnet";
-
-// A testnet wallet and a hidden tab ask nothing.
-function observePrice() {
-  if (!isMainnet() || globalThis.document?.visibilityState === "hidden") return;
-  void zecPrice.ask();
-}
 
 function overviewTab() {
   solObserveOverview();
-  observePrice();
   const c = curChain();
   return el("div", { class: "page overview-page" },
     state.g.movedTo ? moveCard(c) : null,
     fundCard(c),
-    localSeats().includes(1) && !state.g.movedTo
-      ? fundingOverviewCard(state.gid, state.g.name) : null,
     pendingCard(),
     solUnfinished() ? solSetupCard() : null,
     el("div", { class: "overview-layout premium-overview-grid" },
@@ -281,66 +267,35 @@ function overviewTab() {
       el("section", { class: "asset-section", "aria-labelledby": "assets-title" },
         el("div", { class: "section-heading" },
           el("h2", { id: "assets-title" }, "Your assets")),
-        el("div", { class: "assets-grid asset-rows" }, zecAsset(c), solAsset(), usdcAsset())),
+        el("div", { class: "assets-grid asset-rows" }, zecAsset(c), solAsset(), plainShown() ? usdcAsset() : null)),
       el("aside", { class: "overview-rail", "aria-label": "Wallet status and transactions" },
-        overviewTransactions(), sharedControl({ required: state.g.t, total: state.g.n, context: state.gid,
-        status: state.g.shapeMoved ? "Configuration mismatch" : "Wallet formed",
-        attention: !!state.g.shapeMoved,
-        participants: seatIds().map((i) => ({ id: i, name: seatLabel(i),
-          joined: state.seats[i] ? true : state.seatsLoaded && state.seatsSettled ? false : null })),
-        openSecurity: openWalletSection("recovery") }))));
+        overviewApprovals(), overviewTransactions())));
 }
 
 function balanceOverview() {
-  const view = portfolioView({ mainnet: isMainnet(), total: zecTotal(zecBal(curChain())),
-    price: zecPrice.read(), now: Date.now() });
-  return el("section", { class: "overview-hero", "aria-labelledby": "total-balance-title" },
-    el("div", { class: "overview-wallet-summary" }, walletMark(state.g, 64),
+  return el("section", { class: "overview-hero" + (isMainnet() ? " overview-portfolio" : ""),
+    "aria-label": "Wallet balance and actions" },
+    isMainnet() ? portfolioOverview() : el("div", { class: "overview-wallet-summary" }, walletMark(state.g, 64),
     el("div", { class: "portfolio-summary" }, el("div", { class: "balance-heading" },
       el("h2", { id: "total-balance-title", class: "label" },
-        plainShown() ? "ZEC value" : "Portfolio balance"),
-      el("span", { class: "portfolio-currency" }, "USD"), view.demo ? demoBadge() : null),
-    view.demo ? demoTotal() : liveTotal(view))),
+        "ZEC balance"),
+      el("span", { class: "portfolio-currency" }, "ZEC")), testnetTotal())),
     el("div", { class: "overview-actions" }, assetActionPicker("send"), assetActionPicker("receive"),
-      el("button", { class: "btn", type: "button", "data-key": "overview-swap",
+      el("button", { "data-glass": "button", class: "btn", type: "button", "data-key": "overview-swap",
         title: "Open Swap", onclick: () => { ui.tab = "swap"; render(); } },
       icon("swap"), "Swap")));
 }
 
-// A testnet wallet has no price source and no cash value. The fallback never enters wallet or
-// pricing state.
-function demoTotal() {
-  const value = formatUsdBalance(null);
-  return [el("p", { class: "portfolio-value", role: "img", "aria-label": value.text,
-    "data-valuation-state": value.known ? "known" : "unknown",
-    "aria-describedby": value.known ? null : "usd-placeholder" },
-  el("span", { "aria-hidden": "true" }, value.whole),
-  el("span", { class: "portfolio-decimals", "aria-hidden": "true" }, value.fraction)),
-  !value.known ? el("p", { class: "portfolio-placeholder", id: "usd-placeholder" },
-    el("span", { class: "placeholder-indicator" }, "Demo prices"),
-    el("span", { class: "sr-only" },
-      "The USD total is a demo. The displayed $0.00 is not a confirmed balance.")) : null,
-  state.g.network === "testnet"
-    ? el("p", { class: "portfolio-network-note" }, "Test funds have no cash value.") : null];
+// Testnet uses its actual native balance; test assets have no USD valuation.
+function testnetTotal() {
+  const total = zecTotal(zecBal(curChain()));
+  if (globalThis.zigsGlass) return globalThis.zigsGlass.stat({
+    "data-valuation-state": total === null ? "unknown" : "known",
+  }, { label: "ZEC balance on Testnet", value: total === null ? "—" : fmtZec(total), change: "Zcash Testnet" });
+  return [el("p", { class: "portfolio-value", "data-valuation-state": total === null ? "unknown" : "known" },
+    total === null ? "—" : fmtZec(total)),
+  el("p", { class: "portfolio-network-note" }, "Zcash Testnet")];
 }
-
-// A mainnet wallet shows no value, and no $0.00, until it knows the balance and the price.
-// ponytail: only ZEC counts. No price source exists for SOL; the note of a served plain wallet says
-// that SOL and USDC are not in the total. The rows of a testnet wallet are Devnet or Demo.
-const TOTAL_ZEC_ONLY = " SOL and USDC are not in this total.";
-function liveTotal(view) {
-  const { value } = view;
-  return [el("p", { class: "portfolio-value", role: "img", "aria-label": view.label,
-    "data-valuation-state": value ? "known" : "unknown", "aria-describedby": "usd-note" },
-  value ? [el("span", { "aria-hidden": "true" }, value.whole),
-    el("span", { class: "portfolio-decimals", "aria-hidden": "true" }, value.fraction)]
-    : el("span", { "aria-hidden": "true" }, "—")),
-  el("p", { class: "portfolio-network-note", id: "usd-note" }, view.note,
-    view.facts ? ". " + view.facts : null,
-    plainShown() ? (view.facts ? "" : ".") + TOTAL_ZEC_ONLY : null)];
-}
-
-const demoBadge = () => el("span", { class: "badge plain demo-badge" }, "Demo");
 
 // Why a plain wallet cannot send or receive an asset now, in a few words, or "" when it can. USDC
 // is sent only once the last read shows its token account.
@@ -388,22 +343,28 @@ function assetActionPicker(action) {
         ? solNetwork() + " · opens this wallet’s Solana tools" : "Unavailable for this wallet",
       !solOn(), () => sending ? openSolanaControl("sol-send-to") : openSolanaReceive()),
       plainShown() ? plainChoice("usdc", "USDC")
-        : choose("usdc", "USDC", "Demo row · unavailable; do not deposit", true, null)));
+        : null));
+}
+
+function overviewApprovals() {
+  return el("section", { class: "overview-approvals", id: "overview-approvals",
+    "data-key": "overview-approvals", tabindex: "-1", "aria-labelledby": "approvals-title" },
+    el("div", { class: "section-heading approval-heading" },
+      el("h2", { id: "approvals-title" }, "Approvals"),
+      el("button", { class: "btn ghost sm overview-all-approvals", type: "button",
+        "aria-label": "View all approvals", onclick: openWalletSection("approvals") },
+      "View all", icon("external"))),
+    overviewApprovalSummary());
 }
 
 function overviewTransactions() {
-  const recent = ui.overviewActivity === "recent";
-  const choose = (id, label) => el("button", { class: "btn", type: "button",
-    "aria-pressed": String(recent === (id === "recent")),
-    onclick: () => { ui.overviewActivity = id; render(); } }, label);
   return el("section", { class: "overview-transactions", "aria-labelledby": "transactions-title" },
     el("div", { class: "section-heading transaction-heading" },
       el("h2", { id: "transactions-title" }, "Transactions"),
-      el("div", { class: "transaction-views", role: "group", "aria-label": "Transaction view" },
-        choose("pending", "Pending"), choose("recent", "Recent"))),
-    recent ? recentTransactions() : el("div", { class: "overview-approvals", id: "overview-approvals",
-      "data-key": "overview-approvals", tabindex: "-1", "aria-labelledby": "approvals-title" },
-    overviewApprovalSummary()));
+      el("button", { class: "btn ghost sm overview-all-activity", type: "button",
+        "aria-label": "View all activity", onclick: openWalletSection("activity") },
+      "View all", icon("external"))),
+    recentTransactions());
 }
 
 function overviewApprovalSummary() {
@@ -412,10 +373,8 @@ function overviewApprovalSummary() {
   const zecPreview = rows.review.slice(0, 3);
   const solPreview = sol?.kind === "review" ? solPendingRows().slice(0, 3 - zecPreview.length) : [];
   if (!shown.length && !rows.lost.length && emptyApprovalsRead(sol))
-    return transactionEmpty("No approvals waiting", "approvals-title");
+    return transactionEmpty("No approvals waiting");
   return el("section", { class: "card card-pad overview-inbox-summary" },
-    el("div", { class: "card-head" }, el("h3", { id: "approvals-title" }, "Approvals"),
-      el("button", { class: "btn", type: "button", onclick: openWalletSection("approvals") }, "View all approvals")),
     inboxNote(shown.length > 0 || rows.lost.length > 0),
     zecPreview.length || solPreview.length ? el("div", { class: "list stacked approval-preview" },
       zecPreview.map((ss) => guard(approvalRow, ss)),
@@ -429,14 +388,12 @@ function overviewApprovalSummary() {
 }
 
 function recentTransactions() {
-  const list = activity().slice(0, 5);
+  const list = activity().slice(0, 1);
   if (!list.length && state.sessionsLoaded && !state.sessionsFailed && !state.pending
     && historyState() === "ready" && !solReading("all"))
     return el("div", { class: "recent-transactions" },
       transactionEmpty("No recent transactions"), activityNote("all"));
-  return el("section", { class: "card recent-transactions", "aria-labelledby": "recent-title" },
-    el("div", { class: "card-head card-pad" }, el("h3", { id: "recent-title" }, "Recent transactions"),
-      el("button", { class: "btn ghost sm", type: "button", onclick: () => { ui.tab = "activity"; render(); } }, "View all activity")),
+  return el("section", { class: "card recent-transactions", "aria-label": "Latest transaction" },
     activityRows(list), receivedNote(list), list.length ? historyNote("all") : null, activityNote("all"));
 }
 
@@ -530,8 +487,8 @@ function paymentStep(c, ss, to) {
       + "payment to approve it or take the next step.", session: ss };
   }
   if (inFlight().includes(ss)) {
-    return { text: "The Zcash funds are on their way to " + groupName(to) + ". They arrive with "
-      + "the next block.", open: to };
+    return { text: "The Zcash transfer to " + groupName(to) + " was submitted. Wait for block "
+      + "confirmation before treating the funds as received.", open: to };
   }
   const b = c && c.bal ? balanceNow(c.bal) : null;
   if (!b) return sentStep(to);
@@ -557,6 +514,7 @@ function moveCard(c) {
     el("div", { class: "card-head" },
       el("h3", {}, m.done ? "The Zcash funds moved" : "Changing devices")),
     el("p", { class: "small muted" }, m.text),
+    migrationScope(),
     el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, moveButtons(m, c, why)),
     why ? el("p", { class: "small faint" }, why) : null);
 }
@@ -613,7 +571,9 @@ function pendingCard() {
 
 const assetHead = (id, symbol, network) => el("div", { class: "asset-title" },
   el("span", { class: "coin-mark" }, icon(id)),
-  el("div", {}, el("h3", { id: "asset-" + id }, symbol), el("p", {}, network)));
+  el("div", {}, el("h3", { id: "asset-" + id }, symbol), el("p", {
+    class: network.toLowerCase().endsWith(netName(state.g)) ? "asset-network" : "asset-network-other",
+  }, network)));
 
 const zecBal = (c) => c && c.bal ? balanceNow(c.bal) : null;
 
@@ -634,7 +594,7 @@ function zecAsset(c) {
       b?.pending ? el("p", { class: "asset-incoming small muted" }, "Incoming ", amount(b.pending)) : null,
       notInBlockLine(c)),
     shieldingActions("zec", false)),
-    b?.sending ? sendingLine(b.sending) : null, atCap() ? capNote() : null,
+    b?.sending ? sendingLine(b.sending) : null,
     assetNote("zec", "Balance details", [
       emptyNote(b, c), syncLine(c), shieldingBreakdown("zec"),
       el("p", { class: "asset-total" }, "Total shielded balance ", amount(zecTotal(b))),
@@ -664,6 +624,7 @@ const assetNote = (id, title, content) => el("details", { class: "asset-note", i
   el("div", { class: "asset-note-body small muted" }, content));
 
 function shieldingActions(id, available) {
+  if (!available) return null;
   const note = id + "-shielding-note";
   return el("div", { class: "row-actions shielding-actions" },
     el("button", { class: "btn", type: "button", disabled: !available, "aria-describedby": note,
@@ -706,7 +667,8 @@ function fundCard(c) {
         icon("external"))),
     el("p", { class: "small muted" }, "Coins show as Incoming, then as Available after 3 "
       + "confirmations (about 75 seconds)."),
-    el("p", { class: "small muted" }, FAUCET_TEXT));
+    el("details", {}, el("summary", {}, "About the faucet"),
+      el("p", { class: "small muted" }, FAUCET_TEXT)));
 }
 
 function emptyNote(b, c) {
@@ -716,8 +678,7 @@ function emptyNote(b, c) {
     ? el("span", {}, first + " Share its address to receive ZEC, or get free "
       + "testnet ZEC from a ", el("a", { href: curNet().faucet, target: "_blank",
       rel: "noopener" }, "faucet", icon("external")), ". " + FAUCET_TEXT)
-    : el("span", {}, first + " Share its address to receive ZEC. Keep it under "
-      + capText(curNet().cap) + ": the app warns at that level. It cannot block deposits."));
+    : el("span", {}, first + " Share its address to receive ZEC."));
 }
 const SOL_NOTE = {
   synced: "The private balance of the group at the last sync. Open Solana for payments, deposits "
@@ -749,14 +710,27 @@ const solExposure = () => (poolMainnet() ? MAINNET_EXPOSURE : SOL_EXPOSURE);
 // this browser, or that this server does not serve, has a Solana tab that says why. Its row is the
 // route to that tab, as the row of a plain wallet is, in place of Shield and Unshield. Its details
 // name mainnet, because the wallet can hold real SOL.
-const SOL_TESTNET_ONLY = "Solana is available only for eligible version 3 testnet wallets. Do not "
-  + "send SOL to the Zcash address.";
 const SOL_MODE_DETAILS = {
   accept: "This wallet is a private Solana wallet on mainnet. This browser takes part only after "
     + "you accept it in the Solana tab. Do not send SOL to the Zcash address.",
   unserved: "This wallet is a private Solana wallet on mainnet. This server does not serve it, so "
     + "it does not open here. Do not send SOL to the Zcash address.",
 };
+function solUnavailableReason() {
+  const mode = solMode();
+  if (SOL_MODE_DETAILS[mode]) return SOL_MODE_DETAILS[mode];
+  let reason;
+  if (groupVersion() !== 3) reason = "Solana needs a version 3 wallet.";
+  else if (!signedMode(state.gid)) {
+    reason = "This browser has not verified this wallet’s signing setup yet.";
+  } else if (netConfirmed(state.gid) !== state.g.network) {
+    reason = "Complete this wallet’s safety-number checks in this browser to enable Solana.";
+  } else if (mode === "plain") {
+    reason = "Solana mainnet is unavailable on this server. Its mainnet service must be enabled "
+      + "and configured.";
+  } else reason = "Solana is unavailable for this wallet. Complete wallet setup before using it.";
+  return reason + " Do not send SOL to the Zcash address.";
+}
 function solUnavailableRow() {
   return el("section", { class: "card card-pad asset-card asset-row asset-unavailable",
     "aria-labelledby": "asset-sol" },
@@ -770,7 +744,7 @@ function solUnavailableRow() {
     solTabOn() ? plainOpen("open") : shieldingActions("sol", false)),
   assetNote("sol", "Solana details", [
     shieldingBreakdown("sol"),
-    el("p", { id: "sol-unavailable" }, SOL_MODE_DETAILS[solMode()] ?? SOL_TESTNET_ONLY),
+    el("p", { id: "sol-unavailable" }, solUnavailableReason()),
     el("p", { id: "sol-shielding-note" },
       "Shielded and unshielded percentages are unavailable for this wallet."),
   ]));
@@ -788,12 +762,12 @@ function solAsset() {
     resync: "Syncing · saved balance" }[row.state];
   return el("section", { class: "card card-pad asset-card asset-row asset-state-" + row.state, "aria-labelledby": "asset-sol" },
     el("div", { class: "asset-row-main" },
-    el("div", { class: "asset-position" }, assetHead("sol", "SOL", solNetwork()),
-      solBalancePrivacy(el, row)),
+    el("div", { class: "asset-position" }, assetHead("sol", "Confidential SOL", solNetwork()),
+      el("span", { class: "asset-helius-credit" }, heliusSwapCredit())),
     el("div", { class: "asset-balance-block" }, el("span", { class: "label" }, "Wallet balance"), amount,
-      status ? el("p", { class: "asset-row-status small muted", role: "status" }, status) : null),
-    shieldingActions("sol", true)),
+      status ? el("p", { class: "asset-row-status small muted", role: "status" }, status) : null)),
     assetNote("sol", "Balance & privacy details", [
+      shieldingActions("sol", true),
       el("p", {}, row.state === "failed" ? solError : SOL_NOTE[row.state]),
       el("p", {}, solExposure()), shieldingBreakdown("sol"),
       el("p", { id: "sol-shielding-note" }, "Percentages unavailable. Device fee funds are separate from wallet holdings. "
@@ -803,20 +777,7 @@ function solAsset() {
 }
 
 function usdcAsset() {
-  if (plainShown()) return plainAsset("usdc");
-  return el("section", { class: "card card-pad asset-card asset-row asset-unavailable", "aria-labelledby": "asset-usdc" },
-    el("div", { class: "asset-row-main" },
-    el("div", { class: "asset-position" }, assetHead("usdc", "USDC", solNetwork()),
-      demoBadge(), privacyBadge(el, "unsupported")),
-    el("div", { class: "asset-balance-block" }, el("span", { class: "label" }, "Wallet balance"),
-      el("p", { class: "asset-balance unknown" }, "Unavailable"),
-      el("p", { class: "asset-row-status small asset-row-warning" }, "Do not deposit USDC to this wallet.")),
-    shieldingActions("usdc", false)),
-    assetNote("usdc", "USDC details", [
-      shieldingBreakdown("usdc"),
-      el("p", { id: "usdc-unavailable" }, "This USDC row is a demo. Shielded USDC is unavailable in this version. No balance is available. Do not deposit USDC to this wallet."),
-      el("p", { id: "usdc-shielding-note" }, "No shielded or unshielded USDC balance is available. Shield and Unshield are unavailable."),
-    ]));
+  return plainShown() ? plainAsset("usdc") : null;
 }
 
 // The SOL or USDC row of a served plain wallet: the balance of the last read, or the state of its
@@ -846,9 +807,9 @@ function plainAsset(id) {
       privacyBadge(el, "public")),
     el("div", { class: "asset-balance-block" }, el("span", { class: "label" }, "Wallet balance"),
       plainAmount(row), status ? el("p", { class: "asset-row-status small"
-        + (bad ? " asset-row-warning" : " muted"), role: "status" }, status) : null),
-    id === "sol" ? plainOpen(row.state) : null),
+        + (bad ? " asset-row-warning" : " muted"), role: "status" }, status) : null)),
   assetNote(id, "Solana details", [el("p", {}, PLAIN_EXPOSURE),
+    id === "sol" ? plainOpen(row.state) : null,
     plainRead()?.error ? el("p", {}, plainRead().error) : null]));
 }
 
@@ -865,20 +826,7 @@ function solAmount(text, size = "xl", sign = "") {
     "aria-label": shown + " SOL" }, shown, el("span", { class: "cur" }, "SOL"));
 }
 
-export const capNote = () => el("div", { class: "callout bad" },
-  "This wallet holds " + capText(curNet().cap) + ", the warning level for unaudited mainnet "
-  + "wallets. Do not send more to it. The address stays valid after it is shared, and the app "
-  + "cannot block deposits. Payments out still work.");
-
-/** The note of a wallet whose balance the app does not know yet: its address stays hidden. */
-export const capUnknownNote = () => el("div", { class: "callout" },
-  "Wait for the first sync to finish. The app shows the address of a mainnet wallet only when it "
-  + "knows the balance. The address stays valid after it is shared.");
-
-export const receiveWhat = () => curNet().cap ? "ZEC" : "testnet ZEC";
-export const receiveLimit = () => curNet().cap ? " Keep the total under " + capText(curNet().cap)
-  + ". The app warns at that level and cannot block deposits. The address stays valid after you "
-  + "share it." : "";
+export const receiveWhat = () => isMainnet() ? "ZEC" : "testnet ZEC";
 
 /** The note of a wallet that a new wallet replaces: its senders must use the new address. */
 export const movedNote = () => el("div", { class: "callout" }, "Change devices replaces this "
@@ -890,10 +838,8 @@ function receiveCard() {
     el("div", { class: "card-head" }, el("h3", {}, "Receive"),
       privacyBadge(el, addrHidden() ? "unknown" : "shielded")),
     state.g.movedTo ? movedNote()
-      : atCap() ? capNote()
-      : capUnknown() ? capUnknownNote()
       : el("p", { class: "small muted" }, "Share this address to receive " + receiveWhat()
-        + ". Payments to it are shielded." + receiveLimit()),
+        + ". Payments to it are shielded."),
     addrHidden() ? null : el("div", { class: "addr-box" }, el("span", { class: "hex" }, short(w.address, 18)), copyBtn(w.address)),
     el("p", { class: "small faint" }, verifiedCount() + " of " + state.g.n + " devices checked "
       + "this address against their own key."));
@@ -968,16 +914,16 @@ const historyNote = (pick) => {
 };
 
 // `line` is the rule above the rows: the card of the Activity section has no head to separate.
-function activityRows(list, pick = "all", line = "border-top:1px solid var(--line)") {
+function activityRows(list, pick = "all", line = "border-top:1px solid var(--line)", flying = null) {
   if (!list.length) {
     const [head, text] = emptyText(pick);
     return el("div", { class: "empty workflow-empty", style: line },
-      el("span", { class: "empty-illustration", "aria-hidden": "true" }, icon("activity")), el("h3", {}, head),
+      el("span", { class: "empty-illustration", "aria-hidden": "true" }, sculptedIcon("activity")), el("h3", {}, head),
       el("p", { class: "small" }, text));
   }
   // One list of sent payments for the whole draw: a row does not walk all sessions again.
-  const flying = new Set(inFlight());
-  return el("div", { class: "list stacked", style: line }, list.map((a) => rowOf(a, flying)));
+  const active = flying || new Set(inFlight());
+  return el("div", { class: "list stacked", style: line }, list.map((a) => rowOf(a, active)));
 }
 
 function rowOf(a, flying) {
@@ -1001,9 +947,6 @@ const chainSelect = (pick) => el("div", { class: "activity-filters", role: "grou
         "aria-pressed": String(pick === value), onclick: () => chooseChain(value) },
       value === "all" ? "All activity" : label)));
 
-const SOL_ACTIVITY_NOTE = "The Solana rows show the payments of this wallet. They also show the "
-  + "last SOL that you added, until you leave this wallet or reload the page. SOL that other "
-  + "people send to the wallet does not show here.";
 // The page knows two causes for keys that differ: the devices published other keys, or the key
 // share or PDA identity of this device does not fit the published ones.
 const SOL_LOST = {
@@ -1020,10 +963,10 @@ function solNoteText() {
   const status = solSetup()?.status;
   if (!solPart() || status === "running") return SOL_LOST[status];
   if (solActivity() === null) return "Reading the Solana transactions…";
-  return SOL_ACTIVITY_NOTE + solLacks();
+  return solLacks().trim();
 }
 // The Solana rows that the list lacks: older proposals, and proposals that wait for their check.
-const solLacks = () => (solOlderCount() > 0 ? " Older Solana proposals are not listed." : "")
+const solLacks = () => (solOlderCount() > 0 ? " Older Solana proposals are available in Solana’s proposal history." : "")
   + (solActivityWaits() ? " Zigs still reads some Solana proposals, so more rows can show." : "");
 function activityNote(pick) {
   const text = pick === "zec" ? null : solNoteText();
@@ -1123,10 +1066,10 @@ function approvalsTab() {
     ? el("p", { class: "small muted row-actions" }, sol.text, " ", openSolanaButton()) : null;
   return el("div", { class: "approvals-layout" },
     el("div", { class: "approvals-queue" }, inboxNote(sections.length > 0), ...sections, other),
-    el("aside", { class: "approvals-support", "aria-label": "Wallet shared control" },
+    sections.length ? el("aside", { class: "approvals-support", "aria-label": "Wallet shared control" },
       SharedControlVisual({ required: state.g.t, total: state.g.n, loaded: state.seatsLoaded,
         participants: seatIds().map((i) => ({ id: i, name: state.seats[i] ? named(i) : "Device " + i,
-          joined: !!state.seats[i] })) })),
+          joined: !!state.seats[i] })) })) : null,
     el("div", { class: "approval-history-link" },
       el("div", {}, el("h3", {}, "Previous payments"),
         el("p", { class: "small muted" }, "Review recorded payments and their outcomes in Activity.")),
@@ -1162,9 +1105,14 @@ const lostNote = (ids) => ids.length ? el("p", { class: "row-note" }, ids.length
   : ids.length + " payments that you approved have no record here any more. Send stays held "
     + "until they can no longer go on chain.") : null;
 
-const openSolana = () => { ui.tab = "solana"; render(); };
+const openSolana = () => {
+  ui.tab = "solana";
+  ui.solanaAction = { gid: state.gid, action: "send" };
+  render();
+};
 const openSolanaReceive = () => {
   ui.tab = "solana";
+  ui.solanaAction = { gid: state.gid, action: "receive" };
   if (sol || plainSol) focusAfter("sol-receive", true);
   render();
 };
@@ -1172,6 +1120,7 @@ const openSolanaReceive = () => {
 // Loading and setup screens keep their own focus when no payment form exists yet.
 const openSolanaControl = (id) => {
   ui.tab = "solana";
+  ui.solanaAction = { gid: state.gid, action: "send" };
   if (sol) focusAfter("INPUT:" + id + ":0", true);
   render();
 };
@@ -1179,6 +1128,7 @@ const openSolanaControl = (id) => {
 // "sol-send" is the data-key of the form (web/sol/plain/sendview.js).
 const openSolanaSend = (asset) => {
   ui.tab = "solana";
+  ui.solanaAction = { gid: state.gid, action: "send" };
   plainPick(asset);
   focusAfter("sol-send", true);
   render();
@@ -1280,7 +1230,7 @@ function inboxNote(rows) {
   if (rows) return el("p", { class: "small muted", role: "status" }, INBOX_EMPTY[why]);
   const empty = why === "empty" || why === "zec";
   return el("section", { class: "approval-empty", role: "status" },
-    el("span", { class: "approval-empty-mark", "aria-hidden": "true" }, sculptedIcon("devices")),
+    el("span", { class: "approval-empty-mark", "aria-hidden": "true" }, sculptedIcon("approvals")),
     el("div", {}, el("h3", {}, empty ? (why === "zec" ? "No Zcash approvals waiting" : "No approvals waiting")
       : why === "loading" ? "Checking payments" : why === "syncing" ? "Syncing this wallet" : "Some records could not be verified"),
     el("p", {}, empty ? "Payment requests and transactions in progress will appear here." : INBOX_EMPTY[why]),
@@ -1298,18 +1248,24 @@ function activityTab() {
           + (pick === "all" ? "" : " · " + (pick === "sol" ? "Solana" : "Zcash")))),
     activityLimit(pick),
     el("div", { class: "activity-ledger" },
-      list.length ? activityRows(list, pick, "") : activityEmpty(pick, all.length > 0),
+      list.length ? datedActivityRows(list, pick) : activityEmpty(pick, all.length > 0),
       list.length ? historyNote(pick) : null),
+    list.some((row) => row.r) ? el("p", { class: "activity-date-note small muted" },
+      "Dates for received Zcash are estimated from block heights.") : null,
     receivedNote(list),
     el("details", { class: "activity-history-help" },
       el("summary", {}, "About this history"),
       securityExplanation("activity")));
 }
 
-// Decorative ledger engraving, not sample transactions or a transaction-status indicator.
-const activityTimeline = () => el("span", { class: "activity-timeline", "aria-hidden": "true" },
-  [0, 1, 2].map((i) => el("span", { class: "activity-timeline-track track-" + i },
-    el("i", {}), el("span", {}), el("b", {}))));
+function datedActivityRows(list, pick) {
+  const flying = new Set(inFlight());
+  return groupLedgerDates(list).map((group) => el("section", { class: "activity-day",
+    "aria-labelledby": "activity-day-" + group.key },
+    el("header", { class: "activity-day-heading" }, el("h3", { id: "activity-day-" + group.key }, group.label),
+      el("span", {}, group.rows.length + (group.rows.length === 1 ? " record" : " records"))),
+    activityRows(group.rows, pick, "", flying)));
+}
 
 function activityEmpty(pick, filtered) {
   const [head, text] = solModuleUnread(pick) && (pick === "sol" || historyState() === "ready")
@@ -1317,7 +1273,7 @@ function activityEmpty(pick, filtered) {
     : emptyText(pick);
   const complete = head === "No activity yet";
   return el("div", { class: "activity-empty" + (complete ? "" : " activity-unavailable"), role: "status" },
-    activityTimeline(),
+    el("span", { class: "activity-empty-art", "aria-hidden": "true" }, sculptedIcon("activity")),
     el("h3", {}, complete ? filtered ? "No matching activity" : "Your activity starts here" : head),
     el("p", { class: "small muted" }, complete && filtered
       ? "No recorded activity matches this network. Choose All activity to see the other records." : text),
@@ -1379,9 +1335,23 @@ function changeSignersCard() {
     el("p", { class: "small muted" }, "The devices and the approval rule are part of the wallet "
       + "key, so they cannot change in place. To change them, create a new wallet with the devices "
       + "you want, then move the Zcash funds to it." + solStays()),
+    el("p", { class: "small muted" }, "Removed devices retain their old key share and viewing access."),
+    migrationScope(),
+    el("details", { class: "workflow-details" }, el("summary", {}, "What removed devices can still access"),
+      el("p", { class: "small muted" }, DEVICE_CHANGE_PRIVACY)),
     el("div", {}, moving
       ? el("button", { class: "btn", type: "button", onclick: () => { ui.tab = "overview"; render(); } }, "See the move")
       : el("button", { class: "btn", type: "button", disabled: !localSeats().length, onclick: () => { ui.move = true; render(); } }, "Change devices")));
+}
+
+function migrationScope() {
+  return el("details", { class: "workflow-details", "data-migration-scope": "" },
+    el("summary", {}, "What changes for each asset"),
+    el("ul", { class: "small" },
+      el("li", {}, "Zcash: create and check the replacement wallet, then approve each transfer under the old rule. More than one payment may be needed."),
+      el("li", {}, "SOL and USDC: stay under the old Solana arrangement. Review and move them separately; this operation does not replace their devices or approval rule."),
+      el("li", {}, "Future Zcash receipts: share the replacement wallet’s checked address. Payments to the old address still belong to the old wallet.")),
+    el("p", { class: "small muted" }, "An empty balance after the last sync is not a promise that no later payment will arrive. Keep the old wallet accessible until every asset is accounted for."));
 }
 
 function seatBadge(i) {
@@ -1479,6 +1449,7 @@ function securityRecoveryTab(formed = true) {
       el("div", { class: "row-actions" }, copyBtn(inviteLink(state.gid), "Copy private invite link")),
       secretQr(inviteLink(state.gid), "wallet", true))),
     management: formed ? changeSignersCard() : el("p", {}, "Finish the existing wallet setup before changing devices."),
+    solana: solSecurityDetails(),
     lost: lostText(state.g.t, !!solStays()),
   });
 }
@@ -1492,16 +1463,42 @@ const lostText = (t, sol) => "Keep the devices that still work, and do not delet
 function settingsTab() {
   const host = chain?.url ? new URL(chain.url).host : new URL(curNet().servers[0]).host;
   return el("div", { class: "page settings-page preferences-page" },
-    generalSettings(memoSwitch(host)),
-    networkPrivacySettings(),
-    settingsGroup("Current wallet", descriptionEditor(), walletFacts()),
+    generalSettings(),
+    networkPrivacySettings(memoSwitch(host),
+      settingsDisclosure("Data providers and privacy", "What services and wallet members can see.", privacyText(host))),
+    settingsGroup("Current wallet", descriptionEditor(),
+      settingsDisclosure("Wallet details", "Address, network and wallet configuration.", walletFacts()), solAccountSettings()),
     browserSettings(),
     helpView(settingsRow("Replay setup guide", "Review wallet setup and optional recovery-file checks.",
       el("button", { class: "btn sm", type: "button", onclick: act(() => {
         beginGuided(state.gid, { replay: true }); ui.tab = "overview"; render();
       }) }, "Open guide"))),
-    settingsGroup("Advanced", technicalDetails(),
-      settingsDisclosure("Network & privacy", "Browser storage, data providers and what services can access.", privacyText(host))));
+    settingsGroup("Advanced", technicalDetails()), labsSettings());
+}
+
+function takeSolDetailsTarget(surface) {
+  const target = ui.solDetailsTarget;
+  if (target?.gid !== state.gid || target.surface !== surface) return false;
+  ui.solDetailsTarget = null;
+  return true;
+}
+
+function solAccountSettings() {
+  if (!solWallet()) return null;
+  const body = solDetails("settings");
+  const details = settingsDisclosure("Solana account", "Fee accounts, sending setup and account details.", body);
+  details.setAttribute("data-key", "sol-settings");
+  details.setAttribute("tabindex", "-1");
+  // The receive-page link opens this destination; ordinary Settings visits keep it collapsed.
+  if (takeSolDetailsTarget("settings")) details.open = true;
+  return details;
+}
+
+function solSecurityDetails() {
+  if (!solWallet()) return null;
+  return el("details", { class: "security-explainer sol-security-details", "data-key": "sol-security",
+    tabindex: "-1", open: takeSolDetailsTarget("security") },
+    el("summary", {}, "Solana privacy & custody"), solDetails("security"));
 }
 
 function descriptionEditor() {
@@ -1550,13 +1547,11 @@ function checkedBadge() {
 function walletFacts() {
   const w = state.wallet, net = curNet();
   const address = addrHidden()
-    ? settingsRow("Wallet address", atCap() ? "Hidden at the unaudited mainnet warning level. Deposits cannot be blocked."
-      : capUnknown() ? "Hidden until the first sync shows the balance."
-      : "Shown after this device checks it against its key share.", el("span", { class: "preference-state" }, "Hidden"))
+    ? settingsRow("Wallet address", "Shown after this device checks it against its key share.", el("span", { class: "preference-state" }, "Hidden"))
     : el("div", { class: "preference-address" }, settingsRow("Wallet address", short(w.address, 12), copyBtn(w.address, "Copy address")),
       settingsDisclosure("View full address", null, el("div", { class: "addr-full" }, addrGroups(w.address))));
   return [address,
-    settingsRow("Network", net.cap ? "Unaudited · warning at " + capText(net.cap) + ". Deposits cannot be blocked." : "Test coins have no monetary value.",
+    settingsRow("Network", isMainnet() ? "Send and receive ZEC on the Zcash network." : "Test coins have no monetary value.",
       el("span", { class: "preference-value" }, "Zcash " + net.label)),
     settingsRow("Required approvals", state.g.t === state.g.n ? "Every device must approve a payment." : "Any " + state.g.t + " devices must approve each payment.",
       el("span", { class: "preference-value" }, state.g.t + " of " + state.g.n + " devices")),
@@ -1628,7 +1623,7 @@ function privacyText(host) {
     + "A mainnet wallet asks ChainSafe’s public server directly, and that server sees your IP. "
     + "These requests do not send your signing key."),
   el("p", { class: "small muted" }, "Incoming memo retrieval additionally identifies transactions that pay this wallet. "
-    + "Its consent and caching details are under General. Wallet descriptions are local notes outside the encrypted vault, "
+    + "Its consent and caching details are under Privacy & Network. Wallet descriptions are local notes outside the encrypted vault, "
     + "not shared wallet metadata or recovery-file contents. Full network disclosures, including Solana services, are in Help & Support.")];
 }
 

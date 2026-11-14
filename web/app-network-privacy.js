@@ -2,7 +2,7 @@
 import { icon } from "./app-icons.js";
 import { el } from "./app-dom.js";
 import { render } from "./app-loop.js";
-import { settingsGroup, settingsRow } from "./app-settings-ui.js";
+import { settingsDisclosure, settingsGroup, settingsRow } from "./app-settings-ui.js";
 import { hasPrivacyPopup, openPrivacyPopup } from "./network-privacy-popup.js";
 
 export const DEMO_ROW = "Demo only: your connection is unchanged. No Tor connection is made.";
@@ -12,15 +12,13 @@ export const closeNetworkPrivacy = () => { panelOpen = false; };
 const openPanel = () => { panelOpen = true; render(); };
 const openDemo = () => { closeNetworkPrivacy(); render(); openPrivacyPopup(); };
 
-export function networkPrivacySettings() {
+export function networkPrivacySettings(...extra) {
   return settingsGroup("Privacy & Network",
     settingsRow("Connection",
       "Zigs uses a Standard connection. Tor is not available in this version.",
       el("button", { type: "button", class: "btn ghost sm", "data-key": "network-privacy-settings",
         "aria-haspopup": "dialog", onclick: openPanel }, "Privacy & Network")),
-    hasPrivacyPopup() ? settingsRow("Tor demo", DEMO_ROW,
-      el("button", { type: "button", class: "btn ghost sm", "data-key": "network-privacy-demo",
-        "aria-haspopup": "dialog", onclick: openDemo }, "Open the Tor demo")) : null);
+    ...extra);
 }
 
 export function networkPrivacyPanel() {
@@ -52,11 +50,12 @@ export function networkPrivacyPanel() {
     el("div", {},
       el("p", { class: "small muted" }, "Network privacy concerns your connection and IP address. Transaction privacy concerns what your blockchain activity reveals. Shielded transactions do not hide your IP from the services you contact."),
       el("p", { class: "small muted" }, "An integrated browser Tor connection would still expose your IP to the initial website host and browser gateway. Tor does not prevent browser fingerprinting, account identification, compromised devices or every form of timing correlation."))),
-  hasPrivacyPopup() ? el("section", { class: "network-privacy-preview",
-    "aria-label": "Tor demo" },
-  el("h3", {}, "Tor demo"),
-  el("p", { class: "small muted", id: "network-privacy-preview-note" }, DEMO_ROW),
-  el("button", { class: "btn ghost sm", type: "button", "aria-haspopup": "dialog",
-    "aria-describedby": "network-privacy-preview-note", onclick: openDemo },
-  "Open the Tor demo")) : null);
+);
+}
+
+export function labsSettings() {
+  return hasPrivacyPopup() ? settingsGroup("Labs",
+    settingsDisclosure("Interface demos", "Optional previews. No funds move and no connection changes.",
+      el("p", { class: "small muted" }, DEMO_ROW),
+      el("button", { type: "button", class: "btn ghost sm", onclick: openDemo }, "Open the Tor demo"))) : null;
 }

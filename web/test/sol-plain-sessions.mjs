@@ -1365,6 +1365,9 @@ step("the watches of the sessions stop with the wallet and with an ended session
   const inMinutes = (n) => new Date(Date.now() + n * 60_000).toISOString();
   const deadline = inMinutes(6 * 60);
   const swapOfTest = { deposit: RECIPIENT, lamports: "17500000", deadline };
+  const standard = swapTyped({ ...swapOfTest, confidentiality: "public" });
+  assert.equal(standard.swap, swapMark(RECIPIENT, deadline, "public"));
+  assert.equal(swapOf({ swap: standard.swap }).confidentiality, "public");
   // The exact lamports: the decimal text reads back to the same base units.
   for (const lamports of ["17500000", "17500001", "1", "18446744073709551615"]) {
     const sent = swapTyped({ ...swapOfTest, lamports });
@@ -1410,11 +1413,11 @@ step("the watches of the sessions stop with the wallet and with an ended session
   const { by, sig, ...part } = data.get(path(gid, "solsessions/" + id));
   assert.deepEqual(Object.keys(part).sort(), ["createdAt", "feeSig", "intent", "message", "swap"],
     "the proposal holds the swap mark and nothing else new");
-  assert.equal(part.swap, "near-sol-zec " + RECIPIENT + " " + deadline);
+  assert.equal(part.swap, "near-sol-zec " + RECIPIENT + " " + deadline + " basic");
   const ss = await session(id);
   assert.ok(ss && showable(ss), "the signed mark verifies");
   assert.deepEqual(swapOf(ss), { deposit: RECIPIENT, deadline: Date.parse(deadline),
-    iso: deadline });
+    iso: deadline, confidentiality: "basic" });
   assert.equal(titleOf(ss), "Swap deposit (SOL to ZEC)");
   assert.equal(by, 1);
   assert.equal(typeof sig, "string");
@@ -1425,7 +1428,8 @@ step("the watches of the sessions stop with the wallet and with an ended session
   assert.ok(review.rows.some((r) => r.label === "To" && r.value === RECIPIENT));
   assert.ok(review.rows.some((r) => r.label === "Base units" && r.value === "17500000"));
   assert.deepEqual(asks, [{ deposit: RECIPIENT, lamports: "17500000", deadline,
-    refundTo: base58(group) }], "the check gets the lines of the checker and the group address");
+    refundTo: base58(group), confidentiality: "basic" }],
+  "the check gets the lines of the checker, the group address and the selected mode");
   // A swap that NEAR Intents does not confirm, a check that fails and an odd answer: no approval.
   answer = () => ({ why: "The swap pays another ZEC address than the one of this wallet." });
   await refused(2, id, /another ZEC address/, "a swap of another wallet");

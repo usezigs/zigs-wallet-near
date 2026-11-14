@@ -1,5 +1,5 @@
 // Backup and restore: logic and dialogs.
-import { icon } from "./app-icons.js";
+import { icon, sculptedIcon } from "./app-icons.js";
 import {
   backupName, boxPairMatches, heldRefusal, keysOf, lateFields, makePassphrase, passIssue,
   passLength, restoredSecret, settledFields, shareShape, skey, staleRestore, takenKeys, undoPlan,
@@ -15,12 +15,12 @@ import { gkeys, mySeatSecrets, persist, putKey, putSec, sec, secrets } from "./a
 import { fitState } from "./app-seats.js";
 import { isChatId } from "./app-links.js";
 import { downloads, openGroup } from "./app-groups.js";
-import { act, copyBtn, el, noteFor, setNote } from "./app-dom.js";
+import { act, announce, copyBtn, dialogForm, el, noteFor, setNote } from "./app-dom.js";
 import { groupVersion, seatCheck } from "./app-dkg.js";
 import {
   changePersonal, personal, personalDamaged, personalEnv, restoreAccount,
 } from "./app-account.js";
-import { once, render } from "./app-loop.js";
+import { focusAfter, once, render } from "./app-loop.js";
 import { solReady, solRestore } from "./app-sol.js";
 import { heldApprovals } from "./app-payments.js";
 import { checkBackupPayload, checkSavedBackup } from "./backup-check.js";
@@ -177,11 +177,13 @@ export function backupDialog() {
       showBanner("ok", "Backup saved. Keep the passphrase apart from the file.");
     } finally { b.busy = false; }
   });
-  const form = el("form", {
-    class: "dialog", role: "dialog", "aria-modal": "true", "aria-labelledby": "backup-title",
+  const form = dialogForm({
+    class: "dialog recovery-sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "backup-title",
     oninput: update, onsubmit: submit,
   },
-  el("div", { class: "card-head" }, el("h2", { id: "backup-title" }, words.title),
+  el("div", { class: "card-head" },
+    el("div", { class: "recovery-dialog-heading" }, sculptedIcon("lock"),
+      el("h2", { id: "backup-title" }, words.title)),
     el("button", {
       class: "icon-btn", type: "button", "aria-label": "Close", onclick: closeBackup,
     }, icon("close"))),
@@ -241,8 +243,19 @@ function backupCheckDialog() {
     autocomplete: "off", autocapitalize: "off", spellcheck: "false", disabled: b.busy,
     "aria-describedby": "bc-help" });
   const file = el("input", { class: "input", id: "bc-file", type: "file",
-    accept: ".zigsbackup,.json,application/json", disabled: b.busy,
-    onchange: (ev) => { b.file = ev.target.files[0] ?? null; b.error = ""; } });
+    accept: ".zigsbackup,.json,application/json", disabled: b.busy, hidden: true,
+    onchange: (ev) => {
+      b.file = ev.target.files[0] ?? null; b.error = "";
+      announce(b.file ? "Recovery file selected: " + b.file.name : "No recovery file selected.");
+      focusAfter("bc-choose-file", false); render();
+    } });
+  const picker = el("div", { class: "field recovery-file-picker" },
+    el("span", {}, "Saved recovery file"), file,
+    el("button", { class: "btn", type: "button", disabled: b.busy,
+      "data-key": "bc-choose-file", "aria-describedby": "bc-file-name",
+      onclick: () => file.click() }, b.file ? "Choose another file" : "Choose recovery file"),
+    el("p", { id: "bc-file-name", class: "small muted recovery-file-name" },
+      b.file ? b.file.name || "Selected recovery file" : "No file selected"));
   const submit = async (ev) => {
     ev.preventDefault();
     if (b.busy || ui.backup !== b) return;
@@ -261,7 +274,7 @@ function backupCheckDialog() {
     } catch (e) { b.error = e.message || "The recovery file could not be checked."; }
     finally { b.busy = false; render(); }
   };
-  return el("form", { class: "dialog", role: "dialog", "aria-modal": "true",
+  return dialogForm({ class: "dialog recovery-sheet", role: "dialog", "aria-modal": "true",
     "aria-labelledby": "backup-title", onsubmit: submit },
   el("div", { class: "card-head" }, el("h2", { id: "backup-title" },
     "Check saved " + (b.chain === "sol" ? "SOL" : "ZEC") + " file"),
@@ -269,8 +282,7 @@ function backupCheckDialog() {
     onclick: closeBackup }, icon("close"))),
   el("p", { class: "small", id: "bc-help" }, "Choose the encrypted file you saved for device "
     + b.seat + " of this wallet, then enter its separate passphrase. This check opens it without restoring or changing any key shares. File contents, filenames and passphrases are never sent to the other devices."),
-  el("label", { class: "field" }, el("span", {}, "Saved recovery file"), file),
-  b.file ? el("p", { class: "small muted" }, "A file is selected for this check.") : null,
+  picker,
   el("label", { class: "field" }, el("span", {}, "Passphrase"), pass),
   b.error ? el("p", { class: "callout bad", role: "alert" }, b.error) : null,
   el("div", { class: "dialog-actions" },
@@ -296,11 +308,13 @@ export function restoreDialog() {
       ui.restore = null;
     } finally { r.busy = false; }
   });
-  return el("form", {
-    class: "dialog", role: "dialog", "aria-modal": "true", "aria-labelledby": "restore-title",
+  return dialogForm({
+    class: "dialog recovery-sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "restore-title",
     onsubmit: submit,
   },
-  el("div", { class: "card-head" }, el("h2", { id: "restore-title" }, "Restore a backup"),
+  el("div", { class: "card-head" },
+    el("div", { class: "recovery-dialog-heading" }, sculptedIcon("key"),
+      el("h2", { id: "restore-title" }, "Restore a backup")),
     el("button", {
       class: "icon-btn", type: "button", "aria-label": "Close", onclick: closeBackup,
     }, icon("close"))),
@@ -316,7 +330,7 @@ export function restoreDialog() {
       class: "btn", type: "button", disabled: r.busy, onclick: closeBackup,
     }, "Cancel"),
     el("button", { class: "btn primary", type: "submit", disabled: r.busy || !Z },
-      r.busy ? "Restoring…" : "Restore backup")));
+      r.busy ? "Opening backup…" : "Restore backup")));
 }
 
 function parseBackup(text) {
@@ -422,9 +436,22 @@ export async function applyBackup(b, encrypted) {
 }
 
 function announceRestore(where, encrypted) {
-  const text = "Restored " + where + ". It counts as your device once it matches the wallet.";
-  if (encrypted) showBanner("ok", text);
+  const text = "Backup opened for " + where + ". Checking that this share matches the wallet. Keep the wallet open.";
+  if (encrypted) showBanner("info", text);
   else showBanner("bad", text + " " + NOT_ENCRYPTED);
+}
+
+// Visible after the file dialog closes, including a restored share awaiting data after reload.
+// This reads the existing fit checks; it cannot import keys or declare a restore successful.
+export function restoreProgressNote() {
+  if (!state.gid) return null;
+  const pending = new Set([...restoreWatch.values()].filter((w) => w.gid === state.gid).map((w) => w.seat));
+  for (const [seat, secret] of mySeatSecrets(state.gid)) {
+    if (secret.restored && fitState(seat, secret) === null) pending.add(seat);
+  }
+  return pending.size ? el("div", { class: "callout", role: "status", "data-restore-progress": "checking" },
+    "Backup opened. Checking " + [...pending].map((i) => "device " + i).join(", ")
+      + " against this wallet. Keep it open while the wallet data loads. This is not a completed restore yet.") : null;
 }
 
 // Removes the seat secret that the restore made (undoPlan). Returns false when it leaves the seat

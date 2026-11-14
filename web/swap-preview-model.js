@@ -1,7 +1,7 @@
-// The state of the swap page. It keeps data in memory only: no wallet, storage or signer. A
-// provider gives the quotes: NEAR Intents for the swap page, MockSwapProvider for the demos. The
-// live swap from SOL to ZEC (openSwap) is paid from a wallet outside Zigs, so Zigs signs nothing.
-// A live swap from ZEC to SOL is paid by a group payment that the page proposes after openSwap.
+import { readSwapRecovery } from "./swap-recovery.js";
+// The state of the swap page. Optional injected storage keeps encrypted recovery receipts; no
+// wallet signer is imported. A provider gives the quotes: NEAR Intents for the page and
+// MockSwapProvider for demos. The view injects external, plain-wallet or private-pool funding.
 /**
  * @typedef {'IDLE'|'INPUT_VALID'|'QUOTING'|'QUOTE_READY'|'QUOTE_ERROR'|'QUOTE_STALE'|'REVIEW_OPEN'
  *   |'REVIEW_CANCELLED'|'DEMO_PROGRESS'|'DEMO_COMPLETE'} SwapUiState
@@ -12,6 +12,27 @@
  * @typedef {{supportedAssets:()=>Promise<readonly object[]>,
  *   previewQuote:(input:SwapQuoteInput)=>Promise<SwapQuote>}} SwapProvider
  */
+import { readSwapRecord, swapRecordOf } from './swap-records.js';
+import { NEAR_CONFIDENTIAL_UNAVAILABLE, NEAR_ROUTING_UNAVAILABLE,
+  nearExecutionMode } from './near-swap-policy.js';
+
+/** Older receipts stay trackable, but cannot authorize a new deposit. */
+const permittedReceipt = (live) => nearExecutionMode(live.swap.confidentiality)
+  && (live.routeChoice ? live.routeChoice === live.swap.confidentiality
+    : live.swap.confidentiality === 'basic');
+export function swapPrivacyProblem(live) {
+  const mode = live.swap.confidentiality;
+  if (!permittedReceipt(live)) {
+    return 'This receipt uses an older or unsupported route. Tracking is available. Do not send '
+      + 'more funds; review a new swap and choose its routing mode.';
+  }
+  const unavailable = mode === 'public' ? NEAR_ROUTING_UNAVAILABLE : NEAR_CONFIDENTIAL_UNAVAILABLE;
+  if (live.statusError) return unavailable;
+  if (live.status && live.status.swap?.confidentiality !== mode) {
+    return unavailable;
+  }
+  return '';
+}
 
 // The ids are the asset ids of NEAR Intents. Never key on a symbol: ZEC has five ids there.
 export const SWAP_ASSETS = Object.freeze([
@@ -37,15 +58,14 @@ export const SWAP_STATUS_MAX_MS = 60_000; // the longest wait: after errors and 
 export const SWAP_GROUP_STATUS_MS = SWAP_STATUS_MAX_MS;
 export const SWAP_FINAL = Object.freeze(['SUCCESS', 'REFUNDED', 'FAILED']);
 const SWAP_WAITING = ['unknown', 'PENDING_DEPOSIT'];
-const OVER_CAP = 'The payout would take the wallet over the warning level for unaudited mainnet '
-  + 'wallets. Choose a smaller amount.';
 const STATUS_DOWN = 'The state of the swap is not available now. Zigs asks again.';
 const BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+const canOpenSwap = (s) => !s.live && s.phase === 'REVIEW_OPEN' && nearExecutionMode(s.execution);
 // The ask of a live swap. Only a swap from SOL that the plain Solana wallet pays carries `group`,
 // so the asks of the other routes stay as they were.
 function swapAsk(s, from, where) {
   const ask = { from, amountAtomic: s.quote.amountIn, slippageBps: s.slippageBps,
-    recipient: where.recipient, refundTo: where.refundTo };
+    recipient: where.recipient, refundTo: where.refundTo, confidentiality: s.execution };
   return from === 'sol' && where.group === true ? { ...ask, group: true } : ask;
 }
 // The state of an open live swap. A swap that the group pays is read less often.
@@ -53,6 +73,27 @@ function liveOf(swap, from, group, wallet) {
   const base = group ? SWAP_GROUP_STATUS_MS : SWAP_STATUS_MS;
   return { swap, from, group, wallet, status: null, statusError: '', base, wait: base,
     timer: null };
+}
+
+function verifiedRecovery(live, status) {
+  const got = status.swap ?? {}, expected = live.swap;
+  return [got.from === live.from, got.to === (live.from === 'sol' ? 'zec' : 'sol'),
+    ['recipient', 'refundTo', 'amountIn', 'amountOut'].every((k) => got[k] === expected[k]),
+    Date.parse(got.deadline) === Date.parse(expected.deadline),
+    !live.group || got.plain === true].every(Boolean);
+}
+function applySwapStatus(live, status, now) {
+  if (live.restored) live.verified = verifiedRecovery(live, status);
+  const statusError = live.restored && !live.verified
+    ? 'NEAR Intents has not confirmed the saved route. Payment details remain hidden.' : '';
+  Object.assign(live, { status, statusError, wait: live.base, checkedAt: now });
+}
+
+function fundedLive(swap, from, where, now, journal) {
+  const live = liveOf(swap, from, where.group === true, where.wallet);
+  return Object.assign(live, { walletId: where.walletId,
+    funding: where.funding || (where.group ? 'plain' : 'outside'),
+    createdAt: now, saved: !journal });
 }
 
 /** True when `text` is base58 of exactly 32 bytes: the form of a Solana address. */
@@ -147,7 +188,7 @@ export class MockSwapProvider {
 
 export const SWAP_DEMO_STEPS = Object.freeze([
   'Quote review', 'Source authorisation', 'Deposit observed', 'Route processing',
-  'Destination delivery',
+  'Destination delivery', 'Receipt and recovery',
 ]);
 
 const realClock = () => ({ now: () => Date.now(), set: (fn, ms) => setTimeout(fn, ms),
@@ -159,6 +200,7 @@ export class SwapPreviewModel {
     this.provider = provider; this.changed = changed; this.clock = clock; this.revision = 0;
     this.timers = { typing: null, expiry: null }; this.quotedAt = 0;
     this.value = { from: SWAP_ASSETS[0].id, to: SWAP_ASSETS[1].id, amount: '',
+      execution: 'preview',
       slippageBps: 50, destination: 'example', quote: null, error: '', step: 0,
       phase: 'IDLE', live: null, swapError: '' };
   }
@@ -184,6 +226,12 @@ export class SwapPreviewModel {
     return revision;
   }
   async update(patch) { await this.request(this.begin(patch)); }
+  async chooseExecution(mode) {
+    if (this.value.live || !['preview', 'public', 'basic'].includes(mode)) return false;
+    this.value.execution = mode;
+    await this.update();
+    return true;
+  }
   // Typing: the input shows at once and the quote request waits for the last key.
   type(amount) {
     const revision = this.begin({ amount });
@@ -241,7 +289,7 @@ export class SwapPreviewModel {
     if (this.value.phase === 'REVIEW_CANCELLED') { this.value.phase = 'QUOTE_READY'; this.emit(); }
   }
   simulate() {
-    if (this.value.phase !== 'REVIEW_OPEN') return;
+    if (this.value.phase !== 'REVIEW_OPEN' || this.value.execution !== 'preview') return;
     this.value.phase = 'DEMO_PROGRESS'; this.value.step = 0; this.emit();
   }
   advance() {
@@ -257,31 +305,56 @@ export class SwapPreviewModel {
     if (old && this.value.quote.source !== 'demo') { this.stale(OLD_QUOTE); return; }
     this.value.phase = 'QUOTE_READY'; this.emit();
   }
-  // The live swap: one at a time, in memory only. It lives apart from the quote: the expiry of
+  // The live swap: one active receipt at a time, optionally saved by the encrypted journal.
+  // It lives apart from the quote: the expiry of
   // the quote, typing and stale() keep it. Only closeSwap() ends it. `where` holds the payout
-  // address (recipient), the name of the wallet, the refund address and, for a payout in ZEC, the
-  // room under the cap in zatoshi. A swap from ZEC pays SOL, so no ZEC cap applies. `group` says
+  // address (recipient), the name of the wallet and the refund address. `group` says
   // that the plain Solana wallet pays a swap from SOL (docs/sol-to-zec-group.md).
   async openSwap(where) {
     const s = this.value;
-    if (s.live || s.phase !== 'REVIEW_OPEN') return false;
+    if (!canOpenSwap(s)) return false;
     const from = swapAsset(s.from).key;
-    const over = (zat) => from === 'sol' && BigInt(zat) > BigInt(where.room);
-    if (over(s.quote.amountOut)) return this.swapFailed(OVER_CAP);
     const asking = { asking: true };
     s.live = asking; s.swapError = ''; this.emit();
     const ask = swapAsk(s, from, where);
     const swap = await this.provider.openSwap(ask).catch((error) => error);
     if (s.live !== asking) return false;
     if (swap instanceof Error) return this.swapFailed(this.failure(swap));
-    if (over(swap.amountOut)) return this.swapFailed(OVER_CAP);
-    s.live = liveOf(swap, from, ask.group === true, where.wallet);
+    if (swap.confidentiality !== ask.confidentiality) {
+      return this.swapFailed('The provider returned a different routing mode. '
+        + 'No payment was proposed.');
+    }
+    s.live = fundedLive(swap, from, where, this.clock.now(), this.journal);
+    s.live.routeChoice = ask.confidentiality;
+    await this.keepSwap(s.live);
+    if (s.live?.swap !== swap) return false;
     // The page must hide the address at the deadline, also when no read falls on it.
     const left = Math.max(0, Date.parse(swap.deadline) - this.clock.now());
     s.live.end = this.clock.set(() => this.emit(), left);
     if (s.phase === 'REVIEW_OPEN') s.phase = 'QUOTE_READY';
     this.emit();
     void this.readSwap(s.live);
+    return true;
+  }
+  // Resume tracking only. A fresh provider response must verify the saved route before
+  // the page exposes a deposit address or enables any existing payment action.
+  restoreLegacySwap(value) {
+    if (this.value.live) return false;
+    let record;
+    try { record = readSwapRecovery(value); } catch { return false; }
+    const live = liveOf(record.swap, record.from, record.group, record.wallet);
+    Object.assign(live, { restored: true, verified: false, savedProgress: record.progress });
+    if (record.proposalId) live.proposal = { id: record.proposalId };
+    else if (record.proposalPending) live.proposal = { busy: true, recovering: true };
+    this.value.live = live;
+    const from = SWAP_ASSETS.find((a) => a.key === record.from);
+    const to = SWAP_ASSETS.find((a) => a.key === (record.from === 'sol' ? 'zec' : 'sol'));
+    Object.assign(this.value, { from: from.id, to: to.id,
+      amount: swapDecimal(record.swap.amountIn, from) });
+    const left = Math.max(0, Date.parse(record.swap.deadline) - this.clock.now());
+    live.end = this.clock.set(() => this.emit(), left);
+    this.emit();
+    void this.readSwap(live);
     return true;
   }
   swapFailed(message) {
@@ -291,10 +364,12 @@ export class SwapPreviewModel {
   }
   // Reads the state until it is final. An error doubles the wait, up to SWAP_STATUS_MAX_MS.
   async readSwap(live) {
+    this.clock.clear(live.timer);
+    live.timer = null;
     try {
       const status = await this.provider.swapStatus(live.swap.depositAddress);
       if (this.value.live !== live) return;
-      Object.assign(live, { status, statusError: '', wait: live.base });
+      applySwapStatus(live, status, this.clock.now());
     } catch {
       if (this.value.live !== live) return;
       Object.assign(live, { statusError: STATUS_DOWN,
@@ -307,7 +382,38 @@ export class SwapPreviewModel {
       live.timer = this.clock.set(() => { void this.readSwap(live); },
         late ? SWAP_STATUS_MAX_MS : live.wait);
     }
+    await this.keepSwap(live);
+    if (this.value.live !== live) return;
     this.emit();
+  }
+  async keepSwap(live) {
+    if (!this.journal || !live?.swap || live.restored) return true;
+    try {
+      const record = swapRecordOf(live);
+      if (!record) throw new Error('Invalid recovery receipt');
+      await this.journal.save(record);
+      live.saved = true; live.storageError = '';
+      return true;
+    } catch {
+      live.storageError = "This swap could not be saved. Keep this page open and copy its " +
+        "recovery receipt. Funding is paused until saving works.";
+      return false;
+    }
+  }
+  restoreSwap(value) {
+    const record = readSwapRecord(value);
+    if (!record) return this.restoreLegacySwap(value);
+    if (this.value.live) return false;
+    const live = liveOf(record.swap, record.from, record.group, record.wallet);
+    Object.assign(live, record, { saved: true, hidden: false });
+    this.value.live = live;
+    this.value.execution = record.routeChoice || (record.swap.confidentiality === 'basic'
+      ? 'basic' : 'preview');
+    live.end = this.clock.set(() => this.emit(), Math.max(0,
+       Date.parse(live.swap.deadline) - this.clock.now()));
+    this.emit();
+    void this.readSwap(live);
+    return true;
   }
   /** True when the deadline of the open swap has passed and NEAR Intents saw no deposit. */
   swapExpired() {
@@ -316,6 +422,18 @@ export class SwapPreviewModel {
     return SWAP_WAITING.includes(live.status?.status ?? 'unknown');
   }
   closeSwap() {
+    if (this.journal && this.value.live?.swap && !this.value.live.restored) {
+      return this.hideSavedSwap(this.value.live);
+    }
+    this.clearLive();
+  }
+  async hideSavedSwap(live) {
+    live.hidden = true;
+    if (!await this.keepSwap(live)) { live.hidden = false; this.emit(); return false; }
+    if (this.value.live === live) this.clearLive();
+    return true;
+  }
+  clearLive() {
     this.clock.clear(this.value.live?.timer);
     this.clock.clear(this.value.live?.end);
     Object.assign(this.value, { live: null, swapError: '' });

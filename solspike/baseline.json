@@ -1,5 +1,5 @@
 {
-  "baseCommit": "0a21b347774868e54d227a46b4024710dd7a3f44",
+  "baseCommit": "eb533917eaee7b70c4348c502e944064513c4c42",
   "node": "v26.12.1",
   "tests": {
     "web/test/messaging-presentation.mjs": {
@@ -241,6 +241,60 @@
     },
     "cf/test/limits.mjs": {
       "exit": 0
+    },
+    "web/test/swap-recovery.mjs": {
+      "exit": 0
+    },
+    "web/test/sol-receive.mjs": {
+      "exit": 0
+    },
+    "web/test/sol-mode.mjs": {
+      "exit": 0
+    },
+    "web/test/sol-private.mjs": {
+      "exit": 0
+    },
+    "web/test/sol-start-watch.mjs": {
+      "exit": 0
+    },
+    "web/test/sol-wallet-page.mjs": {
+      "exit": 0
+    },
+    "web/test/sol-addsol.mjs": {
+      "exit": 0
+    },
+    "web/test/sol-pool-mainnet.mjs": {
+      "exit": 0
+    },
+    "web/test/sol-sdk.mjs": {
+      "exit": 0
+    },
+    "web/test/portfolio.mjs": {
+      "exit": 0
+    },
+    "web/test/sync-pause.mjs": {
+      "exit": 0
+    },
+    "web/test/error-feedback.mjs": {
+      "exit": 0
+    },
+    "web/test/proposal-history.mjs": {
+      "exit": 0
+    },
+    "web/test/swapflow.mjs": {
+      "exit": 0
+    },
+    "web/test/near-confidential.mjs": {
+      "exit": 0
+    },
+    "web/test/hackathon-swap.mjs": {
+      "exit": 0
+    },
+    "web/test/sol-swap-proposal.mjs": {
+      "exit": 0
+    },
+    "web/test/local-devices.mjs": {
+      "exit": 0
     }
   },
   "hashes": {
@@ -249,7 +303,7 @@
     "wasm/src/account.rs": "fe2d7194d60423bd7873d8ac7109626ba823cac4a68cfa5be43d09f5bd040bc7",
     "wasm/src/backup.rs": "e4e646d5fa284cb0181bef7bb53a80b0ab41176209ba16f07e3eed624c1abbb2",
     "wasm/src/ceremony.rs": "1bc3554c3fe65351c92a85fabfdb076b8fca696290408cf1959fca726e15e2b4",
-    "wasm/src/chain.rs": "2331c27b7946c2a8284721820b5e40d8ca30edcd40cc767175fe6dbab49932e9",
+    "wasm/src/chain.rs": "e2c933567c9b4c20ff6eac728810e2846d9c71ebab593fa6d8b3ac4fb77df0ef",
     "wasm/src/expiry.rs": "7b660240faa47aa8d28e7642772b6e0cc88f4eba3be49a0ff3fbaa362d05a1c5",
     "wasm/src/ffi.rs": "7fb66496ad33b2be4a75aa5341dc40e5526e41c9672df204e6275f0839267007",
     "wasm/src/lib.rs": "1c14b7bc0fe0229b468464d4cb8c21a37ea9f6f58a36f9a23e672c5f4bbbd599",
@@ -261,10 +315,10 @@
     "wasm/src/testchain.rs": "9b5e71c5e00c980ee33b93f79aaff9c03af4a38c559a60a2365c58c716c26863",
     "wasm/src/testdata/sighash-vectors.json": "01b1431c7c3ae3fee207f1be5ce605dca0fd1cc6014309d7c167cb45466e4cbd",
     "wasm/test-vectors/zip2005_use_qsk.json": "fb59e6269fc96463bc02c7ec17b7f64d470b8b1009732b8a04579cab8dd8f016",
-    "web/pkg/zigs_engine.d.ts": "56f1ccd03cb85bba4dcf517706e3a4239bd5a7c9e09448affd992fc48736666d",
-    "web/pkg/zigs_engine.js": "696da0c908620bdd985aee934424ea0de2626360b5b4546e41baf210a89f0301",
-    "web/pkg/zigs_engine_bg.wasm": "e2c8adc067f05c64884cc456f45d3e02861ffd9eff77cf003d7cb4cff8338f5d",
-    "web/pkg/zigs_engine_bg.wasm.d.ts": "1e768ca28615b3daf8c65c7b5e113a95b05434e677c25f65fec835304f7eed2d",
+    "web/pkg/zigs_engine.d.ts": "d9bf0f5f17ada85f5d69fcf79602099dfcae36f5e43007c7f2432e1768c84389",
+    "web/pkg/zigs_engine.js": "de250cec036a2c703d48b955967683230662e8383a5982ff335045966344ddf9",
+    "web/pkg/zigs_engine_bg.wasm": "cbde9003415fa933719a2724bc7ebb262a319285f21cb150178be24d20479a7c",
+    "web/pkg/zigs_engine_bg.wasm.d.ts": "16b492d7aee68ea5ea62873b991ace9909043cfdfc6ee8799157673e1ba4efcc",
     "web/signed.js": "4c0e86199aa87ec619f399f1ccfe995afcfe662781b0fd804af685c97f0dd3bb"
   },
   "policy": {

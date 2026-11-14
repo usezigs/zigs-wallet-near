@@ -6,8 +6,10 @@ export const button = (page, name) => page.getByRole("button", { name, exact: tr
 export const NEXT = "Continue to approval rule";
 export const SKIP = "Skip for now";
 export const CONTINUE = "Continue without protection";
-export const RETURN = "Go back";
-export const WARNING = "Are you sure?";
+export const RETURN = "Back to protection";
+export const WARNING = "Continue without passkey protection?";
+export const continuationBlocked = async (page) => !await button(page, NEXT).count()
+  || await button(page, NEXT).isDisabled();
 
 export async function protectionFacts(page) {
   return page.evaluate(async () => {
@@ -41,7 +43,7 @@ async function doubleText(page, qa, scene) {
       node.style.fontSize = parseFloat(size) * 2 + "px";
   });
   await layout(page, qa, scene + " actual 200% text");
-  const action = button(page, qa.after && scene === "warning" ? CONTINUE : NEXT);
+  const action = button(page, scene === "warning" ? CONTINUE : "Protect this browser");
   await action.evaluate((node) => node.scrollIntoView({ block: "center" }));
   qa.check(await action.isVisible(), scene + " 200% action remains reachable by internal scroll");
   await qa.capture(page, scene + "-320-double-text");
@@ -76,7 +78,7 @@ export async function acknowledge(page, qa) {
 }
 
 async function beforeCreation(page, qa) {
-  qa.check(await button(page, NEXT).isDisabled(), "default create continuation is blocked");
+  qa.check(await continuationBlocked(page), "default create continuation is blocked");
   await button(page, SKIP).click();
   await page.getByRole("heading", { name: WARNING, exact: true }).waitFor();
   const safe = button(page, RETURN);
@@ -99,7 +101,7 @@ export async function confirmationChecks(page, qa) {
   await page.keyboard.press("Escape"); await settled(page);
   qa.check(await button(page, SKIP).evaluate((node) => node === document.activeElement),
     "Escape cancels the warning and returns focus to Skip");
-  qa.check(await button(page, NEXT).isDisabled(), "Escape does not acknowledge unprotected entry");
+  qa.check(await continuationBlocked(page), "Escape does not acknowledge unprotected entry");
   await button(page, SKIP).click(); await settled(page);
   await button(page, RETURN).click(); await settled(page);
   qa.check(await button(page, SKIP).evaluate((node) => node === document.activeElement),
@@ -110,7 +112,7 @@ export async function confirmationChecks(page, qa) {
     .isVisible(), "explicit creation confirmation advances to threshold selection");
   await page.reload(); await page.locator(".welcome").waitFor();
   await button(page, "Create wallet").click();
-  qa.check(await button(page, NEXT).isDisabled() && !(await protectionFacts(page)).ready,
+  qa.check(await continuationBlocked(page) && !(await protectionFacts(page)).ready,
     "reload clears only tab consent and restores protected-first setup");
 }
 
@@ -123,18 +125,16 @@ export async function createUnprotected(page, qa) {
   await page.getByRole("heading", { name: "Set the approval threshold", exact: true }).waitFor();
   await page.waitForTimeout(420); await button(page, "Use this arrangement").click();
   await page.getByRole("heading", { name: "Set up this device", exact: true }).waitFor();
-  qa.check(await page.locator(".guide-step:not([hidden]) .tutorial-diagram").innerText()
-    .then((text) => /These 3 independent shares belong to one wallet/i.test(text)
-      && !/Passkey unlock/i.test(text)),
-  "unprotected device step shows independent shares without a passkey unlock claim");
+  qa.check(!(await protectionFacts(page)).protected && await page.locator("#my-name").isVisible()
+    && await page.locator('.device-protection[data-motion-value="verified"]').count() === 0,
+  "unprotected device step remains usable without a verified-passkey claim");
   await page.locator("#g-name").fill("Optional protection wallet");
   await page.locator("#my-name").fill("Everyday browser");
   await page.waitForTimeout(420); await button(page, "Continue").click();
   await page.getByRole("heading", { name: "Review your wallet", exact: true }).waitFor();
   qa.check(await page.getByText("Skipped · no passkey encryption", { exact: true }).isVisible(),
     "final review truthfully identifies the skipped browser protection");
-  await page.getByText("Network options", { exact: true }).click();
-  await page.locator("#g-sol").uncheck();
+  await page.locator("#g-sol").evaluate((node) => { if (node.checked) node.click(); });
   await page.waitForTimeout(420);
   await page.getByRole("dialog")
     .getByRole("button", { name: "Create wallet", exact: true }).click();
@@ -183,8 +183,9 @@ export async function finishUnprotected(pages, qa) {
   }
   for (const page of pages) await button(page, "Codes match").click();
   for (const page of pages) {
-    await page.getByRole("heading", { name: /^Your wallet is (?:ready|prepared)$/ })
-      .waitFor({ timeout: 90000 });
+    const reveal = button(page, "Continue to backup options");
+    await reveal.or(button(page, "Open Overview")).waitFor({ timeout: 90000 });
+    if (await reveal.count()) await reveal.click();
     await button(page, "Open Overview").click();
     await page.getByRole("heading", { name: "Your assets", exact: true }).waitFor();
   }
@@ -217,7 +218,7 @@ export async function replacementAndReload(page, qa) {
 export async function laterProtection(page, qa) {
   await installAuthenticator(page); await navigation(page, "settings");
   const before = await protectionFacts(page);
-  await button(page, "Lock with a passkey").click();
+  await button(page, "Enable passkey protection").click();
   await button(page, "Lock now").waitFor(); await settled(page);
   const facts = await protectionFacts(page);
   qa.check(facts.protected && facts.sealed && !facts.plain && facts.shares === before.shares,
