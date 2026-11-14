@@ -140,11 +140,11 @@
   .security-overview-title { gap:10px; }
   .security-overview h3 { font-size:.9375rem; }
   .security-metrics { grid-template-columns:1fr; gap:0; margin:18px 0; }
-  .security-metrics>div { display:grid; grid-template-columns:1fr 1fr; align-items:baseline;
+  .security-metrics>div { display:grid; grid-template-columns:minmax(0,1fr); align-items:baseline;
     gap:5px 16px; padding:14px 0; }
   .security-metrics>div+div { border-left:0; border-top:1px solid var(--line); padding-left:0; }
   .security-metrics dt { margin:0; font-size:.8125rem; }
-  .security-metrics dd { font-size:1rem; text-align:right; }
+  .security-metrics dd { font-size:1rem; text-align:start; }
   .security-metrics p { grid-column:1/-1; margin-top:0; font-size:.8125rem; }
   .security-overview-footer { gap:20px; padding-top:18px; }
   .security-primary { width:100%; justify-content:center; min-height:48px; }
