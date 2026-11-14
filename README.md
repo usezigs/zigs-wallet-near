@@ -296,8 +296,9 @@ npm run build --prefix web
 ```
 
 Wrangler runs this build automatically before local development and deployment. To run the full
-local Worker, install its dependencies with `npm ci --prefix cf`, then run `npx wrangler dev`
-from `cf/`. Opening the HTML through a plain static server omits the Worker's store-client shim.
+local Worker, install its dependencies with `npm ci --prefix cf`, then run `npm run dev`
+from `cf/`. This local command enables Solana mainnet; configure its RPC URL as described below.
+Opening the HTML through a plain static server omits the Worker's store-client shim.
 
 `npm run test:openglass --prefix web` checks the interface with isolated wallet fixtures, then
 boots the real app under its strict content security policy. It checks desktop and mobile
@@ -589,9 +590,18 @@ wasm-bindgen --target web --out-dir ../web/pkg \
 ```bash
 cd cf
 npm install
-echo DEV_NO_AUTH=1 > .dev.vars
-npx wrangler dev --port 8787
+cp -n .dev.vars.example .dev.vars
+npm run dev -- --port 8787
 ```
+
+The local command binds to loopback and enables `SOL`, `SOL_MAINNET` and `SOL_POOL_MAINNET` for
+this development session. It leaves the deployed settings in `wrangler.jsonc` unchanged. Set
+`HELIUS_MAINNET_URL` in `cf/.dev.vars` to your Helius mainnet RPC URL and allow
+`http://localhost:8787` in that key's Allowed Domains (use your actual port if different).
+Without this URL, the private mainnet Worker is available but the mainnet configuration route
+answers 503, so Solana cannot connect. Existing wallets still need their safety-number checks
+and private-mode acceptance; enabling the server never changes a wallet's mode. The local
+mainnet service uses real SOL.
 
 A testnet wallet reaches our light-wallet node through the Worker, at `/lwd` of the page origin. The
 Worker adds the secret `LWD_KEY` (64 lowercase hex characters), which the node checks, and the page
