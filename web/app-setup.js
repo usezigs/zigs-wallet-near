@@ -2,7 +2,7 @@
 import { numberClash, usesV2 } from "./util.js";
 import { showBanner, state, ui } from "./app-state.js";
 import { linkView } from "./app-engine.js";
-import { mySeatSecrets, requireSetupProtection, sec } from "./app-keystore.js";
+import { mySeatSecrets, requireSetupProtection, sec, setupProtectionReady } from "./app-keystore.js";
 import {
   allDone, allSeated, keysDiffer, localSeats, seatIds, seatMine, seatStage, STAGE_LABEL,
 } from "./app-seats.js";
@@ -32,7 +32,7 @@ import { beginGuided, completeGuided, guidedState, pauseGuided,
 import { openGroup } from "./app-groups.js";
 import { outcomeSeal } from "./outcome-seal.js";
 import { openBackup, openBackupCheck } from "./app-backups.js";
-import { icon } from "./app-icons.js";
+import { icon, sculptedIcon } from "./app-icons.js";
 import { mainnetLocalDevicesChoice } from "./app-local-devices.js";
 import { mainnetLocalDevicesAllowed } from "./local-devices.js";
 import { walletMark, walletReveal } from "./app-wallet-art.js";
@@ -78,7 +78,8 @@ function setupDeviceStatus(f, phase = "connect", joining = false) {
   const known = state.seatsLoaded && (!signedMode(state.gid) || state.seatsSettled);
   const waiting = f.blocked || complete ? [] : seatIds().filter((i) => phase === "verify"
     ? !confirmed.includes(i) : phase === "prepare" ? seatStage(i) < 5 : !state.seats[i]);
-  return el("section", { class: "setup-wallet-status surface-quiet", "data-setup-phase": phase },
+  return el("section", { class: "setup-wallet-status surface-quiet", "data-setup-phase": phase,
+    "data-device-count": String(f.n) },
     el("div", { class: "setup-status-wallet" }, walletMark(state.g),
       el("div", {}, el("span", { class: "label" }, "Shared wallet"),
         el("h3", {}, state.g.name), el("p", { class: "small muted" },
@@ -99,9 +100,11 @@ function setupDeviceStatus(f, phase = "connect", joining = false) {
         + (pending ? " setup-device-pending" : ""),
       "data-device-seat": String(i), "data-device-role": i === 1 ? "initiator" : "joiner",
       "data-motion-watch": "setup-device:" + i, "data-motion-value": known ? seated ? "on" : "off" : "unknown" },
-      el("span", { class: "setup-device-mark", "data-motion-mark": "", "aria-hidden": "true" }, String(i).padStart(2, "0")),
+      el("span", { class: "setup-device-mark", "data-motion-mark": "", "aria-hidden": "true" },
+        sculptedIcon(i === 1 ? "laptop" : "phone")),
       el("div", {}, el("strong", {}, "Device " + i + (here ? " · You" : "")),
-        el("span", { class: "small muted setup-device-label" }, state.seats[i]?.name
+        el("span", { class: "small muted setup-device-label" + (state.seats[i]?.name ? "" : " setup-device-label-generic"),
+          title: state.seats[i]?.name || null }, state.seats[i]?.name
           || (here && sharedBrowser ? "Signing share in this browser" : "Independent signing share"))),
       el("span", { class: "small setup-device-state" }, status));
     })),
@@ -394,7 +397,7 @@ function overviewAfterSetup(f) {
 
 function guidedReady(f) {
   const local = f.backups.filter((b) => b.local);
-  return el("section", { class: "guided-card setup-completion" },
+  return el("section", { class: "guided-card setup-completion", "data-device-count": String(f.n) },
     el("h2", { class: "outcome-heading", "data-key": "setup-completion-title", tabindex: "-1" }, outcomeSeal("setup"),
       el("span", {}, "Your wallet is prepared")),
     el("div", { class: "setup-two-columns" },
@@ -899,9 +902,9 @@ function demoDevices(open) {
       el("p", { class: "small muted" }, netName(state.g) === "mainnet"
         ? "Played devices keep their separate signing shares in this browser. With enough shares here, this browser can approve real mainnet payments by itself. These slots do not provide separate-device protection. Keep each share’s recovery file and passphrase safe."
         : "For a demo or a review only. In real use, each key share sits on its own device."),
-      deviceProtection("demo:" + state.gid),
+      setupProtectionReady() ? null : deviceProtection("demo:" + state.gid),
       mainnet ? mainnetLocalDevicesChoice(state.g, !!off.attrs.disabled, open[0]) : null,
-      el("div", { style: "display:flex;gap:8px;flex-wrap:wrap" }, open.map((i) => el("button", {
+      el("div", { class: "setup-play-actions" }, open.map((i) => el("button", {
         class: "btn sm", type: "button", ...off.attrs,
         "data-key": "play-device-" + i, disabled: !allowed || !!off.attrs.disabled,
         onclick: act(() => {

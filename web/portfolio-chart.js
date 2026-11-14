@@ -82,7 +82,8 @@ class PortfolioChart {
     dom.root.dataset.direction = content.direction;
     dom.value.setAttribute("aria-label", portfolioMoney(content.value));
     dom.changeValue.textContent = content.change; dom.changeLabel.textContent = content.label;
-    if (this.props.failed) dom.changeLabel.textContent = "Value change · price update failed";
+    if (this.props.failed) dom.changeLabel.textContent = this.props.priceError === "not_configured"
+      ? "Market prices are not enabled" : "Value change · price update failed";
     dom.plot.setAttribute("aria-valuenow", String(this.selected < 0
       ? Math.max(0, motion.target.vertices.length - 1) : this.selected));
     dom.plot.setAttribute("aria-valuetext", content.value === null ? "No observations"
@@ -164,7 +165,9 @@ class PortfolioChart {
     dom.root.dataset.loading = String(content.loading);
     dom.root.dataset.failed = String(props.failed);
     dom.empty.hidden = count > 1; dom.emptyTitle.textContent = content.title;
-    dom.emptyText.textContent = content.text; dom.retry.hidden = !props.failed;
+    dom.emptyText.textContent = content.text;
+    dom.retry.hidden = !props.failed || props.priceError === "not_configured";
+    dom.root.dataset.priceError = props.priceError || "";
     dom.title.textContent = content.partial ? "Partial portfolio value" : "Total portfolio value";
     dom.coverage.textContent = content.coverage;
     dom.coverageDetails.textContent = content.coverage;

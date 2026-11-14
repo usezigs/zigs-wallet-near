@@ -108,6 +108,13 @@ await retried;
 assert.equal(cache.read().failed, false);
 assert.equal(cache.read().retryAfterMs, 0);
 
+const unconfigured = createPortfolioPrices({ fetcher: async () =>
+  Response.json({ error: "prices_not_configured" }, { status: 503 }) });
+await unconfigured.ask();
+assert.equal(unconfigured.read().error, "not_configured",
+  "missing server configuration is distinct from a temporary market outage");
+assert.equal(cache.read().error, "", "a successful refresh clears the service error");
+
 let calls = 0, request;
 const route = createPortfolioPriceRoute({ now: () => now, fetcher: async (url, options) => {
   calls++; request = { url, options };

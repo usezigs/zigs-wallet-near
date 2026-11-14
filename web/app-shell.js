@@ -932,6 +932,7 @@ function moveSubmit(from) {
 // them, and the last submit creates the wallet from them.
 const STEPS = ["Protect this browser", "Set the approval threshold", "Set up this device",
   "Review your wallet"];
+const STEP_ICONS = ["key", "devices", "laptop", "wallet"];
 const NEXT = ["Continue to approval rule", "Use this arrangement", "Continue", "Create wallet"];
 function takeRule() {
   const n = Number(fieldValue("g-n")), t = Number(fieldValue("g-t"));
@@ -1095,13 +1096,18 @@ function newDialog() {
   const submit = (ev) => (at === ui.createStep ? stepSubmit(ev) : ev.preventDefault());
   const form = frame("Set up your wallet", { class: "dialog guided-plan", "data-setup-step": String(at),
     oninput: lines.update, onsubmit: submit },
-    el("nav", { class: "setup-plan-progress", "aria-label": "Wallet setup plan" },
+    el("nav", { class: "setup-plan-progress", "aria-label": "Wallet setup plan",
+      "data-setup-navigation": "plan", "data-active-step": String(at),
+      style: "--setup-step-count:4;--setup-active:" + at },
       el("p", { class: "sr-only", role: "status" }, "Step " + (at + 1) + " of " + STEPS.length
         + ": " + STEPS[at]),
+      el("span", { class: "setup-progress-active", "aria-hidden": "true" }),
       el("ol", {}, STEPS.map((label, i) => el("li", {
         class: i < at ? "done" : i === at ? "current" : "",
         "aria-current": i === at ? "step" : null,
-      }, el("span", { "aria-hidden": "true" }, String(i + 1)), el("span", {}, label))))),
+      }, el("span", { class: "setup-stage-mark", "aria-hidden": "true" }, sculptedIcon(STEP_ICONS[i]),
+        el("span", { class: "setup-stage-number" }, i < at ? icon("check") : String(i + 1))),
+      el("span", { class: "setup-stage-label" }, label))))),
     introStep(), ruleStep(lines), namesStep(), reviewStep());
   return form;
 }

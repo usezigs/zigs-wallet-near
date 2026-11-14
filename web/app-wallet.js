@@ -234,7 +234,9 @@ function groupHead(g, ready, why, persistent = false) {
     ...(persistent ? { "data-wallet-context": g.id, "aria-label": "Selected wallet" } : {}) },
     el("div", { class: "ph-left wallet-identity" },
       walletHeadingMarble(g),
-      el("div", { class: "wallet-name-block" }, el("h1", {}, g.name),
+      el("div", { class: "wallet-name-block" },
+        el("div", { class: "wallet-name-line" }, el("h1", {}, g.name),
+          persistent ? localDevicesWarning(g, { compact: true }) : null),
         descriptionOf(g.id).text
           ? el("p", { class: "small wallet-description" }, descriptionOf(g.id).text) : null)),
       el("div", { class: "ph-meta wallet-meta" },
@@ -247,8 +249,7 @@ function groupHead(g, ready, why, persistent = false) {
           ? el("span", {}, "Replaces " + ((old || {}).name || "an older wallet")) : null),
       el("button", { class: "btn ghost wallet-home", type: "button", "data-key": "wallet-home",
         onclick: () => { ui.tab = "overview"; focusAfter("home-page", true); openGroup(null); } },
-        icon("home"), "Return home"),
-      persistent ? localDevicesWarning(g) : null);
+        icon("home"), "Return home"));
 }
 
 const isMainnet = () => netName(state.g) === "mainnet";

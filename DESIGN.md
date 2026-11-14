@@ -230,7 +230,10 @@ primary task and exact values; do not turn every supporting fact into an equally
 
 Depth combines opaque tonal surfaces with broad, low-opacity shadows. Panel, raised, floating and
 sheet shadows have different jobs; their actual theme values are recorded in the sidecar. Nested
-rows remain quiet. The original wallet identity art is static by default, with explicit playback.
+rows remain quiet. Wallet identity sculptures rotate automatically on transparent grounds wherever
+they appear. Hidden or offscreen instances suspend rendering; reduced motion retains a crisp still.
+Common, Uncommon, Rare and Epic identity tiers come from the same public-address seed and stay
+consistent across devices. The tier describes the artwork only.
 
 The rail, sticky wallet context, menus and selected drawer chrome can use the existing frosted
 material. Balances, recipient records and payment terms keep an opaque ground. The source already

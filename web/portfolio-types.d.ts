@@ -24,6 +24,7 @@ export interface PortfolioChartProps {
   current: PortfolioValuation;
   loading: boolean;
   failed: boolean;
+  priceError?: "" | "not_configured" | "unavailable";
   retryAfterMs?: number;
   storageNote: string;
   now: number;

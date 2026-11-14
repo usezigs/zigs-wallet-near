@@ -6,11 +6,13 @@ import { localSeats } from "./app-seats.js";
 import { seatCheck } from "./app-dkg.js";
 import { canWriteAs, signedMode } from "./app-filter.js";
 import { focusAfter, render } from "./app-loop.js";
+import { icon } from "./app-icons.js";
+import { positionOverviewPopover } from "./overview-popover.js";
 import {
   allowMainnetLocalDevices, localDeviceRisk, mainnetLocalDevicesAllowed,
 } from "./local-devices.js";
 
-export function localDevicesWarning(g = state.g) {
+export function localDevicesWarning(g = state.g, { compact = false } = {}) {
   if (!g || g.id !== state.gid) return null;
   const ready = !!state.wallet && state.seatsLoaded
     && (!signedMode(g.id) || state.seatsSettled) && !state.pending && !g.shapeMoved;
@@ -19,13 +21,22 @@ export function localDevicesWarning(g = state.g) {
     verified: ready && seatCheck(id) === true && canWriteAs(id),
   })));
   if (!risk) return null;
-  return el("div", { class: "local-devices-warning", role: "note",
-    "data-local-devices-warning": risk.canApproveZcash ? "threshold" : "shared" },
+  const kind = risk.canApproveZcash ? "threshold" : "shared";
+  const note = el("div", { class: "local-devices-warning", role: "note",
+    "data-local-devices-warning": compact ? null : kind },
   el("strong", {}, risk.canApproveZcash ? "This browser can approve Zcash payments by itself."
     : risk.held + " Zcash signing shares are held in this browser."),
   el("p", {}, risk.held + " distinct shares are stored together; " + risk.required
     + " are required. They do not provide separate-device protection."
     + " Keep each share’s recovery file and its separate passphrase safe."));
+  if (!compact) return note;
+  note.id = "wallet-device-warning-" + g.id;
+  note.classList.add("overview-detail-popover", "wallet-device-warning-popover");
+  const trigger = el("button", { class: "icon-btn wallet-device-warning", type: "button",
+    "aria-label": "Wallet device warning",
+    popovertarget: note.id, title: "Signing shares stored in this browser" }, icon("unshield"));
+  positionOverviewPopover(trigger, note);
+  return el("div", { class: "wallet-warning-control", "data-local-devices-warning": kind }, trigger, note);
 }
 
 const cancelLocalDevices = () => {

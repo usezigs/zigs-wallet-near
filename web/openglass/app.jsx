@@ -8,6 +8,7 @@ import "./theme.css";
 import { collectPortals, installBridge, syncOverlayThemes } from "./bridge.jsx";
 import { installMaterialMotion } from "./material-motion.jsx";
 import { installSidebarMotion } from "./sidebar-motion.js";
+import { installSetupMotion } from "./setup-motion.js";
 import { SIDEBAR_GLYPHS } from "../sidebar-icons.js";
 import { useButtonHover } from "./use-button-hover.js";
 
@@ -66,6 +67,7 @@ function AppShell() {
 const root = createRoot(document.getElementById("openglass-root"));
 const syncMaterialMotion = installMaterialMotion(document.getElementById("openglass-root"));
 const syncSidebarMotion = installSidebarMotion(document.getElementById("openglass-root"), animate);
+const syncSetupMotion = installSetupMotion(document.getElementById("openglass-root"), animate);
 let queued = false, drawing = false, last = "";
 function refresh() {
   if (drawing) return;
@@ -75,7 +77,7 @@ function refresh() {
     const appearance = document.documentElement.dataset.theme || "system";
     const signature = appearance + ":" + window.matchMedia("(prefers-color-scheme: dark)").matches
       + ":" + portals.map((entry) => entry.id).join(",");
-    if (signature === last) { syncOverlayThemes(); syncMaterialMotion(); syncSidebarMotion(); return; }
+    if (signature === last) { syncOverlayThemes(); syncMaterialMotion(); syncSidebarMotion(); syncSetupMotion(); return; }
     last = signature;
     flushSync(() => root.render(
       <GlassSystemProvider renderer="auto" theme={{ appearance: "system" }}>
@@ -88,6 +90,7 @@ function refresh() {
     syncOverlayThemes();
     syncMaterialMotion();
     syncSidebarMotion();
+    syncSetupMotion();
   } finally { drawing = false; }
 }
 function schedule() {

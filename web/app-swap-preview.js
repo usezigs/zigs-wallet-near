@@ -256,6 +256,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     if (solPayer === 'group' && /^\d+$/.test(amount || '')) void model.update({ amount: swapDecimal(amount, swapAsset(SOL_ID)) });
   }, { disabled: true, 'aria-label': 'Use available private SOL balance' });
   const headTag = previewTag();
+  const walletProvider = el('div', { class: 'swap-wallet-provider', hidden: true });
   const executionHelp = text('swap-caption', '');
   executionHelp.id = 'swap-execution-help'; executionHelp.setAttribute('role', 'status');
   const executionChoices = [
@@ -318,7 +319,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   }));
   root.append(el('header', { class: 'swap-heading' },
     el('div', { class: 'swap-titleline' }, el('h1', { id: 'swap-page-title' }, 'Swap'), headTag),
-    nearSwapCredit()),
+    nearSwapCredit(), walletProvider),
 
   el('div', { class: 'swap-panel', id: 'swap-panel-private', role: source.demo === true ? 'tabpanel' : 'region',
     'aria-labelledby': source.demo === true ? 'swap-tab-private' : 'swap-page-title',
@@ -566,6 +567,9 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
       text('swap-caption', 'Receipts are encrypted in this browser. Other devices keep their own swap history. Hiding tracking does not cancel a swap.'));
   }
   function drawPair(from, to) {
+    walletProvider.hidden = source.solGroup?.mode !== 'private';
+    if (!walletProvider.hidden && !walletProvider.childElementCount) walletProvider.append(
+      el('span', { class: 'swap-caption' }, 'Private SOL wallet'), heliusSwapCredit());
     fromButton.replaceChildren(token(from), el('span', {}, from.symbol), chevron());
     toButton.replaceChildren(token(to), el('span', {}, to.symbol), chevron());
     const privateSol = from.id === SOL_ID && source.solGroup?.mode === 'private' && solPayer === 'group';

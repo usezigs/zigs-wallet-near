@@ -432,10 +432,15 @@
   border: 1px solid var(--glass-hairline);
   box-shadow: inset 0 1px 0 var(--glass-rim), 0 32px 96px -32px rgb(0 0 0 / .65);
 }
-:is(.zigs-openglass, .openglass-overlay) :is(.messages-conversation-row, .row-item):not(.wallet-vault-card).openglass-control {
+:is(.zigs-openglass, .openglass-overlay) .row-item:not(.wallet-vault-card).openglass-control {
   border-radius: 0;
   box-shadow: none;
 }
+.zigs-openglass .messages-workspace .messages-conversation-row.openglass-control {
+  border-radius:12px; border-color:transparent; box-shadow:none;
+}
+.messages-conversation-row:not(.active)>.openglass-backdrop-slot { opacity:0; }
+.messages-conversation-row:is(.active,:hover,:focus-visible)>.openglass-backdrop-slot { opacity:1; }
 :is(.zigs-openglass, .openglass-overlay) :is(.swap-search, .swap-modal select, .pq-form select) {
   min-height: 48px;
   border: 1px solid var(--line-field);
