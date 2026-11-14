@@ -18,6 +18,13 @@ const browser = await launchTestBrowser();
 const context = await browser.newContext({ reducedMotion: "reduce", viewport: { width: 1440, height: 1000 } });
 await context.addInitScript(() => {
   globalThis.qaSol = { setup: { status: "ready" }, rows: [] };
+  globalThis.__auditCspViolations = [];
+  document.addEventListener('securitypolicyviolation', event => {
+    // WebKit enforces CSP against Playwright's temporary screenshot stylesheet too.
+    if (globalThis.__auditCapturing && event.violatedDirective === 'style-src-elem') return;
+    globalThis.__auditCspViolations.push({ directive: event.violatedDirective,
+      file: event.sourceFile, line: event.lineNumber });
+  });
 });
 const page = await context.newPage();
 page.setDefaultTimeout(5000);
@@ -95,6 +102,17 @@ function facts() {
         .map((id) => ({ node: name(node), attribute, id }))));
   const fields = [...document.querySelectorAll("input:not([type=hidden]),textarea,select")].filter(shown)
     .filter((node) => !node.labels?.length && !node.getAttribute("aria-label") && !node.getAttribute("aria-labelledby")).map(name);
+  const clippedSelects = [...document.querySelectorAll('select')].filter(shown).filter(node => {
+    let bounds = node.getBoundingClientRect();
+    let width = bounds.width, height = bounds.height;
+    for (let parent = node.parentElement; parent; parent = parent.parentElement) {
+      const style = getComputedStyle(parent), rect = parent.getBoundingClientRect();
+      if (style.clipPath !== 'none') return true;
+      if (['hidden', 'clip'].includes(style.overflowX)) width = Math.min(width, rect.width);
+      if (['hidden', 'clip'].includes(style.overflowY)) height = Math.min(height, rect.height);
+    }
+    return width < 24 || height < 24;
+  }).map(name);
   const overflow = [...document.querySelectorAll("dialog[open],.dialog,.drawer")].filter(shown)
     .filter((node) => node.scrollWidth > node.clientWidth + 1).map(name);
   const uncovered = surfaces.filter((node) => !painted(node)).map(name);
@@ -110,8 +128,13 @@ function facts() {
       return box.width > 180 && box.height > 80
         && (style.backgroundImage !== "none" || !["rgba(0, 0, 0, 0)", "transparent"].includes(style.backgroundColor));
     }).map(name);
+  const icons = [...document.querySelectorAll('#app .symbol,dialog[open] .symbol')].filter(shown)
+    .map(node => ({ icon: node.dataset.icon || '', sculpted: node.matches('.icon-object'),
+      context: node.parentElement.className,
+      width: Math.round(node.getBoundingClientRect().width),
+      height: Math.round(node.getBoundingClientRect().height) }));
   return { surfaces: surfaces.length, controls: controls.length, uncovered, untreated, missing, fields, overflow,
-    otherPanels,
+    otherPanels, icons, clippedSelects, cspViolations: globalThis.__auditCspViolations || [],
     headings: [...document.querySelectorAll("#app h1,#app h2,dialog[open] h2")].filter(shown).map(node => node.textContent),
     pageOverflow: document.documentElement.scrollWidth > innerWidth + 1, nativeDialogs,
     slotCount: document.querySelectorAll("[data-openglass-slot]").length };
@@ -123,16 +146,19 @@ async function inspect(scene, width, theme) {
   await page.evaluate((value) => { document.documentElement.dataset.theme = value; globalThis.zigsGlass.flush(); }, theme);
   await settleOverview(page);
   const value = await page.evaluate(facts);
-  const issues = ["uncovered", "untreated", "missing", "fields", "overflow"].filter((key) => value[key].length);
+  const issues = ["uncovered", "untreated", "missing", "fields", "overflow", "clippedSelects", "cspViolations"].filter((key) => value[key].length);
   if (value.pageOverflow) issues.push("pageOverflow");
   if (value.nativeDialogs.some((dialog) => !dialog.scoped || dialog.theme && dialog.theme !== theme)) issues.push("overlayTheme");
   const record = { scene, width, theme, ...value, issues };
   records.push(record);
   if (issues.length || process.env.ZIGS_CAPTURE_MATRIX === "1"
     && ((width === 1440 && theme === "dark") || (width === 390 && theme === "light"))) {
-    await page.screenshot({ path: resolve(output, `${scene}-${theme}-${width}.png`), fullPage: true,
-      animations: "disabled", mask: [page.locator(".safety,.qr,.secret-link,input[type=password],.addr-full")],
-      maskColor: "#343b45" });
+    await page.evaluate(() => { globalThis.__auditCapturing = true; });
+    try {
+      await page.screenshot({ path: resolve(output, `${scene}-${theme}-${width}.png`), fullPage: true,
+        animations: "disabled", mask: [page.locator(".safety,.qr,.secret-link,input[type=password],.addr-full")],
+        maskColor: "#343b45" });
+    } finally { await page.evaluate(() => { globalThis.__auditCapturing = false; }); }
   }
   return issues.length === 0;
 }
@@ -313,6 +339,18 @@ try {
         ? (mode === "plain" ? module.plainView : module.solView)(c, fn => fn, {})
         : (mode === "plain" ? module.plainDetailsView : module.solDetailsView)(c, fn => fn, {}, surface));
     }, { mode, surface }));
+  for (const mode of ['private-setup', 'private', 'plain'])
+    await matrix('swap-wallet-' + mode, () => page.evaluate(async mode => {
+      const { createSwapPreview } = await import('/app-swap-preview.js');
+      const { MockSwapProvider } = await import('/swap-preview-model.js');
+      const context = { id: 'synthetic-swap-audit', name: 'Example wallet', network: 'mainnet',
+        preferredFrom: 'sol', live: true, threshold: '2 of 3 devices',
+        solGroup: { mode: mode === 'plain' ? 'plain' : 'private',
+          ...(mode === 'private-setup' ? { reason: 'Example setup required' }
+            : { refundTo: '7DYCAhqwQSKqqL1h8V1XmY1BTcMWxrASQYKNMy87jeg3', balanceAtomic: '250000000' }) } };
+      globalThis.__swapAudit = createSwapPreview(context, new MockSwapProvider());
+      document.getElementById('app').replaceChildren(globalThis.__swapAudit.element);
+    }, mode));
   for (const kind of ["normal", "error", "unsupported"]) {
     await matrix("swap-" + kind, () => page.evaluate(async (kind) => {
       const { createSwapPreview } = await import("/app-swap-preview.js"), { MockSwapProvider } = await import("/swap-preview-model.js");
@@ -330,7 +368,7 @@ try {
       await matrix("swap-details", () => page.locator('[data-key="swap-details"]').click(), { fresh: false });
       await page.keyboard.press("Escape");
       await matrix("swap-slippage", () => page.locator(".swap-settings > summary").click(), { fresh: false });
-      await page.locator(".swap-settings > summary").click();
+      if (await page.locator(".swap-settings > summary").count()) await page.locator(".swap-settings > summary").click();
       await matrix("swap-review", async () => {
         await page.locator("#swap-amount").fill("1");
         await page.waitForFunction(() => !document.querySelector('[data-key="swap-review"]').disabled);

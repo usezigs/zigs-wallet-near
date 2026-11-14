@@ -9,6 +9,12 @@ process.chdir(fileURLToPath(new URL('../../', import.meta.url)));
 const output = browserOutput('finalui'), checks = [], errors = [];
 const browser = await launchTestBrowser();
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark', reducedMotion: 'reduce' });
+await context.addInitScript(() => {
+  globalThis.__setupCspViolations = [];
+  document.addEventListener('securitypolicyviolation', event => {
+    globalThis.__setupCspViolations.push(event.violatedDirective);
+  });
+});
 const page = await context.newPage(); page.setDefaultTimeout(12000);
 page.on('pageerror', error => errors.push(error.message));
 const check = (pass, name) => { assert.ok(pass, name); checks.push(name); };
@@ -52,6 +58,21 @@ async function plan() {
     if (n === 7) check(row.size < globalThis.threeSize, 'icons shrink as devices are added');
   }
   await capture('threshold-seven-desktop');
+  for (const [width, height] of [[1440, 900], [1366, 768], [1280, 720], [1024, 768]]) {
+    await page.setViewportSize({ width, height });
+    for (const n of [2, 3, 4, 5, 6, 7]) for (const t of [...new Set([2, n])]) {
+      await page.locator('#g-n').fill(String(n));
+      await page.locator('#g-t').fill(String(t)); await settle();
+      const row = await page.locator('.guide-step:not([hidden]) .security-nodes').evaluate(node => {
+        const rects = [...node.children].map(n => n.getBoundingClientRect());
+        return rects.length > 0 && rects.every(r => Math.abs(r.top - rects[0].top) < 1)
+          && node.scrollWidth <= node.clientWidth + 1;
+      });
+      check(row, width + ': ' + t + ' of ' + n + ' devices stay side by side under the content policy');
+      await fits(width + ': ' + t + ' of ' + n + ' complete threshold page', '.guide-step:not([hidden])');
+      if (n === 2 || n === 7 && t === 2) await capture('threshold-' + t + '-of-' + n + '-' + width);
+    }
+  }
   for (const step of [0, 1, 2, 3]) {
     await page.evaluate(async step => {
       const { ui } = await import('/app-state.js');
@@ -128,6 +149,8 @@ async function liveLayouts() {
 try {
   await overviewFixture(context, page, { messaging: true });
   await plan(); await liveLayouts();
+  check(await page.evaluate(() => globalThis.__setupCspViolations.length === 0),
+    'setup has no blocked inline styles under the deployed content policy');
   check(errors.length === 0, 'no browser runtime errors: ' + errors.join(', '));
   console.log('Setup layout: ' + checks.length + ' checks passed. Evidence: ' + output);
 } finally {

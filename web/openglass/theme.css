@@ -26,16 +26,21 @@
 .openglass-positioned { position: relative; }
 
 /* Raised surfaces have a lit upper edge, a soft lower edge and a clear, readable centre. */
+:is(.zigs-openglass, .openglass-overlay) {
+  --glass-panel-fill: linear-gradient(155deg,
+    color-mix(in srgb, var(--raised) 38%, var(--panel)), var(--panel) 68%);
+  --glass-panel-edge: color-mix(in srgb, var(--text) 5%, var(--line));
+  --glass-panel-shadow: inset 0 1px 0 var(--studio-rim),
+    0 10px 24px -18px var(--studio-floor);
+}
 :is(.zigs-openglass, .openglass-overlay) .ogui-card {
-  border: 1px solid var(--glass-hairline);
+  border: 1px solid var(--glass-panel-edge);
   border-radius: 20px;
   color: var(--text);
-  background: linear-gradient(145deg,
-    color-mix(in srgb, var(--raised) 90%, transparent),
-    color-mix(in srgb, var(--panel) 74%, transparent) 65%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(115%);
-  backdrop-filter: blur(24px) saturate(115%);
-  box-shadow: inset 0 1px 0 var(--glass-rim), var(--glass-shadow);
+  background: var(--glass-panel-fill) !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: var(--glass-panel-shadow);
 }
 :is(.zigs-openglass, .openglass-overlay) .ogui-card.welcome {
   border: 0;
@@ -61,8 +66,8 @@
 :is(.zigs-openglass, .openglass-overlay) .openglass-sheet {
   isolation: isolate;
   background: transparent !important;
-  border-color: var(--glass-hairline);
-  box-shadow: inset 0 1px 0 var(--glass-rim), var(--glass-shadow);
+  border-color: var(--glass-panel-edge);
+  box-shadow: var(--glass-panel-shadow);
 }
 .openglass-backdrop-slot {
   position: absolute;
@@ -76,15 +81,18 @@
   width: 100%;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(145deg,
-    color-mix(in srgb, var(--raised) 90%, transparent),
-    color-mix(in srgb, var(--panel) 74%, transparent) 65%) !important;
-  box-shadow: inset 0 1px 0 var(--glass-rim), inset 1px 0 0 rgb(255 255 255 / .025) !important;
+  border: 0;
+  background: var(--glass-panel-fill) !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }
 .openglass-sheet-material[data-ogui-material="frosted"] {
   background: linear-gradient(145deg,
     color-mix(in srgb, var(--raised) 86%, transparent),
     color-mix(in srgb, var(--sheet) 94%, transparent)) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(115%) !important;
+  backdrop-filter: blur(24px) saturate(115%) !important;
 }
 :is(.zigs-openglass, .openglass-overlay) :is(.dialog, .drawer).openglass-sheet {
   border: 1px solid var(--glass-hairline);
@@ -709,13 +717,24 @@
 .zigs-openglass .swap-execution.openglass-sheet { border-radius: 16px; }
 .zigs-openglass .swap-execution-option.openglass-sheet > .openglass-backdrop-slot { opacity: .25; }
 .zigs-openglass .swap-execution-option.openglass-sheet:has(input:checked) > .openglass-backdrop-slot { opacity: 1; }
-.zigs-openglass .swap-execution .swap-execution-option[data-button-surface] { transform: none; }
-.zigs-openglass .swap-execution-option.openglass-sheet:has(input:checked) {
-  border-color: var(--accent-edge);
-  box-shadow: inset 0 1px 0 var(--glass-rim), 0 3px 9px -7px rgb(0 0 0 / .45);
+.zigs-openglass .swap-execution-option.openglass-sheet:not(:has(input:checked)) {
+  border-color: transparent;
+  box-shadow: none;
 }
-.zigs-openglass .swap-pane.openglass-sheet > .openglass-backdrop-slot,
-.zigs-openglass .privacy-film.openglass-sheet > .openglass-backdrop-slot { opacity: .55; }
+.zigs-openglass .swap-execution-option:not(:has(input:checked)) .openglass-edge-shine { display: none; }
+.zigs-openglass .swap-execution .swap-execution-option[data-button-surface] { transform: none; }
+.zigs-openglass .swap-execution .swap-execution-option.openglass-sheet:has(input:checked) {
+  border-color: var(--control-line);
+  box-shadow: inset 0 1px 0 var(--studio-rim), 0 4px 10px -7px var(--studio-floor);
+}
+.zigs-openglass :is(.swap-pane,.privacy-film).openglass-sheet > .openglass-backdrop-slot { opacity: 1; }
+.zigs-openglass :is(.swap-pane,.privacy-film).openglass-sheet > .openglass-backdrop-slot > [data-ogui-glass] {
+  background: var(--sunk) !important;
+}
+.zigs-openglass .swap-page :is(.swap-composer,.swap-privacy-explainer).openglass-sheet {
+  border-color: var(--glass-panel-edge);
+  box-shadow: var(--glass-panel-shadow);
+}
 .zigs-openglass :is(.swap-history, .swap-history-row).openglass-sheet { border-radius: 16px; }
 .zigs-openglass .swap-history.openglass-sheet { padding: 20px; border: 1px solid var(--glass-hairline); }
 .zigs-openglass .swap-history-row.openglass-sheet { padding: 12px; }

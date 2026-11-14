@@ -5,6 +5,7 @@ import { swapRecoveryRecord, swapRecoveryText } from './swap-recovery.js';
 // interactions. No signing or payment APIs are imported.
 import { copyBtn as nativeCopyBtn, el } from './app-dom.js';
 import { interfaceIcon } from './sidebar-icons.js';
+import { sculptedIcon } from './app-icons.js';
 import { NearIntentsSwapProvider } from './near-intents-swap-provider.js';
 import { createPostQuantumSwapPreview } from './app-postquantum-swap-preview.js';
 import { createSwapPrivacyExplainer } from './app-swap-privacy.js';
@@ -227,7 +228,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     { 'aria-label': 'Choose asset to pay', 'aria-haspopup': 'dialog', 'data-key': 'swap-from' });
   const toButton = button('', 'swap-asset-button', (ev) => openPicker('to', ev.currentTarget),
     { 'aria-label': 'Choose asset to receive', 'aria-haspopup': 'dialog', 'data-key': 'swap-to' });
-  const fromNetwork = text('swap-network', ''), toNetwork = text('swap-network', '');
+  const fromNetwork = el('div', { class: 'swap-network' }), toNetwork = text('swap-network', '');
   const error = text('swap-error', ''); error.id = 'swap-error'; error.setAttribute('role', 'status');
   const quoteLine = text('swap-quote-status', statusText({}));
   quoteLine.setAttribute('role', 'status');
@@ -257,19 +258,21 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   }, { disabled: true, 'aria-label': 'Use available private SOL balance' });
   const headTag = previewTag();
   const walletProvider = el('div', { class: 'swap-wallet-provider', hidden: true });
+  const walletProviderNote = text('swap-caption', '');
+  walletProvider.append(walletProviderNote, heliusSwapCredit());
   const executionHelp = text('swap-caption', '');
   executionHelp.id = 'swap-execution-help'; executionHelp.setAttribute('role', 'status');
   const executionChoices = [
-    ['preview', 'Hackathon preview', 'Demo - Pending NEAR API key', 'preview'],
-    ['public', 'Standard mainnet', 'NEAR Intents - Not Confidential', 'publicSwap'],
-    ['basic', 'Confidential mainnet', 'Provider access required', 'confidentialSwap'],
+    ['preview', 'Hackathon preview', 'Demo - Pending NEAR API key', 'activity'],
+    ['public', 'Standard mainnet', 'NEAR Intents - Not Confidential', 'swap'],
+    ['basic', 'Confidential mainnet', 'Provider access required', 'security'],
   ].map(([value, label, caption, art]) => el('label', {
     class: 'swap-execution-option', 'data-mode': value, 'data-interface-control': '', 'data-button-surface': '' },
     el('input', { type: 'radio', name: 'swap-execution', value, checked: value === 'preview',
       'aria-describedby': 'swap-execution-help', onchange: async () => {
         if (model.value.live) return;
         closeModal(); await model.chooseExecution(value);
-      } }), el('span', { class: 'swap-execution-art', 'aria-hidden': 'true' }, interfaceIcon(art)),
+      } }), el('span', { class: 'swap-execution-art', 'aria-hidden': 'true' }, sculptedIcon(art)),
     el('span', { class: 'swap-execution-copy' }, text('', label, 'strong'),
       text('swap-caption', caption, 'span')),
     el('span', { class: 'swap-execution-indicator', 'aria-hidden': 'true' }, interfaceIcon('check'))));
@@ -319,7 +322,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   }));
   root.append(el('header', { class: 'swap-heading' },
     el('div', { class: 'swap-titleline' }, el('h1', { id: 'swap-page-title' }, 'Swap'), headTag),
-    nearSwapCredit(), walletProvider),
+    nearSwapCredit()),
 
   el('div', { class: 'swap-panel', id: 'swap-panel-private', role: source.demo === true ? 'tabpanel' : 'region',
     'aria-labelledby': source.demo === true ? 'swap-tab-private' : 'swap-page-title',
@@ -567,9 +570,6 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
       text('swap-caption', 'Receipts are encrypted in this browser. Other devices keep their own swap history. Hiding tracking does not cancel a swap.'));
   }
   function drawPair(from, to) {
-    walletProvider.hidden = source.solGroup?.mode !== 'private';
-    if (!walletProvider.hidden && !walletProvider.childElementCount) walletProvider.append(
-      el('span', { class: 'swap-caption' }, 'Private SOL wallet'), heliusSwapCredit());
     fromButton.replaceChildren(token(from), el('span', {}, from.symbol), chevron());
     toButton.replaceChildren(token(to), el('span', {}, to.symbol), chevron());
     const privateSol = from.id === SOL_ID && source.solGroup?.mode === 'private' && solPayer === 'group';
@@ -579,8 +579,14 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
       el('span', {}, (confidentialFrom ? 'Confidential ' : 'Public ') + from.symbol));
     receivePrivacy.replaceChildren(interfaceIcon(confidentialTo ? 'lock' : 'unshield'),
       el('span', {}, (confidentialTo ? 'Confidential ' : 'Public ') + to.symbol));
-    if (privateSol) fromNetwork.replaceChildren(heliusSwapCredit());
-    else fromNetwork.textContent = from.key === 'zec' ? 'Shielded Zcash balance' : 'Public ' + from.network + ' balance';
+    const privateWallet = from.id === SOL_ID && source.solGroup?.mode === 'private';
+    walletProvider.hidden = !privateWallet;
+    walletProviderNote.hidden = privateSol;
+    walletProviderNote.textContent = source.solGroup?.refundTo
+      ? 'Private SOL wallet option' : 'Private SOL wallet · setup required';
+    fromNetwork.replaceChildren(...(privateSol ? [] : [
+      el('span', { class: 'swap-network-label' }, from.key === 'zec'
+        ? 'Shielded Zcash balance' : 'Public ' + from.network + ' balance')]), walletProvider);
     toNetwork.textContent = to.key === 'zec' ? 'Shielded Zcash receiving address' : 'Public ' + to.network + ' receiving address';
   }
   function historyState(record) {

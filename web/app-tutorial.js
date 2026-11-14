@@ -242,7 +242,8 @@ export function setupArrangement(n, t, kind = "rule", labels = {}) {
   diagram.setAttribute("data-preview", kind);
   diagram.setAttribute("data-rule", n + ":" + t);
   diagram.setAttribute("data-device-count", String(n));
-  diagram.setAttribute("style", "--setup-device-count:" + n);
+  // style-src 'self' rejects a style attribute; CSSOM writes preserve the live grid.
+  diagram.style.cssText = "--setup-device-count:" + n;
   return diagram;
 }
 

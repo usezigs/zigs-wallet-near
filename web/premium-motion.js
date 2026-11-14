@@ -75,7 +75,7 @@ class SurfaceExperience {
       this.observer?.unobserve(node); this.art.delete(node);
     }
     if (!changed) return;
-    root.querySelectorAll(".transaction-empty-mark,.activity-timeline,.messages-empty-art,"
+    root.querySelectorAll(".transaction-empty-mark,.activity-empty-art,.messages-empty-art,"
       + ".approval-empty-mark,.recipient-empty-art").forEach((node) => {
       node.classList.add("premium-empty-art");
       if (this.art.has(node)) return;

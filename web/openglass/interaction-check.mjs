@@ -176,6 +176,25 @@ try {
     "Changing transport keeps the native tab selection semantics");
   check((await tabPaint(onChain)).opacity === "1" && (await tabPaint(chat)).opacity === "0.35",
     "Selection styling follows the active transport");
+  await overviewFixture(context, page, { messaging: true });
+  await page.evaluate(async () => {
+    (await import('/app-state.js')).ui.tab = 'settings';
+    (await import('/app-loop.js')).draw();
+  });
+  const appearance = page.getByRole('combobox', { name: 'Appearance', exact: true });
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: width < 900 ? 844 : 900 });
+    await settleOverview(page);
+    check(await appearance.evaluate(node => {
+      const holder = node.closest('.field'), control = node.parentElement;
+      return holder.getBoundingClientRect().height >= 48 && getComputedStyle(control).clipPath === 'none'
+        && control.getBoundingClientRect().width >= 48;
+    }), width + ': the Appearance selector is rendered at full size');
+    await appearance.selectOption('light');
+    check(await page.evaluate(() => document.documentElement.dataset.theme === 'light'),
+      width + ': the visible Appearance control changes the theme');
+    await appearance.selectOption('dark');
+  }
   assert.deepEqual(errors, [], "No runtime errors during audited interactions");
   console.log(`OpenGlass interactions: ${checks.length} checks passed`);
 } finally {
