@@ -1,0 +1,3 @@
+graph: app-swap-simulation.js is not listed in app.js
+graph: setup-wizard.js imports the page module app-icons.js
+graph: app-swap-preview.js imports app-swap-simulation.js, which app.js lacks

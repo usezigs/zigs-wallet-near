@@ -1,0 +1,2809 @@
+[
+  {
+    "mode": "cold-desktop",
+    "domReadyMs": 254,
+    "createVisibleMs": 450,
+    "readyMs": 460,
+    "blocked": 0,
+    "errors": [],
+    "consoleErrors": [],
+    "paints": [
+      {
+        "name": "first-paint",
+        "start": 192
+      },
+      {
+        "name": "first-contentful-paint",
+        "start": 240
+      }
+    ],
+    "resources": [
+      {
+        "path": "/shim.js",
+        "encodedBytes": 4136,
+        "duration": 9.5
+      },
+      {
+        "path": "/pkg/zigs_engine.js",
+        "encodedBytes": 12099,
+        "duration": 13.799999997019768
+      },
+      {
+        "path": "/pkg/zigs_engine_bg.wasm",
+        "encodedBytes": 3243047,
+        "duration": 120.69999998807907
+      },
+      {
+        "path": "/theme.js",
+        "encodedBytes": 262,
+        "duration": 123.5
+      },
+      {
+        "path": "/zns-setup.css",
+        "encodedBytes": 1331,
+        "duration": 123.40000000596046
+      },
+      {
+        "path": "/wallet-switcher.css",
+        "encodedBytes": 1310,
+        "duration": 127
+      },
+      {
+        "path": "/design-system.css",
+        "encodedBytes": 2637,
+        "duration": 127.09999999403954
+      },
+      {
+        "path": "/funding-preview.css",
+        "encodedBytes": 3576,
+        "duration": 127.70000000298023
+      },
+      {
+        "path": "/app.css",
+        "encodedBytes": 35438,
+        "duration": 129.40000000596046
+      },
+      {
+        "path": "/transaction-receipts.css",
+        "encodedBytes": 1233,
+        "duration": 133.90000000596046
+      },
+      {
+        "path": "/privacy-language.css",
+        "encodedBytes": 1105,
+        "duration": 133.90000000596046
+      },
+      {
+        "path": "/brand-identity.css",
+        "encodedBytes": 2264,
+        "duration": 134.20000000298023
+      },
+      {
+        "path": "/overview-rows.css",
+        "encodedBytes": 4408,
+        "duration": 134.20000000298023
+      },
+      {
+        "path": "/approvals-experience.css",
+        "encodedBytes": 3059,
+        "duration": 133.8999999910593
+      },
+      {
+        "path": "/activity.css",
+        "encodedBytes": 1997,
+        "duration": 137.70000000298023
+      },
+      {
+        "path": "/onboarding-refinement.css",
+        "encodedBytes": 4011,
+        "duration": 137.70000000298023
+      },
+      {
+        "path": "/wallet-marble.css",
+        "encodedBytes": 650,
+        "duration": 140.70000000298023
+      },
+      {
+        "path": "/wallet-art.css",
+        "encodedBytes": 1445,
+        "duration": 140.79999999701977
+      },
+      {
+        "path": "/security-dashboard.css",
+        "encodedBytes": 2755,
+        "duration": 140.79999999701977
+      },
+      {
+        "path": "/swap-preview.css",
+        "encodedBytes": 10530,
+        "duration": 141.6000000089407
+      },
+      {
+        "path": "/network-privacy.css",
+        "encodedBytes": 691,
+        "duration": 146
+      },
+      {
+        "path": "/homepage.css",
+        "encodedBytes": 3236,
+        "duration": 146.1000000089407
+      },
+      {
+        "path": "/network-privacy-popup.css",
+        "encodedBytes": 3303,
+        "duration": 146.1000000089407
+      },
+      {
+        "path": "/settings-experience.css",
+        "encodedBytes": 1865,
+        "duration": 146.20000000298023
+      },
+      {
+        "path": "/messaging.css",
+        "encodedBytes": 7376,
+        "duration": 147.29999999701977
+      },
+      {
+        "path": "/how-zigs-works-art.css",
+        "encodedBytes": 1650,
+        "duration": 148.6000000089407
+      },
+      {
+        "path": "/how-zigs-works.css",
+        "encodedBytes": 4996,
+        "duration": 149.1000000089407
+      },
+      {
+        "path": "/premium-experience.css",
+        "encodedBytes": 2035,
+        "duration": 153.79999999701977
+      },
+      {
+        "path": "/ux-clarity.css",
+        "encodedBytes": 822,
+        "duration": 154.1000000089407
+      },
+      {
+        "path": "/site-refinement.css",
+        "encodedBytes": 5604,
+        "duration": 154.5
+      },
+      {
+        "path": "/icon-craft.css",
+        "encodedBytes": 1184,
+        "duration": 153.79999999701977
+      },
+      {
+        "path": "/solana-receive.css",
+        "encodedBytes": 1367,
+        "duration": 155.8999999910593
+      },
+      {
+        "path": "/workflow-clarity.css",
+        "encodedBytes": 650,
+        "duration": 155.79999999701977
+      },
+      {
+        "path": "/overview-compact.css",
+        "encodedBytes": 2070,
+        "duration": 160.40000000596046
+      },
+      {
+        "path": "/portfolio-chart.css",
+        "encodedBytes": 2462,
+        "duration": 160.5
+      },
+      {
+        "path": "/payment-refinement.css",
+        "encodedBytes": 2519,
+        "duration": 160.5
+      },
+      {
+        "path": "/journey-refinement.css",
+        "encodedBytes": 2621,
+        "duration": 160.70000000298023
+      },
+      {
+        "path": "/fonts/manrope-latin.woff2",
+        "encodedBytes": 24576,
+        "duration": 173.79999999701977
+      },
+      {
+        "path": "/fonts/zigs-wordmark.woff2",
+        "encodedBytes": 3052,
+        "duration": 174
+      },
+      {
+        "path": "/nextlevel-visuals.css",
+        "encodedBytes": 8449,
+        "duration": 163.40000000596046
+      },
+      {
+        "path": "/interface-icons.css",
+        "encodedBytes": 460,
+        "duration": 163.20000000298023
+      },
+      {
+        "path": "/swap-nextlevel.css",
+        "encodedBytes": 1739,
+        "duration": 167
+      },
+      {
+        "path": "/sidebar.css",
+        "encodedBytes": 2094,
+        "duration": 167.1000000089407
+      },
+      {
+        "path": "/openglass-dist/app.css",
+        "encodedBytes": 17611,
+        "duration": 168.80000001192093
+      },
+      {
+        "path": "/setup-refinement.css",
+        "encodedBytes": 8019,
+        "duration": 167.79999999701977
+      },
+      {
+        "path": "/openglass-dist/app.js",
+        "encodedBytes": 93990,
+        "duration": 180.59999999403954
+      },
+      {
+        "path": "/homepage-motion.js",
+        "encodedBytes": 2676,
+        "duration": 183.09999999403954
+      },
+      {
+        "path": "/approval-visualization.css",
+        "encodedBytes": 1172,
+        "duration": 47.20000000298023
+      },
+      {
+        "path": "/security-visuals.css",
+        "encodedBytes": 1239,
+        "duration": 44.70000000298023
+      },
+      {
+        "path": "/network-privacy-demo-entry.js",
+        "encodedBytes": 115,
+        "duration": 3.2999999970197678
+      },
+      {
+        "path": "/logo.png",
+        "encodedBytes": 386953,
+        "duration": 9.599999994039536
+      },
+      {
+        "path": "/homepage-scene.js",
+        "encodedBytes": 4304,
+        "duration": 3.300000011920929
+      },
+      {
+        "path": "/app.js",
+        "encodedBytes": 1124,
+        "duration": 3.5
+      },
+      {
+        "path": "/radiant-dither.js",
+        "encodedBytes": 803,
+        "duration": 4.799999997019768
+      },
+      {
+        "path": "/qr.js",
+        "encodedBytes": 3139,
+        "duration": 10.599999994039536
+      },
+      {
+        "path": "/payees.js",
+        "encodedBytes": 2506,
+        "duration": 11.699999988079071
+      },
+      {
+        "path": "/vault.js",
+        "encodedBytes": 1652,
+        "duration": 17.19999998807907
+      },
+      {
+        "path": "/chat.js",
+        "encodedBytes": 5426,
+        "duration": 17.799999997019768
+      },
+      {
+        "path": "/signed.js",
+        "encodedBytes": 4631,
+        "duration": 17.900000005960464
+      },
+      {
+        "path": "/util.js",
+        "encodedBytes": 6278,
+        "duration": 18.099999994039536
+      },
+      {
+        "path": "/personal.js",
+        "encodedBytes": 6410,
+        "duration": 18
+      },
+      {
+        "path": "/zns.js",
+        "encodedBytes": 3104,
+        "duration": 20.5
+      },
+      {
+        "path": "/requests.js",
+        "encodedBytes": 2905,
+        "duration": 20.700000002980232
+      },
+      {
+        "path": "/portfolio-model.js",
+        "encodedBytes": 2930,
+        "duration": 24.400000005960464
+      },
+      {
+        "path": "/zns-setup-preview.js",
+        "encodedBytes": 2406,
+        "duration": 24.900000005960464
+      },
+      {
+        "path": "/funding-preview.js",
+        "encodedBytes": 6378,
+        "duration": 25.100000008940697
+      },
+      {
+        "path": "/overview-model.js",
+        "encodedBytes": 3680,
+        "duration": 25.200000002980232
+      },
+      {
+        "path": "/portfolio-prices.js",
+        "encodedBytes": 1088,
+        "duration": 27.700000002980232
+      },
+      {
+        "path": "/overview-popover.js",
+        "encodedBytes": 1029,
+        "duration": 27.900000005960464
+      },
+      {
+        "path": "/portfolio-store.js",
+        "encodedBytes": 877,
+        "duration": 32.6000000089407
+      },
+      {
+        "path": "/portfolio-geometry.js",
+        "encodedBytes": 1580,
+        "duration": 32.70000000298023
+      },
+      {
+        "path": "/portfolio-chart-dom.js",
+        "encodedBytes": 2156,
+        "duration": 32.3999999910593
+      },
+      {
+        "path": "/portfolio-interaction.js",
+        "encodedBytes": 1212,
+        "duration": 32.70000000298023
+      },
+      {
+        "path": "/portfolio-chart-motion.js",
+        "encodedBytes": 1474,
+        "duration": 34.599999994039536
+      },
+      {
+        "path": "/portfolio-chart-content.js",
+        "encodedBytes": 1733,
+        "duration": 34.599999994039536
+      },
+      {
+        "path": "/portfolio-chart.js",
+        "encodedBytes": 3555,
+        "duration": 35.599999994039536
+      },
+      {
+        "path": "/app-portfolio.js",
+        "encodedBytes": 2260,
+        "duration": 38.5
+      },
+      {
+        "path": "/payment-model.js",
+        "encodedBytes": 3702,
+        "duration": 38.400000005960464
+      },
+      {
+        "path": "/wallet-identity.js",
+        "encodedBytes": 1971,
+        "duration": 38.29999999701977
+      },
+      {
+        "path": "/wallet-avatar-svg.js",
+        "encodedBytes": 1496,
+        "duration": 38.6000000089407
+      },
+      {
+        "path": "/payment-experience.js",
+        "encodedBytes": 1341,
+        "duration": 40.900000005960464
+      },
+      {
+        "path": "/error-feedback.js",
+        "encodedBytes": 1020,
+        "duration": 40.900000005960464
+      },
+      {
+        "path": "/premium-motion.js",
+        "encodedBytes": 2653,
+        "duration": 43.5
+      },
+      {
+        "path": "/receive-card.js",
+        "encodedBytes": 1445,
+        "duration": 43.69999998807907
+      },
+      {
+        "path": "/activity-dates.js",
+        "encodedBytes": 575,
+        "duration": 44.099999994039536
+      },
+      {
+        "path": "/sidebar-icons.js",
+        "encodedBytes": 2321,
+        "duration": 44.29999999701977
+      },
+      {
+        "path": "/outcome-seal.js",
+        "encodedBytes": 1100,
+        "duration": 45.5
+      },
+      {
+        "path": "/approvals-model.js",
+        "encodedBytes": 2123,
+        "duration": 45.5
+      },
+      {
+        "path": "/swap-recovery.js",
+        "encodedBytes": 2735,
+        "duration": 49.69999998807907
+      },
+      {
+        "path": "/swap-preview-model.js",
+        "encodedBytes": 6939,
+        "duration": 50.3999999910593
+      },
+      {
+        "path": "/near-intents-swap-provider.js",
+        "encodedBytes": 3411,
+        "duration": 49.5
+      },
+      {
+        "path": "/swap-records.js",
+        "encodedBytes": 1451,
+        "duration": 49.29999999701977
+      },
+      {
+        "path": "/setup-model.js",
+        "encodedBytes": 808,
+        "duration": 53.599999994039536
+      },
+      {
+        "path": "/near-swap-policy.js",
+        "encodedBytes": 578,
+        "duration": 54
+      },
+      {
+        "path": "/near-quote-signature.js",
+        "encodedBytes": 2279,
+        "duration": 54
+      },
+      {
+        "path": "/security-dashboard-model.js",
+        "encodedBytes": 2114,
+        "duration": 56.20000000298023
+      },
+      {
+        "path": "/setup-wizard.js",
+        "encodedBytes": 900,
+        "duration": 56.29999999701977
+      },
+      {
+        "path": "/recovery-model.js",
+        "encodedBytes": 1297,
+        "duration": 56.599999994039536
+      },
+      {
+        "path": "/local-devices.js",
+        "encodedBytes": 737,
+        "duration": 58.70000000298023
+      },
+      {
+        "path": "/security-disclosures.js",
+        "encodedBytes": 643,
+        "duration": 59
+      },
+      {
+        "path": "/help-model.js",
+        "encodedBytes": 2994,
+        "duration": 58.5
+      },
+      {
+        "path": "/backup-check.js",
+        "encodedBytes": 1463,
+        "duration": 62.6000000089407
+      },
+      {
+        "path": "/recipients.js",
+        "encodedBytes": 2273,
+        "duration": 62.400000005960464
+      },
+      {
+        "path": "/guided-setup-model.js",
+        "encodedBytes": 2388,
+        "duration": 62.6000000089407
+      },
+      {
+        "path": "/wallet-description.js",
+        "encodedBytes": 651,
+        "duration": 64.80000001192093
+      },
+      {
+        "path": "/wallet-marble.js",
+        "encodedBytes": 2317,
+        "duration": 64.70000000298023
+      },
+      {
+        "path": "/wallet-art.js",
+        "encodedBytes": 1370,
+        "duration": 65
+      },
+      {
+        "path": "/how-zigs-works-art.js",
+        "encodedBytes": 6521,
+        "duration": 67.79999999701977
+      },
+      {
+        "path": "/how-zigs-works-content.js",
+        "encodedBytes": 16518,
+        "duration": 69.09999999403954
+      },
+      {
+        "path": "/how-zigs-works-flow-art.js",
+        "encodedBytes": 4966,
+        "duration": 67.5
+      },
+      {
+        "path": "/how-zigs-works-icons.js",
+        "encodedBytes": 493,
+        "duration": 72.5
+      },
+      {
+        "path": "/how-zigs-works-journey-content.js",
+        "encodedBytes": 3286,
+        "duration": 72.6000000089407
+      },
+      {
+        "path": "/how-zigs-works-story.js",
+        "encodedBytes": 2636,
+        "duration": 72.70000000298023
+      },
+      {
+        "path": "/how-zigs-works-journeys.js",
+        "encodedBytes": 2247,
+        "duration": 72.79999999701977
+      },
+      {
+        "path": "/how-zigs-works-diagrams.js",
+        "encodedBytes": 475,
+        "duration": 74.29999999701977
+      },
+      {
+        "path": "/how-zigs-works-motion.js",
+        "encodedBytes": 619,
+        "duration": 74.40000000596046
+      },
+      {
+        "path": "/app-state.js",
+        "encodedBytes": 1569,
+        "duration": 78.29999999701977
+      },
+      {
+        "path": "/app-engine.js",
+        "encodedBytes": 2277,
+        "duration": 78.40000000596046
+      },
+      {
+        "path": "/app-how-zigs-works.js",
+        "encodedBytes": 3789,
+        "duration": 78.20000000298023
+      },
+      {
+        "path": "/app-kit.js",
+        "encodedBytes": 2426,
+        "duration": 78.5
+      },
+      {
+        "path": "/app-keystore.js",
+        "encodedBytes": 10646,
+        "duration": 80.6000000089407
+      },
+      {
+        "path": "/app-seats.js",
+        "encodedBytes": 1953,
+        "duration": 80
+      },
+      {
+        "path": "/app-links.js",
+        "encodedBytes": 1904,
+        "duration": 85.8999999910593
+      },
+      {
+        "path": "/app-filter.js",
+        "encodedBytes": 5598,
+        "duration": 86.3999999910593
+      },
+      {
+        "path": "/app-dom.js",
+        "encodedBytes": 6845,
+        "duration": 86.59999999403954
+      },
+      {
+        "path": "/app-groups.js",
+        "encodedBytes": 5249,
+        "duration": 86.69999998807907
+      },
+      {
+        "path": "/app-chain.js",
+        "encodedBytes": 7613,
+        "duration": 86.69999998807907
+      },
+      {
+        "path": "/app-wallet-identity.js",
+        "encodedBytes": 1047,
+        "duration": 89.59999999403954
+      },
+      {
+        "path": "/app-wallet-switcher.js",
+        "encodedBytes": 2244,
+        "duration": 89.59999999403954
+      },
+      {
+        "path": "/app-shared-control.js",
+        "encodedBytes": 981,
+        "duration": 92.79999999701977
+      },
+      {
+        "path": "/app-wallet-art.js",
+        "encodedBytes": 2045,
+        "duration": 92.79999999701977
+      },
+      {
+        "path": "/app-icons.js",
+        "encodedBytes": 2842,
+        "duration": 92.90000000596046
+      },
+      {
+        "path": "/app-wallet-marble.js",
+        "encodedBytes": 460,
+        "duration": 93
+      },
+      {
+        "path": "/app-theme.js",
+        "encodedBytes": 672,
+        "duration": 94.59999999403954
+      },
+      {
+        "path": "/icon-objects.js",
+        "encodedBytes": 2903,
+        "duration": 94.70000000298023
+      },
+      {
+        "path": "/app-settings-ui.js",
+        "encodedBytes": 1191,
+        "duration": 97.5
+      },
+      {
+        "path": "/network-privacy-camouflage.js",
+        "encodedBytes": 1318,
+        "duration": 97.40000000596046
+      },
+      {
+        "path": "/app-network-privacy.js",
+        "encodedBytes": 1364,
+        "duration": 97.5
+      },
+      {
+        "path": "/network-privacy-popup.js",
+        "encodedBytes": 4407,
+        "duration": 97.5
+      },
+      {
+        "path": "/app-security-dashboard.js",
+        "encodedBytes": 4826,
+        "duration": 101.5
+      },
+      {
+        "path": "/app-motion.js",
+        "encodedBytes": 5630,
+        "duration": 101.6000000089407
+      },
+      {
+        "path": "/app-security.js",
+        "encodedBytes": 1535,
+        "duration": 101.70000000298023
+      },
+      {
+        "path": "/app-local-devices.js",
+        "encodedBytes": 1514,
+        "duration": 104
+      },
+      {
+        "path": "/app-approval-visualization.js",
+        "encodedBytes": 3029,
+        "duration": 104.09999999403954
+      },
+      {
+        "path": "/app-tutorial.js",
+        "encodedBytes": 8338,
+        "duration": 106.09999999403954
+      },
+      {
+        "path": "/privacy-language.js",
+        "encodedBytes": 1291,
+        "duration": 107.8999999910593
+      },
+      {
+        "path": "/app-guided-setup.js",
+        "encodedBytes": 4667,
+        "duration": 107.79999999701977
+      },
+      {
+        "path": "/app-taddress.js",
+        "encodedBytes": 3758,
+        "duration": 107.90000000596046
+      },
+      {
+        "path": "/app-swap-sol.js",
+        "encodedBytes": 3276,
+        "duration": 110.29999999701977
+      },
+      {
+        "path": "/app-sweep.js",
+        "encodedBytes": 3830,
+        "duration": 110.29999999701977
+      },
+      {
+        "path": "/app-swap-zec.js",
+        "encodedBytes": 4468,
+        "duration": 110.6000000089407
+      },
+      {
+        "path": "/app-swap-store.js",
+        "encodedBytes": 892,
+        "duration": 112.5
+      },
+      {
+        "path": "/app-recipients.js",
+        "encodedBytes": 3257,
+        "duration": 112.5
+      },
+      {
+        "path": "/app-funding-preview.js",
+        "encodedBytes": 841,
+        "duration": 112.90000000596046
+      },
+      {
+        "path": "/app-help.js",
+        "encodedBytes": 2000,
+        "duration": 116.1000000089407
+      },
+      {
+        "path": "/app-messages.js",
+        "encodedBytes": 6824,
+        "duration": 116.70000000298023
+      },
+      {
+        "path": "/app-dkg.js",
+        "encodedBytes": 8516,
+        "duration": 116.79999999701977
+      },
+      {
+        "path": "/app-payreq.js",
+        "encodedBytes": 4524,
+        "duration": 122.1000000089407
+      },
+      {
+        "path": "/app-account.js",
+        "encodedBytes": 7491,
+        "duration": 122.29999999701977
+      },
+      {
+        "path": "/app-payments.js",
+        "encodedBytes": 18292,
+        "duration": 123.29999999701977
+      },
+      {
+        "path": "/app-thread.js",
+        "encodedBytes": 7075,
+        "duration": 122.29999999701977
+      },
+      {
+        "path": "/messaging-cost-review.js",
+        "encodedBytes": 476,
+        "duration": 126.69999998807907
+      },
+      {
+        "path": "/app-messaging-workspace.js",
+        "encodedBytes": 3686,
+        "duration": 126.79999999701977
+      },
+      {
+        "path": "/app-messaging-education.js",
+        "encodedBytes": 2529,
+        "duration": 127
+      },
+      {
+        "path": "/app-backups.js",
+        "encodedBytes": 8668,
+        "duration": 127.69999998807907
+      },
+      {
+        "path": "/app-account-view.js",
+        "encodedBytes": 8358,
+        "duration": 127.8999999910593
+      },
+      {
+        "path": "/app-shell.js",
+        "encodedBytes": 17939,
+        "duration": 131
+      },
+      {
+        "path": "/app-swap-preview.js",
+        "encodedBytes": 19369,
+        "duration": 131
+      },
+      {
+        "path": "/app-swap-privacy-motion.js",
+        "encodedBytes": 1400,
+        "duration": 133.79999999701977
+      },
+      {
+        "path": "/app-swap-privacy.js",
+        "encodedBytes": 3665,
+        "duration": 133.79999999701977
+      },
+      {
+        "path": "/app-swap-branding.js",
+        "encodedBytes": 372,
+        "duration": 134.20000000298023
+      },
+      {
+        "path": "/app-swap-privacy-art.js",
+        "encodedBytes": 1533,
+        "duration": 134.40000000596046
+      },
+      {
+        "path": "/app-postquantum-swap-preview.js",
+        "encodedBytes": 4676,
+        "duration": 138.70000000298023
+      },
+      {
+        "path": "/app-drawer.js",
+        "encodedBytes": 13038,
+        "duration": 139.5
+      },
+      {
+        "path": "/app-loop.js",
+        "encodedBytes": 10627,
+        "duration": 138.70000000298023
+      },
+      {
+        "path": "/app-sol.js",
+        "encodedBytes": 10873,
+        "duration": 145.30000001192093
+      },
+      {
+        "path": "/app-setup.js",
+        "encodedBytes": 16449,
+        "duration": 146.1000000089407
+      },
+      {
+        "path": "/app-send.js",
+        "encodedBytes": 14997,
+        "duration": 145.8999999910593
+      },
+      {
+        "path": "/app-wallet.js",
+        "encodedBytes": 27531,
+        "duration": 146.70000000298023
+      },
+      {
+        "path": "/favicon.ico",
+        "encodedBytes": 4155,
+        "duration": 136.8999999910593
+      },
+      {
+        "path": "/app-swap-simulation.js",
+        "encodedBytes": 2019,
+        "duration": 16.299999997019768
+      },
+      {
+        "path": "/assets/brand/hero-zebra-rest.webp",
+        "encodedBytes": 612646,
+        "duration": 4.800000011920929
+      }
+    ],
+    "longTasks": [],
+    "engineText": "Crypto engine ready (WebAssembly)",
+    "banner": "",
+    "horizontalOverflow": false,
+    "offlineVisible": true,
+    "cancelCreateReturnedHome": true
+  },
+  {
+    "mode": "cold-mobile-2Mbps-150ms",
+    "domReadyMs": 2711,
+    "createVisibleMs": 19594,
+    "readyMs": 19605,
+    "blocked": 0,
+    "errors": [],
+    "consoleErrors": [],
+    "paints": [
+      {
+        "name": "first-paint",
+        "start": 1956
+      },
+      {
+        "name": "first-contentful-paint",
+        "start": 2720
+      }
+    ],
+    "resources": [
+      {
+        "path": "/shim.js",
+        "encodedBytes": 4136,
+        "duration": 271.09999999403954
+      },
+      {
+        "path": "/pkg/zigs_engine.js",
+        "encodedBytes": 12099,
+        "duration": 343
+      },
+      {
+        "path": "/theme.js",
+        "encodedBytes": 262,
+        "duration": 1482.7999999970198
+      },
+      {
+        "path": "/pkg/zigs_engine_bg.wasm",
+        "encodedBytes": 3243047,
+        "duration": 19230.39999999106
+      },
+      {
+        "path": "/design-system.css",
+        "encodedBytes": 2637,
+        "duration": 247.59999999403954
+      },
+      {
+        "path": "/zns-setup.css",
+        "encodedBytes": 1331,
+        "duration": 228.5
+      },
+      {
+        "path": "/funding-preview.css",
+        "encodedBytes": 3576,
+        "duration": 259.40000000596046
+      },
+      {
+        "path": "/wallet-switcher.css",
+        "encodedBytes": 1310,
+        "duration": 401.1000000089407
+      },
+      {
+        "path": "/transaction-receipts.css",
+        "encodedBytes": 1233,
+        "duration": 433
+      },
+      {
+        "path": "/app.css",
+        "encodedBytes": 35438,
+        "duration": 480.30000001192093
+      },
+      {
+        "path": "/privacy-language.css",
+        "encodedBytes": 1105,
+        "duration": 451
+      },
+      {
+        "path": "/brand-identity.css",
+        "encodedBytes": 2264,
+        "duration": 461.5
+      },
+      {
+        "path": "/overview-rows.css",
+        "encodedBytes": 4408,
+        "duration": 521.7000000029802
+      },
+      {
+        "path": "/approvals-experience.css",
+        "encodedBytes": 3059,
+        "duration": 575.9000000059605
+      },
+      {
+        "path": "/activity.css",
+        "encodedBytes": 1997,
+        "duration": 594
+      },
+      {
+        "path": "/onboarding-refinement.css",
+        "encodedBytes": 4011,
+        "duration": 617.5
+      },
+      {
+        "path": "/wallet-art.css",
+        "encodedBytes": 1445,
+        "duration": 630
+      },
+      {
+        "path": "/wallet-marble.css",
+        "encodedBytes": 650,
+        "duration": 634.8999999910593
+      },
+      {
+        "path": "/security-dashboard.css",
+        "encodedBytes": 2755,
+        "duration": 696.6999999880791
+      },
+      {
+        "path": "/settings-experience.css",
+        "encodedBytes": 1865,
+        "duration": 762.0999999940395
+      },
+      {
+        "path": "/network-privacy.css",
+        "encodedBytes": 691,
+        "duration": 780.1999999880791
+      },
+      {
+        "path": "/swap-preview.css",
+        "encodedBytes": 10530,
+        "duration": 815.0999999940395
+      },
+      {
+        "path": "/network-privacy-popup.css",
+        "encodedBytes": 3303,
+        "duration": 828.6000000089407
+      },
+      {
+        "path": "/messaging.css",
+        "encodedBytes": 7376,
+        "duration": 850.6000000089407
+      },
+      {
+        "path": "/homepage.css",
+        "encodedBytes": 3236,
+        "duration": 869.2000000029802
+      },
+      {
+        "path": "/how-zigs-works.css",
+        "encodedBytes": 4996,
+        "duration": 947.2000000029802
+      },
+      {
+        "path": "/how-zigs-works-art.css",
+        "encodedBytes": 1650,
+        "duration": 952.3000000119209
+      },
+      {
+        "path": "/premium-experience.css",
+        "encodedBytes": 2035,
+        "duration": 1000.7000000029802
+      },
+      {
+        "path": "/site-refinement.css",
+        "encodedBytes": 5604,
+        "duration": 1006.8000000119209
+      },
+      {
+        "path": "/ux-clarity.css",
+        "encodedBytes": 822,
+        "duration": 1012.8999999910593
+      },
+      {
+        "path": "/icon-craft.css",
+        "encodedBytes": 1184,
+        "duration": 1030.2000000029802
+      },
+      {
+        "path": "/solana-receive.css",
+        "encodedBytes": 1367,
+        "duration": 1120.7000000029802
+      },
+      {
+        "path": "/workflow-clarity.css",
+        "encodedBytes": 650,
+        "duration": 1116.2999999970198
+      },
+      {
+        "path": "/fonts/manrope-latin.woff2",
+        "encodedBytes": 24576,
+        "duration": 1846.5999999940395
+      },
+      {
+        "path": "/portfolio-chart.css",
+        "encodedBytes": 2462,
+        "duration": 1181.5
+      },
+      {
+        "path": "/overview-compact.css",
+        "encodedBytes": 2070,
+        "duration": 1185.9000000059605
+      },
+      {
+        "path": "/journey-refinement.css",
+        "encodedBytes": 2621,
+        "duration": 1204.9000000059605
+      },
+      {
+        "path": "/fonts/zigs-wordmark.woff2",
+        "encodedBytes": 3052,
+        "duration": 1564.2000000029802
+      },
+      {
+        "path": "/payment-refinement.css",
+        "encodedBytes": 2519,
+        "duration": 1210.5
+      },
+      {
+        "path": "/interface-icons.css",
+        "encodedBytes": 460,
+        "duration": 1283.6000000089407
+      },
+      {
+        "path": "/nextlevel-visuals.css",
+        "encodedBytes": 8449,
+        "duration": 1312.7000000029802
+      },
+      {
+        "path": "/sidebar.css",
+        "encodedBytes": 2094,
+        "duration": 1354.2000000029802
+      },
+      {
+        "path": "/swap-nextlevel.css",
+        "encodedBytes": 1739,
+        "duration": 1360.1000000089407
+      },
+      {
+        "path": "/openglass-dist/app.css",
+        "encodedBytes": 17611,
+        "duration": 1524.1000000089407
+      },
+      {
+        "path": "/setup-refinement.css",
+        "encodedBytes": 8019,
+        "duration": 1433.2999999970198
+      },
+      {
+        "path": "/homepage-motion.js",
+        "encodedBytes": 2676,
+        "duration": 1708.3999999910593
+      },
+      {
+        "path": "/openglass-dist/app.js",
+        "encodedBytes": 93990,
+        "duration": 2488.7999999970198
+      },
+      {
+        "path": "/approval-visualization.css",
+        "encodedBytes": 1172,
+        "duration": 250.59999999403954
+      },
+      {
+        "path": "/security-visuals.css",
+        "encodedBytes": 1239,
+        "duration": 287.29999999701977
+      },
+      {
+        "path": "/homepage-scene.js",
+        "encodedBytes": 4304,
+        "duration": 223.40000000596046
+      },
+      {
+        "path": "/radiant-dither.js",
+        "encodedBytes": 803,
+        "duration": 166.5
+      },
+      {
+        "path": "/network-privacy-demo-entry.js",
+        "encodedBytes": 115,
+        "duration": 163.29999999701977
+      },
+      {
+        "path": "/logo.png",
+        "encodedBytes": 386953,
+        "duration": 4487.600000008941
+      },
+      {
+        "path": "/app.js",
+        "encodedBytes": 1124,
+        "duration": 185.90000000596046
+      },
+      {
+        "path": "/payees.js",
+        "encodedBytes": 2506,
+        "duration": 221
+      },
+      {
+        "path": "/qr.js",
+        "encodedBytes": 3139,
+        "duration": 256.70000000298023
+      },
+      {
+        "path": "/vault.js",
+        "encodedBytes": 1652,
+        "duration": 237.5
+      },
+      {
+        "path": "/util.js",
+        "encodedBytes": 6278,
+        "duration": 297.59999999403954
+      },
+      {
+        "path": "/signed.js",
+        "encodedBytes": 4631,
+        "duration": 460.40000000596046
+      },
+      {
+        "path": "/chat.js",
+        "encodedBytes": 5426,
+        "duration": 502.3999999910593
+      },
+      {
+        "path": "/requests.js",
+        "encodedBytes": 2905,
+        "duration": 536.8999999910593
+      },
+      {
+        "path": "/personal.js",
+        "encodedBytes": 6410,
+        "duration": 549.2999999970198
+      },
+      {
+        "path": "/zns.js",
+        "encodedBytes": 3104,
+        "duration": 662.0999999940395
+      },
+      {
+        "path": "/zns-setup-preview.js",
+        "encodedBytes": 2406,
+        "duration": 694
+      },
+      {
+        "path": "/funding-preview.js",
+        "encodedBytes": 6378,
+        "duration": 802.4000000059605
+      },
+      {
+        "path": "/overview-model.js",
+        "encodedBytes": 3680,
+        "duration": 770.4000000059605
+      },
+      {
+        "path": "/overview-popover.js",
+        "encodedBytes": 1029,
+        "duration": 867.9000000059605
+      },
+      {
+        "path": "/portfolio-model.js",
+        "encodedBytes": 2930,
+        "duration": 871.7000000029802
+      },
+      {
+        "path": "/portfolio-prices.js",
+        "encodedBytes": 1088,
+        "duration": 956.6000000089407
+      },
+      {
+        "path": "/portfolio-store.js",
+        "encodedBytes": 877,
+        "duration": 974.2999999970198
+      },
+      {
+        "path": "/portfolio-geometry.js",
+        "encodedBytes": 1580,
+        "duration": 1059.8999999910593
+      },
+      {
+        "path": "/portfolio-interaction.js",
+        "encodedBytes": 1212,
+        "duration": 1063.7999999970198
+      },
+      {
+        "path": "/portfolio-chart-dom.js",
+        "encodedBytes": 2156,
+        "duration": 1136.4000000059605
+      },
+      {
+        "path": "/portfolio-chart-content.js",
+        "encodedBytes": 1733,
+        "duration": 1166.8999999910593
+      },
+      {
+        "path": "/portfolio-chart-motion.js",
+        "encodedBytes": 1474,
+        "duration": 1250.5
+      },
+      {
+        "path": "/portfolio-chart.js",
+        "encodedBytes": 3555,
+        "duration": 1273.8999999910593
+      },
+      {
+        "path": "/app-portfolio.js",
+        "encodedBytes": 2260,
+        "duration": 1323.2999999970198
+      },
+      {
+        "path": "/wallet-identity.js",
+        "encodedBytes": 1971,
+        "duration": 1359.5999999940395
+      },
+      {
+        "path": "/wallet-avatar-svg.js",
+        "encodedBytes": 1496,
+        "duration": 1431.800000011921
+      },
+      {
+        "path": "/payment-model.js",
+        "encodedBytes": 3702,
+        "duration": 1478.2000000029802
+      },
+      {
+        "path": "/error-feedback.js",
+        "encodedBytes": 1020,
+        "duration": 1498.1000000089407
+      },
+      {
+        "path": "/payment-experience.js",
+        "encodedBytes": 1341,
+        "duration": 1544.4000000059605
+      },
+      {
+        "path": "/receive-card.js",
+        "encodedBytes": 1445,
+        "duration": 1616.7000000029802
+      },
+      {
+        "path": "/activity-dates.js",
+        "encodedBytes": 575,
+        "duration": 1647.8999999910593
+      },
+      {
+        "path": "/sidebar-icons.js",
+        "encodedBytes": 2321,
+        "duration": 1681.7999999970198
+      },
+      {
+        "path": "/premium-motion.js",
+        "encodedBytes": 2653,
+        "duration": 1741.9000000059605
+      },
+      {
+        "path": "/approvals-model.js",
+        "encodedBytes": 2123,
+        "duration": 1802.2999999970198
+      },
+      {
+        "path": "/outcome-seal.js",
+        "encodedBytes": 1100,
+        "duration": 1837.6000000089407
+      },
+      {
+        "path": "/swap-preview-model.js",
+        "encodedBytes": 6939,
+        "duration": 1934.5
+      },
+      {
+        "path": "/swap-recovery.js",
+        "encodedBytes": 2735,
+        "duration": 1958.4000000059605
+      },
+      {
+        "path": "/swap-records.js",
+        "encodedBytes": 1451,
+        "duration": 1994.5999999940395
+      },
+      {
+        "path": "/near-intents-swap-provider.js",
+        "encodedBytes": 3411,
+        "duration": 2043.2999999970198
+      },
+      {
+        "path": "/near-quote-signature.js",
+        "encodedBytes": 2279,
+        "duration": 2115.0999999940395
+      },
+      {
+        "path": "/near-swap-policy.js",
+        "encodedBytes": 578,
+        "duration": 2127.5999999940395
+      },
+      {
+        "path": "/setup-model.js",
+        "encodedBytes": 808,
+        "duration": 2161.7999999970198
+      },
+      {
+        "path": "/setup-wizard.js",
+        "encodedBytes": 900,
+        "duration": 2211.2000000029802
+      },
+      {
+        "path": "/recovery-model.js",
+        "encodedBytes": 1297,
+        "duration": 2306.4000000059605
+      },
+      {
+        "path": "/security-dashboard-model.js",
+        "encodedBytes": 2114,
+        "duration": 2323.1000000089407
+      },
+      {
+        "path": "/local-devices.js",
+        "encodedBytes": 737,
+        "duration": 2336
+      },
+      {
+        "path": "/security-disclosures.js",
+        "encodedBytes": 643,
+        "duration": 2377.7000000029802
+      },
+      {
+        "path": "/help-model.js",
+        "encodedBytes": 2994,
+        "duration": 2527.7000000029802
+      },
+      {
+        "path": "/recipients.js",
+        "encodedBytes": 2273,
+        "duration": 2522.3999999910593
+      },
+      {
+        "path": "/guided-setup-model.js",
+        "encodedBytes": 2388,
+        "duration": 2546.9000000059605
+      },
+      {
+        "path": "/backup-check.js",
+        "encodedBytes": 1463,
+        "duration": 2568.9000000059605
+      },
+      {
+        "path": "/wallet-description.js",
+        "encodedBytes": 651,
+        "duration": 2689.5
+      },
+      {
+        "path": "/wallet-art.js",
+        "encodedBytes": 1370,
+        "duration": 2724.6000000089407
+      },
+      {
+        "path": "/wallet-marble.js",
+        "encodedBytes": 2317,
+        "duration": 2744
+      },
+      {
+        "path": "/how-zigs-works-art.js",
+        "encodedBytes": 6521,
+        "duration": 2984.3999999910593
+      },
+      {
+        "path": "/how-zigs-works-flow-art.js",
+        "encodedBytes": 4966,
+        "duration": 2995.8999999910593
+      },
+      {
+        "path": "/how-zigs-works-content.js",
+        "encodedBytes": 16518,
+        "duration": 3007.3999999910593
+      },
+      {
+        "path": "/how-zigs-works-icons.js",
+        "encodedBytes": 493,
+        "duration": 2930.8999999910593
+      },
+      {
+        "path": "/how-zigs-works-journey-content.js",
+        "encodedBytes": 3286,
+        "duration": 3134.3999999910593
+      },
+      {
+        "path": "/how-zigs-works-journeys.js",
+        "encodedBytes": 2247,
+        "duration": 3176.7999999970198
+      },
+      {
+        "path": "/how-zigs-works-story.js",
+        "encodedBytes": 2636,
+        "duration": 3210.199999988079
+      },
+      {
+        "path": "/how-zigs-works-motion.js",
+        "encodedBytes": 619,
+        "duration": 3180.7999999970198
+      },
+      {
+        "path": "/how-zigs-works-diagrams.js",
+        "encodedBytes": 475,
+        "duration": 3302
+      },
+      {
+        "path": "/app-state.js",
+        "encodedBytes": 1569,
+        "duration": 3380.4000000059605
+      },
+      {
+        "path": "/app-how-zigs-works.js",
+        "encodedBytes": 3789,
+        "duration": 3397.1000000089407
+      },
+      {
+        "path": "/app-kit.js",
+        "encodedBytes": 2426,
+        "duration": 3414.6000000089407
+      },
+      {
+        "path": "/app-engine.js",
+        "encodedBytes": 2277,
+        "duration": 3488
+      },
+      {
+        "path": "/app-keystore.js",
+        "encodedBytes": 10646,
+        "duration": 3715.4000000059605
+      },
+      {
+        "path": "/app-seats.js",
+        "encodedBytes": 1953,
+        "duration": 3601.5999999940395
+      },
+      {
+        "path": "/app-links.js",
+        "encodedBytes": 1904,
+        "duration": 3618.2999999970198
+      },
+      {
+        "path": "/app-chain.js",
+        "encodedBytes": 7613,
+        "duration": 3763.5999999940395
+      },
+      {
+        "path": "/app-filter.js",
+        "encodedBytes": 5598,
+        "duration": 3871.2999999970198
+      },
+      {
+        "path": "/app-groups.js",
+        "encodedBytes": 5249,
+        "duration": 3865.7000000029802
+      },
+      {
+        "path": "/app-wallet-switcher.js",
+        "encodedBytes": 2244,
+        "duration": 3959.7999999970198
+      },
+      {
+        "path": "/app-dom.js",
+        "encodedBytes": 6845,
+        "duration": 3971.7999999970198
+      },
+      {
+        "path": "/app-wallet-identity.js",
+        "encodedBytes": 1047,
+        "duration": 4034.0999999940395
+      },
+      {
+        "path": "/app-shared-control.js",
+        "encodedBytes": 981,
+        "duration": 4045.199999988079
+      },
+      {
+        "path": "/app-wallet-marble.js",
+        "encodedBytes": 460,
+        "duration": 4146.79999999702
+      },
+      {
+        "path": "/app-wallet-art.js",
+        "encodedBytes": 2045,
+        "duration": 4151.9000000059605
+      },
+      {
+        "path": "/app-icons.js",
+        "encodedBytes": 2842,
+        "duration": 4229.9000000059605
+      },
+      {
+        "path": "/icon-objects.js",
+        "encodedBytes": 2903,
+        "duration": 4242.9000000059605
+      },
+      {
+        "path": "/app-theme.js",
+        "encodedBytes": 672,
+        "duration": 4296.9000000059605
+      },
+      {
+        "path": "/app-settings-ui.js",
+        "encodedBytes": 1191,
+        "duration": 4326.0999999940395
+      },
+      {
+        "path": "/network-privacy-camouflage.js",
+        "encodedBytes": 1318,
+        "duration": 4338.0999999940395
+      },
+      {
+        "path": "/network-privacy-popup.js",
+        "encodedBytes": 4407,
+        "duration": 4439.29999999702
+      },
+      {
+        "path": "/app-network-privacy.js",
+        "encodedBytes": 1364,
+        "duration": 4429.70000000298
+      },
+      {
+        "path": "/app-security.js",
+        "encodedBytes": 1535,
+        "duration": 4517.70000000298
+      },
+      {
+        "path": "/app-motion.js",
+        "encodedBytes": 5630,
+        "duration": 4523.9000000059605
+      },
+      {
+        "path": "/app-security-dashboard.js",
+        "encodedBytes": 4826,
+        "duration": 4559.4000000059605
+      },
+      {
+        "path": "/app-local-devices.js",
+        "encodedBytes": 1514,
+        "duration": 4608.70000000298
+      },
+      {
+        "path": "/app-approval-visualization.js",
+        "encodedBytes": 3029,
+        "duration": 4633.4000000059605
+      },
+      {
+        "path": "/app-tutorial.js",
+        "encodedBytes": 8338,
+        "duration": 4771.0999999940395
+      },
+      {
+        "path": "/privacy-language.js",
+        "encodedBytes": 1291,
+        "duration": 4704.5
+      },
+      {
+        "path": "/app-guided-setup.js",
+        "encodedBytes": 4667,
+        "duration": 4787.79999999702
+      },
+      {
+        "path": "/app-taddress.js",
+        "encodedBytes": 3758,
+        "duration": 4817.4000000059605
+      },
+      {
+        "path": "/app-sweep.js",
+        "encodedBytes": 3830,
+        "duration": 4836.300000011921
+      },
+      {
+        "path": "/app-swap-zec.js",
+        "encodedBytes": 4468,
+        "duration": 4903.20000000298
+      },
+      {
+        "path": "/app-swap-store.js",
+        "encodedBytes": 892,
+        "duration": 4956.800000011921
+      },
+      {
+        "path": "/app-swap-sol.js",
+        "encodedBytes": 3276,
+        "duration": 4960.9000000059605
+      },
+      {
+        "path": "/app-funding-preview.js",
+        "encodedBytes": 841,
+        "duration": 4979.5
+      },
+      {
+        "path": "/app-recipients.js",
+        "encodedBytes": 3257,
+        "duration": 5020.899999991059
+      },
+      {
+        "path": "/app-help.js",
+        "encodedBytes": 2000,
+        "duration": 5075.20000000298
+      },
+      {
+        "path": "/app-messages.js",
+        "encodedBytes": 6824,
+        "duration": 5214.29999999702
+      },
+      {
+        "path": "/app-dkg.js",
+        "encodedBytes": 8516,
+        "duration": 5245.100000008941
+      },
+      {
+        "path": "/app-payments.js",
+        "encodedBytes": 18292,
+        "duration": 5412.5
+      },
+      {
+        "path": "/app-payreq.js",
+        "encodedBytes": 4524,
+        "duration": 5287.199999988079
+      },
+      {
+        "path": "/app-account.js",
+        "encodedBytes": 7491,
+        "duration": 5352.899999991059
+      },
+      {
+        "path": "/app-thread.js",
+        "encodedBytes": 7075,
+        "duration": 5466.5
+      },
+      {
+        "path": "/app-backups.js",
+        "encodedBytes": 8668,
+        "duration": 5537.5
+      },
+      {
+        "path": "/app-account-view.js",
+        "encodedBytes": 8358,
+        "duration": 5556.79999999702
+      },
+      {
+        "path": "/messaging-cost-review.js",
+        "encodedBytes": 476,
+        "duration": 5525.5
+      },
+      {
+        "path": "/app-messaging-education.js",
+        "encodedBytes": 2529,
+        "duration": 5587.0999999940395
+      },
+      {
+        "path": "/app-messaging-workspace.js",
+        "encodedBytes": 3686,
+        "duration": 5650.79999999702
+      },
+      {
+        "path": "/app-shell.js",
+        "encodedBytes": 17939,
+        "duration": 5933.20000000298
+      },
+      {
+        "path": "/app-swap-branding.js",
+        "encodedBytes": 372,
+        "duration": 5767.20000000298
+      },
+      {
+        "path": "/app-swap-privacy.js",
+        "encodedBytes": 3665,
+        "duration": 5783.100000008941
+      },
+      {
+        "path": "/app-swap-privacy-art.js",
+        "encodedBytes": 1533,
+        "duration": 5843
+      },
+      {
+        "path": "/app-swap-preview.js",
+        "encodedBytes": 19369,
+        "duration": 5987.20000000298
+      },
+      {
+        "path": "/app-swap-privacy-motion.js",
+        "encodedBytes": 1400,
+        "duration": 5964.0999999940395
+      },
+      {
+        "path": "/app-postquantum-swap-preview.js",
+        "encodedBytes": 4676,
+        "duration": 6016.70000000298
+      },
+      {
+        "path": "/app-drawer.js",
+        "encodedBytes": 13038,
+        "duration": 6113.70000000298
+      },
+      {
+        "path": "/app-loop.js",
+        "encodedBytes": 10627,
+        "duration": 6270.0999999940395
+      },
+      {
+        "path": "/app-sol.js",
+        "encodedBytes": 10873,
+        "duration": 6367.20000000298
+      },
+      {
+        "path": "/app-setup.js",
+        "encodedBytes": 16449,
+        "duration": 6437.100000008941
+      },
+      {
+        "path": "/app-send.js",
+        "encodedBytes": 14997,
+        "duration": 6557.79999999702
+      },
+      {
+        "path": "/app-wallet.js",
+        "encodedBytes": 27531,
+        "duration": 6624.5
+      },
+      {
+        "path": "/favicon.ico",
+        "encodedBytes": 4155,
+        "duration": 2379.7999999970198
+      },
+      {
+        "path": "/app-swap-simulation.js",
+        "encodedBytes": 2019,
+        "duration": 574.6000000089407
+      }
+    ],
+    "longTasks": [],
+    "engineText": "Crypto engine ready (WebAssembly)",
+    "banner": "",
+    "horizontalOverflow": false,
+    "offlineVisible": true,
+    "cancelCreateReturnedHome": true
+  },
+  {
+    "mode": "engine-failure",
+    "domReadyMs": 124,
+    "createVisibleMs": 436,
+    "readyMs": 444,
+    "blocked": 0,
+    "errors": [],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+    ],
+    "paints": [
+      {
+        "name": "first-paint",
+        "start": 120
+      },
+      {
+        "name": "first-contentful-paint",
+        "start": 120
+      }
+    ],
+    "resources": [
+      {
+        "path": "/shim.js",
+        "encodedBytes": 4136,
+        "duration": 7.5999999940395355
+      },
+      {
+        "path": "/pkg/zigs_engine_bg.wasm",
+        "encodedBytes": 29,
+        "duration": 6.299999997019768
+      },
+      {
+        "path": "/pkg/zigs_engine.js",
+        "encodedBytes": 12099,
+        "duration": 10.899999991059303
+      },
+      {
+        "path": "/design-system.css",
+        "encodedBytes": 2637,
+        "duration": 12.5
+      },
+      {
+        "path": "/zns-setup.css",
+        "encodedBytes": 1331,
+        "duration": 17.200000002980232
+      },
+      {
+        "path": "/wallet-switcher.css",
+        "encodedBytes": 1310,
+        "duration": 17.299999997019768
+      },
+      {
+        "path": "/funding-preview.css",
+        "encodedBytes": 3576,
+        "duration": 19.700000002980232
+      },
+      {
+        "path": "/app.css",
+        "encodedBytes": 35438,
+        "duration": 21.299999997019768
+      },
+      {
+        "path": "/theme.js",
+        "encodedBytes": 262,
+        "duration": 63.79999999701977
+      },
+      {
+        "path": "/transaction-receipts.css",
+        "encodedBytes": 1233,
+        "duration": 26.400000005960464
+      },
+      {
+        "path": "/privacy-language.css",
+        "encodedBytes": 1105,
+        "duration": 26.600000008940697
+      },
+      {
+        "path": "/approvals-experience.css",
+        "encodedBytes": 3059,
+        "duration": 26.600000008940697
+      },
+      {
+        "path": "/brand-identity.css",
+        "encodedBytes": 2264,
+        "duration": 26.799999997019768
+      },
+      {
+        "path": "/overview-rows.css",
+        "encodedBytes": 4408,
+        "duration": 27.600000008940697
+      },
+      {
+        "path": "/activity.css",
+        "encodedBytes": 1997,
+        "duration": 29
+      },
+      {
+        "path": "/onboarding-refinement.css",
+        "encodedBytes": 4011,
+        "duration": 29.19999998807907
+      },
+      {
+        "path": "/wallet-marble.css",
+        "encodedBytes": 650,
+        "duration": 33.8999999910593
+      },
+      {
+        "path": "/wallet-art.css",
+        "encodedBytes": 1445,
+        "duration": 34
+      },
+      {
+        "path": "/security-dashboard.css",
+        "encodedBytes": 2755,
+        "duration": 34.099999994039536
+      },
+      {
+        "path": "/swap-preview.css",
+        "encodedBytes": 10530,
+        "duration": 36.099999994039536
+      },
+      {
+        "path": "/settings-experience.css",
+        "encodedBytes": 1865,
+        "duration": 37.8999999910593
+      },
+      {
+        "path": "/network-privacy-popup.css",
+        "encodedBytes": 3303,
+        "duration": 38
+      },
+      {
+        "path": "/network-privacy.css",
+        "encodedBytes": 691,
+        "duration": 38
+      },
+      {
+        "path": "/messaging.css",
+        "encodedBytes": 7376,
+        "duration": 40.79999999701977
+      },
+      {
+        "path": "/how-zigs-works.css",
+        "encodedBytes": 4996,
+        "duration": 40.5
+      },
+      {
+        "path": "/homepage.css",
+        "encodedBytes": 3236,
+        "duration": 40.80000001192093
+      },
+      {
+        "path": "/premium-experience.css",
+        "encodedBytes": 2035,
+        "duration": 43
+      },
+      {
+        "path": "/how-zigs-works-art.css",
+        "encodedBytes": 1650,
+        "duration": 43.20000000298023
+      },
+      {
+        "path": "/site-refinement.css",
+        "encodedBytes": 5604,
+        "duration": 43.400000005960464
+      },
+      {
+        "path": "/solana-receive.css",
+        "encodedBytes": 1367,
+        "duration": 45.5
+      },
+      {
+        "path": "/ux-clarity.css",
+        "encodedBytes": 822,
+        "duration": 45.6000000089407
+      },
+      {
+        "path": "/icon-craft.css",
+        "encodedBytes": 1184,
+        "duration": 45.900000005960464
+      },
+      {
+        "path": "/workflow-clarity.css",
+        "encodedBytes": 650,
+        "duration": 47.70000000298023
+      },
+      {
+        "path": "/overview-compact.css",
+        "encodedBytes": 2070,
+        "duration": 47.8999999910593
+      },
+      {
+        "path": "/portfolio-chart.css",
+        "encodedBytes": 2462,
+        "duration": 47.8999999910593
+      },
+      {
+        "path": "/payment-refinement.css",
+        "encodedBytes": 2519,
+        "duration": 51.5
+      },
+      {
+        "path": "/journey-refinement.css",
+        "encodedBytes": 2621,
+        "duration": 51.599999994039536
+      },
+      {
+        "path": "/fonts/manrope-latin.woff2",
+        "encodedBytes": 24576,
+        "duration": 63.099999994039536
+      },
+      {
+        "path": "/fonts/zigs-wordmark.woff2",
+        "encodedBytes": 3052,
+        "duration": 63.20000000298023
+      },
+      {
+        "path": "/nextlevel-visuals.css",
+        "encodedBytes": 8449,
+        "duration": 52.400000005960464
+      },
+      {
+        "path": "/interface-icons.css",
+        "encodedBytes": 460,
+        "duration": 56.6000000089407
+      },
+      {
+        "path": "/sidebar.css",
+        "encodedBytes": 2094,
+        "duration": 56.6000000089407
+      },
+      {
+        "path": "/swap-nextlevel.css",
+        "encodedBytes": 1739,
+        "duration": 56.79999999701977
+      },
+      {
+        "path": "/openglass-dist/app.css",
+        "encodedBytes": 17611,
+        "duration": 58.400000005960464
+      },
+      {
+        "path": "/setup-refinement.css",
+        "encodedBytes": 8019,
+        "duration": 65.20000000298023
+      },
+      {
+        "path": "/openglass-dist/app.js",
+        "encodedBytes": 93990,
+        "duration": 69.90000000596046
+      },
+      {
+        "path": "/homepage-motion.js",
+        "encodedBytes": 2676,
+        "duration": 71.6000000089407
+      },
+      {
+        "path": "/approval-visualization.css",
+        "encodedBytes": 1172,
+        "duration": 10.099999994039536
+      },
+      {
+        "path": "/security-visuals.css",
+        "encodedBytes": 1239,
+        "duration": 9.900000005960464
+      },
+      {
+        "path": "/homepage-scene.js",
+        "encodedBytes": 4304,
+        "duration": 3.0999999940395355
+      },
+      {
+        "path": "/network-privacy-demo-entry.js",
+        "encodedBytes": 115,
+        "duration": 3.9000000059604645
+      },
+      {
+        "path": "/logo.png",
+        "encodedBytes": 386953,
+        "duration": 9.699999988079071
+      },
+      {
+        "path": "/radiant-dither.js",
+        "encodedBytes": 803,
+        "duration": 3.199999988079071
+      },
+      {
+        "path": "/app.js",
+        "encodedBytes": 1124,
+        "duration": 4.100000008940697
+      },
+      {
+        "path": "/favicon.ico",
+        "encodedBytes": 4155,
+        "duration": 9.700000002980232
+      },
+      {
+        "path": "/qr.js",
+        "encodedBytes": 3139,
+        "duration": 9.799999997019768
+      },
+      {
+        "path": "/vault.js",
+        "encodedBytes": 1652,
+        "duration": 13.099999994039536
+      },
+      {
+        "path": "/payees.js",
+        "encodedBytes": 2506,
+        "duration": 13.299999997019768
+      },
+      {
+        "path": "/signed.js",
+        "encodedBytes": 4631,
+        "duration": 13.200000002980232
+      },
+      {
+        "path": "/util.js",
+        "encodedBytes": 6278,
+        "duration": 13.900000005960464
+      },
+      {
+        "path": "/chat.js",
+        "encodedBytes": 5426,
+        "duration": 17.599999994039536
+      },
+      {
+        "path": "/requests.js",
+        "encodedBytes": 2905,
+        "duration": 17.30000001192093
+      },
+      {
+        "path": "/personal.js",
+        "encodedBytes": 6410,
+        "duration": 17.600000008940697
+      },
+      {
+        "path": "/zns.js",
+        "encodedBytes": 3104,
+        "duration": 21.600000008940697
+      },
+      {
+        "path": "/funding-preview.js",
+        "encodedBytes": 6378,
+        "duration": 21.5
+      },
+      {
+        "path": "/zns-setup-preview.js",
+        "encodedBytes": 2406,
+        "duration": 22
+      },
+      {
+        "path": "/overview-popover.js",
+        "encodedBytes": 1029,
+        "duration": 24.5
+      },
+      {
+        "path": "/overview-model.js",
+        "encodedBytes": 3680,
+        "duration": 24.600000008940697
+      },
+      {
+        "path": "/portfolio-model.js",
+        "encodedBytes": 2930,
+        "duration": 25
+      },
+      {
+        "path": "/portfolio-prices.js",
+        "encodedBytes": 1088,
+        "duration": 27.80000001192093
+      },
+      {
+        "path": "/portfolio-geometry.js",
+        "encodedBytes": 1580,
+        "duration": 27.5
+      },
+      {
+        "path": "/portfolio-store.js",
+        "encodedBytes": 877,
+        "duration": 27.799999997019768
+      },
+      {
+        "path": "/portfolio-chart-content.js",
+        "encodedBytes": 1733,
+        "duration": 29.799999997019768
+      },
+      {
+        "path": "/portfolio-interaction.js",
+        "encodedBytes": 1212,
+        "duration": 29.799999997019768
+      },
+      {
+        "path": "/portfolio-chart-dom.js",
+        "encodedBytes": 2156,
+        "duration": 30.099999994039536
+      },
+      {
+        "path": "/app-portfolio.js",
+        "encodedBytes": 2260,
+        "duration": 33.099999994039536
+      },
+      {
+        "path": "/portfolio-chart-motion.js",
+        "encodedBytes": 1474,
+        "duration": 33.20000000298023
+      },
+      {
+        "path": "/portfolio-chart.js",
+        "encodedBytes": 3555,
+        "duration": 33.70000000298023
+      },
+      {
+        "path": "/wallet-avatar-svg.js",
+        "encodedBytes": 1496,
+        "duration": 35.70000000298023
+      },
+      {
+        "path": "/wallet-identity.js",
+        "encodedBytes": 1971,
+        "duration": 35.79999999701977
+      },
+      {
+        "path": "/payment-model.js",
+        "encodedBytes": 3702,
+        "duration": 35.599999994039536
+      },
+      {
+        "path": "/error-feedback.js",
+        "encodedBytes": 1020,
+        "duration": 38.29999999701977
+      },
+      {
+        "path": "/payment-experience.js",
+        "encodedBytes": 1341,
+        "duration": 38.400000005960464
+      },
+      {
+        "path": "/receive-card.js",
+        "encodedBytes": 1445,
+        "duration": 38.099999994039536
+      },
+      {
+        "path": "/premium-motion.js",
+        "encodedBytes": 2653,
+        "duration": 41.79999999701977
+      },
+      {
+        "path": "/activity-dates.js",
+        "encodedBytes": 575,
+        "duration": 41.8999999910593
+      },
+      {
+        "path": "/sidebar-icons.js",
+        "encodedBytes": 2321,
+        "duration": 42
+      },
+      {
+        "path": "/approvals-model.js",
+        "encodedBytes": 2123,
+        "duration": 45.8999999910593
+      },
+      {
+        "path": "/outcome-seal.js",
+        "encodedBytes": 1100,
+        "duration": 46
+      },
+      {
+        "path": "/swap-preview-model.js",
+        "encodedBytes": 6939,
+        "duration": 46.5
+      },
+      {
+        "path": "/near-quote-signature.js",
+        "encodedBytes": 2279,
+        "duration": 49.3999999910593
+      },
+      {
+        "path": "/swap-recovery.js",
+        "encodedBytes": 2735,
+        "duration": 49.5
+      },
+      {
+        "path": "/swap-records.js",
+        "encodedBytes": 1451,
+        "duration": 49.5
+      },
+      {
+        "path": "/near-intents-swap-provider.js",
+        "encodedBytes": 3411,
+        "duration": 49.599999994039536
+      },
+      {
+        "path": "/setup-model.js",
+        "encodedBytes": 808,
+        "duration": 52
+      },
+      {
+        "path": "/near-swap-policy.js",
+        "encodedBytes": 578,
+        "duration": 52.099999994039536
+      },
+      {
+        "path": "/setup-wizard.js",
+        "encodedBytes": 900,
+        "duration": 54.79999999701977
+      },
+      {
+        "path": "/recovery-model.js",
+        "encodedBytes": 1297,
+        "duration": 55.70000000298023
+      },
+      {
+        "path": "/local-devices.js",
+        "encodedBytes": 737,
+        "duration": 54.70000000298023
+      },
+      {
+        "path": "/security-dashboard-model.js",
+        "encodedBytes": 2114,
+        "duration": 55.6000000089407
+      },
+      {
+        "path": "/help-model.js",
+        "encodedBytes": 2994,
+        "duration": 56.70000000298023
+      },
+      {
+        "path": "/security-disclosures.js",
+        "encodedBytes": 643,
+        "duration": 56.80000001192093
+      },
+      {
+        "path": "/wallet-description.js",
+        "encodedBytes": 651,
+        "duration": 62
+      },
+      {
+        "path": "/recipients.js",
+        "encodedBytes": 2273,
+        "duration": 62
+      },
+      {
+        "path": "/guided-setup-model.js",
+        "encodedBytes": 2388,
+        "duration": 62.5
+      },
+      {
+        "path": "/backup-check.js",
+        "encodedBytes": 1463,
+        "duration": 62.6000000089407
+      },
+      {
+        "path": "/wallet-art.js",
+        "encodedBytes": 1370,
+        "duration": 64
+      },
+      {
+        "path": "/wallet-marble.js",
+        "encodedBytes": 2317,
+        "duration": 64
+      },
+      {
+        "path": "/how-zigs-works-icons.js",
+        "encodedBytes": 493,
+        "duration": 67.20000000298023
+      },
+      {
+        "path": "/how-zigs-works-flow-art.js",
+        "encodedBytes": 4966,
+        "duration": 67.3999999910593
+      },
+      {
+        "path": "/how-zigs-works-art.js",
+        "encodedBytes": 6521,
+        "duration": 67.79999999701977
+      },
+      {
+        "path": "/how-zigs-works-content.js",
+        "encodedBytes": 16518,
+        "duration": 68.5
+      },
+      {
+        "path": "/how-zigs-works-journey-content.js",
+        "encodedBytes": 3286,
+        "duration": 72.70000000298023
+      },
+      {
+        "path": "/how-zigs-works-journeys.js",
+        "encodedBytes": 2247,
+        "duration": 73
+      },
+      {
+        "path": "/how-zigs-works-motion.js",
+        "encodedBytes": 619,
+        "duration": 72.70000000298023
+      },
+      {
+        "path": "/how-zigs-works-story.js",
+        "encodedBytes": 2636,
+        "duration": 73.1000000089407
+      },
+      {
+        "path": "/how-zigs-works-diagrams.js",
+        "encodedBytes": 475,
+        "duration": 76.20000000298023
+      },
+      {
+        "path": "/app-how-zigs-works.js",
+        "encodedBytes": 3789,
+        "duration": 76.20000000298023
+      },
+      {
+        "path": "/app-state.js",
+        "encodedBytes": 1569,
+        "duration": 79.20000000298023
+      },
+      {
+        "path": "/app-engine.js",
+        "encodedBytes": 2277,
+        "duration": 79.29999999701977
+      },
+      {
+        "path": "/app-kit.js",
+        "encodedBytes": 2426,
+        "duration": 79.40000000596046
+      },
+      {
+        "path": "/app-keystore.js",
+        "encodedBytes": 10646,
+        "duration": 80.29999999701977
+      },
+      {
+        "path": "/app-seats.js",
+        "encodedBytes": 1953,
+        "duration": 82.1000000089407
+      },
+      {
+        "path": "/app-links.js",
+        "encodedBytes": 1904,
+        "duration": 82.40000000596046
+      },
+      {
+        "path": "/app-chain.js",
+        "encodedBytes": 7613,
+        "duration": 82.09999999403954
+      },
+      {
+        "path": "/app-filter.js",
+        "encodedBytes": 5598,
+        "duration": 85
+      },
+      {
+        "path": "/app-groups.js",
+        "encodedBytes": 5249,
+        "duration": 84.8999999910593
+      },
+      {
+        "path": "/app-dom.js",
+        "encodedBytes": 6845,
+        "duration": 85.09999999403954
+      },
+      {
+        "path": "/app-shared-control.js",
+        "encodedBytes": 981,
+        "duration": 88.19999998807907
+      },
+      {
+        "path": "/app-wallet-identity.js",
+        "encodedBytes": 1047,
+        "duration": 88.3999999910593
+      },
+      {
+        "path": "/app-wallet-switcher.js",
+        "encodedBytes": 2244,
+        "duration": 88.29999999701977
+      },
+      {
+        "path": "/app-icons.js",
+        "encodedBytes": 2842,
+        "duration": 92.40000000596046
+      },
+      {
+        "path": "/app-wallet-art.js",
+        "encodedBytes": 2045,
+        "duration": 92.40000000596046
+      },
+      {
+        "path": "/app-wallet-marble.js",
+        "encodedBytes": 460,
+        "duration": 92.79999999701977
+      },
+      {
+        "path": "/app-settings-ui.js",
+        "encodedBytes": 1191,
+        "duration": 94.70000000298023
+      },
+      {
+        "path": "/icon-objects.js",
+        "encodedBytes": 2903,
+        "duration": 94.70000000298023
+      },
+      {
+        "path": "/app-theme.js",
+        "encodedBytes": 672,
+        "duration": 95
+      },
+      {
+        "path": "/network-privacy-camouflage.js",
+        "encodedBytes": 1318,
+        "duration": 98.70000000298023
+      },
+      {
+        "path": "/app-network-privacy.js",
+        "encodedBytes": 1364,
+        "duration": 99
+      },
+      {
+        "path": "/network-privacy-popup.js",
+        "encodedBytes": 4407,
+        "duration": 98.80000001192093
+      },
+      {
+        "path": "/app-security-dashboard.js",
+        "encodedBytes": 4826,
+        "duration": 101.1000000089407
+      },
+      {
+        "path": "/app-security.js",
+        "encodedBytes": 1535,
+        "duration": 101.30000001192093
+      },
+      {
+        "path": "/app-motion.js",
+        "encodedBytes": 5630,
+        "duration": 101.20000000298023
+      },
+      {
+        "path": "/app-local-devices.js",
+        "encodedBytes": 1514,
+        "duration": 103.6000000089407
+      },
+      {
+        "path": "/app-approval-visualization.js",
+        "encodedBytes": 3029,
+        "duration": 103.80000001192093
+      },
+      {
+        "path": "/app-tutorial.js",
+        "encodedBytes": 8338,
+        "duration": 103.8999999910593
+      },
+      {
+        "path": "/privacy-language.js",
+        "encodedBytes": 1291,
+        "duration": 106
+      },
+      {
+        "path": "/app-taddress.js",
+        "encodedBytes": 3758,
+        "duration": 106.20000000298023
+      },
+      {
+        "path": "/app-guided-setup.js",
+        "encodedBytes": 4667,
+        "duration": 106.3999999910593
+      },
+      {
+        "path": "/app-swap-sol.js",
+        "encodedBytes": 3276,
+        "duration": 108.59999999403954
+      },
+      {
+        "path": "/app-sweep.js",
+        "encodedBytes": 3830,
+        "duration": 108.3999999910593
+      },
+      {
+        "path": "/app-swap-zec.js",
+        "encodedBytes": 4468,
+        "duration": 108.59999999403954
+      },
+      {
+        "path": "/app-swap-store.js",
+        "encodedBytes": 892,
+        "duration": 111.29999999701977
+      },
+      {
+        "path": "/app-funding-preview.js",
+        "encodedBytes": 841,
+        "duration": 111.5
+      },
+      {
+        "path": "/app-recipients.js",
+        "encodedBytes": 3257,
+        "duration": 111.40000000596046
+      },
+      {
+        "path": "/app-help.js",
+        "encodedBytes": 2000,
+        "duration": 113.90000000596046
+      },
+      {
+        "path": "/app-messages.js",
+        "encodedBytes": 6824,
+        "duration": 114.1000000089407
+      },
+      {
+        "path": "/app-dkg.js",
+        "encodedBytes": 8516,
+        "duration": 114.79999999701977
+      },
+      {
+        "path": "/app-payreq.js",
+        "encodedBytes": 4524,
+        "duration": 117.6000000089407
+      },
+      {
+        "path": "/app-account.js",
+        "encodedBytes": 7491,
+        "duration": 117.70000000298023
+      },
+      {
+        "path": "/app-payments.js",
+        "encodedBytes": 18292,
+        "duration": 119
+      },
+      {
+        "path": "/messaging-cost-review.js",
+        "encodedBytes": 476,
+        "duration": 124.5
+      },
+      {
+        "path": "/app-thread.js",
+        "encodedBytes": 7075,
+        "duration": 125.1000000089407
+      },
+      {
+        "path": "/app-account-view.js",
+        "encodedBytes": 8358,
+        "duration": 125.6000000089407
+      },
+      {
+        "path": "/app-backups.js",
+        "encodedBytes": 8668,
+        "duration": 125.5
+      },
+      {
+        "path": "/app-messaging-education.js",
+        "encodedBytes": 2529,
+        "duration": 124.5
+      },
+      {
+        "path": "/app-messaging-workspace.js",
+        "encodedBytes": 3686,
+        "duration": 127.29999999701977
+      },
+      {
+        "path": "/app-shell.js",
+        "encodedBytes": 17939,
+        "duration": 128.09999999403954
+      },
+      {
+        "path": "/app-swap-branding.js",
+        "encodedBytes": 372,
+        "duration": 133.5
+      },
+      {
+        "path": "/app-swap-privacy-motion.js",
+        "encodedBytes": 1400,
+        "duration": 133.5
+      },
+      {
+        "path": "/app-swap-privacy-art.js",
+        "encodedBytes": 1533,
+        "duration": 133.79999999701977
+      },
+      {
+        "path": "/app-swap-privacy.js",
+        "encodedBytes": 3665,
+        "duration": 133.69999998807907
+      },
+      {
+        "path": "/app-swap-preview.js",
+        "encodedBytes": 19369,
+        "duration": 134.8999999910593
+      },
+      {
+        "path": "/app-postquantum-swap-preview.js",
+        "encodedBytes": 4676,
+        "duration": 143.79999999701977
+      },
+      {
+        "path": "/app-drawer.js",
+        "encodedBytes": 13038,
+        "duration": 146.29999999701977
+      },
+      {
+        "path": "/app-loop.js",
+        "encodedBytes": 10627,
+        "duration": 146.59999999403954
+      },
+      {
+        "path": "/app-sol.js",
+        "encodedBytes": 10873,
+        "duration": 146.70000000298023
+      },
+      {
+        "path": "/app-setup.js",
+        "encodedBytes": 16449,
+        "duration": 146.5
+      },
+      {
+        "path": "/app-wallet.js",
+        "encodedBytes": 27531,
+        "duration": 148.30000001192093
+      },
+      {
+        "path": "/app-send.js",
+        "encodedBytes": 14997,
+        "duration": 151.70000000298023
+      },
+      {
+        "path": "/app-swap-simulation.js",
+        "encodedBytes": 2019,
+        "duration": 15.5
+      },
+      {
+        "path": "/assets/brand/hero-zebra-rest.webp",
+        "encodedBytes": 612646,
+        "duration": 9.100000008940697
+      }
+    ],
+    "longTasks": [],
+    "engineText": "Crypto engine failed to load",
+    "banner": "The WebAssembly engine did not load: failed to fetch Wasm: 503 Service Unavailable fetching 'http://localhost:55954/pkg/zigs_engine_bg.wasm'. Try a current Chrome, Edge, Firefox or Safari.",
+    "horizontalOverflow": false,
+    "failureFeedbackVisible": true
+  }
+]
