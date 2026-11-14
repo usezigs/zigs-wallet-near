@@ -12,7 +12,7 @@ import {
   inFlight,
   mempoolNow, mempoolTotal, netName, readsMemos, runSync, setMemoReading, spanMs,
 } from "./app-chain.js";
-import { canWriteAs, signedMode } from "./app-filter.js";
+import { canWriteAs, netConfirmed, signedMode } from "./app-filter.js";
 import {
   approvalsDone, needsMyApproval, openGroup, openSession, toApprove,
 } from "./app-groups.js";
@@ -713,14 +713,27 @@ const solExposure = () => (poolMainnet() ? MAINNET_EXPOSURE : SOL_EXPOSURE);
 // this browser, or that this server does not serve, has a Solana tab that says why. Its row is the
 // route to that tab, as the row of a plain wallet is, in place of Shield and Unshield. Its details
 // name mainnet, because the wallet can hold real SOL.
-const SOL_TESTNET_ONLY = "Solana is available only for eligible version 3 testnet wallets. Do not "
-  + "send SOL to the Zcash address.";
 const SOL_MODE_DETAILS = {
   accept: "This wallet is a private Solana wallet on mainnet. This browser takes part only after "
     + "you accept it in the Solana tab. Do not send SOL to the Zcash address.",
   unserved: "This wallet is a private Solana wallet on mainnet. This server does not serve it, so "
     + "it does not open here. Do not send SOL to the Zcash address.",
 };
+function solUnavailableReason() {
+  const mode = solMode();
+  if (SOL_MODE_DETAILS[mode]) return SOL_MODE_DETAILS[mode];
+  let reason;
+  if (groupVersion() !== 3) reason = "Solana needs a version 3 wallet.";
+  else if (!signedMode(state.gid)) {
+    reason = "This browser has not verified this wallet’s signing setup yet.";
+  } else if (netConfirmed(state.gid) !== state.g.network) {
+    reason = "Complete this wallet’s safety-number checks in this browser to enable Solana.";
+  } else if (mode === "plain") {
+    reason = "Solana mainnet is unavailable on this server. Its mainnet service must be enabled "
+      + "and configured.";
+  } else reason = "Solana is unavailable for this wallet. Complete wallet setup before using it.";
+  return reason + " Do not send SOL to the Zcash address.";
+}
 function solUnavailableRow() {
   return el("section", { class: "card card-pad asset-card asset-row asset-unavailable",
     "aria-labelledby": "asset-sol" },
@@ -734,7 +747,7 @@ function solUnavailableRow() {
     solTabOn() ? plainOpen("open") : shieldingActions("sol", false)),
   assetNote("sol", "Solana details", [
     shieldingBreakdown("sol"),
-    el("p", { id: "sol-unavailable" }, SOL_MODE_DETAILS[solMode()] ?? SOL_TESTNET_ONLY),
+    el("p", { id: "sol-unavailable" }, solUnavailableReason()),
     el("p", { id: "sol-shielding-note" },
       "Shielded and unshielded percentages are unavailable for this wallet."),
   ]));

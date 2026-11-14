@@ -1,0 +1,8 @@
+# Copy to .dev.vars for local development. Never commit the file with real keys.
+# Use npm run dev in cf/ to enable the local Solana mainnet services.
+# The Helius key must allow your local origin, for example http://localhost:8787.
+HELIUS_MAINNET_URL=
+
+# Optional: Solana Devnet and the Zcash light-wallet relay.
+HELIUS_DEVNET_URL=
+LWD_KEY=

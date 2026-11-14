@@ -259,6 +259,21 @@ step("the SOL row of an unserved private wallet opens the tab with the unserved 
   assert.equal(solMode(bare), "plain");
   assert.equal(solTabOn(bare), false);
   assert.ok(!sections().includes("solana"), "no Solana tab without the plain server");
+  const unavailableText = () => textOf(one(panel("overview"),
+    (n) => n.attrs?.id === "sol-unavailable"));
+  assert.match(unavailableText(), /Solana mainnet is unavailable on this server/);
+  assert.doesNotMatch(unavailableText(), /testnet wallets/,
+    "a disabled mainnet service never claims that Solana is testnet only");
+  const confirmedKey = "confirmednet:" + bare;
+  const confirmed = t.signPins[confirmedKey];
+  delete t.signPins[confirmedKey];
+  assert.match(unavailableText(), /Complete this wallet’s safety-number checks/,
+    "an unconfirmed wallet explains its own blocker");
+  t.signPins[confirmedKey] = confirmed;
+  const version = t.state.g.version;
+  t.state.g.version = 2;
+  assert.match(unavailableText(), /Solana needs a version 3 wallet/);
+  t.state.g.version = version;
   mainnetConfig.status = 200;
   delete t.ui.plainServed;
   const plain = await rig.wallet({ name: "Plain", network: "mainnet" });
