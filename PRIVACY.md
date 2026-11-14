@@ -374,14 +374,16 @@ What stays visible:
 
 The mainnet Overview uses `GET /portfolio/prices` of the app Worker for a fixed set of market
 prices: ZEC, SOL and USDC. It no longer requests a NEAR Intents swap quote for its USD total.
-The Worker contacts CoinGecko with a server-side API key, uses a one-minute shared in-memory
-cache and sends no browser cookie, wallet identifier, address, balance or user header upstream.
-Without a configured market-data key the endpoint reports unavailable, and the chart preserves
-its observed history. Testnet wallets make no market-price request and keep their native balance.
+The Worker uses Kraken’s public USD bid/ask midpoint quotes by default, without an API key.
+A configured CoinGecko key selects its aggregate USD feed instead. Both use a one-minute shared
+in-memory cache and send no browser cookie, wallet identifier, address, balance or user header
+upstream. A provider failure preserves observed history. Testnet wallets make no market-price
+request and keep their native balance. Kraken timestamps record retrieval time, while CoinGecko
+timestamps identify the provider’s update.
 
 The app Worker and Cloudflare can see your connection and the time of this fixed price request.
-CoinGecko sees the Worker's request for the same three assets, its API key and timing; it does not
-receive your wallet data. The chart makes no additional blockchain queries. The existing balance
+The selected provider sees the Worker's request for the same three assets and its timing, plus
+the API key when CoinGecko is configured. Neither provider receives your wallet data. The chart makes no additional blockchain queries. The existing balance
 syncs still have the privacy properties described in the Zcash and Solana sections below.
 
 The device multiplies each freshly observed supported balance by its observed USD market price.

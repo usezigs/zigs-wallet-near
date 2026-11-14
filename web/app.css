@@ -1226,7 +1226,7 @@ body:has(.drawer,.dialog:is([aria-labelledby="send-title"],[aria-labelledby="rev
 .drawer-body>* { min-width:0; }
 .review-warnings { display:grid; gap:12px; }
 .review-warnings:empty { display:none; }
-.review-warnings .callout.bad { border-inline-start-width:4px; }
+.review-warnings .callout.bad { border:1px solid var(--bad); }
 .review-context { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; min-width:0; }
 .review-context strong { overflow-wrap:anywhere; }
 .drawer .leaves,.review-amount { padding:20px; border:1px solid var(--line); border-radius:var(--r-control); background:var(--panel); }
@@ -1646,8 +1646,8 @@ h1,h2,h3 { letter-spacing:-.025em; }
   color:var(--text); border-color:transparent; box-shadow:none; }
 .asset-card .asset-actions>.btn:not(.primary):hover:not(:disabled) { background:var(--sunk); }
 .asset-card.asset-unavailable .asset-incoming { color:var(--warning);
-  padding:var(--space-2); border-left:2px solid var(--warning); background:var(--warning-soft);
-  border-radius:0 var(--r-sm) var(--r-sm) 0; }
+  padding:var(--space-2); border:1px solid var(--warning); background:var(--warning-soft);
+  border-radius:var(--r-sm); }
 .asset-note { min-width:0; border-top:1px solid var(--line); }
 .asset-note>summary { display:flex; align-items:center; justify-content:space-between; gap:8px;
   min-height:48px; color:var(--muted); font:500 13px/18px var(--sans); cursor:pointer;

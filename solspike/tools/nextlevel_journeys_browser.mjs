@@ -242,15 +242,8 @@ async function welcome() {
 
 try {
   await overviewFixture(context, page, { messaging: true });
-  // The user retained the collapsed rule in the audit-fixes scope; exercise its real disclosure.
-  check(await page.locator(".shared-control").isHidden(),
-     "configured rule starts in the retained disclosure");
-  await page.getByText("Wallet approval rule", { exact: true }).click();
-  check(await page.locator(".shared-control").isVisible(),
-     "opening the configured-rule disclosure exposes the full summary");
-  check(await page.locator(".shared-control-medallion").count() === 3,
-     "configured devices are shown as neutral, separate medallions");
-  await page.getByText("Wallet approval rule", { exact: true }).click();
+  check(await page.getByText("Wallet approval rule", { exact: true }).count() === 0,
+    'Overview omits the removed approval-rule disclosure');
   await paymentFlow(); await walkthrough(); await swapGuide(); await welcome();
   check(errors.length === 0, "no browser runtime errors");
   writeFileSync(resolve(out, "validation.json"), JSON.stringify({ checks, errors }, null, 2));

@@ -20,6 +20,8 @@ export function createPortfolioPrices({ fetcher = globalThis.fetch,
   now = () => Date.now(), settled = () => {} } = {}) {
   /** @type {Partial<Record<Asset, Price>>} */
   let prices = {};
+  /** @type {""|"coingecko"|"kraken"} */
+  let source = "";
   let fetchedAt = -Infinity, retryAt = -Infinity, failed = false;
   /** @type {""|"not_configured"|"unavailable"} */
   let error = "";
@@ -38,10 +40,10 @@ export function createPortfolioPrices({ fetcher = globalThis.fetch,
         nextError = body.error === "prices_not_configured" ? "not_configured" : "unavailable";
         throw new Error("Prices unavailable");
       }
-      if (body.source !== "coingecko" || !body.prices) throw new Error("Invalid prices");
+      if (!["coingecko", "kraken"].includes(body.source) || !body.prices) throw new Error("Invalid prices");
       const next = cleanPrices(body.prices, now());
       if (!Object.keys(next).length) throw new Error("No fresh prices");
-      prices = next; fetchedAt = now(); failed = false; error = "";
+      source = body.source; prices = next; fetchedAt = now(); failed = false; error = "";
     } catch { failed = true; error = nextError; retryAt = now() + 60_000; }
     finally { clearTimeout(timer); pending = null; settled(); }
   }
@@ -52,7 +54,7 @@ export function createPortfolioPrices({ fetcher = globalThis.fetch,
       pending = load();
       return pending;
     },
-    read() { return { prices, failed, error, loading: !!pending,
+    read() { return { prices, source, failed, error, loading: !!pending,
       retryAfterMs: failed ? Math.max(0, retryAt - now()) : 0 }; },
   };
 }

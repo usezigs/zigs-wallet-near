@@ -77,12 +77,20 @@ async function preferenceStates(page, theme) {
 }
 
 async function negativeControls(page) {
-  const style = await page.addStyleTag({ content: ".welcome-intro h1{color:#10151d!important}" });
-  check((await welcomeContrast(page)).some((r) => !r.pass), "negative control rejects unreadable ink");
-  await style.evaluate((n) => n.remove());
-  const hidden = await page.addStyleTag({ content: ".home-hero-art,.home-hero-portrait{opacity:0!important}" });
-  check(!await visibleArt(page), "negative control rejects hidden on-page artwork");
-  await hidden.evaluate((n) => n.remove());
+  // Mutate a same-origin linked sheet: exercise the production CSP without inline style tags.
+  const add = rule => page.evaluate(rule => {
+    const sheet = [...document.styleSheets].find(s => s.href?.endsWith('/setup-refinement.css'));
+    const index = sheet.cssRules.length; sheet.insertRule(rule, index); return index;
+  }, rule);
+  const remove = index => page.evaluate(index => {
+    [...document.styleSheets].find(s => s.href?.endsWith('/setup-refinement.css')).deleteRule(index);
+  }, index);
+  const ink = await add('.welcome-intro h1{color:#10151d!important}');
+  check((await welcomeContrast(page)).some((r) => !r.pass), 'negative control rejects unreadable ink');
+  await remove(ink);
+  const hidden = await add('.home-hero-art,.home-hero-portrait{opacity:0!important}');
+  check(!await visibleArt(page), 'negative control rejects hidden on-page artwork');
+  await remove(hidden);
 }
 
 try {

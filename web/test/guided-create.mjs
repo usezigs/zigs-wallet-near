@@ -130,14 +130,15 @@ for (const served of [true, false, null]) {
     try { namesForm.on.submit({ preventDefault() {}, target: {} }); }
     finally { globalThis.document = beforeDocument; }
     assert.equal(ui.createStep, 3, "the real names-step submit opens the final review");
-    assert.equal(ui.createDraft.sol, choice !== false,
-      "an absent names-step checkbox preserves the default or existing opt-out");
-    const reviewed = reviewTree(), included = choice !== false;
-    assert.equal("checked" in find(reviewed, "g-sol").attrs, included);
+    assert.equal(ui.createDraft.sol, true,
+      "new wallets always include private Solana despite a stale opt-out");
+    const reviewed = reviewTree();
+    assert.equal(find(reviewed, "g-sol"), undefined, "there is no optional Solana control");
+    assert.equal(find(reviewed, "g-private"), undefined, "there is no separate private-mode control");
     const summary = text(summaryOf(reviewed));
-    assert.equal(summary.includes("Zcash only"), !included,
+    assert.equal(summary.includes("Zcash only"), false,
       "the summary matches the preserved setup choice regardless of availability");
-    if (included) assert.ok(summary.includes("Solana Devnet"));
+    assert.ok(summary.includes("private Solana on devnet"));
   }
 }
 config.down = true;
@@ -148,11 +149,7 @@ const form = reviewTree();
 assert.ok(!text(form).includes(SOL_DISCLOSURE), "the review omits the Solana disclosure");
 assert.doesNotMatch(text(form),
   /Create wallet confirms these service disclosures|Network options|Solana setup is waiting/);
-const hiddenChoice = (node) => node.attrs?.hidden === "" && find(node, "g-sol")
-  || (node.kids ?? []).map(hiddenChoice).find(Boolean);
-assert.ok(hiddenChoice(form), "the existing setup control stays hidden in the review");
-assert.ok("checked" in find(form, "g-sol").attrs,
-  "the hidden control preserves setup intent even while service is unavailable");
+assert.equal(find(form, "g-sol"), undefined, "automatic setup needs no hidden opt-in");
 const checkbox = { checked: true };
 globalThis.document = new Proxy(beforeDocument, { get: (o, key) => key === "getElementById"
   ? (id) => id === "g-sol" ? checkbox : o.getElementById(id) : o[key] });

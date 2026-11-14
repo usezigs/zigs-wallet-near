@@ -133,8 +133,32 @@ assert.equal(request.url.searchParams.get("address"), null);
 assert.equal(request.options.headers["x-cg-demo-api-key"], "test-key");
 assert.equal((await responses[0].json()).prices.usdc.usd, .98);
 assert.equal((await route(new Request(req.url, { method: "POST" }), {})).status, 405);
-const missingKey = createPortfolioPriceRoute();
-assert.equal((await missingKey(req, {})).status, 503);
+let publicCalls = 0;
+const keyless = createPortfolioPriceRoute({ now: () => now, fetcher: async (url, options) => {
+  publicCalls++;
+  assert.equal(url.origin, "https://api.kraken.com");
+  assert.equal(url.searchParams.get("pair"), "ZECUSD,SOLUSD,USDCUSD");
+  assert.deepEqual(options.headers, {}, "no credential or wallet header reaches the public feed");
+  return Response.json({ error: [], result: {
+    XZECZUSD: { a: ["102"], b: ["100"] }, SOLUSD: { a: ["152"], b: ["150"] },
+    USDCUSD: { a: ["1.0002"], b: ["0.9998"] } } });
+} });
+const publicResponse = await (await keyless(req, {})).json();
+assert.equal(publicResponse.source, "kraken");
+assert.deepEqual(publicResponse.prices.zec, { usd: 101, at: now });
+assert.equal(publicResponse.prices.usdc.usd, 1);
+await keyless(req, {});
+assert.equal(publicCalls, 1, "keyless quotes use the same one-minute server cache");
+const publicCache = createPortfolioPrices({ now: () => now,
+  fetcher: async () => Response.json(publicResponse) });
+await publicCache.ask();
+assert.equal(publicCache.read().source, "kraken");
+assert.equal(publicCache.read().failed, false);
+for (const payload of [{ error: ["rate limited"], result: {} }, { error: [], result: {
+  SOLUSD: { a: ["-1"], b: ["2"] }, XZECZUSD: { a: ["NaN"], b: ["1"] } } }]) {
+  const invalid = createPortfolioPriceRoute({ fetcher: async () => Response.json(payload) });
+  assert.equal((await invalid(req, {})).status, 502, "invalid public quotes never fabricate prices");
+}
 const staleRoute = createPortfolioPriceRoute({ now: () => now, fetcher: async () =>
   Response.json({ zcash: { usd: 100, last_updated_at: (now - 600_000) / 1000 } }) });
 assert.equal((await staleRoute(req, { COINGECKO_DEMO_API_KEY: "test" })).status, 502);

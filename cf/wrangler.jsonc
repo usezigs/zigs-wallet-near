@@ -22,13 +22,13 @@
   // DEV_NO_AUTH "1": app.zigs.app asks no password (src/gate.js). Staging keeps its password.
   // NEAR_LIVE "1" serves the live swaps between SOL and ZEC (/near/swap, /near/swap-sol-group,
   // /near/swap-zec and /near/status in src/near.js).
-  // It is "1" on staging only. The partner key of NEAR Intents is the secret NEAR_API_KEY, set
+  // Standard mainnet routing is enabled. The partner key of NEAR Intents is the secret NEAR_API_KEY, set
   // with `wrangler secret put`. Basic confidential execution requires it. Explicit Standard
   // execution and public sample-address price estimates can work without the key.
-  // Portfolio market data: set COINGECKO_DEMO_API_KEY or COINGECKO_PRO_API_KEY as a secret.
+  // Portfolio market data defaults to keyless Kraken. CoinGecko keys are optional.
   // No wallet addresses or balances are sent to the price provider. See docs/portfolio-tracker.md.
   "vars": {
-    "SOL": "1", "SOL_MAINNET": "0", "SOL_POOL_MAINNET": "0", "DEV_NO_AUTH": "1", "NEAR_LIVE": "0"
+    "SOL": "1", "SOL_MAINNET": "0", "SOL_POOL_MAINNET": "0", "DEV_NO_AUTH": "1", "NEAR_LIVE": "1"
   },
   "routes": [{ "pattern": "app.zigs.app", "custom_domain": true }],
   "assets": {

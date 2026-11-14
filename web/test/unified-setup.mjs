@@ -987,7 +987,7 @@ function activityList(ctl) {
     assert.match(all, /Received SOLSolana Devnet · slot\u00a04\D?500\D?123Added by .*\+0\.02SOL/,
       "a received Solana row says what arrived and on which chain");
     assert.match(all, /Office rentZcash Testnet · Proposed by /, "a Zcash row names its chain");
-    assert.match(all, /SOL that other people send to the wallet does not show here/);
+    assert.doesNotMatch(all, /SOL that other people send to the wallet does not show here/);
     assert.equal(select().kids.length, 3, "the select offers All, Zcash and Solana");
     assert.equal(picked(), "All activity");
     findNode(select(), (n) => n.attrs?.["data-key"] === "activity-filter-sol").on.click();
@@ -1026,9 +1026,9 @@ function activityOverview(ctl, at, solRows) {
   t.ui.chainFilter = "all";
   assert.match(pageText(), /Public SOL withdrawal.*Office rent.*Move legacy funds/,
     "Activity keeps the former recent-history rows");
-  assert.match(pageText(),
+  assert.doesNotMatch(pageText(),
     /SOL that other people send to the wallet does not show here/,
-    "Activity says what its history lacks");
+    "the removed Solana notice does not return in Activity");
   const { chain } = t, { sessions } = t.state, { sessions: solSessions, added } = ctl;
   t.setChain({ ...chain, error: "The server did not answer." });
   assert.match(pageText(), /Office rent.*The sync failed\. This list can be incomplete/,
@@ -1036,8 +1036,8 @@ function activityOverview(ctl, at, solRows) {
   t.setChain(null); t.state.sessions = []; ctl.sessions = []; ctl.added = null;
   const none = pageText();
   assert.match(none, /Activity.*Not synced yetSync starts after this device checks the address\./);
-  assert.match(none, /The Solana rows show the/,
-    "empty Activity still says what it lacks");
+  assert.doesNotMatch(none, /The Solana rows show the/,
+    "empty Activity omits the removed Solana notice");
   assert.doesNotMatch(none, /Not synced yet\. Sync starts after/,
     "empty Activity shows its sync state once");
   t.setChain(chain);
@@ -1140,7 +1140,7 @@ function activityChecks(ctl, draw) {
 function activityOlder(ctl, draw) {
   const { sessions, added } = ctl;
   const solRows = () => findAll(pageTree(), (n) => n.attrs?.["data-key"]?.startsWith("sol-act-m"));
-  const older = / Older Solana proposals are available in Solana’s proposal history\./;
+  const older = /Older Solana proposals are available in Solana’s proposal history\./;
   try {
     ctl.added = null;
     ctl.sessions = Array.from({ length: SHOWN }, (_, i) => proposal("m" + i));
@@ -1842,30 +1842,17 @@ async function walkSteps(fields, times, fresh = true) {
   }
 }
 {
-  const CHOICE = /Set up Solana Devnet with this wallet\./;
-  ui.net = "testnet";
-  delete ui.solServed;
-  assert.match(dialogText(), CHOICE,
-    "the review can record disclosed intent before service answers");
-  await waitFor("the answer", () => ui.solServed === true);
-  assert.match(dialogText(), CHOICE);
-  assert.ok("checked" in byId(dialogTree(), "g-sol").attrs, "the box is on by default");
-  byId(dialogTree(), "g-sol").on.change({ target: { checked: false } }); // the person clears it
-  assert.equal(ui.sol, false, "the box keeps the person's no");
-  assert.ok(!("checked" in byId(dialogTree(), "g-sol").attrs), "a redraw keeps the person's no");
-  ui.sol = undefined;
-  // The Solana choice is for a new testnet wallet (mainnet-on.mjs). Change devices has none.
-  assert.doesNotMatch(textOf(dialogTree({ ...g, network: "mainnet" })), CHOICE, "never for `from`");
-  config.down = true;
-  delete ui.solServed;
-  dialogText();
-  await waitFor("the refusal", () => ui.solServed === false);
-  assert.match(dialogText(), CHOICE, "service availability does not erase the disclosed choice");
-  const review = findNode(dialogTree(),
-    (kid) => kid.attrs?.["aria-labelledby"] === "create-step-3");
-  assert.doesNotMatch(textOf(review), /Solana setup is waiting for service availability/,
-    "the review omits the lower network status section");
-  config.down = false;
+  for (const network of ["testnet", "mainnet"]) for (const served of [undefined, false, true]) {
+    ui.net = network; ui.solServed = served; ui.sol = false;
+    const review = findNode(dialogTree(),
+      (kid) => kid.attrs?.["aria-labelledby"] === "create-step-3");
+    assert.match(textOf(review), network === "mainnet"
+      ? /\+ private Solana on mainnet/ : /\+ private Solana on devnet/,
+    "new-wallet review always includes private Solana on its matching network");
+    assert.equal(byId(dialogTree(), "g-sol"), null, "no separate opt-in control");
+    assert.equal(byId(dialogTree(), "g-private"), null, "no private-mode opt-in control");
+  }
+  ui.net = "testnet"; ui.sol = undefined;
   delete ui.solServed;
 }
 
@@ -2285,7 +2272,7 @@ async function walkSteps(fields, times, fresh = true) {
   assert.equal(ui.createStep, 3, "the review");
   assert.deepEqual(ui.createDraft,
     { n: 3, t: 2, name: "Steps", label: "Ana", description: "",
-      sol: true, solExpected: true },
+      sol: true, solExpected: true, solPrivate: false },
     "each Next keeps the values of its step");
   let held = 0;
   const click = (detail) => byText(dialogTree(), "Create wallet").on.click({ detail,
@@ -2366,8 +2353,8 @@ async function walkSteps(fields, times, fresh = true) {
   assert.deepEqual(await newWallet(true), { auto: true, hint: true }, "the box on");
   assert.equal(data.get(groupPath(t.state.gid)).name, "Submitted", "the name of the review");
   assert.equal(storage.get("zf-name"), "", "the seat takes the label of the review");
-  assert.deepEqual(await newWallet(false), { auto: false, hint: undefined }, "the box off");
-  assert.deepEqual(await newWallet(null), { auto: false, hint: undefined }, "no box");
+  assert.deepEqual(await newWallet(false), { auto: true, hint: true }, "a stale opt-out does not disable automatic setup");
+  assert.deepEqual(await newWallet(null), { auto: true, hint: true }, "automatic setup needs no checkbox");
   assert.equal(ui.createStep, 0, "a created wallet puts the dialog back at its first step");
   globalThis.FormData = class {
     get(k) {
@@ -2445,13 +2432,13 @@ async function walkSteps(fields, times, fresh = true) {
   assert.match(shown(3), /Review your wallet.*Wallet nameTeam.*This device's labelAna's phone/s);
   assert.match(shown(3), /1 device can be lost or offline/);
   assert.match(shown(3),
-    /4devices at setup3 of 4approvals per paymentZcash testnet\+ Solana Devnet/);
+    /4devices at setup3 of 4approvals per paymentZcash testnet\+ private Solana on devnet/);
   ui.createDraft = { n: 3, t: 3, name: "", label: "", sol: false };
   assert.match(shown(3),
     /Wallet nameTreasuryThis device's labelNone\. The other devices show Device 1\./);
   assert.match(shown(3), /Each payment needs every device/,
     "the warning of a rule without margin remains visible in review");
-  assert.match(shown(3), /3devices at setup3 of 3approvals per paymentZcash testnetZcash only/);
+  assert.match(shown(3), /3devices at setup3 of 3approvals per paymentZcash testnet\+ private Solana on devnet/);
   ui.createDraft = null;
   const titles = ["Protect this browser", "Set the approval threshold", "Set up this device",
     "Review your wallet"];
@@ -3439,8 +3426,7 @@ assert.equal(quickCode(null), null);
     await protectSetupBrowser();
     const fields = { ...RULE_2_OF_3, "g-name": { value: "Disk" }, "my-name": { value: "" },
       "g-sol": { checked: true } };
-    dialogText();
-    await waitFor("the answer", () => (dialogText(), ui.solServed === true));
+    // Automatic planning persists intent without a create-dialog availability probe.
     await walkSteps(fields, 3);
     const [gidD, countD] = [t.state.gid, wallets()];
     localStorage.setItem = (k, v) => {

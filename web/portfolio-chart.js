@@ -179,6 +179,11 @@ class PortfolioChart {
   }
   /** @param {Props} props */
   update(props) {
+    this.dom.attribution.hidden = !props.priceSource;
+    this.dom.attribution.textContent = props.priceSource === "kraken"
+      ? "USD quotes from Kraken · bid/ask midpoint at retrieval" : "Data provided by CoinGecko";
+    this.dom.attribution.href = props.priceSource === "kraken"
+      ? "https://www.kraken.com/features/api" : "https://www.coingecko.com/en/api";
     if (this.selected >= 0 && props.range === this.props.range) {
       this.pendingProps = props; return;
     }

@@ -249,12 +249,11 @@ async function detailPopovers() {
   const baseHeight = await page.evaluate(() => document.documentElement.scrollHeight);
   const controls = [page.getByRole("button", { name: "About this chart", exact: true }),
     page.locator("#zec-asset-details>summary"),
-    page.locator(".overview-rail .workflow-details>summary"),
-    page.getByRole("button", { name: "View wallet participants", exact: true })];
+    page.locator(".overview-action-picker > summary").filter({ hasText: "Send" }),
+    page.locator(".overview-action-picker > summary").filter({ hasText: "Receive" })];
+  check(await page.getByText("Wallet approval rule", { exact: true }).count() === 0,
+    "obsolete overview approval disclosure stays removed");
   for (const [index, control] of controls.entries()) {
-    // Near keeps approval details behind a native disclosure; the participant popover nests
-    // inside that bounded surface and Escape dismisses the innermost surface first.
-    if (index === 3) await controls[2].click();
     await control.click();
     const panel = page.locator(".overview-detail-popover:popover-open").last();
     await panel.waitFor();
@@ -268,11 +267,6 @@ async function detailPopovers() {
       "detail " + index + ": details do not increase the existing page height");
     await page.screenshot({ path: resolve(output, "detail-" + index + ".png"), fullPage: true });
     await page.keyboard.press("Escape");
-    if (index === 3) {
-      check(await page.locator(".shared-control:popover-open").count() === 1,
-        "participant dismissal preserves the approval-rule surface");
-      await page.keyboard.press("Escape");
-    }
     check(await page.locator(".overview-detail-popover:popover-open").count() === 0,
       "detail " + index + ": Escape closes the detail surface");
   }

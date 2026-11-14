@@ -65,6 +65,10 @@
 .asset-rows>.asset-row:last-child { border-radius:0 0 20px 20px; }
 .asset-row-main { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); align-items:center; gap:16px; padding-right:32px; }
 .asset-rows .asset-row .asset-position { display:grid; gap:8px; align-content:center; min-width:0; }
+.asset-helius-credit { display:block; min-width:0; }
+.asset-helius-credit .swap-helius-credit { gap:6px; font-size:12px; line-height:18px; }
+.asset-helius-credit .swap-helius-credit>img { width:18px; height:18px; }
+.asset-helius-credit .swap-helius-credit strong { font:inherit; }
 .asset-rows .asset-row .asset-title { align-items:center; gap:10px; }
 .asset-rows .asset-row .asset-title h3 { font:500 16px/22px var(--sans); }
 .asset-rows .asset-row .asset-title p { font-size:13px; line-height:18px; }
