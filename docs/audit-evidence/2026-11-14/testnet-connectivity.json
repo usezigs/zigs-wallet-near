@@ -1,0 +1,9 @@
+{
+  "endpoint": "https://zcash-testnet.chainsafe.dev/cash.z.wallet.sdk.rpc.CompactTxStreamer/GetLatestBlock",
+  "scope": "Single public TESTNET GetLatestBlock; no wallet/address/key/broadcast",
+  "httpStatus": 200,
+  "grpcStatus": null,
+  "height": 4619021,
+  "bytes": 65,
+  "elapsedMs": 571
+}

@@ -1,0 +1,776 @@
+[
+  {
+    "name": "chain-fallback",
+    "file": "web/test/chain-fallback.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 4951,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/chain-fallback.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "optional-passkey",
+    "file": "web/test/optional-passkey.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 5623,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/optional-passkey.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "backup-check",
+    "file": "web/test/backup-check.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 1578,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/backup-check.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "graph",
+    "file": "web/test/graph.mjs",
+    "code": 1,
+    "timedOut": false,
+    "ms": 330,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/graph.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "personal",
+    "file": "web/test/personal.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 1223,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/personal.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "chat",
+    "file": "web/test/chat.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 4315,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/chat.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sol-rent",
+    "file": "web/test/sol-rent.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 896,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sol-rent.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sol-receive",
+    "file": "web/test/sol-receive.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 164,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sol-receive.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sol-config",
+    "file": "web/test/sol-config.mjs",
+    "code": 1,
+    "timedOut": false,
+    "ms": 813,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sol-config.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sol-errors",
+    "file": "web/test/sol-errors.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 860,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sol-errors.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sol-sdk",
+    "file": "web/test/sol-sdk.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 852,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sol-sdk.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sol-addsol",
+    "file": "web/test/sol-addsol.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 1507,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sol-addsol.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sol-pool-mainnet",
+    "file": "web/test/sol-pool-mainnet.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 1654,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sol-pool-mainnet.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "messaging-presentation",
+    "file": "web/test/messaging-presentation.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 155,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/messaging-presentation.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "messaging-cost-review",
+    "file": "web/test/messaging-cost-review.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 30,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/messaging-cost-review.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "guided-create",
+    "file": "web/test/guided-create.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 681,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/guided-create.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "premium-motion",
+    "file": "web/test/premium-motion.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 52,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/premium-motion.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "homepage-motion",
+    "file": "web/test/homepage-motion.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 43,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/homepage-motion.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "messaging-account-view",
+    "file": "web/test/messaging-account-view.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 211,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/messaging-account-view.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "outcome-seal",
+    "file": "web/test/outcome-seal.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 30,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/outcome-seal.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "wallet-description",
+    "file": "web/test/wallet-description.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 29,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/wallet-description.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "guided-setup",
+    "file": "web/test/guided-setup.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 126,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/guided-setup.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "local-devices",
+    "file": "web/test/local-devices.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 30,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/local-devices.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "passkey-setup",
+    "file": "web/test/passkey-setup.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 251,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/passkey-setup.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "recipients",
+    "file": "web/test/recipients.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 143,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/recipients.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "swap-recovery",
+    "file": "web/test/swap-recovery.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 97,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/swap-recovery.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "swapflow",
+    "file": "web/test/swapflow.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 175,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/swapflow.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "near-confidential",
+    "file": "web/test/near-confidential.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 63,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/near-confidential.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "hackathon-swap",
+    "file": "web/test/hackathon-swap.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 33,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/hackathon-swap.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "swap-preview",
+    "file": "web/test/swap-preview.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 501,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/swap-preview.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "payees",
+    "file": "web/test/payees.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 73,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/payees.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "vault",
+    "file": "web/test/vault.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 31,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/vault.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "lwd",
+    "file": "web/test/lwd.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 111,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/lwd.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "zns",
+    "file": "web/test/zns.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 205,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/zns.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "near-quote",
+    "file": "web/test/near-quote.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 119,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/near-quote.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "shim",
+    "file": "web/test/shim.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 34,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/shim.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "requests",
+    "file": "web/test/requests.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 56,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/requests.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "signed",
+    "file": "web/test/signed.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 80,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/signed.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "shim-status",
+    "file": "web/test/shim-status.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 104,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/shim-status.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "util",
+    "file": "web/test/util.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 62,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/util.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "qr",
+    "file": "web/test/qr.mjs",
+    "code": 1,
+    "timedOut": false,
+    "ms": 34,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/qr.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sol-docs",
+    "file": "web/test/sol-docs.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 51,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sol-docs.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "account",
+    "file": "web/test/account.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 209,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/account.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sol-transfer",
+    "file": "web/test/sol-transfer.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 167,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sol-transfer.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sol-wasm",
+    "file": "web/test/sol-wasm.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 268,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sol-wasm.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "mainnet-on",
+    "file": "web/test/mainnet-on.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 1845,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/mainnet-on.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sol-plain-app",
+    "file": "web/test/sol-plain-app.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 5334,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sol-plain-app.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "mempool",
+    "file": "web/test/mempool.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 10122,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/mempool.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sol-mode",
+    "file": "web/test/sol-mode.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 4760,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sol-mode.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sol-start-watch",
+    "file": "web/test/sol-start-watch.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 3290,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sol-start-watch.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sol-wallet-page",
+    "file": "web/test/sol-wallet-page.mjs",
+    "code": 1,
+    "timedOut": false,
+    "ms": 865,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sol-wallet-page.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sol-private",
+    "file": "web/test/sol-private.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 6780,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sol-private.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sol-plain-view",
+    "file": "web/test/sol-plain-view.mjs",
+    "code": 1,
+    "timedOut": false,
+    "ms": 1088,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sol-plain-view.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sol-plain-load",
+    "file": "web/test/sol-plain-load.mjs",
+    "code": 1,
+    "timedOut": false,
+    "ms": 624,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sol-plain-load.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sol-plain-security",
+    "file": "web/test/sol-plain-security.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 1713,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sol-plain-security.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sol-plain-review",
+    "file": "web/test/sol-plain-review.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 76,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sol-plain-review.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sol-plain-direct",
+    "file": "web/test/sol-plain-direct.mjs",
+    "code": 1,
+    "timedOut": false,
+    "ms": 666,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sol-plain-direct.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sol-plain-reads",
+    "file": "web/test/sol-plain-reads.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 6040,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sol-plain-reads.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sol-plain-ui",
+    "file": "web/test/sol-plain-ui.mjs",
+    "code": 1,
+    "timedOut": false,
+    "ms": 659,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sol-plain-ui.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "smoke",
+    "file": "web/test/smoke.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 31,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/smoke.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "help",
+    "file": "web/test/help.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 30,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/help.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "contrast",
+    "file": "web/test/contrast.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 32,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/contrast.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "orientation",
+    "file": "web/test/orientation.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 34,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/orientation.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "overview",
+    "file": "web/test/overview.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 75,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/overview.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "portfolio",
+    "file": "web/test/portfolio.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 61,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/portfolio.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "setup-stage",
+    "file": "web/test/setup-stage.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 35,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/setup-stage.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "approvals",
+    "file": "web/test/approvals.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 33,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/approvals.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "recovery",
+    "file": "web/test/recovery.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 29,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/recovery.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "security-dashboard",
+    "file": "web/test/security-dashboard.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 35,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/security-dashboard.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "payment-model",
+    "file": "web/test/payment-model.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 30,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/payment-model.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "error-feedback",
+    "file": "web/test/error-feedback.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 30,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/error-feedback.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "proposal-history",
+    "file": "web/test/proposal-history.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 34,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/proposal-history.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sol-plain-sessions",
+    "file": "web/test/sol-plain-sessions.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 4973,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sol-plain-sessions.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "cf/test/gate",
+    "file": "cf/test/gate.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 81,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/cf_test_gate.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sol-nonce-tabs",
+    "file": "web/test/sol-nonce-tabs.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 57,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sol-nonce-tabs.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "plain-worker",
+    "file": "web/test/plain-worker.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 4201,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/plain-worker.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "no-storage",
+    "file": "web/test/no-storage.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 201,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/no-storage.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "sync-pause",
+    "file": "web/test/sync-pause.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 2152,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/sync-pause.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "solspike/test/pool-run.test",
+    "file": "solspike/test/pool-run.test.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 42,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/solspike_test_pool-run.test.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "solspike/test/policy.test",
+    "file": "solspike/test/policy.test.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 63,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/solspike_test_policy.test.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "nonce-locks",
+    "file": "web/test/nonce-locks.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 6005,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/nonce-locks.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "solspike/test/worker.test",
+    "file": "solspike/test/worker.test.mjs",
+    "code": 1,
+    "timedOut": false,
+    "ms": 98,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/solspike_test_worker.test.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "solspike/test/worker-schema.test",
+    "file": "solspike/test/worker-schema.test.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 1071,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/solspike_test_worker-schema.test.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "solspike/test/mainnet-proof.test",
+    "file": "solspike/test/mainnet-proof.test.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 56,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/solspike_test_mainnet-proof.test.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "solspike/test/plain-equiv.test",
+    "file": "solspike/test/plain-equiv.test.mjs",
+    "code": 0,
+    "timedOut": false,
+    "ms": 5710,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/solspike_test_plain-equiv.test.log",
+    "node": "v25.6.1"
+  },
+  {
+    "name": "demo-check",
+    "file": "web/test/demo-check.mjs",
+    "code": "SIGTERM",
+    "timedOut": true,
+    "ms": 65004,
+    "log": "/private/tmp/zigs-production-audit/merge-fast/demo-check.log",
+    "node": "v25.6.1"
+  }
+]

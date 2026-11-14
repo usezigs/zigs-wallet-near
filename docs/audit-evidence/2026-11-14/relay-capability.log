@@ -1,0 +1,13 @@
+{
+  "result": "CONFIRMED documented relay capability",
+  "loopbackOnly": true,
+  "randomDisposableNamespace": true,
+  "walletSecretProvidedToUnrelatedClient": false,
+  "authenticationHeadersProvided": false,
+  "ciphertextVisibleWithoutSecret": true,
+  "overwriteAcceptedWithoutSecret": true,
+  "reconnectReturnsCorruptedRecord": true,
+  "replayOfObservedCiphertextAccepted": true,
+  "smallWrites": 3,
+  "limitation": "No actual wallet records, real signing keys, valid approval forgeries, transaction submissions, capacity exhaustion, or production endpoints were used. This confirms relay write/availability behavior, not ciphertext decryption or theft."
+}

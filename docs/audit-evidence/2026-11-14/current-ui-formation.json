@@ -1,0 +1,90 @@
+{
+  "scope": "Real bundled WASM formation+local Worker relay; fresh browser stores; all chain/provider HTTP blocked; fixed birthday4500000; no payments",
+  "checks": [
+    {
+      "pass": true,
+      "label": "testnet: current UI has automatic Solana plan and no obsolete opt-out"
+    },
+    {
+      "pass": true,
+      "label": "testnet: real WASM verifies unfunded 2-of-2 wallet"
+    },
+    {
+      "pass": true,
+      "label": "testnet: Zcash is ready while intentionally unavailable Solana remains pending"
+    },
+    {
+      "pass": true,
+      "label": "testnet: Continue with Zcash reaches Overview while Solana is unavailable"
+    },
+    {
+      "pass": true,
+      "label": "testnet: saved shares and completed guide restore to Overview after reload"
+    },
+    {
+      "pass": true,
+      "label": "testnet: no transaction proposal created"
+    },
+    {
+      "pass": true,
+      "label": "mainnet: current UI has automatic Solana plan and no obsolete opt-out"
+    },
+    {
+      "pass": true,
+      "label": "mainnet: real WASM verifies unfunded 2-of-2 wallet"
+    },
+    {
+      "pass": true,
+      "label": "mainnet: Zcash is ready while intentionally unavailable Solana remains pending"
+    },
+    {
+      "pass": false,
+      "label": "mainnet: guided header and continuity identify the correct Solana network"
+    },
+    {
+      "pass": true,
+      "label": "mainnet: Continue with Zcash reaches Overview while Solana is unavailable"
+    },
+    {
+      "pass": true,
+      "label": "mainnet: saved shares and completed guide restore to Overview after reload"
+    },
+    {
+      "pass": true,
+      "label": "mainnet: no transaction proposal created"
+    }
+  ],
+  "errors": [],
+  "facts": [
+    {
+      "network": "testnet",
+      "prepared": {
+        "selected": "testnet",
+        "walletNetwork": "testnet",
+        "prefix": true,
+        "localShares": 2,
+        "solWanted": true,
+        "solStatus": "unavailable",
+        "zecReady": true,
+        "header": "Zcash testnet · Solana Devnet · Any 2 of 2 devices",
+        "continuity": "Any 2 of 2 devices · Zcash testnet · Solana Devnet",
+        "sessionCount": 0
+      }
+    },
+    {
+      "network": "mainnet",
+      "prepared": {
+        "selected": "mainnet",
+        "walletNetwork": "mainnet",
+        "prefix": true,
+        "localShares": 2,
+        "solWanted": true,
+        "solStatus": "unavailable",
+        "zecReady": true,
+        "header": "Zcash mainnet · Solana Devnet · Any 2 of 2 devices",
+        "continuity": "Any 2 of 2 devices · Zcash mainnet · Solana Devnet",
+        "sessionCount": 0
+      }
+    }
+  ]
+}

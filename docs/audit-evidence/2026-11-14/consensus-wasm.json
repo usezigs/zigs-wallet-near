@@ -1,0 +1,29 @@
+{
+  "scope": "Offline bundled WASM expiry timing only; not network scanning or funded settlement",
+  "results": [
+    {
+      "network": "mainnet",
+      "tip": 3543403,
+      "expiry": 3543404,
+      "seconds": 75
+    },
+    {
+      "network": "mainnet",
+      "tip": 3543405,
+      "expiry": 3543406,
+      "seconds": 25
+    },
+    {
+      "network": "testnet",
+      "tip": 4465024,
+      "expiry": 4465025,
+      "seconds": 75
+    },
+    {
+      "network": "testnet",
+      "tip": 4465026,
+      "expiry": 4465027,
+      "seconds": 25
+    }
+  ]
+}
