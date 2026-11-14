@@ -10,7 +10,7 @@ export function walletMarble(facts, { size = 64 } = {}) {
   node.setAttribute("role", "img");
   node.setAttribute("aria-label", "Wallet marble");
   node.setAttribute("data-art-state", facts ? "loading" : "unavailable");
-  node.style.setProperty("--wallet-marble-size", size + "px");
+  node.setAttribute("style", "--wallet-marble-size:" + size + "px");
   node.append(walletArtImage(facts, { size: [32, 48, 64, 96].includes(size) ? size : 96 }));
   const entry = walletArtEntry(facts);
   node._walletMarbleEntry = entry;
