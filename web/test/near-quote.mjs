@@ -471,7 +471,7 @@ const status = async (label, address = DEPOSIT, e = LIVE, init = {}) => {
   }
 };
 
-// ── NEAR_LIVE: only the string "1" opens the routes; the config has it on staging only ──
+// ── NEAR_LIVE: only the string "1" opens the routes; the config enables Standard mainnet ──
 {
   const counted = [];
   const limit = async (o) => (counted.push(o), { success: true });
@@ -487,12 +487,12 @@ const status = async (label, address = DEPOSIT, e = LIVE, init = {}) => {
   assert.deepEqual([calls.length, counted.length], [0, 0], "no call upstream, no limit counted");
   const config = JSON.parse(readFileSync(new URL("../../cf/wrangler.jsonc", import.meta.url),
     "utf8").replace(/^\s*\/\/.*$/gm, ""));
-  assert.equal(config.vars.NEAR_LIVE, "0", "production stays off");
+  assert.equal(config.vars.NEAR_LIVE, "1", "Standard mainnet is available");
   assert.equal(config.env.staging.vars.NEAR_LIVE, "1", "staging is on");
   assert.deepEqual([config.vars.SOL_MAINNET, config.env.staging.vars.SOL_MAINNET], ["0", "1"],
     "SOL_MAINNET is off in production and on in staging");
   assert.ok(!JSON.stringify(config).includes("NEAR_API_KEY\":"), "the key is no var");
-  step("the live routes answer 404 unless NEAR_LIVE is \"1\"; staging only is on");
+  step("the live routes answer 404 unless NEAR_LIVE is \"1\"; Standard mainnet is enabled");
 }
 
 // ── The page of a server with NEAR_LIVE gets data-near-live on <html> ──

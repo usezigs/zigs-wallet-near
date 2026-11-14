@@ -86,6 +86,24 @@ async function plan() {
       if (width === 390 && theme === 'light') await capture('plan-' + step + '-mobile');
     }
   }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  for (const network of ['testnet', 'mainnet']) {
+    await page.evaluate(async network => {
+      const { ui } = await import('/app-state.js');
+      ui.net = network; ui.createStep = 3;
+      ui.createDraft = { n: 3, t: 2, name: 'Everyday wallet', sol: false, solPrivate: false };
+      (await import('/app-loop.js')).draw();
+    }, network);
+    await settle();
+    check(await page.locator('#g-sol,#g-private').count() === 0,
+      network + ': automatic private Solana has no opt-in control');
+    check((await page.locator('.setup-review-summary').innerText()).includes(
+      '+ private Solana on ' + (network === 'mainnet' ? 'mainnet' : 'devnet')),
+    network + ': review includes private Solana despite a stale draft opt-out');
+    check(await page.locator('.setup-review-information').evaluate(node => !node.open),
+      network + ': supporting setup details are collapsed initially');
+    await capture('review-' + network);
+  }
   await page.keyboard.press('Escape');
 }
 async function guided(n, complete = false) {

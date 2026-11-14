@@ -255,7 +255,6 @@ async function review(name) {
 const reviewText = () => textOf(findAll(dialog(),
   (n) => n.attrs?.["aria-labelledby"] === "create-step-3")[0]);
 const choice = () => byId(dialog(), "g-private");
-const tick = () => choice().on.change({ target: { checked: true } });
 // The submit of the review: the new wallet, or null when none was made.
 async function submit() {
   const before = t.state.gid;
@@ -269,46 +268,27 @@ const planned = (gid) => {
 };
 const NONE = { pin: null, hint: [null, null], auto: null };
 {
-  const CHOICE = "Private Solana on mainnet";
   await probeWith(404);
-  await review("Not served");
-  assert.equal(choice(), null, "no choice without the probe");
-  assert.match(reviewText(), /Zcash mainnetZcash only/);
+  await review("Service waiting");
+  assert.equal(choice(), null, "new mainnet wallets have no private-mode checkbox");
+  assert.match(reviewText(), /\+ private Solana on mainnet/);
+  const waiting = await submit();
+  assert.ok(waiting, "a server outage does not discard the requested wallet");
+  assert.deepEqual(planned(waiting), { pin: PRIVATE, hint: [true, PRIVATE], auto: true },
+    "private mode is pinned and planned even while the service is unavailable");
   await probeWith(200);
-  assert.ok(choice(), "the choice with the probe");
-  assert.equal("checked" in choice().attrs, false, "and it is off by default");
-  says(reviewText(), [CHOICE, ...MAINNET_DISCLOSURE], "the choice");
-  assert.match(reviewText(), /Zcash mainnetZcash only/, "the summary while it is off");
-  t.ui.net = "testnet";
-  assert.equal(choice(), null, "a testnet wallet has no private choice");
-  t.ui.net = "mainnet";
-  // Off: the plain path, as before. No pin, no hint, no solAuto.
-  const plainPath = await submit();
-  assert.ok(plainPath, "the wallet is made");
-  assert.deepEqual(planned(plainPath), NONE, "the choice off plans nothing");
-  assert.equal(t.signPins[KEY(plainPath)], undefined);
-  // A probe that answers 404 before the submit: no wallet, and the dialog stays.
-  await review("Gone");
-  tick();
-  assert.match(reviewText(), /\+ private Solana on mainnet/, "the summary names the choice");
-  await probeWith(404);
-  assert.equal(await submit(), null, "no wallet without the probe at the submit");
-  assert.match(t.banner.text, /does not serve the private Solana wallet now/);
-  assert.equal(t.ui.createStep, 3, "the dialog stays at the review");
-  await probeWith(200);
-  // A failed write of the pin: the wallet is made, and nothing of Solana starts.
+  await review("Pin failure");
   const failed = await pinsFail(submit);
   assert.ok(failed, "the Zcash wallet is made");
   assert.match(t.banner.text, /could not save that it accepts the private Solana wallet/);
   assert.deepEqual(planned(failed), NONE, "a failed pin starts nothing");
-  assert.equal(t.signPins[KEY(failed)], undefined, "and the tab keeps no pin");
+  assert.equal(t.signPins[KEY(failed)], undefined, "the tab keeps no failed pin");
 }
-step("the create dialog offers the private choice only with the probe, off by default");
+step("new wallets automatically plan private mainnet Solana and retain service-outage intent");
 
 // ── The choice on: the pin, the hint, solAuto; the ceremony signs mainnet-private ──
 const made = await (async () => {
   await review("Private");
-  tick();
   const order = [];
   rig.hook.before = (p, value) => {
     recordStarts(p, value);

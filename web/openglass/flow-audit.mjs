@@ -197,6 +197,10 @@ try {
       (await import("/app-state.js")).ui.tab = tab;
       (await import("/app-loop.js")).draw();
     }, tab));
+  for (const action of ['Send', 'Receive']) await matrix('overview-picker-' + action.toLowerCase(), async () => {
+    await page.locator('.overview-action-picker > summary').filter({ hasText: action }).click();
+    await page.locator('.asset-choices:popover-open').waitFor();
+  });
   for (const mode of ["saved", "editor", "invalid", "edit", "delete-confirmation", "no-results"])
     await matrix("recipients-" + mode, async () => {
       await page.evaluate(async (mode) => {

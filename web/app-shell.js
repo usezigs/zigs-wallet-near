@@ -20,7 +20,7 @@ import {
 import { contactName, contactOf, joinChat, joinLinks, unreadIn } from "./app-messages.js";
 import { createGroup } from "./app-dkg.js";
 import {
-  newWallet, planPrivate, planSolana, privateDisclosure, privateServed, solPending, solServed,
+  newWallet, planPrivate, planSolana, privateDisclosure, solPending,
 } from "./app-sol.js";
 import { personal, personalError, personalPending } from "./app-account.js";
 import { restore } from "./app-backups.js";
@@ -706,67 +706,13 @@ function joinTyped(ev) {
 }
 
 
-// A new testnet wallet can get its Solana Devnet part in the same setup, on a server that serves
-// Solana. Keep the existing setup choice in the form even when the review omits network details;
-// only the current final-review checkbox reaches planSolana.
-const solChosen = (from, network, sol) => !from && network === "testnet" && sol === true;
-const reviewSolIncluded = (draft = ui.createDraft) => ui.net === "testnet"
-  && (typeof ui.sol === "boolean" ? ui.sol : draft?.sol !== false);
-function solChoice() {
-  if (ui.net !== "testnet") return null;
-  return el("label", { class: "ack" },
-    el("input", { type: "checkbox", id: "g-sol", name: "sol", checked: reviewSolIncluded(),
-      onchange: (ev) => {
-        ui.sol = ev.target.checked;
-        if (ui.createDraft) {
-          ui.createDraft.sol = ev.target.checked;
-          ui.createDraft.solExpected = ev.target.checked;
-        }
-        render();
-      } }),
-    el("span", {}, el("b", {}, "Set up Solana Devnet with this wallet. "),
-      el("span", { class: "small muted" }, "Included after the Zcash address checks, when service is available. Clear this option for a Zcash-only wallet.")));
-}
-
-// A new mainnet wallet can be a private Solana wallet (slice 8, design 2.4 Create), on a server
-// that serves the private Worker. The choice is off by default and lives in the draft only.
-const PRIVATE_CHOICE = "Private Solana on mainnet";
-const PRIVATE_GONE = "This server does not serve the private Solana wallet now. Clear the private "
-  + "Solana choice, or try again later.";
-const privateDrafted = () => ui.net === "mainnet" && ui.createDraft?.solPrivate === true;
-function privateChoice() {
-  const texts = ui.net === "mainnet" && privateServed() ? privateDisclosure() : null;
-  if (!texts) return null;
-  const pick = (ev) => {
-    ui.createDraft = { ...ui.createDraft, solPrivate: ev.target.checked };
-    render();
-  };
-  return el("div", { class: "surface-quiet" },
-    el("label", { class: "ack" },
-      el("input", { type: "checkbox", id: "g-private", name: "private",
-        checked: privateDrafted(), onchange: pick }),
-      el("span", {}, el("b", {}, PRIVATE_CHOICE))),
-    texts.map((line) => el("p", { class: "small muted" }, line)));
-}
-const solSummary = (includeSol) => includeSol
-  ? solServed() ? "+ Solana Devnet" : "Solana Devnet · waiting for service"
-  : privateDrafted() ? "+ private Solana on mainnet" : "Zcash only";
-// The Solana part that a new wallet plans: Devnet for a testnet wallet, or the private wallet for a
-// mainnet wallet on a server that serves it. A replacement wallet plans none.
-function chainPlan(from, network, sol, solPrivate) {
-  if (solChosen(from, network, sol)) return planSolana;
-  if (from || network !== "mainnet" || solPrivate !== true) return null;
-  if (!privateServed()) throw new Error(PRIVATE_GONE);
-  return planPrivate;
-}
-
-function planningNetworks() {
-  if (ui.net !== "testnet") return null;
-  const served = solServed();
-  return el("p", { class: "small muted" }, served
-    ? "When included, Solana Devnet starts after the Zcash address checks."
-    : ui.solServed === null ? "Checking Solana service availability; Zcash setup can continue."
-      : "Zcash can start now. If included, Solana setup resumes when service is available.");
+// New wallets include private Solana on their matching network. A replacement wallet
+// keeps the existing explicit migration behavior and does not plan a new Solana part.
+const solSummary = () => ui.net === "mainnet"
+  ? "+ private Solana on mainnet" : "+ private Solana on devnet";
+function chainPlan(from, network) {
+  if (from) return null;
+  return network === "mainnet" ? planPrivate : planSolana;
 }
 
 // The parts of the dialog. The ids are the ones that the tests and the harness fill.
@@ -895,19 +841,18 @@ export function endCreate() {
 const closeCreate = () => { endCreate(); render(); };
 
 // A replacement wallet stays on its predecessor's network: funds cannot move between networks.
-async function submitWallet({ name, n, t, sol, solExpected = false, description = "",
-  solPrivate }, from) {
+async function submitWallet({ name, n, t, description = "" }, from) {
   requireSetupProtection();
   checkRule(n, t);
   const network = from ? from.network || "testnet" : ui.net;
-  const plan = chainPlan(from, network, sol, solPrivate);
+  const plan = chainPlan(from, network);
   endCreate();
   const gid = await createGroup(name, n, t, from && from.id, network);
   if (!from && description) {
     try { setWalletDescription(gid, description); } catch (e) { showBanner("bad", e.message); }
   }
   if (!from) {
-    try { beginGuided(gid, { solExpected: network === "testnet" && solExpected }); }
+    try { beginGuided(gid, { solExpected: !!plan }); }
     catch (e) { showBanner("bad", e.message); }
   }
   if (plan) await plan(gid);
@@ -941,13 +886,12 @@ function takeRule() {
   ui.createDraft = { ...ui.createDraft, n, t };
 }
 function takeNames() {
-  // The explicit consent control is on the final review. Naming keeps the current opt-out
-  // or the default included intent; an absent review control cannot silently opt out here.
-  const sol = ui.net === "testnet" && ui.sol !== false;
+  const sol = true;
   const field = document.getElementById("g-description");
   const description = typeof field?.value === "string" ? field.value.trim() : "";
   ui.createDraft = { ...ui.createDraft, name: fieldValue("g-name").trim(),
-    label: fieldValue("my-name").trim(), description, sol, solExpected: sol };
+    label: fieldValue("my-name").trim(), description, sol, solExpected: true,
+    solPrivate: ui.net === "mainnet" };
 }
 const TAKE = [() => {}, takeRule, takeNames];
 let stepAt = 0;
@@ -970,11 +914,8 @@ async function createFromDraft() {
   requireSetupProtection();
   const d = ui.createDraft;
   if (d.t === d.n && !ui.marginAck) throw new Error(ACK_FIRST);
-  const box = document.getElementById("g-sol");
-  const sol = !!box && box.checked;
-  const solExpected = ui.net === "testnet" && (box ? box.checked : ui.sol !== false);
   try { localStorage.setItem("zf-name", d.label ?? ""); } catch { /* no storage: as typed */ }
-  await submitWallet({ ...d, name: d.name || "Treasury", sol, solExpected }, null);
+  await submitWallet({ ...d, name: d.name || "Treasury" }, null);
 }
 const stepSubmit = (ev) => (ui.createStep < STEPS.length - 1 ? nextStep(ev)
   : act(createFromDraft)(ev));
@@ -1026,11 +967,9 @@ const namesStep = () => step(2,
   ...names(null),
   el("div", { class: "setup-network-choice" }, networkPick(), !MAINNET_ON
     ? el("div", { class: "net-opt setup-network-unavailable", "aria-disabled": "true" },
-      el("strong", {}, "Mainnet"), el("span", { class: "small muted" }, "Unavailable in this release")) : null),
-  planningNetworks())));
+      el("strong", {}, "Mainnet"), el("span", { class: "small muted" }, "Unavailable in this release")) : null))));
 function reviewStep() {
   const d = ui.createDraft ?? { n: 3, t: 2 };
-  const includeSol = reviewSolIncluded(d);
   const row = (k, v) => [el("dt", {}, k), el("dd", {}, v)];
   const full = d.t === d.n;
   return step(3,
@@ -1052,12 +991,13 @@ function reviewStep() {
           el("div", {}, el("strong", {}, String(d.n)), el("span", {}, "devices at setup")),
           el("div", {}, el("strong", {}, String(d.t) + " of " + d.n), el("span", {}, "approvals per payment")),
           el("div", {}, el("strong", {}, "Zcash " + curNetLabel()),
-            el("span", {}, solSummary(includeSol)))),
-        privateChoice(),
-        el("p", { class: "small muted" }, "All " + d.n + " devices join and check the wallet before use. Initial formation needs no fee funding or on-chain deployment. Later Deposit and Send operations show their own costs."),
-        el("p", { class: "small muted" }, "Recovery files are recommended and optional. Each copies one device’s share and needs its separate passphrase. You can save or check files later."))),
-    // Preserve the existing setup submission value without displaying the network section.
-    ui.net === "testnet" ? el("div", { hidden: true }, solChoice()) : null);
+            el("span", {}, solSummary()))),
+        el("details", { class: "setup-threshold-info setup-review-information" },
+          el("summary", {}, icon("info"), el("span", {}, "Setup details"), icon("chevronDown")),
+          ...(ui.net === "mainnet" ? (privateDisclosure() || []).map(line =>
+            el("p", { class: "small muted" }, line)) : []),
+          el("p", { class: "small muted" }, "All " + d.n + " devices join and check the wallet before use. Initial formation needs no fee funding or on-chain deployment. Later Deposit and Send operations show their own costs."),
+          el("p", { class: "small muted" }, "Recovery files are recommended and optional. Each copies one device’s share and needs its separate passphrase. You can save or check files later.")))));
 }
 const curNetLabel = () => (ui.net === "mainnet" ? "mainnet" : "testnet");
 const protectionLabel = () => passkeyProtected() ? "Passkey protected"

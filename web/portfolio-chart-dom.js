@@ -112,5 +112,5 @@ export function portfolioChartDom(ranges) {
     details, help, spoken);
   return { root, value, changeValue, changeLabel, date, plot, svg, line, area, marker,
     crosshair, end, dots, empty, emptyTitle, emptyText, retry, firstDate, lastDate,
-    controls, indicator, buttons, coverage, coverageDetails, storage, spoken, title };
+    controls, indicator, buttons, coverage, coverageDetails, storage, spoken, title, attribution };
 }

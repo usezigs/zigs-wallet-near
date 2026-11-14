@@ -1,3 +1,4 @@
+import { createSwapSimulation } from './app-swap-simulation.js';
 import { swapRecoveryRecord, swapRecoveryText } from './swap-recovery.js';
 // Live NEAR Intents quotes, the live swap from SOL to ZEC (paid from a wallet outside Zigs, or by a
 // plain send of the Solana wallet of the group that app-swap-sol.js proposes), the live swap from
@@ -11,7 +12,7 @@ import { createPostQuantumSwapPreview } from './app-postquantum-swap-preview.js'
 import { createSwapPrivacyExplainer } from './app-swap-privacy.js';
 import { heliusSwapCredit, nearSwapCredit } from './app-swap-branding.js';
 import { swapRecordOf } from './swap-records.js';
-import { SWAP_ASSETS, SWAP_DEMO_STEPS, SWAP_FINAL, SWAP_SLIPPAGES, SwapPreviewModel, swapAsset,
+import { SWAP_ASSETS, SWAP_FINAL, SWAP_SLIPPAGES, SwapPreviewModel, swapAsset,
   swapDecimal, swapInputError, swapRate, swapSolAddress, swapTime, swapUsd }
   from './swap-preview-model.js';
 import { swapPrivacyProblem } from './swap-preview-model.js';
@@ -187,11 +188,12 @@ function proposalState(group, live) {
 /** The provider and clock arguments are for the isolated development harness and the tests. */
 export function createSwapPreview(context = {}, provider = new NearIntentsSwapProvider(), clock) {
   let source = context, modal = null, observer = null, trigger = null, detailBlock = null;
+  let simulation = null;
   let pickerSide = null, searchText = '', rotation = 0;
   let liveReview = null, shown = null, depositCopy = null, depositState = null, depositClose = null;
-  let records = [], historyWallet = null, historyError = '', historyLoading = false, payerChosen = false;
-  // Who pays a live swap from SOL: 'group' (the plain Solana wallet) or 'outside'.
-  let solPayer = 'outside';
+  let records = [], historyWallet = null, historyError = '', historyLoading = false;
+  // Connected wallet contexts always fund their own swaps. Legacy standalone receipts remain trackable.
+  let solPayer = source.solGroup ? 'group' : 'outside';
   let recoveryError = '', savedRecovery = '', recoverySaved = false, recoveryScope = source.id;
   let recoveryBlocked = false;
   let historyActions = [];
@@ -237,7 +239,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     rotation += 180; reverse.style.setProperty('--swap-rotation', rotation + 'deg');
     void model.reverse();
   }, { 'aria-label': 'Reverse swap direction', 'data-key': 'swap-reverse' });
-  const review = button([interfaceIcon('swap'), text('swap-action-label', 'Preview swap', 'span')],
+  const review = button([interfaceIcon('swap'), text('swap-action-label', 'Initiate confidential swap', 'span')],
     'swap-primary swap-initiate', (ev) => {
       if (!model.review()) return;
       openModal('Review quote', ev.currentTarget); drawReview();
@@ -250,13 +252,13 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   const demoTarget = el('div', { class: 'swap-destination' },
     el('label', { for: 'swap-destination' }, 'Receive to · Demo'), destination);
   const payoutBox = el('div', { class: 'swap-destination swap-payout', hidden: true });
-  const fundingChoice = el('div', { class: 'swap-funding' });
   const fundingNote = text('swap-caption swap-funding-note', '');
   const max = button('Max', 'swap-max', () => {
     const amount = source.solGroup?.balanceAtomic;
     if (solPayer === 'group' && /^\d+$/.test(amount || '')) void model.update({ amount: swapDecimal(amount, swapAsset(SOL_ID)) });
   }, { disabled: true, 'aria-label': 'Use available private SOL balance' });
   const headTag = previewTag();
+  const nearCredit = nearSwapCredit();
   const walletProvider = el('div', { class: 'swap-wallet-provider', hidden: true });
   const walletProviderNote = text('swap-caption', '');
   walletProvider.append(walletProviderNote, heliusSwapCredit());
@@ -322,7 +324,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   }));
   root.append(el('header', { class: 'swap-heading' },
     el('div', { class: 'swap-titleline' }, el('h1', { id: 'swap-page-title' }, 'Swap'), headTag),
-    nearSwapCredit()),
+    nearCredit),
 
   el('div', { class: 'swap-panel', id: 'swap-panel-private', role: source.demo === true ? 'tabpanel' : 'region',
     'aria-labelledby': source.demo === true ? 'swap-tab-private' : 'swap-page-title',
@@ -334,7 +336,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
         el('div', { class: 'swap-pane-label' }, el('label', { for: 'swap-amount' }, 'You pay'), payPrivacy),
         el('div', { class: 'swap-amount-row' }, pay, fromButton),
         el('div', { class: 'swap-network-row' }, fromNetwork,
-          max)), fundingChoice, fundingNote,
+          max)), fundingNote,
       el('div', { class: 'swap-switch-row' }, reverse),
       el('div', { class: 'swap-pane swap-receive' },
         el('div', { class: 'swap-pane-label' }, el('span', {}, 'You receive · estimate'), receivePrivacy),
@@ -453,7 +455,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
 
   function update() {
     const s = model.value, from = swapAsset(s.from), to = swapAsset(s.to);
-    if (!payerChosen) solPayer = source.solGroup?.refundTo ? 'group' : 'outside';
+    solPayer = source.solGroup ? 'group' : 'outside';
     root.dataset.swapPhase = s.phase;
     root.dataset.execution = s.execution;
     drawPair(from, to);
@@ -495,9 +497,10 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     drawHistory();
   }
   function drawExecution(s) {
+    nearCredit.querySelector('strong').textContent = s.execution === 'public' ? 'NEAR Intents' : 'NEAR Confidential Intents';
     if (review.dataset.execution !== s.execution) {
-      const labels = { preview: 'Preview swap', public: 'Review standard swap', basic: 'Review confidential swap' };
-      review.replaceChildren(interfaceIcon(s.execution === 'basic' ? 'confidentialSwap' : 'swap'),
+      const labels = { preview: 'Initiate confidential swap', public: 'Review standard swap', basic: 'Review confidential swap' };
+      review.replaceChildren(interfaceIcon(s.execution !== 'public' ? 'confidentialSwap' : 'swap'),
         text('swap-action-label', labels[s.execution], 'span'));
       review.dataset.execution = s.execution;
     }
@@ -510,19 +513,13 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     executionHelp.textContent = executionHelp.hidden
       ? ''
       : s.execution === 'public'
-        ? 'Real funds. The standard route is public and NEAR Intents can link the swap addresses. No confidential routing is requested.'
+        ? 'Live swap · public NEAR Intents route. The provider can link the deposit, recipient and refund addresses.'
         : 'Real funds. Basic confidential routing is required. If provider access is unavailable, the swap stops; it never switches to Standard.';
     if (!executionHelp.hidden && !availableLivePair()) executionHelp.textContent += source.simulated
       ? ' Example wallet · live modes unavailable here.'
       : ' Real execution requires a supported mainnet wallet and a live-enabled server.';
   }
   function drawFunding(s) {
-    fundingChoice.hidden = fromZec() || !liveRoute();
-    const key = [source.solGroup?.refundTo, source.solGroup?.mode, source.solGroup?.reason, solPayer].join('|');
-    if (fundingChoice.dataset.choice !== key) {
-      fundingChoice.dataset.choice = key;
-      fundingChoice.replaceChildren(...payerChoice(true));
-    }
     const balance = source.solGroup?.balanceAtomic;
     const hasBalance = solPayer === 'group' && /^\d+$/.test(balance || '');
     const privateSource = source.solGroup?.mode === 'private';
@@ -617,6 +614,7 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   }
 
   function closeModal(cancel = true) {
+    simulation?.destroy(); simulation = null;
     observer?.disconnect(); observer = null;
     const old = modal; modal = null; pickerSide = null; detailBlock = null; liveReview = null;
     old?.close(); old?.remove();
@@ -720,44 +718,39 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
   }
   function drawReview() {
     if (liveRoute()) { drawLiveReview(); return; }
+    modal.className += ' swap-review-modal';
     const s = model.value, from = swapAsset(s.from), to = swapAsset(s.to);
     modal.querySelector('.swap-modal-content').replaceChildren(
-      el('div', { class: 'swap-review-amount' }, text('swap-caption', 'Estimated receive amount'),
-        text('', swapDecimal(s.quote.amountOut, to), 'strong'), text('swap-caption', to.symbol + ' · ' + to.network)),
-      reviewRows(),
-      el('div', { class: 'swap-review-warning' }, text('', 'Review the route boundary', 'strong'),
-        text('', privacy(from.symbol === 'ZEC' || to.symbol === 'ZEC')), text('', NO_RUN)),
+      el('div', { class: 'swap-review-pair' },
+        el('div', {}, token(from), text('swap-caption', 'You pay'),
+          text('', s.amount + ' ' + from.symbol, 'strong')),
+        interfaceIcon('forward'),
+        el('div', {}, token(to), text('swap-caption', 'Estimated receive'),
+          text('', swapDecimal(s.quote.amountOut, to) + ' ' + to.symbol, 'strong'))),
+      el('dl', { class: 'swap-review-details swap-review-essential' },
+        detail('Minimum received', swapDecimal(s.quote.minAmountOut, to) + ' ' + to.symbol),
+        detail('Maximum slippage', s.slippageBps / 100 + '%'),
+        detail('Estimated time', swapTime(s.quote.timeEstimate))),
+      el('details', { class: 'swap-review-extra' }, el('summary', {}, 'Quote and route details'), reviewRows(),
+        el('div', { class: 'swap-review-warning' }, text('', 'Review the route boundary', 'strong'),
+          text('', privacy(from.symbol === 'ZEC' || to.symbol === 'ZEC')), text('', NO_RUN))),
       text('swap-simulation-note', 'Demo: the steps below are simulated. No funds move and nothing is signed.'),
-      button(['Simulate swap flow', el('span', { 'aria-hidden': 'true' }, interfaceIcon('forward'))], 'swap-primary', () => {
-        modal.querySelector('h2').textContent = 'Swap flow simulation'; model.simulate();
-        modal.querySelector('h2').focus();
-      }), button('Back to swap', 'swap-secondary', () => closeModal()));
+      el('div', { class: 'swap-review-actions' },
+        button('Back to swap', 'swap-secondary', () => closeModal()),
+        button(['Simulate swap flow', interfaceIcon('forward')], 'swap-primary', () => {
+          modal.querySelector('h2').textContent = 'Swap flow simulation'; model.simulate();
+          modal.querySelector('h2').focus();
+        })));
   }
   function drawProgress() {
-    const s = model.value, done = s.phase === 'DEMO_COMPLETE';
-    const from = swapAsset(s.from).symbol, to = swapAsset(s.to).symbol;
-    const descriptions = [s.quote.source === 'demo' ? 'Synthetic quote · not a market price'
-      : 'Real mainnet price quote · no funds committed',
-    'Example device approvals · no signing request',
-    'Example public ' + from + ' deposit · no transaction created',
-    'Example standard NEAR Intents exchange · no execution',
-    to === 'ZEC' ? 'Example shielded ZEC receipt · no wallet scan or payment'
-      : 'Example public SOL receipt · no payment',
-    'Example reload recovery · no receipt is written or restored'];
-    modal.querySelector('.swap-modal-content').replaceChildren(
-      text('swap-simulation-note', 'Demo only · simulated steps. No funds move and nothing is signed.'),
-      el('ol', { class: 'swap-progress-list' }, SWAP_DEMO_STEPS.map((step, i) => el('li', {
-        class: i < s.step ? 'is-demonstrated' : i === s.step ? 'is-current' : '',
-        'aria-current': i === s.step ? 'step' : null,
-      }, el('span', { class: 'swap-step-number', 'aria-hidden': 'true' }, i < s.step ? '✓' : i + 1),
-      el('div', {}, text('', step, 'strong'), text('swap-caption', i < s.step ? 'Demonstrated · no real event'
-        : i === s.step ? descriptions[i] : 'Later simulated step'))))),
-      el('p', { class: 'swap-demo-result', role: 'status' }, done ? 'Demo complete. The steps were simulated. No funds moved.'
-        : 'Advance each example step yourself. Nothing is broadcast or signed.'),
-      button([done ? 'Back to swap' : 'Next demo step', interfaceIcon(done ? 'back' : 'forward')], 'swap-primary', () => {
-        if (done) { closeModal(false); void model.update(); return; }
-        model.advance(); modal.querySelector('.swap-primary').focus({ preventScroll: true });
-      }));
+    const s = model.value;
+    if (!simulation) {
+      modal.className = modal.className.replace('swap-review-modal', '') + ' swap-simulation-modal';
+      simulation = createSwapSimulation({ from: swapAsset(s.from), to: swapAsset(s.to),
+        advance: () => model.advance(), close: () => { closeModal(false); void model.update(); } });
+      modal.querySelector('.swap-modal-content').replaceChildren(simulation.element);
+    }
+    simulation.update(s.step, s.phase === 'DEMO_COMPLETE');
   }
   // The address that a live swap pays to (from app-shell.js), or the reason why there is none.
   function payoutText(payout) {
@@ -768,7 +761,9 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     const payout = routePayout();
     payoutBox.hidden = !liveRoute(); demoTarget.hidden = source.demo !== true || liveRoute();
     payoutBox.replaceChildren(text('', 'Receive to', 'span'),
-      text(payout.address ? 'swap-payout-address' : 'swap-caption', payoutText(payout), 'strong'));
+      text(payout.address ? 'swap-payout-address' : 'swap-caption', payout.address
+        ? (source.name || 'This wallet') + ' · ' + (fromZec() ? 'Solana' : 'Shielded Zcash')
+        : payoutText(payout), 'strong'));
   }
   // The amount and the quote rows of a live review, with the rows `rows` of the route.
   function liveSummary(s, from, to, rows) {
@@ -836,7 +831,6 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
     modal.querySelector('.swap-modal-content').replaceChildren(
       ...liveSummary(s, from, to, [detail('Receive to', payoutText(payout)),
         detail('Pay from', 'A Solana wallet outside Zigs')]),
-      ...payerChoice(),
       el('label', { for: 'swap-refund', class: 'swap-field-label' },
         'Refund address: the Solana address that you pay from. Use a wallet that you control, '
           + 'not an exchange.'),
@@ -846,40 +840,15 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
       ...ctl.parts);
     ctl.review.update(s);
   }
-  // The choice of the payer of a swap from SOL, on a page that knows the Solana wallet of the
-  // group (app-swap-sol.js): a list of one node, or none. A wallet that cannot pay says why, and
-  // its choice is off.
-  function payerChoice(composer = false) {
-    if (!source.solGroup) return [];
-    const group = source.solGroup;
-    const choose = (value) => {
-      solPayer = value; payerChosen = true;
-      if (composer) {
-        if (modal) closeModal();
-        update();
-        fundingChoice.querySelector('input:checked')?.focus();
-      }
-      else { drawLiveReview(); modal.querySelector('input[name="swap-payer"]:checked')?.focus(); }
-    };
-    const radio = (value, label) => el('label', { class: 'swap-agree' },
-      el('input', { type: 'radio', name: composer ? 'swap-funding-payer' : 'swap-payer', value, checked: solPayer === value,
-        disabled: value === 'group' && !group.refundTo, 'data-key': 'swap-payer-' + value,
-        onchange: () => choose(value) }), el('span', {}, label));
-    return [el('fieldset', { class: 'swap-payer' },
-      el('legend', { class: 'swap-field-label' }, 'Pay from'),
-      radio('group', (group.mode === 'private' ? 'Private SOL balance' : 'Public SOL balance')
-        + ' · ' + (source.threshold || 'wallet approvals')),
-      group.refundTo ? null : text('swap-caption', group.reason),
-      radio('outside', 'A Solana wallet outside Zigs'))];
-  }
-  // The review of the live route from SOL that the plain Solana wallet of the group pays: the ZEC
-  // address of the wallet receives, its Solana address gets a refund, and nobody types an address.
   // The button waits until the wallet can pay the amount (balance, rent, nonce account, fee).
   function drawGroupReview() {
     const s = model.value, from = swapAsset(s.from), to = swapAsset(s.to);
     const payout = source.payout ?? {}, group = source.solGroup ?? {};
     const privateSource = group.mode === 'private';
-    const why = () => (group.refundTo ? group.ready(s.quote.amountIn) : group.reason);
+    const why = () => group.reason || (!group.refundTo
+      ? 'Finish setting up Solana in this wallet to swap.'
+      : typeof group.ready === 'function' ? group.ready(s.quote.amountIn)
+        : 'Solana wallet readiness is unavailable. Reopen this wallet and retry.');
     const consent = privateSource ? 'I understand that private SOL leaves through a public deposit, that the shielded ZEC payout is untested, and that this device alone controls any public SOL refund.' : SOL_GROUP_AGREE;
     const ctl = liveControls(consent, () => !!payout.address && !!group.refundTo,
       () => ({ recipient: payout.address, refundTo: group.refundTo, room: payout.room,
@@ -888,9 +857,8 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
       ...liveSummary(s, from, to, [detail('Receive to', payoutText(payout)),
         detail('Pay from', (privateSource ? 'Private SOL balance' : 'Public SOL balance') + ' · ' + (source.threshold || 'its approvals')),
         detail('Refund address', group.refundTo
-          ? (privateSource ? group.refundLabel : 'Public Solana address of this wallet') + ' · ' + group.refundTo : '—'),
+          ? (privateSource ? group.refundLabel || 'Public SOL refund address' : 'Public Solana address of this wallet') + ' · ' + group.refundTo : '—'),
         ...(privateSource ? [detail('Privacy boundary', privateRoute(s.execution))] : [])]),
-      ...payerChoice(),
       el('div', { class: 'swap-review-warning' }, text('', privateSource ? 'Private funds, public deposit' : 'Real funds, public send',
         'strong'), text('', UNTESTED), text('', privateSource ? PRIVATE_REFUND : SOL_GROUP_REFUND),
         el('details', {}, el('summary', {}, 'Provider visibility and approval deadline'),
@@ -1116,7 +1084,6 @@ export function createSwapPreview(context = {}, provider = new NearIntentsSwapPr
       closeModal(); resetQuantumFlow(); model.stale();
     }
     if (source.id !== next.id) {
-      payerChosen = false;
       if (!model.value.live) model.value.execution = 'preview';
     }
     source = next;

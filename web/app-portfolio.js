@@ -88,7 +88,7 @@ function refreshPortfolio() {
   if (document.visibilityState !== "hidden") active.store.record(current.observation);
   const history = active.store.read();
   const props = { ...history, current, now, range: selectedRange(), storageNote: history.note,
-    loading: read.loading, failed: read.failed, priceError: read.error, retryAfterMs: read.retryAfterMs,
+    loading: read.loading, failed: read.failed, priceError: read.error, priceSource: read.source, retryAfterMs: read.retryAfterMs,
     onRange: selectRange, onRetry: () => { void prices.ask(); refreshPortfolio(); },
     onInteractionEnd: () => {
       if (active?.deferred) { active.deferred = false; render(); }
@@ -119,8 +119,9 @@ export function presentPortfolio(root) {
   if (!config || !active || active.gid !== config.gid || active.secret !== config.secret) {
     active?.chart?.destroy(); active?.store.clearMemory(); active = null;
   }
+  const overview = root.querySelector(".overview-page");
+  if (overview) presentOverviewDetails(overview);
   if (!config) return;
-  presentOverviewDetails(root.querySelector(".overview-page"));
   if (!active) active = { ...config, store: historyStore(config.gid, config.secret), chart: null };
   refreshPortfolio();
   slot.replaceChildren(active.chart.element);

@@ -99,7 +99,7 @@ try {
     await open('private', width, theme); await quote();
     check(await page.getByRole('radio', { name: /Hackathon preview/ }).isChecked(),
       'fresh visit defaults to unfunded preview');
-    check(await reviewAction().textContent() === 'Preview swap',
+    check(await reviewAction().textContent() === 'Initiate confidential swap',
       'the unfunded mode labels its action Preview swap');
        await capture('composer-' + width + '-' + theme);
     check(await page.getByText('Minimum received', { exact: true }).first().isVisible(),

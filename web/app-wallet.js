@@ -50,6 +50,7 @@ import {
   zecTotal,
 } from "./overview-model.js";
 import { icon, sculptedIcon } from "./app-icons.js";
+import { heliusSwapCredit } from "./app-swap-branding.js";
 import { localDevicesWarning } from "./app-local-devices.js";
 import { beginGuided, guidedEnabled, guidedState } from "./app-guided-setup.js";
 import { descriptionOf, setWalletDescription } from "./wallet-description.js";
@@ -59,7 +60,6 @@ import {
 } from "./privacy-language.js";
 import { securityDashboard } from "./app-security-dashboard.js";
 import { SharedControlVisual } from "./app-approval-visualization.js";
-import { sharedControl } from "./app-shared-control.js";
 import { walletMark } from "./app-wallet-art.js";
 import { walletHeadingMarble } from "./app-wallet-marble.js";
 import { portfolioOverview } from "./app-portfolio.js";
@@ -269,13 +269,7 @@ function overviewTab() {
           el("h2", { id: "assets-title" }, "Your assets")),
         el("div", { class: "assets-grid asset-rows" }, zecAsset(c), solAsset(), plainShown() ? usdcAsset() : null)),
       el("aside", { class: "overview-rail", "aria-label": "Wallet status and transactions" },
-        overviewApprovals(), overviewTransactions(), el("details", { class: "workflow-details" },
-          el("summary", {}, "Wallet approval rule"), sharedControl({ required: state.g.t, total: state.g.n, context: state.gid,
-        status: state.g.shapeMoved ? "Configuration mismatch" : "Wallet formed",
-        attention: !!state.g.shapeMoved,
-        participants: seatIds().map((i) => ({ id: i, name: seatLabel(i),
-          joined: state.seats[i] ? true : state.seatsLoaded && state.seatsSettled ? false : null })),
-        openSecurity: openWalletSection("recovery") })))));
+        overviewApprovals(), overviewTransactions())));
 }
 
 function balanceOverview() {
@@ -768,8 +762,8 @@ function solAsset() {
     resync: "Syncing · saved balance" }[row.state];
   return el("section", { class: "card card-pad asset-card asset-row asset-state-" + row.state, "aria-labelledby": "asset-sol" },
     el("div", { class: "asset-row-main" },
-    el("div", { class: "asset-position" }, assetHead("sol", "SOL", solNetwork()),
-      solBalancePrivacy(el, row)),
+    el("div", { class: "asset-position" }, assetHead("sol", "Confidential SOL", solNetwork()),
+      el("span", { class: "asset-helius-credit" }, heliusSwapCredit())),
     el("div", { class: "asset-balance-block" }, el("span", { class: "label" }, "Wallet balance"), amount,
       status ? el("p", { class: "asset-row-status small muted", role: "status" }, status) : null)),
     assetNote("sol", "Balance & privacy details", [
@@ -953,9 +947,6 @@ const chainSelect = (pick) => el("div", { class: "activity-filters", role: "grou
         "aria-pressed": String(pick === value), onclick: () => chooseChain(value) },
       value === "all" ? "All activity" : label)));
 
-const SOL_ACTIVITY_NOTE = "The Solana rows show the payments of this wallet. They also show the "
-  + "last SOL that you added, until you leave this wallet or reload the page. SOL that other "
-  + "people send to the wallet does not show here.";
 // The page knows two causes for keys that differ: the devices published other keys, or the key
 // share or PDA identity of this device does not fit the published ones.
 const SOL_LOST = {
@@ -972,7 +963,7 @@ function solNoteText() {
   const status = solSetup()?.status;
   if (!solPart() || status === "running") return SOL_LOST[status];
   if (solActivity() === null) return "Reading the Solana transactions…";
-  return SOL_ACTIVITY_NOTE + solLacks();
+  return solLacks().trim();
 }
 // The Solana rows that the list lacks: older proposals, and proposals that wait for their check.
 const solLacks = () => (solOlderCount() > 0 ? " Older Solana proposals are available in Solana’s proposal history." : "")

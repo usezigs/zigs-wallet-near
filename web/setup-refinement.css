@@ -357,7 +357,7 @@
 .wallet-device-warning-popover strong { font-weight:500; }
 
 /* Native working controls stay compact instead of acquiring the generic button material. */
-.zigs-openglass .portfolio-chart-ranges button { min-height:36px; height:36px; padding:6px 8px;
+.zigs-openglass .portfolio-chart-ranges button { min-height:44px; height:44px; padding:6px 8px;
   border:0; border-radius:8px; background:transparent !important; box-shadow:none; font-size:12px; }
 .portfolio-chart-ranges button>.openglass-backdrop-slot { display:none; }
 .zigs-openglass .portfolio-chart-method>button { width:32px; height:32px; min-height:32px; padding:8px; border-radius:8px; }
@@ -453,4 +453,126 @@
   .zigs-openglass .portfolio-chart-method>button { width:44px; height:44px; min-height:44px; }
   .portfolio-chart-heading { padding-right:44px; }
   .zigs-openglass .wallet-warning-control .wallet-device-warning { width:44px; height:44px; min-height:44px; }
+}
+
+/* Compact swap review; secondary quote data stays available on demand. */
+.swap-modal.swap-review-modal,.swap-modal.swap-simulation-modal { width:min(660px,calc(100% - 32px)); padding:20px; }
+.swap-review-modal .swap-modal-heading,.swap-simulation-modal .swap-modal-heading { margin-bottom:16px; }
+.swap-review-modal .swap-modal-content { gap:12px; }
+.swap-review-pair { display:grid; grid-template-columns:minmax(0,1fr) 24px minmax(0,1fr); gap:14px; align-items:center; padding:16px; border:1px solid var(--line); border-radius:16px; background:var(--sunk); }
+.swap-review-pair>div { display:grid; grid-template-columns:32px minmax(0,1fr); gap:4px 10px; min-width:0; }
+.swap-review-pair .swap-token { grid-row:1/3; width:32px; height:32px; }
+.swap-review-pair strong { font-size:20px; line-height:1.3; overflow-wrap:anywhere; }
+.swap-review-pair .swap-caption { font-size:12px; }
+.swap-review-essential { margin:0; }
+.swap-review-essential .swap-detail-row { padding:7px 0; }
+.swap-review-extra { border:1px solid var(--line); border-radius:12px; padding:0 12px; }
+.swap-review-extra>summary { min-height:44px; align-content:center; cursor:pointer; font-size:13px; color:var(--muted); }
+.swap-review-extra[open] { max-height:30dvh; overflow:auto; }
+.swap-review-extra .swap-review-details { font-size:12px; }
+.swap-review-actions,.swap-cinema-actions { display:flex; gap:10px; justify-content:flex-end; }
+.swap-review-actions { display:grid; grid-template-columns:minmax(0,.7fr) minmax(0,1.3fr); }
+.swap-review-actions>button { width:100%; min-height:44px; }
+.swap-review-modal .swap-simulation-note { margin:0; font-size:12px; line-height:1.5; }
+
+/* The preview is a paced illustration, entirely separate from wallet execution. */
+.swap-cinema { display:grid; gap:16px; }
+.swap-cinema-disclosure { margin:0; color:var(--primary); font-size:12px; }
+.swap-cinema-stage { display:grid; grid-template-columns:82px minmax(16px,1fr) 150px minmax(16px,1fr) 82px; align-items:center; min-height:204px; padding:16px; border:1px solid var(--line); border-radius:20px; background:radial-gradient(ellipse at 50% 65%,var(--raised),var(--sunk) 72%); overflow:hidden; }
+.swap-cinema-asset { display:grid; justify-items:center; gap:7px; position:relative; z-index:1; padding:14px 6px; border:1px solid var(--line-2); border-radius:16px; background:var(--panel); box-shadow:inset 0 1px var(--edge),0 12px 22px -16px #000b; transition:border-color 400ms,transform 400ms; }
+.swap-cinema-asset span { font-size:11px; color:var(--muted); }
+.swap-cinema-engine { position:relative; height:150px; display:grid; place-items:center; perspective:500px; }
+.swap-cinema-object { width:110px; height:110px; display:grid; place-items:center; position:relative; z-index:1; }
+.swap-cinema-object .symbol-sculpted { width:100%; height:100%; filter:drop-shadow(0 16px 9px #0005); animation:swap-sculpture-float 3600ms ease-in-out infinite; }
+.swap-cinema-orbit { position:absolute; inset:6px; border:1px solid var(--line-2); border-radius:50%; transform:rotateX(58deg) rotateZ(-25deg); animation:swap-orbit 7s linear infinite; }
+.swap-cinema-orbit::after { content:""; position:absolute; inset:-12px; border:1px solid var(--line); border-radius:50%; }
+.swap-cinema-orbit i { position:absolute; width:8px; height:8px; background:var(--primary); border-radius:50%; left:calc(50% - 4px); top:-4px; box-shadow:0 0 10px color-mix(in srgb,var(--primary) 35%,transparent); }
+.swap-cinema-orbit i:nth-child(2) { top:auto; bottom:-4px; }.swap-cinema-orbit i:nth-child(3) { top:50%; left:-4px; }
+.swap-cinema-track { position:relative; overflow:hidden; height:4px; background:linear-gradient(var(--line-2),var(--line-2)) center/100% 1px no-repeat; }
+.swap-cinema-track i { position:absolute; width:100%; height:4px; top:0; animation:swap-route-packet 1800ms ease-in-out infinite; }
+.track-out i { animation-delay:900ms; }
+.swap-cinema-story { text-align:center; min-height:102px; }
+.swap-cinema-status { margin:0 0 6px; color:var(--primary); font-size:11px; font-variant-numeric:tabular-nums; }
+.swap-cinema-story h3 { margin:0 0 7px; font-size:23px; line-height:1.2; letter-spacing:-.025em; }
+.swap-cinema-story>p:last-child { max-width:440px; margin:0 auto; font-size:13px; line-height:1.5; color:var(--muted); }
+.swap-cinema-stops { list-style:none; display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:6px; padding:0; margin:0; }
+.swap-cinema-stops li { display:grid; align-content:start; justify-items:center; text-align:center; gap:6px; font-size:11px; line-height:1.4; color:var(--muted); border-top:2px solid var(--line); padding-top:9px; transition:color 250ms,border-color 250ms; }
+.swap-cinema-stop-icon { width:36px; height:36px; opacity:.45; }
+.swap-cinema-stop-icon .symbol-sculpted { width:100%; height:100%; }
+.swap-cinema-stops li[data-state=active],.swap-cinema-stops li[data-state=complete] { border-color:var(--primary); color:var(--text); }
+.swap-cinema-stops li[data-state=active] .swap-cinema-stop-icon,.swap-cinema-stops li[data-state=complete] .swap-cinema-stop-icon { opacity:1; }
+.swap-cinema[data-stage="1"] .source,.swap-cinema[data-stage="4"] .destination,.swap-cinema[data-stage="6"] .destination { border-color:var(--primary); transform:translateY(-3px); }
+.swap-cinema[data-paused=true] * { animation-play-state:paused!important; }
+.swap-cinema[data-paused=true] .swap-cinema-object-art { animation:none; }
+.swap-cinema[data-stage="6"] .swap-cinema-track i { animation:none; width:100%; }
+@keyframes swap-route-packet { from { transform:translateX(-14px); opacity:0; } 15%,80% { opacity:1; } to { transform:translateX(100%); opacity:0; } }
+@keyframes swap-sculpture-float { 0%,100% { transform:translateY(0) rotateY(-8deg); } 50% { transform:translateY(-8px) rotateY(8deg); } }
+@keyframes swap-sculpture-arrive { from { opacity:0; transform:translateY(12px) scale(.8) rotateY(-30deg); } to { opacity:1; transform:translateY(0) scale(1) rotateY(0); } }
+@keyframes swap-orbit { from { transform:rotateX(58deg) rotateZ(-25deg); } to { transform:rotateX(58deg) rotateZ(335deg); } }
+@media(prefers-reduced-motion:reduce) { .swap-cinema * { animation:none!important; transition:none!important; } }
+@media(max-width:480px) {
+ .swap-modal.swap-review-modal,.swap-modal.swap-simulation-modal { padding:16px; }
+ .swap-review-actions { grid-template-columns:1fr; }
+ .swap-review-pair { gap:6px; padding:12px; }
+ .swap-review-pair>div { grid-template-columns:1fr; }.swap-review-pair .swap-token { grid-row:auto; }
+ .swap-review-pair strong { font-size:17px; }
+ .swap-cinema { gap:12px; }.swap-cinema-stage { grid-template-columns:60px minmax(8px,1fr) 100px minmax(8px,1fr) 60px; padding:8px; min-height:170px; }
+ .swap-cinema-engine { height:120px; }.swap-cinema-object { width:84px; height:84px; }.swap-cinema-orbit { inset:12px 0; }
+ .swap-cinema-stops { grid-template-columns:repeat(3,minmax(0,1fr)); row-gap:12px; }
+ .swap-cinema-story h3 { font-size:20px; }.swap-cinema-actions { flex-wrap:wrap; }.swap-cinema-actions>button { flex:1; }
+}
+/* Asset choices occupy the browser top layer, beyond the clipped chart surface. */
+.premium-overview-grid .overview-action-picker .asset-choices[popover] {
+ position:fixed; inset:auto; margin:0; max-width:calc(100vw - 32px); max-height:calc(100dvh - 32px); overflow:auto;
+ background:var(--panel); color:var(--text); border:1px solid var(--line-2); box-shadow:inset 0 1px var(--edge),var(--shadow-floating); backdrop-filter:none;
+}
+.premium-overview-grid .overview-action-picker .asset-choices[popover]:not(:popover-open) { display:none; }
+.premium-overview-grid .asset-choices[popover]>.label { margin:0 0 4px; }
+@media(min-width:1101px) and (min-height:680px) {
+ .zigs-openglass .swap-page .swap-heading { margin-bottom:10px; }
+ .zigs-openglass .swap-page .swap-execution { margin-bottom:10px; padding:6px; }
+ .zigs-openglass .swap-page .swap-execution label { padding:8px 10px; min-height:60px; }
+ .zigs-openglass .swap-page .swap-pane { padding:6px 10px; }
+ .zigs-openglass .swap-page .swap-switch-row { min-height:32px; flex-basis:32px; }
+ .zigs-openglass .swap-page .swap-reverse { min-height:32px; padding:3px 10px; }
+ .zigs-openglass .swap-page .swap-composer-footer { padding-top:6px; }
+ .zigs-openglass .swap-page .swap-privacy-explainer { grid-template-rows:auto 38px 2px 144px minmax(min-content,1fr) 44px; gap:8px; }
+ .zigs-openglass .swap-page .swap-privacy-description { font-size:12px; line-height:1.45; }
+ .zigs-openglass .swap-page .swap-privacy-title { font-size:18px; }
+}
+@media(min-width:1101px) and (min-height:680px) and (max-height:850px) {
+ .zigs-openglass .main:has(.overview-page) { padding-block:12px; }
+ .zigs-openglass .main:has(.swap-page) .wallet-context-header { min-height:60px; padding:6px 12px; margin-bottom:0; }
+ .zigs-openglass .main:has(.swap-page) .wallet-context-header .wallet-marble { width:44px!important; height:44px!important; }
+ .zigs-openglass .swap-page .swap-heading { margin:0; gap:0 12px; }
+ .zigs-openglass .swap-page .swap-powered-mark { width:40px; height:40px; }
+ .zigs-openglass .swap-page .swap-execution { margin-bottom:6px; padding:4px; }
+ .zigs-openglass .swap-page .swap-execution label { min-height:56px; padding:6px 10px; }
+ .zigs-openglass .swap-page .swap-network:has(.swap-wallet-provider:not([hidden]))>.swap-network-label { display:none; }
+ .zigs-openglass .swap-page .swap-quote { padding-top:4px; }
+ .zigs-openglass .swap-page .swap-quote-details { gap:2px; }
+ .zigs-openglass .swap-page .swap-composer-tools { margin-top:2px; padding-top:4px; }
+ .zigs-openglass .swap-page :is(.swap-composer,.swap-privacy-explainer) { padding:10px; }
+ .zigs-openglass .swap-page .swap-privacy-explainer { grid-template-rows:auto 38px 2px 128px minmax(min-content,1fr) 44px; }
+}
+.swap-cinema-object-art { width:100%; height:100%; animation:swap-sculpture-arrive 650ms cubic-bezier(.2,.8,.2,1) both; }
+.swap-cinema-track i::after { content:""; display:block; width:14px; height:4px; border-radius:2px; background:var(--primary); }
+.swap-cinema[data-stage="6"] .swap-cinema-track i::after { width:100%; }
+/* Live modes retain the same compact composer; full destination addresses are in review. */
+.swap-page .swap-payout { gap:8px; padding:6px 0; font-size:12px; line-height:18px; }
+@media(min-width:1101px) {
+ .swap-page .swap-payout { flex-direction:row; align-items:center; justify-content:space-between; }
+}
+@media(min-width:1101px) and (min-height:680px) and (max-height:850px) {
+ .zigs-openglass .swap-page:not([data-execution=preview]) .swap-quote-details {
+   grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px;
+ }
+ .zigs-openglass .swap-page:not([data-execution=preview]) .swap-quote-details>.swap-detail-row {
+   display:grid; grid-template-columns:minmax(0,1fr); align-content:start; gap:4px; font-size:12px; line-height:18px;
+ }
+ .zigs-openglass .swap-page:not([data-execution=preview]) .swap-quote-details>.swap-detail-row:nth-child(3),
+ .zigs-openglass .swap-page:not([data-execution=preview]) .swap-quote-details>.swap-detail-row:nth-child(4) { display:none; }
+ .zigs-openglass .swap-page:not([data-execution=preview]) .swap-quote-details dd { margin:0; text-align:left; }
+ .zigs-openglass .swap-page:not([data-execution=preview]) #swap-execution-help { margin-top:4px; }
+ .zigs-openglass .swap-page:not([data-execution=preview]) .swap-composer { padding:8px; }
 }

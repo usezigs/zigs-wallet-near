@@ -596,7 +596,7 @@ const press = (root, label) => {
 };
 const reviewSwap = (root) => {
   const b = root.querySelector('.swap-initiate');
-  assert.ok(b && /^(Preview swap|Review (standard|confidential) swap)$/.test(text(b)),
+  assert.ok(b && /^(Initiate confidential swap|Review (standard|confidential) swap)$/.test(text(b)),
     'the swap review action identifies preview or its selected routing mode');
   fire(b, 'click');
 };
@@ -984,8 +984,8 @@ try {
   assert.equal(tag(), 'Hackathon preview · no funds', 'a pair with no live swap says Quotes only');
   await swap.model.update({ from: sol.id, to: zec.id, amount: '0.0175' });
   assert.equal(tag(), 'Live swap · real funds', 'SOL to ZEC says Live swap · real funds');
-  assert.match(text(root.querySelector('.swap-payout')), new RegExp("Receive toSavings · " + UA),
-    'the payout is the address of the wallet');
+  assert.match(text(root.querySelector('.swap-payout')), /Receive toSavings · Shielded Zcash/,
+    'the composer identifies the receiving wallet; the review retains its full address');
   assert.equal(root.querySelector('.swap-payout').hidden, false);
   press(root, 'NEAR');
   assert.match(view(), /NEAR receives the amount, deposit, payout and refund addresses/,
@@ -1127,8 +1127,8 @@ try {
   const swap = await livePreview(createSwapPreview, context, pro, fakeClock());
   const root = swap.element;
   await swap.model.update({ from: zec.id, to: sol.id, amount: '0.175' });
-  assert.match(text(root.querySelector('.swap-payout')), new RegExp("Receive toSavings · " + REFUND),
-    'the payout is the Solana address of the wallet');
+  assert.match(text(root.querySelector('.swap-payout')), /Receive toSavings · Solana/,
+    'the composer identifies the Solana destination of the wallet');
   press(root, 'NEAR');
   assert.match(text(root), /NEAR receives the amount, deposit, payout and refund addresses/,
     'the provider chapter explains the real execution addresses');
@@ -1261,8 +1261,8 @@ try {
     'Refund addressPublic Solana address of this wallet · ' + REFUND]) {
     assert.ok(text(modal).includes(part), 'the review of the group shows ' + part.slice(0, 40));
   }
-  assert.deepEqual(payers(modal).map((n) => [n.attrs.value, 'checked' in n.attrs]),
-    [['group', true], ['outside', false]], 'the wallet pays by default');
+  assert.equal(payers(modal).length, 0, 'the connected wallet pays automatically without a payer selector');
+  assert.ok(!text(root).includes('A Solana wallet outside Zigs'), 'no outside-wallet option in the composer');
   assert.equal(modal.querySelector('#swap-refund'), null, 'nobody types a refund address');
   const go = named(modal, 'Get deposit address');
   fire(modal.querySelector('#swap-agree'), 'change', { target: { checked: true } });
@@ -1319,19 +1319,14 @@ try {
   assert.equal(named(deposit, 'Propose the payment').disabled, true, 'and turns the button off');
   press(deposit, 'Hide details');
   swap.model.closeSwap();
-  // The payer can change: a wallet from outside types its refund address on /near/swap.
+  // A connected wallet never falls back to an outside payer.
   await swap.model.update({ amount: '0.0175' });
   reviewSwap(root);
   const choose = walk(body, (n) => n.tag === 'dialog').at(-1);
-  fire(payers(choose)[1], 'change');
-  assert.ok(text(choose).includes('Pay fromA Solana wallet outside Zigs'));
-  fire(choose.querySelector('#swap-refund'), 'input', { target: { value: REFUND } });
-  fire(choose.querySelector('#swap-agree'), 'change', { target: { checked: true } });
-  fire(named(choose, 'Get deposit address'), 'click'); await settle(); await settle();
-  assert.equal('group' in pro.log.open.at(-1), false, 'a payer from outside asks /near/swap');
-  assert.equal(named(deposit, 'Copy address').hidden, false, 'and copies the deposit address');
-  press(deposit, 'Hide details');
-  swap.model.closeSwap();
+  assert.equal(payers(choose).length, 0);
+  assert.equal(choose.querySelector('#swap-refund'), null);
+  assert.ok(!text(choose).includes('A Solana wallet outside Zigs'));
+  press(choose, 'Back to swap');
   // A wallet with no Solana address: the choice is off and says why.
   const noKey = 'The Solana address of this wallet shows after its Solana key setup ends.';
   const waiting = await livePreview(createSwapPreview, { ...context, solGroup: { reason: noKey } }, swapPro(),
@@ -1341,10 +1336,10 @@ try {
     'a wallet that cannot pay gets no text of a send of the wallet');
   reviewSwap(waiting.element);
   const off = walk(body, (n) => n.tag === 'dialog').at(-1);
-  assert.deepEqual(payers(off).map((n) => [n.attrs.value, 'checked' in n.attrs,
-    'disabled' in n.attrs]), [['group', false, true], ['outside', true, false]]);
+  assert.equal(payers(off).length, 0, 'an unready wallet does not offer an outside payer');
+  assert.equal(named(off, 'Get deposit address').disabled, true);
   assert.ok(text(off).includes(noKey), 'the review says why the wallet cannot pay');
-  assert.ok(off.querySelector('#swap-refund'), 'a payer from outside types the refund address');
+  assert.equal(off.querySelector('#swap-refund'), null, 'an unready connected wallet cannot silently use an outside refund');
   press(off, 'Back to swap');
   console.log('ok  the live swap from SOL paid by the wallet: review, proposal, refusals, payer');
 } finally {

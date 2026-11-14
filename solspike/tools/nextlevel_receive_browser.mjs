@@ -55,6 +55,7 @@ async function mount({ network = "testnet", hidden = false, moved = false } = {}
       checkedWallet: hidden ? null : JSON.stringify(state.wallet) } });
     gkeys[state.gid] = btoa("x".repeat(32)).replace(/=+$/, "");
     signPins["confirmednet:" + state.gid] = network;
+    (await import("/app-state.js")).clearBadBanner();
     ui.receive = true;
     (await import("/app-loop.js")).draw();
     globalThis.__receiveAddress = state.wallet.address;
@@ -63,23 +64,42 @@ async function mount({ network = "testnet", hidden = false, moved = false } = {}
 }
 
 async function matrix(network) {
-  for (const width of [1440, 390, 320]) for (const theme of ["dark", "light"]) {
-    await page.setViewportSize({ width, height: width < 761 ? 844 : 1000 });
+  for (const width of [1440, 1366, 1280, 390, 320]) for (const theme of ["dark", "light"]) {
+    await page.setViewportSize({ width, height: width < 761 ? 844 : width === 1280 ? 720 : width === 1366 ? 768 : 900 });
     await page.evaluate((value) => { document.documentElement.dataset.theme = value; }, theme);
     await settleOverview(page);
     const facts = await page.locator(".receive-dialog").evaluate((node) => {
       const box = node.getBoundingClientRect(), code =
          node.querySelector(".receive-surface .qr svg");
       const rect = code.getBoundingClientRect(), modules = code.viewBox.baseVal.width;
-      return { fits: box.left >= -1 && box.right <= innerWidth + 1 &&
+      return { opaque: getComputedStyle(node).backgroundColor !== "rgba(0, 0, 0, 0)", fits: box.left >= -1 && box.right <= innerWidth + 1 &&
          node.scrollWidth <= node.clientWidth + 1,
         qr: rect.width >= modules * 2 &&
            Math.abs(rect.width / modules - Math.round(rect.width / modules)) < .01
           && rect.width === rect.height && code.getAnimations().length === 0 };
     });
-    check(facts.fits && facts.qr,
+    check(facts.fits && facts.qr && facts.opaque,
        `${network} ${width}px ${theme}: sheet fits and QR has square integer-size modules`);
     await shot(`receive-${network}-${width}-${theme}`);
+    const disclosure = page.locator('.receive-destination .receive-address');
+    await disclosure.locator('summary').click();
+    const expanded = await disclosure.evaluate((node, network) => {
+      const destination = node.closest('.receive-destination').getBoundingClientRect();
+      const value = node.querySelector('[data-receive-address]');
+      const r = value.getBoundingClientRect();
+      const dialog = node.closest('.receive-dialog');
+      return { scroll: dialog.scrollHeight, client: dialog.clientHeight, valueWidth:r.width, destinationWidth:destination.width, fitsDesktop: network === "testnet" || innerWidth < 761 || dialog.scrollHeight <= dialog.clientHeight + 1,
+        fullWidth: r.width >= destination.width - 2,
+        block: getComputedStyle(value).display === 'block',
+        unclipped: value.scrollWidth <= value.clientWidth + 1 && value.scrollHeight <= value.clientHeight + 1,
+        rows: [...node.closest('.receive-destination').children].filter(n => n.getClientRects().length)
+          .map(n => n.getBoundingClientRect()).every((r, i, rows) => !i || r.top >= rows[i - 1].bottom - 1) };
+    }, network);
+    check(expanded.fitsDesktop && expanded.fullWidth && expanded.block && expanded.unclipped && expanded.rows,
+      `${network} ${width}px ${theme}: full address and actions occupy readable separate rows ${JSON.stringify(expanded)}`);
+    await shot(`receive-expanded-${network}-${width}-${theme}`);
+    await disclosure.locator('summary').click();
+
   }
 }
 

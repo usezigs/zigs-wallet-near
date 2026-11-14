@@ -7,7 +7,7 @@ import { abortedText, confirmedBy, groupVersion, rejectedSeats, remoteAborts, sa
 import { canWriteAs, checkIn, signedDoc, signedMode } from "./app-filter.js";
 import { gkeys, sec } from "./app-keystore.js";
 import { keysDiffer, localSeats, seatIds } from "./app-seats.js";
-import { solError, solPlanned, solSetup } from "./app-sol.js";
+import { privatePlanned, solError, solPlanned, solSetup } from "./app-sol.js";
 import { render } from "./app-loop.js";
 import { numberClash } from "./util.js";
 import { exclusive } from "./app-kit.js";
@@ -190,7 +190,7 @@ export function guidedState() {
     seated: seatIds().filter((i) => state.seats[i]).length,
     verifyRequired: groupVersion() >= 2, confirmed: no ? confirmedBy(no).length : 0,
     zecReady: !!state.wallet?.birthday, zecVerified: verifiedCount(),
-    solWanted: solPlanned() || r?.solExpected === true,
+    solWanted: solPlanned() || privatePlanned() || r?.solExpected === true,
     solStatus: sol?.status || (solError ? "unavailable" : "not started"),
     blocked: blockedText(), backups: seatIds().map((seat) => {
       const local = mine.includes(seat), b = local ? checks[seat] : reports[seat];

@@ -5,7 +5,7 @@
   "scripts": {
     "build": "node build.mjs",
     "test:openglass": "node openglass/browser-check.mjs",
-    "test:final-ui": "node openglass/setup-layout-check.mjs && node openglass/identity-overview-check.mjs && node openglass/messages-layout-check.mjs",
+    "test:final-ui": "node openglass/setup-layout-check.mjs && node openglass/identity-overview-check.mjs && node openglass/messages-layout-check.mjs && node openglass/swap-flow-check.mjs",
     "test:visuals": "node ../solspike/tools/nextlevel_visuals_browser.mjs",
     "test:journeys": "node ../solspike/tools/nextlevel_journeys_browser.mjs",
     "test:receive": "node ../solspike/tools/nextlevel_receive_browser.mjs",

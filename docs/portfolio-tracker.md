@@ -87,32 +87,22 @@ See [PRIVACY.md](../PRIVACY.md#portfolio-observations-and-market-prices) for net
 
 ## Market data setup
 
-Configure one of these Worker secrets for the intended environment:
+The default feed is Kraken's public USD ticker for ZEC, SOL and USDC. It needs no API key
+or account. The server requests the same three pairs for every wallet and caches results for one
+minute. Values use the current bid/ask midpoint; timestamps record retrieval time, not last-trade
+time. The chart identifies the active source under About this chart. No wallet addresses,
+holdings, cookies or authorization headers go upstream. Missing or invalid quotes remain unavailable.
 
-```sh
-cd cf
-npx wrangler secret put COINGECKO_DEMO_API_KEY --env staging
-# Or use COINGECKO_PRO_API_KEY for a paid plan.
-```
+To select CoinGecko instead, configure `COINGECKO_DEMO_API_KEY` or `COINGECKO_PRO_API_KEY`
+in the local `cf/.dev.vars` file or as a Worker secret for the intended deployment. Pro takes
+precedence. CoinGecko uses its aggregate USD prices and source timestamps. Both providers retain
+the one-minute cache, request deduplication, timeout and failure backoff. The browser continues
+to call the same-origin `/portfolio/prices` route, and actual wallet history remains encrypted
+on this device. A public price feed cannot reconstruct earlier wallet holdings.
 
-The Demo key uses `api.coingecko.com`; the Pro key uses `pro-api.coingecko.com` and takes
-precedence. Only the server holds the key. The request always asks for `zcash`, `solana` and
-`usd-coin`, USD, full precision, and `include_last_updated_at=true`. No wallet addresses,
-holdings, browser cookies or user authorization headers go upstream. The existing gate runs
-before the new endpoint. The endpoint is not a caller-configurable proxy.
-
-CoinGecko's [price endpoint](https://docs.coingecko.com/demo/reference/simple-price) supplies
-market prices and source timestamps. Appropriate account access/plan is required; no credential
-is included in this repository. Its [keyless endpoint guidance](https://docs.coingecko.com/docs/keyless-public-api)
-does not recommend production polling, so this implementation explicitly returns unavailable
-when no key is configured. The chart includes linked attribution under About this chart.
-
-The Worker deduplicates in-flight requests and caches success/failure for one minute per
-isolate. The browser also deduplicates and caches requests, aborts after ten seconds and backs
-off for a minute after failure. The Worker aborts upstream after eight seconds. Range changes
-make no API request. Public HTTP responses use `no-store`.
-The retry control shows the remaining backoff and stays disabled until another request is allowed;
-an active retry is labeled Retrying. Large values fit within a fixed-height balance header.
+Sources: [Kraken public market data](https://support.kraken.com/articles/360000919986-public-endpoint-examples-you-can-try-them-directly-in-a-web-browser-),
+[Kraken ticker fields](https://docs.kraken.com/api-reference/market-data/get-ticker-information),
+[CoinGecko price endpoint](https://docs.coingecko.com/demo/reference/simple-price).
 
 ## Interaction and accessibility
 
@@ -174,8 +164,7 @@ Asset rows retain exact native values, privacy labels and sync/error state. Avai
 remain available to assistive technology. A network that differs from the wallet's network
 remains visible beside that asset, including Devnet and unsupported assets; matching network
 metadata is represented by the wallet header. Detailed operations remain in the asset disclosure.
-The Wallet approval rule disclosure opens a bounded surface with device membership and a
-Security action; the full device list opens from its own button. All supporting detail surfaces use the browser's
+Wallet approval details remain available in Security. All supporting detail surfaces use the browser's
 top layer, stay within the viewport, dismiss with Escape/outside click, and do not add page
 height. The mobile About Zigs link shares the brand bar. The Recent tab previews the latest
 transaction and links directly to the full Activity screen.
